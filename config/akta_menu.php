@@ -1,0 +1,127 @@
+<?php
+
+return [
+
+    'items' => [
+        [
+            'label' => 'Dashboard',
+            'route' => 'akta.dashboard',
+            'path' => '/akta/dashboard',
+            'code' => 'DB',
+            'admin_only' => false,
+        ],
+        [
+            'label' => 'Database',
+            'route' => 'akta.database',
+            'path' => '/akta/database',
+            'code' => 'DS',
+            'admin_only' => false,
+        ],
+        [
+            'label' => 'Plan Audit',
+            'route' => 'akta.plan-audit',
+            'path' => '/akta/plan-audit',
+            'code' => 'PA',
+            'admin_only' => false,
+        ],
+        [
+            'label' => 'Task',
+            'route' => 'akta.task',
+            'path' => '/akta/task',
+            'code' => 'TK',
+            'admin_only' => false,
+        ],
+        [
+            'label' => 'Audit',
+            'route' => 'akta.audit',
+            'path' => '/akta/audit',
+            'code' => 'AU',
+            'admin_only' => false,
+        ],
+        [
+            'label' => 'Audit Mandiri',
+            'route' => 'akta.audit-mandiri',
+            'path' => '/akta/audit-mandiri',
+            'code' => 'AM',
+            'admin_only' => false,
+        ],
+        [
+            'label' => 'Report Audit',
+            'route' => 'akta.report-audit',
+            'path' => '/akta/report-audit',
+            'code' => 'RA',
+            'admin_only' => false,
+        ],
+        [
+            'label' => 'Rekomendasi',
+            'route' => 'akta.rekomendasi',
+            'path' => '/akta/rekomendasi',
+            'code' => 'RK',
+            'admin_only' => false,
+        ],
+        [
+            'label' => 'PICA',
+            'route' => 'akta.pica',
+            'path' => '/akta/pica',
+            'code' => 'PC',
+            'admin_only' => false,
+        ],
+        [
+            'label' => 'BU Performance',
+            'route' => 'akta.bu-performance',
+            'path' => '/akta/bu-performance',
+            'code' => 'BU',
+            'admin_only' => false,
+        ],
+        [
+            'label' => 'SK',
+            'route' => 'akta.sk',
+            'path' => '/akta/sk',
+            'code' => 'SK',
+            'admin_only' => false,
+        ],
+        [
+            'label' => 'Pulsa',
+            'route' => 'akta.pulsa',
+            'path' => '/akta/pulsa',
+            'code' => 'PL',
+            'admin_only' => false,
+        ],
+        [
+            'label' => 'Mobil Dinas',
+            'route' => 'akta.mobil-dinas',
+            'path' => '/akta/mobil-dinas',
+            'code' => 'MD',
+            'admin_only' => false,
+        ],
+        [
+            'label' => 'Pengguna',
+            'route' => 'akta.pengguna',
+            'path' => '/akta/pengguna',
+            'code' => 'PG',
+            'admin_only' => true,
+        ],
+        [
+            'label' => 'Monitoring',
+            'route' => 'akta.monitoring',
+            'path' => '/akta/monitoring',
+            'code' => 'MT',
+            'admin_only' => true,
+        ],
+        [
+            'label' => 'Pengaturan',
+            'route' => 'akta.pengaturan',
+            'path' => '/akta/pengaturan',
+            'code' => 'ST',
+            'admin_only' => false,
+        ],
+        [
+            'label' => 'Manajemen Menu',
+            'route' => 'akta.manajemen-menu',
+            'path' => '/akta/manajemen-menu',
+            'code' => 'MM',
+            'admin_only' => true,
+        ],
+    ],
+
+];
