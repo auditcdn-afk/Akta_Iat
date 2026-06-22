@@ -3,13 +3,29 @@ const SESSION_KEY = "akta_session";
 let users = [];
 let roles = [];
 
+// ── Color map untuk badge role ────────────────────────────────
+const COLOR_MAP = {
+    red:    "bg-red-500/10 text-red-300 border-red-500/20",
+    amber:  "bg-amber-500/10 text-amber-300 border-amber-500/20",
+    blue:   "bg-blue-500/10 text-blue-300 border-blue-500/20",
+    green:  "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
+    purple: "bg-purple-500/10 text-purple-300 border-purple-500/20",
+    slate:  "bg-slate-500/10 text-slate-300 border-slate-500/20",
+};
+
+function colorClass(color) {
+    return COLOR_MAP[color] || COLOR_MAP.slate;
+}
+
+// ── Role API ──────────────────────────────────────────────────
 async function loadRoles() {
     const response = await fetch("/api/admin/roles", { headers: authHeaders() });
     const payload  = await response.json().catch(() => ({}));
-    if (!response.ok) return; // jangan crash jika gagal, pakai default
+    if (!response.ok) return;
 
     roles = payload.data || [];
     renderRoleSelect();
+    renderRoleList();
 }
 
 function renderRoleSelect() {
@@ -21,8 +37,119 @@ function renderRoleSelect() {
         .map((r) => `<option value="${r.name}">${r.label}</option>`)
         .join("");
 
-    // Kembalikan nilai yang dipilih sebelumnya
     if (current) select.value = current;
+}
+
+function renderRoleList() {
+    const el = document.getElementById("roleList");
+    if (!el) return;
+
+    if (!roles.length) {
+        el.innerHTML = `<p class="text-sm text-slate-500">Belum ada role.</p>`;
+        return;
+    }
+
+    el.innerHTML = roles.map((r) => `
+        <div class="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950 px-4 py-3">
+            <div class="flex items-center gap-3">
+                <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-bold ${colorClass(r.color)}">
+                    ${r.label}
+                </span>
+                <span class="text-xs text-slate-500 font-mono">${r.name}</span>
+                ${r.isSystem ? '<span class="text-xs text-amber-400/70">sistem</span>' : ''}
+            </div>
+            <div class="flex gap-2">
+                <button type="button" class="edit-role rounded-lg border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${r.id}">Edit</button>
+                ${!r.isSystem ? `<button type="button" class="delete-role rounded-lg border border-red-500/30 px-3 py-1 text-xs font-semibold text-red-400 hover:bg-red-500/10" data-id="${r.id}">Hapus</button>` : ''}
+            </div>
+        </div>
+    `).join("");
+}
+
+function showRoleAlert(msg, type = "success") {
+    const el = document.getElementById("roleAlert");
+    if (!el) return;
+    el.className = `mb-3 rounded-xl border px-4 py-3 text-sm ${type === "error"
+        ? "border-red-500/30 bg-red-500/10 text-red-200"
+        : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"}`;
+    el.textContent = msg;
+    el.classList.remove("hidden");
+    setTimeout(() => el.classList.add("hidden"), 4000);
+}
+
+function openRoleEdit(role) {
+    document.getElementById("roleId").value = role.id;
+    document.getElementById("roleName").value = role.name;
+    document.getElementById("roleName").disabled = true; // slug tidak bisa diubah
+    document.getElementById("roleLabel").value = role.label;
+    document.getElementById("roleColor").value = role.color || "slate";
+    document.getElementById("roleDescription").value = role.description || "";
+    document.getElementById("roleFormTitle").textContent = `Edit Role: ${role.label}`;
+    document.getElementById("saveRoleBtn").textContent = "Update Role";
+    document.getElementById("cancelRoleBtn").classList.remove("hidden");
+}
+
+function resetRoleForm() {
+    document.getElementById("roleId").value = "";
+    document.getElementById("roleName").value = "";
+    document.getElementById("roleName").disabled = false;
+    document.getElementById("roleLabel").value = "";
+    document.getElementById("roleColor").value = "slate";
+    document.getElementById("roleDescription").value = "";
+    document.getElementById("roleFormTitle").textContent = "+ Tambah Role Baru";
+    document.getElementById("saveRoleBtn").textContent = "Simpan Role";
+    document.getElementById("cancelRoleBtn").classList.add("hidden");
+}
+
+async function saveRole(event) {
+    event.preventDefault();
+    const id    = document.getElementById("roleId").value;
+    const isEdit = Boolean(id);
+
+    const body = {
+        label:       document.getElementById("roleLabel").value.trim(),
+        color:       document.getElementById("roleColor").value,
+        description: document.getElementById("roleDescription").value.trim(),
+    };
+    if (!isEdit) {
+        body.name = document.getElementById("roleName").value.trim();
+    }
+
+    const url    = isEdit ? `/api/admin/roles/${id}` : "/api/admin/roles";
+    const method = isEdit ? "PUT" : "POST";
+
+    const response = await fetch(url, {
+        method,
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const firstErr = payload.errors ? Object.values(payload.errors).flat()[0] : null;
+        throw new Error(firstErr || payload.message || "Gagal menyimpan role.");
+    }
+
+    showRoleAlert(payload.message || "Role berhasil disimpan.");
+    resetRoleForm();
+    await loadRoles();
+}
+
+async function deleteRole(id) {
+    const role = roles.find((r) => String(r.id) === String(id));
+    if (!role) return;
+    if (!confirm(`Hapus role "${role.label}"? Pastikan tidak ada user yang menggunakan role ini.`)) return;
+
+    const response = await fetch(`/api/admin/roles/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.message || "Gagal menghapus role.");
+
+    showRoleAlert(payload.message || "Role berhasil dihapus.");
+    await loadRoles();
 }
 
 function getSession() {
@@ -292,6 +419,44 @@ async function deleteUser(id) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+    // Toggle panel Kelola Role
+    document.getElementById("toggleRolePanel")?.addEventListener("click", () => {
+        const body    = document.getElementById("rolePanelBody");
+        const chevron = document.getElementById("roleChevron");
+        body.classList.toggle("hidden");
+        chevron.classList.toggle("rotate-180");
+    });
+
+    // Form simpan role (tambah / edit)
+    document.getElementById("roleForm")?.addEventListener("submit", async (e) => {
+        try {
+            await saveRole(e);
+        } catch (err) {
+            showRoleAlert(err.message || "Gagal menyimpan role.", "error");
+        }
+    });
+
+    // Batal edit role
+    document.getElementById("cancelRoleBtn")?.addEventListener("click", resetRoleForm);
+
+    // Delegasi: edit & hapus role dari daftar
+    document.getElementById("roleList")?.addEventListener("click", async (e) => {
+        const editBtn   = e.target.closest(".edit-role");
+        const deleteBtn = e.target.closest(".delete-role");
+
+        if (editBtn) {
+            const role = roles.find((r) => String(r.id) === String(editBtn.dataset.id));
+            if (role) openRoleEdit(role);
+        }
+        if (deleteBtn) {
+            try {
+                await deleteRole(deleteBtn.dataset.id);
+            } catch (err) {
+                showRoleAlert(err.message || "Gagal menghapus role.", "error");
+            }
+        }
+    });
+
     // Auto-sanitize username: lowercase, ganti spasi/karakter tidak valid dengan underscore
     document.getElementById("username")?.addEventListener("input", (e) => {
         const start = e.target.selectionStart;
