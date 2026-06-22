@@ -11,12 +11,7 @@ Route::view('/akta/login', 'akta.login')->name('akta.login');
 Route::prefix('akta')->name('akta.')->group(function () {
     Route::view('/dashboard', 'akta.pages.dashboard')->name('dashboard');
 
-    Route::get('/database', function () {
-        return view('akta.pages.placeholder', [
-            'title' => 'Database',
-            'description' => 'Modul data SMH, stok onhand, perlengkapan, plafon, unit area, harga, hasil, dan luar fisik.',
-        ]);
-    })->name('database');
+    Route::view('/database', 'akta.pages.database')->name('database');
 
     Route::view('/plan-audit', 'akta.pages.plan-audit')->name('plan-audit');
 

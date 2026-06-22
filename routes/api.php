@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DatabaseController;
 use App\Http\Controllers\Api\DataStoreController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\Admin\MonitoringController;
@@ -27,6 +28,19 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::middleware(['auth:sanctum'])->group(function () {
+
+    // ─── Database Master Data ─────────────────────────────────────
+    Route::prefix('database')->group(function () {
+        Route::get('/{type}', [DatabaseController::class, 'index']);
+
+        Route::middleware('akta.role:admin')->group(function () {
+            Route::post('/{type}/import', [DatabaseController::class, 'import']);
+            Route::delete('/{type}/truncate', [DatabaseController::class, 'truncate']);
+            Route::post('/{type}', [DatabaseController::class, 'store']);
+            Route::put('/{type}/{id}', [DatabaseController::class, 'update']);
+            Route::delete('/{type}/{id}', [DatabaseController::class, 'destroy']);
+        });
+    });
 
     Route::get('/sk', [SuratKeputusanController::class, 'index']);
     Route::get('/sk/{suratKeputusan}', [SuratKeputusanController::class, 'show']);
