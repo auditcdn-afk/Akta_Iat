@@ -21,11 +21,17 @@ $menuItems = app(\App\Services\AktaMenuService::class)->visibleItems();
             style="visibility: hidden;">
             @foreach ($menuItems as $item)
             @php
-            $isActive = request()->routeIs($item['route']);
+                $isActive  = request()->routeIs($item['route'] ?? '');
+                // roles yang boleh lihat menu ini (JSON-encoded untuk dibaca JS)
+                $rolesAttr = implode(',', $item['roles'] ?? []);
+                // Sembunyikan default; JS akan tampilkan sesuai role user
+                $hiddenCls = 'hidden';
             @endphp
 
-            <a href="{{ route($item['route']) }}" data-admin-only="{{ $item['admin_only'] ? 'true' : 'false' }}"
-                data-active-menu="{{ $isActive ? 'true' : 'false' }}" class="akta-menu-item {{ $item['admin_only'] ? 'hidden' : '' }} group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition
+            <a href="{{ isset($item['route']) ? route($item['route']) : ($item['path'] ?? '#') }}"
+                data-roles="{{ $rolesAttr }}"
+                data-active-menu="{{ $isActive ? 'true' : 'false' }}"
+                class="akta-menu-item {{ $hiddenCls }} group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition
                     {{ $isActive
                         ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
                         : 'text-slate-300 hover:bg-slate-900 hover:text-white'
@@ -40,7 +46,11 @@ $menuItems = app(\App\Services\AktaMenuService::class)->visibleItems();
                     {{ $item['label'] }}
                 </span>
 
-                @if ($item['admin_only'])
+                @php
+                    // Tandai menu admin-only (hanya role admin di dalamnya)
+                    $adminOnly = !empty($item['roles']) && $item['roles'] === ['admin'];
+                @endphp
+                @if ($adminOnly)
                 <span class="ml-auto rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-300">
                     ADMIN
                 </span>
@@ -55,13 +65,9 @@ $menuItems = app(\App\Services\AktaMenuService::class)->visibleItems();
         const SIDEBAR_SCROLL_KEY = 'akta_sidebar_scroll_top';
 
         const nav = document.getElementById('desktopSidebarNav');
-
-        if (!nav) {
-            return;
-        }
+        if (!nav) return;
 
         let role = null;
-
         try {
             const session = JSON.parse(sessionStorage.getItem(SESSION_KEY) || '{}');
             role = session?.user?.role || null;
@@ -69,39 +75,29 @@ $menuItems = app(\App\Services\AktaMenuService::class)->visibleItems();
             role = null;
         }
 
-        const isAdmin = role === 'admin';
-
-        document.querySelectorAll('[data-admin-only="true"]').forEach((element) => {
-            if (isAdmin) {
-                element.classList.remove('hidden');
-            } else {
-                element.classList.add('hidden');
+        // Filter menu berdasarkan role dari data-roles attribute
+        // Security note: ini hanya UX — backend API juga memproteksi setiap endpoint
+        nav.querySelectorAll('[data-roles]').forEach((el) => {
+            const allowed = el.dataset.roles.split(',').filter(Boolean);
+            if (allowed.length === 0 || (role && allowed.includes(role))) {
+                el.classList.remove('hidden');
             }
         });
 
         const savedScrollTop = Number(sessionStorage.getItem(SIDEBAR_SCROLL_KEY) || 0);
-
         if (savedScrollTop > 0) {
             nav.scrollTop = savedScrollTop;
         }
 
         const activeMenu = nav.querySelector('[data-active-menu="true"]');
-
         if (activeMenu) {
-            const navRect = nav.getBoundingClientRect();
+            const navRect  = nav.getBoundingClientRect();
             const activeRect = activeMenu.getBoundingClientRect();
-
             const bottomSafeArea = 96;
-            const isTooLow = activeRect.bottom > (navRect.bottom - bottomSafeArea);
+            const isTooLow  = activeRect.bottom > (navRect.bottom - bottomSafeArea);
             const isTooHigh = activeRect.top < navRect.top;
-
             if (isTooLow || isTooHigh) {
-                const targetTop =
-                    nav.scrollTop +
-                    (activeRect.top - navRect.top) -
-                    80;
-
-                nav.scrollTop = Math.max(0, targetTop);
+                nav.scrollTop = Math.max(0, nav.scrollTop + (activeRect.top - navRect.top) - 80);
                 sessionStorage.setItem(SIDEBAR_SCROLL_KEY, String(nav.scrollTop));
             }
         }
@@ -137,24 +133,39 @@ $menuItems = app(\App\Services\AktaMenuService::class)->visibleItems();
 
     <div id="mobileMenuPanel" data-scrollable-menu="true"
         class="akta-scrollbar hidden max-h-[70vh] overflow-y-auto border-b border-slate-800 bg-slate-950 px-3 py-3">
-        <nav class="grid gap-1">
+        <nav id="mobileSidebarNav" class="grid gap-1">
             @foreach ($menuItems as $item)
             @php
-            $isActive = request()->routeIs($item['route']);
+                $isActive  = request()->routeIs($item['route'] ?? '');
+                $rolesAttr = implode(',', $item['roles'] ?? []);
             @endphp
 
-            <a href="{{ route($item['route']) }}" data-admin-only="{{ $item['admin_only'] ? 'true' : 'false' }}"
-                data-active-menu="{{ $isActive ? 'true' : 'false' }}" class="akta-menu-item {{ $item['admin_only'] ? 'hidden' : '' }} flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium
+            <a href="{{ isset($item['route']) ? route($item['route']) : ($item['path'] ?? '#') }}"
+                data-roles="{{ $rolesAttr }}"
+                data-active-menu="{{ $isActive ? 'true' : 'false' }}"
+                class="akta-menu-item hidden flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium
                     {{ $isActive ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-900' }}">
                 <span>{{ $item['label'] }}</span>
-
-                @if ($item['admin_only'])
-                <span class="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-300">
-                    ADMIN
-                </span>
-                @endif
             </a>
             @endforeach
         </nav>
+
+        <script>
+            (() => {
+        const SESSION_KEY = 'akta_session';
+        const nav = document.getElementById('mobileSidebarNav');
+        if (!nav) return;
+        let role = null;
+        try {
+            role = JSON.parse(sessionStorage.getItem(SESSION_KEY) || '{}')?.user?.role || null;
+        } catch {}
+        nav.querySelectorAll('[data-roles]').forEach((el) => {
+            const allowed = el.dataset.roles.split(',').filter(Boolean);
+            if (allowed.length === 0 || (role && allowed.includes(role))) {
+                el.classList.remove('hidden');
+            }
+        });
+    })();
+        </script>
     </div>
 </div>

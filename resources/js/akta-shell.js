@@ -51,8 +51,21 @@ function renderUser(user) {
 }
 
 function applyRoleVisibility(user) {
-    const isAdmin = user.role === "admin";
+    const role = user.role || "";
 
+    // data-roles="admin,manajer" — tampilkan jika role user ada di daftar
+    // Security note: ini hanya UX; proteksi sesungguhnya ada di API middleware
+    document.querySelectorAll("[data-roles]").forEach((element) => {
+        const allowed = element.dataset.roles.split(",").filter(Boolean);
+        if (allowed.length === 0 || allowed.includes(role)) {
+            element.classList.remove("hidden");
+        } else {
+            element.classList.add("hidden");
+        }
+    });
+
+    // Backward-compat: data-admin-only masih dipakai oleh komponen lain
+    const isAdmin = role === "admin";
     document.querySelectorAll('[data-admin-only="true"]').forEach((element) => {
         if (isAdmin) {
             element.classList.remove("hidden");

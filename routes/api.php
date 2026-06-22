@@ -143,6 +143,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/plans/{plan}', [PlanAuditController::class, 'destroy']);
     });
 
+    // Menu untuk user yang sedang login (server memfilter berdasarkan role)
+    Route::get('/menus', [MenuController::class, 'myMenus']);
+
     Route::prefix('admin')
         ->middleware('akta.role:admin')
         ->group(function () {
@@ -160,8 +163,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::get('/monitoring/stats', [MonitoringController::class, 'stats']);
             Route::get('/monitoring/health', [MonitoringController::class, 'health']);
             Route::get('/monitoring/activity-log', [MonitoringController::class, 'activityLog']);
+
+            // ── Menu Management ───────────────────────────────────
             Route::get('/menus', [MenuController::class, 'index']);
-            Route::put('/menus', [MenuController::class, 'update']);
-            Route::post('/menus/reset', [MenuController::class, 'reset']);
+            Route::post('/menus', [MenuController::class, 'store']);
+            Route::put('/menus/{menu}', [MenuController::class, 'update']);
+            Route::delete('/menus/{menu}', [MenuController::class, 'destroy']);
+            Route::put('/menus/{menu}/roles', [MenuController::class, 'updateRoles']);
+            Route::put('/menus/{menu}/toggle', [MenuController::class, 'toggle']);
+            Route::post('/menus/seed', [MenuController::class, 'seed']);
+            Route::post('/menus/reorder', [MenuController::class, 'reorder']);
         });
 });
