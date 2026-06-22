@@ -15,7 +15,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use ZipArchive;
 
 class DatabaseController extends Controller
 {
@@ -214,15 +213,52 @@ class DatabaseController extends Controller
 
     private function parseXlsx(string $path): array
     {
-        $zip = new ZipArchive();
-        if ($zip->open($path) !== true) {
+        $data = file_get_contents($path);
+        if ($data === false) {
+            throw new \RuntimeException('Tidak dapat membaca file Excel.');
+        }
+
+        // Find End of Central Directory record
+        $eocdPos = strrpos($data, "\x50\x4b\x05\x06");
+        if ($eocdPos === false) {
             throw new \RuntimeException('File Excel tidak valid atau rusak.');
         }
 
-        // Shared strings
+        $cdOffset = unpack('V', substr($data, $eocdPos + 16, 4))[1];
+        $cdSize   = unpack('V', substr($data, $eocdPos + 12, 4))[1];
+
+        // Parse Central Directory to build file index
+        $files = [];
+        $pos   = $cdOffset;
+        while ($pos < $cdOffset + $cdSize) {
+            if (substr($data, $pos, 4) !== "\x50\x4b\x01\x02") break;
+            $compMethod  = unpack('v', substr($data, $pos + 10, 2))[1];
+            $compSize    = unpack('V', substr($data, $pos + 20, 4))[1];
+            $uncompSize  = unpack('V', substr($data, $pos + 24, 4))[1];
+            $fnLen       = unpack('v', substr($data, $pos + 28, 2))[1];
+            $extraLen    = unpack('v', substr($data, $pos + 30, 2))[1];
+            $commentLen  = unpack('v', substr($data, $pos + 32, 2))[1];
+            $localOffset = unpack('V', substr($data, $pos + 42, 4))[1];
+            $fileName    = substr($data, $pos + 46, $fnLen);
+            $files[$fileName] = compact('compMethod', 'compSize', 'uncompSize', 'localOffset');
+            $pos += 46 + $fnLen + $extraLen + $commentLen;
+        }
+
+        $extract = function (string $name) use ($data, $files): ?string {
+            if (!isset($files[$name])) return null;
+            $info  = $files[$name];
+            $lPos  = $info['localOffset'];
+            if (substr($data, $lPos, 4) !== "\x50\x4b\x03\x04") return null;
+            $fnLen    = unpack('v', substr($data, $lPos + 26, 2))[1];
+            $extraLen = unpack('v', substr($data, $lPos + 28, 2))[1];
+            $raw = substr($data, $lPos + 30 + $fnLen + $extraLen, $info['compSize']);
+            return $info['compMethod'] === 0 ? $raw : gzinflate($raw);
+        };
+
+        // Parse shared strings
         $sharedStrings = [];
-        $ssContent = $zip->getFromName('xl/sharedStrings.xml');
-        if ($ssContent !== false) {
+        $ssContent = $extract('xl/sharedStrings.xml');
+        if ($ssContent !== null) {
             $ss = simplexml_load_string($ssContent);
             foreach ($ss->si as $si) {
                 if (isset($si->t)) {
@@ -237,10 +273,8 @@ class DatabaseController extends Controller
             }
         }
 
-        $sheetContent = $zip->getFromName('xl/worksheets/sheet1.xml');
-        $zip->close();
-
-        if ($sheetContent === false) {
+        $sheetContent = $extract('xl/worksheets/sheet1.xml');
+        if ($sheetContent === null) {
             throw new \RuntimeException('Sheet tidak ditemukan di dalam file Excel.');
         }
 
@@ -248,8 +282,8 @@ class DatabaseController extends Controller
         $rows  = [];
 
         foreach ($sheet->sheetData->row as $row) {
-            $rowData  = [];
-            $lastIdx  = -1;
+            $rowData = [];
+            $lastIdx = -1;
 
             foreach ($row->c as $cell) {
                 preg_match('/^([A-Z]+)/', (string) $cell['r'], $m);
