@@ -167,28 +167,39 @@ const TABS = {
     grading: {
         label: "Database Grading",
         fields: [
-            { key: "kode", label: "Kode", type: "text", span: 1 },
-            { key: "nama", label: "Nama", type: "text", required: true, span: 1 },
-            { key: "grade", label: "Grade", type: "text", span: 1 },
-            { key: "nilai_min", label: "Nilai Min", type: "number", span: 1 },
-            { key: "nilai_max", label: "Nilai Max", type: "number", span: 1 },
-            { key: "keterangan", label: "Keterangan", type: "textarea", span: 2 },
+            { key: "id_grading",        label: "ID Grading",         type: "text",   span: 1 },
+            { key: "jenis",             label: "Jenis",               type: "text",   span: 1 },
+            { key: "area",              label: "Area",                type: "text",   span: 1 },
+            { key: "nama_pemeriksaan",  label: "Nama Pemeriksaan",    type: "textarea", span: 2 },
+            { key: "hasil_pemeriksaan", label: "Hasil Pemeriksaan",   type: "textarea", span: 2 },
+            { key: "nilai",             label: "Nilai",               type: "number", span: 1 },
+            { key: "bknf",              label: "BKNF",                type: "text",   span: 1 },
+            { key: "pknf",              label: "PKNF",                type: "number", span: 1 },
+            { key: "bkf",              label: "BKF",                  type: "text",   span: 1 },
+            { key: "pkf",              label: "PKF",                   type: "number", span: 1 },
+            { key: "bnknf",            label: "BNKNF",                type: "text",   span: 1 },
+            { key: "pnknf",            label: "PNKNF",                type: "number", span: 1 },
+            { key: "bnkf",             label: "BNKF",                 type: "text",   span: 1 },
+            { key: "pnkf",             label: "PNKF",                 type: "number", span: 1 },
         ],
         renderRow(row, no, isAdmin) {
-            const gradeBadge = row.grade
-                ? `<span class="inline-flex rounded-full border border-blue-500/20 bg-blue-500/10 px-2.5 py-0.5 text-xs font-bold text-blue-300">${escHtml(row.grade)}</span>`
-                : "-";
             return `
             <tr class="hover:bg-slate-950/50">
                 <td class="px-4 py-3 text-sm text-slate-500">${no}</td>
-                <td class="px-4 py-3 text-sm font-mono text-slate-300">${escHtml(row.kode)}</td>
-                <td class="px-4 py-3 text-sm text-slate-100">${escHtml(row.nama)}</td>
-                <td class="px-4 py-3 text-sm">${gradeBadge}</td>
+                <td class="px-4 py-3 text-sm font-mono text-slate-300">${escHtml(row.idGrading)}</td>
+                <td class="px-4 py-3 text-sm text-slate-300">${escHtml(row.jenis)}</td>
+                <td class="px-4 py-3 text-sm text-slate-300">${escHtml(row.area)}</td>
                 ${adminActions(row.id, isAdmin)}
             </tr>`;
         },
         getFormData(row) {
-            return { kode: row?.kode || "", nama: row?.nama || "", grade: row?.grade || "", nilai_min: row?.nilaiMin ?? "", nilai_max: row?.nilaiMax ?? "", keterangan: row?.keterangan || "" };
+            return {
+                id_grading: row?.idGrading || "", jenis: row?.jenis || "", area: row?.area || "",
+                nama_pemeriksaan: row?.namaPemeriksaan || "", hasil_pemeriksaan: row?.hasilPemeriksaan || "",
+                nilai: row?.nilai ?? "", bknf: row?.bknf || "", pknf: row?.pknf ?? "",
+                bkf: row?.bkf || "", pkf: row?.pkf ?? "", bnknf: row?.bnknf || "",
+                pnknf: row?.pnknf ?? "", bnkf: row?.bnkf || "", pnkf: row?.pnkf ?? "",
+            };
         },
     },
     mt: {

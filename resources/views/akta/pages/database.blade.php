@@ -42,7 +42,7 @@
         ['plafon', 'PLAFON', 'Kode', 'Nama', 'Nilai', 'Kode | Nama | Nilai | Keterangan'],
         ['perlengkapan', 'PERLENGKAPAN', 'Tipe', 'NOSIN', 'ACEH', 'TIPE | NOSIN | ACEH | RIAU | KEPRI | Type'],
         ['unit-usaha', 'UNIT USAHA', 'Kode', 'Nama', 'Alamat', 'Kode | Nama | Alamat | Keterangan'],
-        ['grading', 'GRADING', 'Kode', 'Nama', 'Grade', 'Kode | Nama | Grade | Nilai Min | Nilai Max | Keterangan'],
+        ['grading', 'GRADING', 'ID Grading', 'Jenis', 'Area', 'IDGrading | Jenis | Area | Nama Pemeriksaan | Hasil Pemeriksaan | Nilai | BKNF | PKNF | BKF | PKF | BNKNF | PNKNF | BNKF | PNKF'],
         ['mt', 'MANAGEMENT TRAINEE (MT)', 'Kode', 'Nama', 'Jenis', 'Kode | Nama | Jenis | Periode | Keterangan'],
         ['het', 'HET', 'Kode', 'Nama', 'Harga HET', 'Kode | Nama | Harga HET | Satuan | Keterangan'],
     ] as [$key, $title, $col1, $col2, $col3, $importFmt])

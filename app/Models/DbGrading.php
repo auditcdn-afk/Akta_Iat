@@ -8,21 +8,38 @@ class DbGrading extends Model
 {
     protected $table = 'db_grading';
 
-    protected $fillable = ['kode', 'nama', 'grade', 'nilai_min', 'nilai_max', 'keterangan'];
+    protected $fillable = [
+        'id_grading', 'jenis', 'area', 'nama_pemeriksaan', 'hasil_pemeriksaan',
+        'nilai', 'bknf', 'pknf', 'bkf', 'pkf', 'bnknf', 'pnknf', 'bnkf', 'pnkf',
+    ];
 
-    protected $casts = ['nilai_min' => 'float', 'nilai_max' => 'float'];
+    protected $casts = [
+        'nilai' => 'float',
+        'pknf'  => 'float',
+        'pkf'   => 'float',
+        'pnknf' => 'float',
+        'pnkf'  => 'float',
+    ];
 
     public function toAktaArray(): array
     {
         return [
-            'id'         => $this->id,
-            'kode'       => $this->kode,
-            'nama'       => $this->nama,
-            'grade'      => $this->grade,
-            'nilaiMin'   => $this->nilai_min,
-            'nilaiMax'   => $this->nilai_max,
-            'keterangan' => $this->keterangan,
-            'createdAt'  => optional($this->created_at)->toDateTimeString(),
+            'id'               => $this->id,
+            'idGrading'        => $this->id_grading,
+            'jenis'            => $this->jenis,
+            'area'             => $this->area,
+            'namaPemeriksaan'  => $this->nama_pemeriksaan,
+            'hasilPemeriksaan' => $this->hasil_pemeriksaan,
+            'nilai'            => $this->nilai,
+            'bknf'             => $this->bknf,
+            'pknf'             => $this->pknf,
+            'bkf'              => $this->bkf,
+            'pkf'              => $this->pkf,
+            'bnknf'            => $this->bnknf,
+            'pnknf'            => $this->pnknf,
+            'bnkf'             => $this->bnkf,
+            'pnkf'             => $this->pnkf,
+            'createdAt'        => optional($this->created_at)->toDateTimeString(),
         ];
     }
 }
