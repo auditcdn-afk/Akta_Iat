@@ -198,9 +198,16 @@ class DatabaseController extends Controller
                     continue;
                 }
                 $data = [];
+                $instance = new $model();
+                $casts = $instance->getCasts();
                 foreach ($cols as $i => $col) {
                     $val = isset($row[$i]) ? trim((string) $row[$i]) : null;
-                    $data[$col] = $val === '' ? null : $val;
+                    if ($val === '') {
+                        $val = null;
+                    } elseif (isset($casts[$col]) && in_array($casts[$col], ['float', 'double', 'decimal', 'integer', 'int'])) {
+                        $val = is_numeric($val) ? $val : null;
+                    }
+                    $data[$col] = $val;
                 }
                 $model::create($data);
                 $imported++;
