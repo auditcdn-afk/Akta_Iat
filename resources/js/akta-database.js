@@ -220,17 +220,16 @@ const TABS = {
         ],
         renderRow(row, no, isAdmin) {
             const jenisBadge = row.jenis
-                ? `<span class="inline-flex rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-xs font-semibold text-blue-300">${escHtml(row.jenis)}</span>`
+                ? `<span class="ml-1 inline-flex rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-xs font-semibold text-blue-300">${escHtml(row.jenis)}</span>`
                 : "";
             return `
             <tr class="hover:bg-slate-950/50">
-                <td class="px-4 py-3 text-sm text-slate-500">${escHtml(row.nomor) || no}</td>
-                <td class="px-4 py-3 text-sm font-semibold text-slate-100">${escHtml(row.namaSingkat)}</td>
-                <td class="px-4 py-3 text-xs text-slate-400 max-w-xs truncate" title="${escHtml(row.namaPeralatan)}">${escHtml(row.namaPeralatan)}</td>
-                <td class="px-4 py-3 text-sm">
-                    <span class="font-mono text-slate-300">${escHtml(row.kodePeralatan)}</span>
-                    <div class="mt-0.5">${jenisBadge}</div>
+                <td class="px-4 py-3 text-sm text-slate-500">${no}</td>
+                <td class="px-4 py-3 text-sm font-semibold text-slate-100">
+                    ${escHtml(row.namaSingkat)}${jenisBadge}
                 </td>
+                <td class="px-4 py-3 text-xs text-slate-400 max-w-xs truncate" title="${escHtml(row.namaPeralatan)}">${escHtml(row.namaPeralatan)}</td>
+                <td class="px-4 py-3 text-sm font-mono text-slate-300">${escHtml(row.kodePeralatan)}</td>
                 ${adminActions(row.id, isAdmin)}
             </tr>`;
         },
