@@ -156,7 +156,7 @@ class DatabaseController extends Controller
             default      => throw new \InvalidArgumentException("Format file '{$ext}' tidak didukung. Gunakan .xlsx atau .csv."),
         };
 
-        // Remove header row (non-numeric first cell)
+        // Remove header row (non-numeric first cell in first col)
         if (!empty($rows)) {
             $first = trim((string) ($rows[0][0] ?? ''));
             if ($first !== '' && !is_numeric($first)) {
@@ -164,10 +164,36 @@ class DatabaseController extends Controller
             }
         }
 
+        // Flatten multi-group horizontal layout:
+        // Some Excel files place multiple groups of columns side-by-side.
+        // Try each possible group size from colCount down to 2, pick first that divides evenly.
+        $colCount  = count($cols);
+        $flatRows  = [];
+        $sampleLen = !empty($rows) ? max(array_map('count', array_slice($rows, 0, 5))) : 0;
+        $groups    = 1;
+        if ($sampleLen > $colCount) {
+            for ($gc = $colCount; $gc >= 2; $gc--) {
+                if ($sampleLen % $gc === 0) {
+                    $groups = intdiv($sampleLen, $gc);
+                    $colCount = $gc; // use detected group size
+                    break;
+                }
+            }
+        }
+
+        foreach ($rows as $row) {
+            for ($g = 0; $g < $groups; $g++) {
+                $slice = array_slice($row, $g * $colCount, $colCount);
+                if (!empty(array_filter(array_map('trim', $slice)))) {
+                    $flatRows[] = $slice;
+                }
+            }
+        }
+
         $imported = 0;
 
-        DB::transaction(function () use ($rows, $model, $cols, &$imported) {
-            foreach ($rows as $row) {
+        DB::transaction(function () use ($flatRows, $model, $cols, &$imported) {
+            foreach ($flatRows as $row) {
                 if (empty(array_filter(array_map('trim', $row)))) {
                     continue;
                 }
