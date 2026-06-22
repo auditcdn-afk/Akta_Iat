@@ -9,11 +9,12 @@ return new class extends Migration {
     {
         Schema::create('db_perlengkapan', function (Blueprint $table) {
             $table->id();
-            $table->string('kode')->nullable();
-            $table->string('nama');
-            $table->string('satuan')->nullable();
-            $table->decimal('qty', 15, 2)->nullable();
-            $table->text('keterangan')->nullable();
+            $table->string('tipe')->nullable();
+            $table->string('nosin')->nullable();
+            $table->text('aceh')->nullable();
+            $table->text('riau')->nullable();
+            $table->text('kepri')->nullable();
+            $table->string('type')->nullable();
             $table->timestamps();
         });
     }

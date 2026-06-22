@@ -31,7 +31,7 @@ class DatabaseController extends Controller
     private static array $colMap = [
         'harga-smh'    => ['kode_model', 'nama_smh', 'harga'],
         'plafon'       => ['kode', 'nama', 'nilai', 'keterangan'],
-        'perlengkapan' => ['kode', 'nama', 'satuan', 'qty', 'keterangan'],
+        'perlengkapan' => ['tipe', 'nosin', 'aceh', 'riau', 'kepri', 'type'],
         'unit-usaha'   => ['kode', 'nama', 'alamat', 'keterangan'],
         'grading'      => ['kode', 'nama', 'grade', 'nilai_min', 'nilai_max', 'keterangan'],
         'mt'           => ['kode', 'nama', 'jenis', 'periode', 'keterangan'],
@@ -41,7 +41,7 @@ class DatabaseController extends Controller
     private static array $searchCols = [
         'harga-smh'    => ['kode_model', 'nama_smh'],
         'plafon'       => ['kode', 'nama', 'keterangan'],
-        'perlengkapan' => ['kode', 'nama', 'satuan', 'keterangan'],
+        'perlengkapan' => ['tipe', 'nosin', 'aceh', 'riau', 'kepri', 'type'],
         'unit-usaha'   => ['kode', 'nama', 'alamat', 'keterangan'],
         'grading'      => ['kode', 'nama', 'grade', 'keterangan'],
         'mt'           => ['kode', 'nama', 'jenis', 'periode', 'keterangan'],

@@ -121,24 +121,25 @@ const TABS = {
     perlengkapan: {
         label: "Perlengkapan",
         fields: [
-            { key: "kode", label: "Kode", type: "text", span: 1 },
-            { key: "nama", label: "Nama", type: "text", required: true, span: 1 },
-            { key: "satuan", label: "Satuan", type: "text", span: 1 },
-            { key: "qty", label: "Qty", type: "number", span: 1 },
-            { key: "keterangan", label: "Keterangan", type: "textarea", span: 2 },
+            { key: "tipe",  label: "Tipe",  type: "text", span: 1 },
+            { key: "nosin", label: "NOSIN", type: "text", span: 1 },
+            { key: "aceh",  label: "ACEH",  type: "textarea", span: 2 },
+            { key: "riau",  label: "RIAU",  type: "textarea", span: 2 },
+            { key: "kepri", label: "KEPRI", type: "textarea", span: 2 },
+            { key: "type",  label: "Type",  type: "text", span: 1 },
         ],
         renderRow(row, no, isAdmin) {
             return `
             <tr class="hover:bg-slate-950/50">
                 <td class="px-4 py-3 text-sm text-slate-500">${no}</td>
-                <td class="px-4 py-3 text-sm font-mono text-slate-300">${escHtml(row.kode)}</td>
-                <td class="px-4 py-3 text-sm text-slate-100">${escHtml(row.nama)}</td>
-                <td class="px-4 py-3 text-sm text-slate-300">${escHtml(row.satuan)} ${row.qty != null ? `<span class="text-slate-500">×</span> ${escHtml(row.qty)}` : ""}</td>
+                <td class="px-4 py-3 text-sm font-semibold text-slate-100">${escHtml(row.tipe)}</td>
+                <td class="px-4 py-3 text-sm font-mono text-slate-300">${escHtml(row.nosin)}</td>
+                <td class="px-4 py-3 text-xs text-slate-400 max-w-xs truncate" title="${escHtml(row.aceh)}">${escHtml(row.aceh)}</td>
                 ${adminActions(row.id, isAdmin)}
             </tr>`;
         },
         getFormData(row) {
-            return { kode: row?.kode || "", nama: row?.nama || "", satuan: row?.satuan || "", qty: row?.qty ?? "", keterangan: row?.keterangan || "" };
+            return { tipe: row?.tipe || "", nosin: row?.nosin || "", aceh: row?.aceh || "", riau: row?.riau || "", kepri: row?.kepri || "", type: row?.type || "" };
         },
     },
     "unit-usaha": {
