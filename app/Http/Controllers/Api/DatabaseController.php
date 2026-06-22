@@ -190,9 +190,10 @@ class DatabaseController extends Controller
             }
         }
 
-        $imported = 0;
+        $imported  = 0;
+        $mtJenis   = ($type === 'mt') ? trim((string) $request->input('mt_jenis', '')) : null;
 
-        DB::transaction(function () use ($flatRows, $model, $cols, &$imported) {
+        DB::transaction(function () use ($flatRows, $model, $cols, $mtJenis, &$imported) {
             foreach ($flatRows as $row) {
                 if (empty(array_filter(array_map('trim', $row)))) {
                     continue;
@@ -208,6 +209,10 @@ class DatabaseController extends Controller
                         $val = is_numeric($val) ? $val : null;
                     }
                     $data[$col] = $val;
+                }
+                // Override jenis for MT import
+                if ($mtJenis !== null && $mtJenis !== '') {
+                    $data['jenis'] = $mtJenis;
                 }
                 $model::create($data);
                 $imported++;

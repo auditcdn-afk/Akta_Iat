@@ -530,6 +530,18 @@ async function importFile(type, file) {
         const fd = new FormData();
         fd.append("file", file);
 
+        // For MT: include selected jenis
+        if (type === "mt") {
+            const jenisSel = document.getElementById("mt-jenis-select");
+            const jenis = jenisSel ? jenisSel.value : "";
+            if (!jenis) {
+                showAlert("Pilih Kategori MT (MT FI / MT Lama / MT Baru) sebelum import.", "error");
+                if (overlay) { overlay.classList.add("hidden"); overlay.classList.remove("flex"); }
+                return;
+            }
+            fd.append("mt_jenis", jenis);
+        }
+
         const res = await fetch(`/api/database/${type}/import`, {
             method: "POST",
             headers: authHeaders(),

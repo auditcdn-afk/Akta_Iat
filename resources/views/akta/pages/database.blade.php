@@ -61,6 +61,18 @@
 
         {{-- Import Zone (admin only) --}}
         <div id="import-zone-{{ $key }}" class="hidden">
+            @if($key === 'mt')
+            <div class="mb-3 flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3">
+                <span class="text-sm font-semibold text-slate-300">Kategori MT:</span>
+                <select id="mt-jenis-select" class="rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-100 focus:border-blue-500 focus:outline-none">
+                    <option value="">-- Pilih Jenis --</option>
+                    <option value="MT FI">MT FI</option>
+                    <option value="MT Lama">MT Lama</option>
+                    <option value="MT Baru">MT Baru</option>
+                </select>
+                <span class="text-xs text-slate-500">Wajib dipilih sebelum import</span>
+            </div>
+            @endif
             <div
                 id="dropzone-{{ $key }}"
                 class="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-700 bg-slate-900/60 py-10 transition hover:border-blue-500 hover:bg-slate-900"
