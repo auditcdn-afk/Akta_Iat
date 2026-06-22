@@ -1,6 +1,29 @@
 const SESSION_KEY = "akta_session";
 
 let users = [];
+let roles = [];
+
+async function loadRoles() {
+    const response = await fetch("/api/admin/roles", { headers: authHeaders() });
+    const payload  = await response.json().catch(() => ({}));
+    if (!response.ok) return; // jangan crash jika gagal, pakai default
+
+    roles = payload.data || [];
+    renderRoleSelect();
+}
+
+function renderRoleSelect() {
+    const select = document.getElementById("role");
+    if (!select || !roles.length) return;
+
+    const current = select.value;
+    select.innerHTML = roles
+        .map((r) => `<option value="${r.name}">${r.label}</option>`)
+        .join("");
+
+    // Kembalikan nilai yang dipilih sebelumnya
+    if (current) select.value = current;
+}
 
 function getSession() {
     try {
@@ -69,6 +92,7 @@ function openModal(user = null) {
         document.getElementById("name").value = user.name || "";
         document.getElementById("displayName").value = user.displayName || "";
         document.getElementById("email").value = user.email || "";
+        renderRoleSelect();
         document.getElementById("role").value = user.role || "auditor";
         document.getElementById("unitUsaha").value = user.unitUsaha || "";
         document.getElementById("isDisabled").checked = Boolean(
@@ -327,8 +351,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
     try {
-        await loadUsers();
+        await Promise.all([loadUsers(), loadRoles()]);
     } catch (error) {
-        showAlert(error.message || "Gagal memuat user.", "error");
+        showAlert(error.message || "Gagal memuat data.", "error");
     }
 });

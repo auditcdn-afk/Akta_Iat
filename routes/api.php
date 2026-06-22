@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\DataStoreController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\Admin\MonitoringController;
 use App\Http\Controllers\Api\Admin\MenuController;
+use App\Http\Controllers\Api\Admin\RoleController;
 use App\Http\Controllers\Api\PlanAuditController;
 use App\Http\Controllers\Api\AuditTaskController;
 use App\Http\Controllers\Api\AuditRecommendationController;
@@ -159,6 +160,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
             Route::apiResource('/users', UserController::class)
                 ->only(['index', 'store', 'update', 'destroy']);
+
+            // ── Role Management ───────────────────────────────────
+            Route::get('/roles', [RoleController::class, 'index']);
+            Route::post('/roles', [RoleController::class, 'store']);
+            Route::put('/roles/{role}', [RoleController::class, 'update']);
+            Route::delete('/roles/{role}', [RoleController::class, 'destroy']);
 
             Route::get('/monitoring/stats', [MonitoringController::class, 'stats']);
             Route::get('/monitoring/health', [MonitoringController::class, 'health']);

@@ -22,7 +22,7 @@ class MenuController extends Controller
         return response()->json([
             'ok'    => true,
             'data'  => $svc->allItemsWithRoles(),
-            'roles' => AktaMenuService::ROLES,
+            'roles' => AktaMenuService::activeRoles(),
         ]);
     }
 

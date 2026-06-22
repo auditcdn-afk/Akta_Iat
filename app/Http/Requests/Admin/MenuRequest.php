@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Models\Role;
 use App\Services\AktaMenuService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -32,7 +33,7 @@ class MenuRequest extends FormRequest
             'is_active'  => ['required', 'boolean'],
             // Roles yang boleh melihat menu ini
             'roles'      => ['required', 'array', 'min:1'],
-            'roles.*'    => ['required', 'string', Rule::in(AktaMenuService::ROLES)],
+            'roles.*'    => ['required', 'string', Rule::in(AktaMenuService::activeRoles())],
         ];
     }
 

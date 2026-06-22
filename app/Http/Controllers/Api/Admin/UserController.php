@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Role;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use Illuminate\Http\JsonResponse;
@@ -34,7 +35,7 @@ class UserController extends Controller
             'display_name' => ['nullable', 'string', 'max:200'],
             'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
-            'role' => ['required', 'string', Rule::in(config('akta.roles', ['admin', 'manajer', 'auditor', 'viewer']))],
+            'role' => ['required', 'string', Rule::in(Role::allNames() ?: ['admin', 'manajer', 'auditor', 'viewer'])],
             'unit_usaha' => ['nullable', 'string', 'max:100'],
             'is_disabled' => ['nullable', 'boolean'],
         ]);
@@ -74,7 +75,7 @@ class UserController extends Controller
             'display_name' => ['nullable', 'string', 'max:200'],
             'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'password' => ['nullable', 'string', 'min:8'],
-            'role' => ['required', 'string', Rule::in(config('akta.roles', ['admin', 'manajer', 'auditor', 'viewer']))],
+            'role' => ['required', 'string', Rule::in(Role::allNames() ?: ['admin', 'manajer', 'auditor', 'viewer'])],
             'unit_usaha' => ['nullable', 'string', 'max:100'],
             'is_disabled' => ['nullable', 'boolean'],
         ]);

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Menu;
+use App\Models\Role;
 
 /**
  * AktaMenuService — sumber kebenaran menu sidebar.
@@ -16,8 +17,19 @@ use App\Models\Menu;
  */
 class AktaMenuService
 {
-    // Daftar role yang dikenal aplikasi
+    // Fallback statis — dipakai jika tabel roles belum tersedia
     public const ROLES = ['admin', 'manajer', 'auditor', 'viewer'];
+
+    /** Ambil daftar role dari DB, fallback ke konstanta. */
+    public static function activeRoles(): array
+    {
+        try {
+            $names = Role::orderBy('order')->pluck('name')->toArray();
+            return $names ?: self::ROLES;
+        } catch (\Throwable) {
+            return self::ROLES;
+        }
+    }
 
     // ── Public API ────────────────────────────────────────────────
 
@@ -100,7 +112,7 @@ class AktaMenuService
             // Default roles berdasarkan flag admin_only dari config lama
             $roles = ($item['admin_only'] ?? false)
                 ? ['admin']
-                : self::ROLES;
+                : self::activeRoles();
 
             $menu->syncRoles($roles);
             $count++;
