@@ -74,6 +74,7 @@
                     <label for="fileInput-{{ $key }}" class="cursor-pointer font-semibold text-blue-400 hover:underline">klik untuk pilih file</label>
                 </p>
                 <p class="font-mono text-xs text-slate-600">Format kolom:&nbsp; {{ $importFmt }}</p>
+                <a href="/templates/template-{{ $key }}.xlsx" download class="text-xs text-blue-500 hover:underline">↓ Download template Excel</a>
                 <input type="file" id="fileInput-{{ $key }}" class="hidden" accept=".xlsx,.csv,.txt" data-type="{{ $key }}">
             </div>
         </div>
