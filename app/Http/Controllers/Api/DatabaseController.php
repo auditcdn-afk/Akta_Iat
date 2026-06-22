@@ -204,7 +204,7 @@ class DatabaseController extends Controller
         $imported  = 0;
         $mtJenis   = ($type === 'mt') ? trim((string) $request->input('mt_jenis', '')) : null;
 
-        DB::transaction(function () use ($flatRows, $model, $cols, $mtJenis, &$imported) {
+        DB::transaction(function () use ($flatRows, $model, $cols, $type, $mtJenis, &$imported) {
             foreach ($flatRows as $row) {
                 if (empty(array_filter(array_map('trim', $row)))) {
                     continue;
