@@ -8,6 +8,7 @@ export default defineConfig({
                 'resources/css/app.css',
                 'resources/js/app.js',
                 'resources/js/akta-shell.js',
+                'resources/js/akta-auth.js',
                 'resources/js/akta-database.js',
                 'resources/js/akta-plan-audit.js',
                 'resources/js/akta-task.js',
