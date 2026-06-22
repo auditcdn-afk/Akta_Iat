@@ -78,8 +78,10 @@
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
                     <label class="mb-1 block text-sm font-medium text-slate-300">Username</label>
-                    <input id="username" type="text" required
+                    <input id="username" type="text" required autocomplete="off"
+                        placeholder="contoh: auditor_akta"
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    <p class="mt-1 text-xs text-slate-500">Huruf, angka, dash (-) dan underscore (_) saja. Tanpa spasi.</p>
                 </div>
 
                 <div>

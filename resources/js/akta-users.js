@@ -268,6 +268,18 @@ async function deleteUser(id) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+    // Auto-sanitize username: lowercase, ganti spasi/karakter tidak valid dengan underscore
+    document.getElementById("username")?.addEventListener("input", (e) => {
+        const start = e.target.selectionStart;
+        const sanitized = e.target.value
+            .toLowerCase()
+            .replace(/[^a-z0-9_-]/g, "_");
+        if (sanitized !== e.target.value) {
+            e.target.value = sanitized;
+            e.target.setSelectionRange(start, start);
+        }
+    });
+
     document
         .getElementById("openCreateUserButton")
         ?.addEventListener("click", () => openModal());
