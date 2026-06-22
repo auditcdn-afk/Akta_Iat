@@ -103,7 +103,7 @@ function resetRoleForm() {
 
 async function saveRole(event) {
     event.preventDefault();
-    const id    = document.getElementById("roleId").value;
+    const id     = document.getElementById("roleId").value;
     const isEdit = Boolean(id);
 
     const body = {
@@ -130,9 +130,20 @@ async function saveRole(event) {
         throw new Error(firstErr || payload.message || "Gagal menyimpan role.");
     }
 
+    // Update local roles array langsung — tidak re-fetch agar tidak ada race condition
+    const saved = payload.data;
+    if (isEdit) {
+        const idx = roles.findIndex((r) => String(r.id) === String(id));
+        if (idx !== -1) roles[idx] = saved;
+        else roles.push(saved);
+    } else {
+        roles.push(saved);
+    }
+
+    renderRoleSelect();
+    renderRoleList();
     showRoleAlert(payload.message || "Role berhasil disimpan.");
     resetRoleForm();
-    await loadRoles();
 }
 
 async function deleteRole(id) {
@@ -148,8 +159,11 @@ async function deleteRole(id) {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.message || "Gagal menghapus role.");
 
+    // Hapus dari local array langsung
+    roles = roles.filter((r) => String(r.id) !== String(id));
+    renderRoleSelect();
+    renderRoleList();
     showRoleAlert(payload.message || "Role berhasil dihapus.");
-    await loadRoles();
 }
 
 function getSession() {
