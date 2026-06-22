@@ -186,9 +186,16 @@ const TABS = {
             return `
             <tr class="hover:bg-slate-950/50">
                 <td class="px-4 py-3 text-sm text-slate-500">${no}</td>
-                <td class="px-4 py-3 text-sm font-mono text-slate-300">${escHtml(row.idGrading)}</td>
-                <td class="px-4 py-3 text-sm text-slate-300">${escHtml(row.jenis)}</td>
-                <td class="px-4 py-3 text-sm text-slate-300">${escHtml(row.area)}</td>
+                <td class="px-4 py-3 text-sm font-mono text-blue-300">${escHtml(row.idGrading)}</td>
+                <td class="px-4 py-3 text-sm text-slate-300">${escHtml(row.jenis)} <span class="text-xs text-slate-500">/ ${escHtml(row.area)}</span></td>
+                <td class="px-4 py-3 text-xs text-slate-400 max-w-xs">
+                    <div class="truncate" title="${escHtml(row.namaPemeriksaan)}">${escHtml(row.namaPemeriksaan)}</div>
+                    <div class="mt-0.5 flex gap-2 text-slate-500">
+                        <span>Nilai: <b class="text-slate-300">${row.nilai ?? "-"}</b></span>
+                        <span>BKNF: <b class="text-green-400">${escHtml(row.bknf)}</b></span>
+                        <span>BKF: <b class="text-blue-400">${escHtml(row.bkf)}</b></span>
+                    </div>
+                </td>
                 ${adminActions(row.id, isAdmin)}
             </tr>`;
         },
