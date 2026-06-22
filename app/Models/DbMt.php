@@ -8,18 +8,18 @@ class DbMt extends Model
 {
     protected $table = 'db_mt';
 
-    protected $fillable = ['kode', 'nama', 'jenis', 'periode', 'keterangan'];
+    protected $fillable = ['nomor', 'nama_singkat', 'nama_peralatan', 'kode_peralatan', 'jenis'];
 
     public function toAktaArray(): array
     {
         return [
-            'id'         => $this->id,
-            'kode'       => $this->kode,
-            'nama'       => $this->nama,
-            'jenis'      => $this->jenis,
-            'periode'    => $this->periode,
-            'keterangan' => $this->keterangan,
-            'createdAt'  => optional($this->created_at)->toDateTimeString(),
+            'id'            => $this->id,
+            'nomor'         => $this->nomor,
+            'namaSingkat'   => $this->nama_singkat,
+            'namaPeralatan' => $this->nama_peralatan,
+            'kodePeralatan' => $this->kode_peralatan,
+            'jenis'         => $this->jenis,
+            'createdAt'     => optional($this->created_at)->toDateTimeString(),
         ];
     }
 }

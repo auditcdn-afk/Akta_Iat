@@ -9,11 +9,11 @@ return new class extends Migration {
     {
         Schema::create('db_mt', function (Blueprint $table) {
             $table->id();
-            $table->string('kode')->nullable();
-            $table->string('nama');
+            $table->string('nomor')->nullable();
+            $table->string('nama_singkat')->nullable();
+            $table->text('nama_peralatan')->nullable();
+            $table->string('kode_peralatan')->nullable();
             $table->string('jenis')->nullable();
-            $table->string('periode')->nullable();
-            $table->text('keterangan')->nullable();
             $table->timestamps();
         });
     }

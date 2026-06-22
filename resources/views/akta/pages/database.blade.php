@@ -43,7 +43,7 @@
         ['perlengkapan', 'PERLENGKAPAN', 'Tipe', 'NOSIN', 'ACEH', 'TIPE | NOSIN | ACEH | RIAU | KEPRI | Type'],
         ['unit-usaha', 'UNIT USAHA', 'Kode', 'Nama', 'Alamat', 'Kode | Nama | Alamat | Keterangan'],
         ['grading', 'GRADING', 'ID Grading', 'Jenis / Area', 'Nama Pemeriksaan', 'IDGrading | Jenis | Area | Nama Pemeriksaan | Hasil Pemeriksaan | Nilai | BKNF | PKNF | BKF | PKF | BNKNF | PNKNF | BNKF | PNKF'],
-        ['mt', 'MANAGEMENT TRAINEE (MT)', 'Kode', 'Nama', 'Jenis', 'Kode | Nama | Jenis | Periode | Keterangan'],
+        ['mt', 'MANAGEMENT TRAINEE (MT)', 'No.', 'Nama Singkat', 'Kode Peralatan', 'No. | Nama Singkat | Nama Peralatan (IND) | Kode Peralatan | Jenis (MT FI / MT Lama / MT Baru)'],
         ['het', 'HET', 'Kode', 'Nama', 'Harga HET', 'Kode | Nama | Harga HET | Satuan | Keterangan'],
     ] as [$key, $title, $col1, $col2, $col3, $importFmt])
     <div id="tab-{{ $key }}" class="db-panel hidden space-y-4">

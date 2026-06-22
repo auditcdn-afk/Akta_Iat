@@ -212,24 +212,30 @@ const TABS = {
     mt: {
         label: "Database MT",
         fields: [
-            { key: "kode", label: "Kode", type: "text", span: 1 },
-            { key: "nama", label: "Nama", type: "text", required: true, span: 1 },
-            { key: "jenis", label: "Jenis", type: "text", span: 1 },
-            { key: "periode", label: "Periode", type: "text", span: 1 },
-            { key: "keterangan", label: "Keterangan", type: "textarea", span: 2 },
+            { key: "nomor",          label: "No.",               type: "text",     span: 1 },
+            { key: "nama_singkat",   label: "Nama Singkat",      type: "text",     span: 1 },
+            { key: "nama_peralatan", label: "Nama Peralatan (IND)", type: "textarea", span: 2 },
+            { key: "kode_peralatan", label: "Kode Peralatan",    type: "text",     span: 1 },
+            { key: "jenis",          label: "Jenis (MT FI / MT Lama / MT Baru)", type: "text", span: 1 },
         ],
         renderRow(row, no, isAdmin) {
+            const jenisBadge = row.jenis
+                ? `<span class="inline-flex rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-xs font-semibold text-blue-300">${escHtml(row.jenis)}</span>`
+                : "";
             return `
             <tr class="hover:bg-slate-950/50">
-                <td class="px-4 py-3 text-sm text-slate-500">${no}</td>
-                <td class="px-4 py-3 text-sm font-mono text-slate-300">${escHtml(row.kode)}</td>
-                <td class="px-4 py-3 text-sm text-slate-100">${escHtml(row.nama)}</td>
-                <td class="px-4 py-3 text-sm text-slate-300">${escHtml(row.jenis)}${row.periode ? ` <span class="text-slate-500 text-xs">(${escHtml(row.periode)})</span>` : ""}</td>
+                <td class="px-4 py-3 text-sm text-slate-500">${escHtml(row.nomor) || no}</td>
+                <td class="px-4 py-3 text-sm font-semibold text-slate-100">${escHtml(row.namaSingkat)}</td>
+                <td class="px-4 py-3 text-xs text-slate-400 max-w-xs truncate" title="${escHtml(row.namaPeralatan)}">${escHtml(row.namaPeralatan)}</td>
+                <td class="px-4 py-3 text-sm">
+                    <span class="font-mono text-slate-300">${escHtml(row.kodePeralatan)}</span>
+                    <div class="mt-0.5">${jenisBadge}</div>
+                </td>
                 ${adminActions(row.id, isAdmin)}
             </tr>`;
         },
         getFormData(row) {
-            return { kode: row?.kode || "", nama: row?.nama || "", jenis: row?.jenis || "", periode: row?.periode || "", keterangan: row?.keterangan || "" };
+            return { nomor: row?.nomor || "", nama_singkat: row?.namaSingkat || "", nama_peralatan: row?.namaPeralatan || "", kode_peralatan: row?.kodePeralatan || "", jenis: row?.jenis || "" };
         },
     },
     het: {
