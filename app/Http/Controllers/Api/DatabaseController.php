@@ -41,11 +41,22 @@ class DatabaseController extends Controller
     private static array $searchCols = [
         'harga-smh'    => ['kode_model', 'nama_smh'],
         'plafon'       => ['kode', 'nama', 'keterangan'],
-        'perlengkapan' => ['tipe', 'nosin', 'aceh', 'riau', 'kepri', 'type'],
+        'perlengkapan' => ['tipe', 'nosin', 'type'],
         'unit-usaha'   => ['kode', 'nama', 'alamat', 'keterangan'],
         'grading'      => ['id_grading', 'jenis', 'area', 'nama_pemeriksaan', 'hasil_pemeriksaan'],
-        'mt'           => ['nomor', 'nama_singkat', '_x', 'nama_peralatan', 'kode_peralatan'],
+        'mt'           => ['nama_singkat', 'nama_peralatan', 'kode_peralatan', 'jenis'],
         'het'          => ['kode', 'nama'],
+    ];
+
+    // Unique key(s) per type — used for upsert during import
+    private static array $uniqueKeys = [
+        'harga-smh'    => ['kode_model'],
+        'plafon'       => ['kode'],
+        'perlengkapan' => ['nosin'],
+        'unit-usaha'   => ['kode'],
+        'grading'      => ['id_grading'],
+        'mt'           => ['kode_peralatan', 'jenis'],
+        'het'          => ['kode'],
     ];
 
     private function resolveModel(string $type): string
@@ -214,7 +225,14 @@ class DatabaseController extends Controller
                 if ($mtJenis !== null && $mtJenis !== '') {
                     $data['jenis'] = $mtJenis;
                 }
-                $model::create($data);
+                $uniqueKeys = self::$uniqueKeys[$type] ?? [];
+                $keyData    = array_intersect_key($data, array_flip($uniqueKeys));
+                $valData    = array_diff_key($data, array_flip($uniqueKeys));
+                if (!empty($keyData)) {
+                    $model::updateOrCreate($keyData, $valData);
+                } else {
+                    $model::create($data);
+                }
                 $imported++;
             }
         });
