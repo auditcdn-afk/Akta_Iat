@@ -35,7 +35,7 @@ class DatabaseController extends Controller
         'unit-usaha'   => ['kode', 'nama', 'alamat', 'keterangan'],
         'grading'      => ['id_grading', 'jenis', 'area', 'nama_pemeriksaan', 'hasil_pemeriksaan', 'nilai', 'bknf', 'pknf', 'bkf', 'pkf', 'bnknf', 'pnknf', 'bnkf', 'pnkf'],
         'mt'           => ['nomor', 'nama_singkat', '_x', 'nama_peralatan', 'kode_peralatan'],
-        'het'          => ['kode', 'nama', 'harga_het', 'satuan', 'keterangan'],
+        'het'          => ['kode', 'nama', 'harga_het'],
     ];
 
     private static array $searchCols = [
@@ -45,7 +45,7 @@ class DatabaseController extends Controller
         'unit-usaha'   => ['kode', 'nama', 'alamat', 'keterangan'],
         'grading'      => ['id_grading', 'jenis', 'area', 'nama_pemeriksaan', 'hasil_pemeriksaan'],
         'mt'           => ['nomor', 'nama_singkat', '_x', 'nama_peralatan', 'kode_peralatan'],
-        'het'          => ['kode', 'nama', 'satuan', 'keterangan'],
+        'het'          => ['kode', 'nama'],
     ];
 
     private function resolveModel(string $type): string

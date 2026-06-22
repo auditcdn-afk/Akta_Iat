@@ -44,7 +44,7 @@
         ['unit-usaha', 'UNIT USAHA', 'Kode', 'Nama', 'Alamat', 'Kode | Nama | Alamat | Keterangan'],
         ['grading', 'GRADING', 'ID Grading', 'Jenis / Area', 'Nama Pemeriksaan', 'IDGrading | Jenis | Area | Nama Pemeriksaan | Hasil Pemeriksaan | Nilai | BKNF | PKNF | BKF | PKF | BNKNF | PNKNF | BNKF | PNKF'],
         ['mt', 'MANAGEMENT TRAINEE (MT)', 'Nama Singkat', 'Nama Peralatan (IND)', 'Kode Peralatan', 'No. | Nama Singkat | Nama Peralatan (IND) | Kode Peralatan'],
-        ['het', 'HET', 'Kode', 'Nama', 'Harga HET', 'Kode | Nama | Harga HET | Satuan | Keterangan'],
+        ['het', 'HET', 'Kode Part', 'Nama Part', 'HET Baru (Rp)', 'Kodepart | Nama part | HET BARU'],
     ] as [$key, $title, $col1, $col2, $col3, $importFmt])
     <div id="tab-{{ $key }}" class="db-panel hidden space-y-4">
 
