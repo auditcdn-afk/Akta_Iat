@@ -156,7 +156,7 @@ class DatabaseController extends Controller
             default      => throw new \InvalidArgumentException("Format file '{$ext}' tidak didukung. Gunakan .xlsx atau .csv."),
         };
 
-        // Remove header row (non-numeric first cell in first col)
+        // Remove header row — any row where the first non-empty cell is non-numeric text
         if (!empty($rows)) {
             $first = trim((string) ($rows[0][0] ?? ''));
             if ($first !== '' && !is_numeric($first)) {
@@ -164,28 +164,75 @@ class DatabaseController extends Controller
             }
         }
 
+        // Also remove any subsequent rows that look like repeated headers (all-text, no numeric ID)
+        $rows = array_values(array_filter($rows, function ($row) {
+            $cells = array_filter(array_map('trim', $row));
+            if (empty($cells)) return false;
+            $firstVal = reset($cells);
+            // Skip rows where the first cell is purely alphabetic text (header labels)
+            return is_numeric($firstVal) || preg_match('/^\d/', $firstVal);
+        }));
+
         // Flatten multi-group horizontal layout:
-        // Some Excel files place multiple groups of columns side-by-side.
-        // Try each possible group size from colCount down to 2, pick first that divides evenly.
+        // Some Excel files place multiple groups of columns side-by-side, possibly with
+        // separator columns between them. We scan all possible starting offsets to find
+        // every block of $colCount consecutive columns that contains data, then deduplicate.
         $colCount  = count($cols);
         $flatRows  = [];
-        $sampleLen = !empty($rows) ? max(array_map('count', array_slice($rows, 0, 5))) : 0;
-        $groups    = 1;
-        if ($sampleLen > $colCount) {
-            for ($gc = $colCount; $gc >= 2; $gc--) {
-                if ($sampleLen % $gc === 0) {
-                    $groups = intdiv($sampleLen, $gc);
-                    $colCount = $gc; // use detected group size
-                    break;
+        $sampleLen = !empty($rows) ? max(array_map('count', array_slice($rows, 0, 10))) : 0;
+
+        if ($sampleLen <= $colCount) {
+            // Single-group or exact-fit file — use rows directly
+            foreach ($rows as $row) {
+                if (!empty(array_filter(array_map('trim', array_slice($row, 0, $colCount))))) {
+                    $flatRows[] = array_slice($row, 0, $colCount);
                 }
             }
-        }
+        } else {
+            // Multi-column file: find all offsets where a $colCount-wide block has data
+            // across the majority of data rows (> 30% of non-empty rows).
+            $dataRows = array_filter($rows, fn($r) => !empty(array_filter(array_map('trim', $r))));
+            $dataCount = count($dataRows);
 
-        foreach ($rows as $row) {
-            for ($g = 0; $g < $groups; $g++) {
-                $slice = array_slice($row, $g * $colCount, $colCount);
-                if (!empty(array_filter(array_map('trim', $slice)))) {
-                    $flatRows[] = $slice;
+            $goodOffsets = [];
+            for ($offset = 0; $offset + $colCount <= $sampleLen; $offset++) {
+                $hits = 0;
+                foreach ($dataRows as $row) {
+                    $slice = array_slice($row, $offset, $colCount);
+                    if (!empty(array_filter(array_map('trim', $slice)))) {
+                        $hits++;
+                    }
+                }
+                if ($dataCount > 0 && ($hits / $dataCount) >= 0.3) {
+                    $goodOffsets[] = $offset;
+                }
+            }
+
+            // Merge overlapping offsets: keep only non-overlapping starts separated by >= $colCount
+            $usedOffsets = [];
+            foreach ($goodOffsets as $off) {
+                $overlaps = false;
+                foreach ($usedOffsets as $used) {
+                    if (abs($off - $used) < $colCount) {
+                        $overlaps = true;
+                        break;
+                    }
+                }
+                if (!$overlaps) {
+                    $usedOffsets[] = $off;
+                }
+            }
+
+            if (empty($usedOffsets)) {
+                $usedOffsets = [0]; // fallback
+            }
+
+            foreach ($rows as $row) {
+                foreach ($usedOffsets as $offset) {
+                    $slice = array_slice($row, $offset, $colCount);
+                    if (!empty(array_filter(array_map('trim', $slice)))) {
+                        $flatRows[] = $slice;
+                    }
                 }
             }
         }
