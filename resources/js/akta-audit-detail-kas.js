@@ -562,7 +562,30 @@ function escapeHtml(value) {
         .replaceAll("'", "&#039;");
 }
 
+function setupTabs() {
+    const btns = document.querySelectorAll(".audit-tab-btn");
+    btns.forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const tab = btn.dataset.tab;
+            // Update tombol aktif
+            btns.forEach((b) => {
+                const active = b.dataset.tab === tab;
+                b.classList.toggle("bg-blue-600", active);
+                b.classList.toggle("text-white", active);
+                b.classList.toggle("text-slate-300", !active);
+                b.classList.toggle("hover:bg-slate-800", !active);
+            });
+            // Tampilkan panel terkait
+            document.querySelectorAll(".audit-tab-panel").forEach((panel) => {
+                panel.classList.toggle("hidden", panel.id !== `tabPanel-${tab}`);
+            });
+        });
+    });
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
+    setupTabs();
+
     document
         .getElementById("openCreateKasButton")
         ?.addEventListener("click", () => openModal());
@@ -605,6 +628,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         await loadPlans();
+
+        // Pra-pilih plan dari query string (?plan=ID) saat datang dari halaman Audit
+        const planParam = new URLSearchParams(window.location.search).get("plan");
+        if (planParam) {
+            const filter = document.getElementById("kasPlanFilter");
+            if (filter && [...filter.options].some((o) => o.value === planParam)) {
+                filter.value = planParam;
+            }
+        }
+
         await reloadKasData();
     } catch (error) {
         showAlert(error.message || "Gagal memuat pemeriksaan kas.", "error");

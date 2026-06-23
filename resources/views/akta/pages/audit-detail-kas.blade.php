@@ -34,6 +34,29 @@
 
     <div id="kasAlert" class="hidden rounded-xl border px-4 py-3 text-sm"></div>
 
+    {{-- ── Tab Pemeriksaan ── --}}
+    <div class="flex flex-wrap gap-2 rounded-2xl border border-slate-800 bg-slate-900 p-2">
+        <button type="button" data-tab="kas"
+            class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition bg-blue-600 text-white">
+            Pemeriksaan Kas
+        </button>
+        <button type="button" data-tab="smh"
+            class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
+            Pemeriksaan SMH
+        </button>
+        <button type="button" data-tab="perlengkapan"
+            class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
+            Perlengkapan di luar SMH
+        </button>
+        <button type="button" data-tab="bank"
+            class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
+            Pemeriksaan Bank
+        </button>
+    </div>
+
+    {{-- ── Panel: Pemeriksaan Kas ── --}}
+    <div id="tabPanel-kas" class="audit-tab-panel space-y-5">
+
     <div class="grid gap-4 md:grid-cols-5">
         <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
             <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Pos</div>
@@ -106,6 +129,32 @@
                     </tr>
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    </div> {{-- /tabPanel-kas --}}
+
+    {{-- ── Panel: Pemeriksaan SMH ── --}}
+    <div id="tabPanel-smh" class="audit-tab-panel hidden">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900 p-10 text-center">
+            <h3 class="text-lg font-bold text-slate-200">Pemeriksaan SMH</h3>
+            <p class="mt-2 text-sm text-slate-400">Modul pemeriksaan Stok Material Honda (SMH) akan segera tersedia.</p>
+        </div>
+    </div>
+
+    {{-- ── Panel: Perlengkapan di luar SMH ── --}}
+    <div id="tabPanel-perlengkapan" class="audit-tab-panel hidden">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900 p-10 text-center">
+            <h3 class="text-lg font-bold text-slate-200">Perlengkapan di luar SMH</h3>
+            <p class="mt-2 text-sm text-slate-400">Modul pemeriksaan perlengkapan di luar SMH akan segera tersedia.</p>
+        </div>
+    </div>
+
+    {{-- ── Panel: Pemeriksaan Bank ── --}}
+    <div id="tabPanel-bank" class="audit-tab-panel hidden">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900 p-10 text-center">
+            <h3 class="text-lg font-bold text-slate-200">Pemeriksaan Bank</h3>
+            <p class="mt-2 text-sm text-slate-400">Modul pemeriksaan bank akan segera tersedia.</p>
         </div>
     </div>
 </section>

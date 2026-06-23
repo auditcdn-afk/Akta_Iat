@@ -110,12 +110,14 @@ function renderTable() {
     const tbody = document.getElementById("auditTableBody");
     if (!tbody) return;
 
-    // Halaman audit hanya menampilkan plan yang sudah terjadwal (siap dimulai).
-    // Plan yang sudah running ditangani di halaman Pemeriksaan.
-    const relevant = plans.filter(p => p.status === "scheduled");
+    // Tampilkan plan yang terjadwal & sedang berjalan (running/cabang_active).
+    // Plan running tetap muncul agar auditor bisa melanjutkan pemeriksaan.
+    const relevant = plans.filter(p =>
+        ["scheduled", "running", "cabang_active"].includes(p.status)
+    );
 
     if (!relevant.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">Belum ada plan audit yang terjadwal. Plan yang sedang berjalan dapat diakses di menu Pemeriksaan.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">Belum ada plan audit yang siap dikerjakan.</td></tr>`;
         return;
     }
 
@@ -123,8 +125,11 @@ function renderTable() {
         const meta    = STATUS_META[plan.status] || STATUS_META.scheduled;
         const tim     = [plan.kepalaTim, ...(plan.tim || [])].filter(Boolean);
         const timHtml = tim.length ? escapeHtml(tim.join(", ")) : "-";
-        const btnLabel = "Mulai Audit";
-        const btnColor = "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10";
+        const isRunning = plan.status === "running" || plan.status === "cabang_active";
+        const btnLabel = isRunning ? "Buka Pemeriksaan" : "Mulai Audit";
+        const btnColor = isRunning
+            ? "border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
+            : "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10";
 
         return `
         <tr class="hover:bg-slate-950/50">
@@ -219,6 +224,15 @@ function openAuditModal(plan) {
         startBtn.textContent = "Mulai Audit";
         startBtn.addEventListener("click", () => startAudit(plan.id));
         actions.appendChild(startBtn);
+    } else if (plan.status === "running" || plan.status === "cabang_active") {
+        const openBtn = document.createElement("button");
+        openBtn.type = "button";
+        openBtn.className = "rounded-xl bg-amber-600 px-5 py-2 text-sm font-semibold text-white hover:bg-amber-500";
+        openBtn.textContent = "Buka Pemeriksaan";
+        openBtn.addEventListener("click", () => {
+            window.location.href = `/akta/audit-detail/kas?plan=${plan.id}`;
+        });
+        actions.appendChild(openBtn);
     }
 
     const modal = document.getElementById("auditModal");
