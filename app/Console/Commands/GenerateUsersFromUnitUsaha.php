@@ -18,6 +18,7 @@ class GenerateUsersFromUnitUsaha extends Command
      */
     protected $signature = 'akta:generate-users
         {--password=12345678 : Password default untuk akun baru}
+        {--keep-existing-password : Jangan reset password untuk user yang sudah ada}
         {--dry-run : Tampilkan hasil tanpa menyimpan}';
 
     protected $description = 'Buat akun pengguna dari seluruh data unit usaha (role diambil dari jenis, diurutkan per wilayah).';
@@ -27,8 +28,9 @@ class GenerateUsersFromUnitUsaha extends Command
 
     public function handle(): int
     {
-        $password = (string) $this->option('password');
-        $dryRun   = (bool) $this->option('dry-run');
+        $password     = (string) $this->option('password');
+        $dryRun       = (bool) $this->option('dry-run');
+        $keepPassword = (bool) $this->option('keep-existing-password');
 
         // Urutkan berdasarkan wilayah lalu nama unit usaha.
         $units = DbUnitUsaha::query()
@@ -75,7 +77,14 @@ class GenerateUsersFromUnitUsaha extends Command
             ];
 
             if ($existing) {
-                $existing->fill($attributes)->save();
+                $existing->fill($attributes);
+                // Reset password ke default agar konsisten (kecuali diminta dipertahankan).
+                if (! $keepPassword) {
+                    $existing->password       = Hash::make($password);
+                    $existing->plain_password = $password;
+                    $existing->tokens()->delete();
+                }
+                $existing->save();
                 $updated++;
             } else {
                 User::query()->create($attributes + [
