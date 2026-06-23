@@ -11,7 +11,7 @@
         <div>
             <h2 class="text-lg font-bold">Konfigurasi Menu</h2>
             <p class="mt-1 text-sm text-slate-400">
-                Atur label, kode, urutan, visibilitas, dan status admin-only pada sidebar.
+                Atur label, urutan, visibilitas, dan role mana saja yang boleh mengakses tiap menu.
             </p>
         </div>
 
@@ -46,29 +46,26 @@
                             class="w-[7%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Urut</th>
                         <th
-                            class="w-[23%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            class="w-[20%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Label</th>
                         <th
-                            class="w-[10%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Kode</th>
-                        <th
-                            class="w-[25%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            class="w-[20%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Route</th>
                         <th
-                            class="w-[12%] px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            class="w-[9%] px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Visible</th>
                         <th
-                            class="w-[12%] px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Admin</th>
+                            class="w-[34%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            Akses Role</th>
                         <th
-                            class="w-[11%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            class="w-[10%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Path</th>
                     </tr>
                 </thead>
 
                 <tbody id="menuTableBody" class="divide-y divide-slate-800">
                     <tr>
-                        <td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">
+                        <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">
                             Memuat konfigurasi menu...
                         </td>
                     </tr>
