@@ -9,7 +9,7 @@ class DbGrading extends Model
     protected $table = 'db_grading';
 
     protected $fillable = [
-        'id_grading', 'jenis', 'area', 'nama_pemeriksaan', 'hasil_pemeriksaan',
+        'id_grading', 'jenis', 'wilayah', 'nama_pemeriksaan', 'hasil_pemeriksaan',
         'nilai', 'bknf', 'pknf', 'bkf', 'pkf', 'bnknf', 'pnknf', 'bnkf', 'pnkf',
     ];
 
@@ -27,7 +27,7 @@ class DbGrading extends Model
             'id'               => $this->id,
             'idGrading'        => $this->id_grading,
             'jenis'            => $this->jenis,
-            'area'             => $this->area,
+            'wilayah'          => $this->wilayah,
             'namaPemeriksaan'  => $this->nama_pemeriksaan,
             'hasilPemeriksaan' => $this->hasil_pemeriksaan,
             'nilai'            => $this->nilai,

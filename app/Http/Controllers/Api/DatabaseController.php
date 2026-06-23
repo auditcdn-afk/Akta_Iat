@@ -33,7 +33,7 @@ class DatabaseController extends Controller
         'plafon'       => ['kode', 'nama', 'nilai', 'keterangan'],
         'perlengkapan' => ['tipe', 'nosin', 'aceh', 'riau', 'kepri', 'type'],
         'unit-usaha'   => ['kode', 'nama', 'alamat', 'keterangan'],
-        'grading'      => ['id_grading', 'jenis', 'area', 'nama_pemeriksaan', 'hasil_pemeriksaan', 'nilai', 'bknf', 'pknf', 'bkf', 'pkf', 'bnknf', 'pnknf', 'bnkf', 'pnkf'],
+        'grading'      => ['id_grading', 'jenis', 'wilayah', 'nama_pemeriksaan', 'hasil_pemeriksaan', 'nilai', 'bknf', 'pknf', 'bkf', 'pkf', 'bnknf', 'pnknf', 'bnkf', 'pnkf'],
         'mt'           => ['nomor', 'nama_singkat', '_x', 'nama_peralatan', 'kode_peralatan'],
         'het'          => ['kode', 'nama', 'harga_het'],
     ];
@@ -43,7 +43,7 @@ class DatabaseController extends Controller
         'plafon'       => ['kode', 'nama', 'keterangan'],
         'perlengkapan' => ['tipe', 'nosin', 'type'],
         'unit-usaha'   => ['kode', 'nama', 'alamat', 'keterangan'],
-        'grading'      => ['id_grading', 'jenis', 'area', 'nama_pemeriksaan', 'hasil_pemeriksaan'],
+        'grading'      => ['id_grading', 'jenis', 'wilayah', 'nama_pemeriksaan', 'hasil_pemeriksaan'],
         'mt'           => ['nama_singkat', 'nama_peralatan', 'kode_peralatan', 'jenis'],
         'het'          => ['kode', 'nama'],
     ];
