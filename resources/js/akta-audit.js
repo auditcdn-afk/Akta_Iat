@@ -3,6 +3,7 @@ const SESSION_KEY = "akta_session";
 let plans = [];
 let currentUser = null;
 let activePlanId = null;
+let activePlan = null;
 let currentKasId = null;
 
 const PECAHAN = [100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100];
@@ -74,8 +75,25 @@ function setText(id, val) {
 }
 
 function num(value) {
+    if (typeof value === "string") value = value.replace(/\./g, "");
     const n = Number(value);
     return Number.isFinite(n) ? n : 0;
+}
+
+function formatThousands(value) {
+    const n = num(String(value).replace(/\./g, ""));
+    return n === 0 ? "" : new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(n);
+}
+
+function applyThousandsFormat(input) {
+    const raw = input.value.replace(/\./g, "");
+    const n = Number(raw);
+    if (!raw || isNaN(n)) return;
+    const pos = input.selectionStart;
+    const prevLen = input.value.length;
+    input.value = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(n);
+    const diff = input.value.length - prevLen;
+    try { input.setSelectionRange(pos + diff, pos + diff); } catch (_) {}
 }
 
 // ── Status labels ────────────────────────────────────────────────────────────
@@ -164,6 +182,7 @@ function renderTable() {
 
 function openPemeriksaan(plan) {
     activePlanId = plan.id;
+    activePlan = plan;
     document.getElementById("kasPlanAuditId").value = plan.id;
 
     const section = document.getElementById("pemeriksaanSection");
@@ -180,6 +199,7 @@ function openPemeriksaan(plan) {
 function closePemeriksaan() {
     document.getElementById("pemeriksaanSection")?.classList.add("hidden");
     activePlanId = null;
+    activePlan = null;
 }
 
 function switchTab(tab) {
@@ -202,7 +222,7 @@ function trxRow(item = {}) {
     tr.innerHTML = `
         <td class="px-3 py-1.5"><input type="date" class="trx-tanggal w-full rounded border border-slate-300 px-2 py-1 text-sm" value="${escapeHtml(item.tanggal || "")}"></td>
         <td class="px-3 py-1.5"><input type="text" class="trx-ket w-full rounded border border-slate-300 px-2 py-1 text-sm" placeholder="Keterangan..." value="${escapeHtml(item.keterangan || "")}"></td>
-        <td class="px-3 py-1.5 text-right"><input type="number" min="0" class="trx-jumlah calc-trigger w-full rounded border border-slate-300 px-2 py-1 text-sm text-right" value="${num(item.jumlah)}"></td>
+        <td class="px-3 py-1.5 text-right"><input type="text" inputmode="numeric" class="trx-jumlah calc-trigger w-full rounded border border-slate-300 px-2 py-1 text-sm text-right" value="${formatThousands(item.jumlah)}"></td>
         <td class="px-1 text-center"><button type="button" class="remove-row text-red-500 hover:text-red-700">✕</button></td>`;
     return tr;
 }
@@ -309,10 +329,10 @@ function collectPecahan() {
 function resetKasForm() {
     currentKasId = null;
     document.getElementById("kasId").value = "";
-    document.getElementById("kbSaldoAwalTgl").value = "";
-    document.getElementById("kbSaldoAwal").value = 0;
+    document.getElementById("kbSaldoAwalTgl").value = activePlan?.tglPlan || activePlan?.tglMulai || "";
+    document.getElementById("kbSaldoAwal").value = "";
     document.getElementById("kbKeterangan").value = "";
-    document.getElementById("kkCadangan").value = 0;
+    document.getElementById("kkCadangan").value = "";
     document.getElementById("kkKeterangan").value = "";
     document.getElementById("kbPenerimaanBody").innerHTML = "";
     document.getElementById("kbPengeluaranBody").innerHTML = "";
@@ -325,10 +345,10 @@ function resetKasForm() {
 function populateKasForm(d = {}) {
     const kb = d.kas_besar || {};
     const kk = d.kas_kecil || {};
-    document.getElementById("kbSaldoAwalTgl").value = kb.saldo_awal_tgl || "";
-    document.getElementById("kbSaldoAwal").value = num(kb.saldo_awal);
+    document.getElementById("kbSaldoAwalTgl").value = kb.saldo_awal_tgl || activePlan?.tglPlan || activePlan?.tglMulai || "";
+    document.getElementById("kbSaldoAwal").value = formatThousands(kb.saldo_awal);
     document.getElementById("kbKeterangan").value = kb.keterangan || "";
-    document.getElementById("kkCadangan").value = num(kk.cadangan);
+    document.getElementById("kkCadangan").value = formatThousands(kk.cadangan);
     document.getElementById("kkKeterangan").value = kk.keterangan || "";
 
     const fill = (bodyId, rows, builder) => {
@@ -572,9 +592,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    // Recalc otomatis saat input berubah
+    // Recalc & format otomatis saat input berubah
     kasPanel?.addEventListener("input", (e) => {
-        if (e.target.classList.contains("calc-trigger") || e.target.id === "kbSaldoAwal" || e.target.id === "kkCadangan") {
+        const t = e.target;
+        const isRupiah = t.classList.contains("calc-trigger") || t.classList.contains("trx-jumlah") || t.id === "kbSaldoAwal" || t.id === "kkCadangan";
+        if (isRupiah && t.type === "text") applyThousandsFormat(t);
+        if (t.classList.contains("calc-trigger") || t.id === "kbSaldoAwal" || t.id === "kkCadangan") {
             recalcKas();
         }
     });

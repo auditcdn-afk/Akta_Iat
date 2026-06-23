@@ -104,7 +104,7 @@
                         </div>
                         <div>
                             <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo Awal (Rp)</label>
-                            <input id="kbSaldoAwal" type="number" min="0" value="0"
+                            <input id="kbSaldoAwal" type="text" inputmode="numeric" value=""
                                 class="kb-calc w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500">
                         </div>
                     </div>
@@ -166,7 +166,7 @@
                 <div class="space-y-4 p-5">
                     <div>
                         <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Cadangan Kas Kecil (Rp)</label>
-                        <input id="kkCadangan" type="number" min="0" value="0"
+                        <input id="kkCadangan" type="text" inputmode="numeric" value=""
                             class="kk-calc w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500">
                     </div>
 
