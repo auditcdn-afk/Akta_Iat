@@ -12,6 +12,7 @@ export default defineConfig({
                 'resources/js/akta-database.js',
                 'resources/js/akta-plan-audit.js',
                 'resources/js/akta-task.js',
+                'resources/js/akta-audit.js',
                 'resources/js/akta-sk.js',
                 'resources/js/akta-pica.js',
                 'resources/js/akta-rekomendasi.js',

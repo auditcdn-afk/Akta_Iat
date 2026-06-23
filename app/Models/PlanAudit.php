@@ -51,6 +51,9 @@ class PlanAudit extends Model
             'updatedBy' => $this->updated_by,
             'createdAt' => optional($this->created_at)->toDateTimeString(),
             'updatedAt' => optional($this->updated_at)->toDateTimeString(),
+            'logs' => $this->relationLoaded('logs')
+                ? $this->logs->map->toAktaArray()->all()
+                : [],
         ];
     }
 

@@ -53,7 +53,30 @@ class PlanAuditController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $user = $request->user();
+        $role = $user?->role;
+        $onlyMine = !in_array($role, self::HO_ROLES, true);
+
+        // Identitas auditor (display_name / name / username)
+        $identities = array_values(array_filter([
+            $user?->display_name,
+            $user?->name,
+            $user?->username,
+        ]));
+
         $plans = PlanAudit::query()
+            ->with(['logs' => fn($q) => $q->orderBy('created_at')])
+            ->when($onlyMine && !empty($identities), function ($q) use ($identities) {
+                // Cabang & role non-HO hanya melihat plan yang mereka terlibat sebagai tim
+                $q->where(function ($sub) use ($identities) {
+                    $sub->whereIn('kepala_tim', $identities)
+                        ->orWhere(function ($json) use ($identities) {
+                            foreach ($identities as $id) {
+                                $json->orWhereJsonContains('tim', $id);
+                            }
+                        });
+                });
+            })
             ->when($request->filled('q'), function ($query) use ($request) {
                 $q = $request->query('q');
                 $query->where(function ($sub) use ($q) {

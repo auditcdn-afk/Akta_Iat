@@ -31,7 +31,7 @@ Route::prefix('akta')->name('akta.')->group(function () {
     Route::view('/sk', 'akta.pages.sk')->name('sk');
 
     Route::view('/report-audit', 'akta.pages.report-audit')->name('report-audit');
-    Route::redirect('/audit', '/akta/audit-detail/kas')->name('audit');
+    Route::view('/audit', 'akta.pages.audit')->name('audit');
     Route::view('/audit-detail/kas', 'akta.pages.audit-detail-kas')->name('audit-detail.kas');
 
     Route::get('/bu-performance', function () {
