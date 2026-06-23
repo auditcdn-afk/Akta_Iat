@@ -125,8 +125,8 @@
 
             {{-- ── Approval (koordinator) ── --}}
             <div id="approvalSection" class="hidden">
-                <div class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
-                    Plan audit ini menunggu persetujuan Koordinator. Periksa data plan di atas lalu pilih tindakan.
+                <div id="approvalInfo" class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
+                    Plan audit ini menunggu persetujuan. Periksa data plan di atas lalu pilih tindakan.
                 </div>
                 <div class="flex justify-end gap-3 border-t border-slate-800 pt-4 mt-4">
                     <button type="button" id="cancelTaskFormButton2"

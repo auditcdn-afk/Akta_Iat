@@ -118,7 +118,7 @@ function renderTasks() {
             </td>
             <td class="px-4 py-4 text-right">
                 <button type="button" class="execute-task rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10" data-id="${task.id}">
-                    ${task.status === "done" ? "Lihat / Ubah" : "Kerjakan"}
+                    ${isViewOnly() ? "Tinjau" : (task.status === "done" ? "Lihat / Ubah" : "Kerjakan")}
                 </button>
             </td>
         </tr>`;
@@ -146,15 +146,17 @@ function toDateOnly(value) {
     return String(value).slice(0, 10);
 }
 
-// Roles yang hanya boleh melihat (bukan mengisi form pelaksanaan)
-const VIEW_ONLY_ROLES = ["koordinator", "coo"];
+// Role approval: hanya melihat data plan + tombol Setujui/Tolak (bukan form pelaksanaan).
+// Tiap role menyetujui pada tahap status tertentu sesuai birokrasi.
+const APPROVAL_STAGE = {
+    koordinator: "pending_koordinator",
+    manajer:     "pending_manajer",
+    coo:         "pending_coo",
+};
 
 function isViewOnly() {
-    return VIEW_ONLY_ROLES.includes(currentUser?.role);
+    return Object.prototype.hasOwnProperty.call(APPROVAL_STAGE, currentUser?.role);
 }
-
-// Status plan yang bisa di-advance oleh koordinator
-const KOORDINATOR_APPROVABLE = "pending_koordinator";
 
 function openModal(task) {
     const modal = document.getElementById("taskModal");
@@ -191,11 +193,24 @@ function openModal(task) {
         // Sembunyikan form pelaksanaan
         execSection?.classList.add("hidden");
 
-        // Tampilkan tombol approve/reject jika plan masih bisa di-advance
-        const canApprove = plan.status === KOORDINATOR_APPROVABLE && currentUser?.role === "koordinator";
+        // Tampilkan tombol approve/reject jika plan berada di tahap role ini
+        const stage = APPROVAL_STAGE[currentUser?.role];
+        const canApprove = stage && plan.status === stage;
         if (approvalSection) {
             approvalSection.classList.toggle("hidden", !canApprove);
             document.getElementById("approvePlanId").value = plan.id || "";
+
+            // Sesuaikan teks info menunggu persetujuan
+            const info = document.getElementById("approvalInfo");
+            if (info) {
+                const labelMap = {
+                    koordinator: "Koordinator",
+                    manajer: "Manajer Audit",
+                    coo: "COO",
+                };
+                const who = labelMap[currentUser?.role] || "Anda";
+                info.textContent = `Plan audit ini menunggu persetujuan ${who}. Periksa data plan di atas lalu pilih tindakan.`;
+            }
         }
     } else {
         execSection?.classList.remove("hidden");
