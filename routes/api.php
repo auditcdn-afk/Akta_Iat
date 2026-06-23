@@ -148,12 +148,19 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/tasks/{task}', [AuditTaskController::class, 'destroy']);
     });
 
-    // Tambah plan = manajer & admin; perbaikan/hapus = manajer & admin (UX di tangan admin)
-    Route::middleware('akta.role:admin,manajer')->group(function () {
-        Route::post('/plans', [PlanAuditController::class, 'store']);
-        Route::put('/plans/{plan}', [PlanAuditController::class, 'update']);
-        Route::delete('/plans/{plan}', [PlanAuditController::class, 'destroy']);
-    });
+    // Tambah plan: manajer & admin
+    Route::post('/plans', [PlanAuditController::class, 'store'])
+        ->middleware('akta.role:admin,manajer');
+
+    // Edit & hapus plan: admin saja (admin yang perbaiki kesalahan)
+    Route::put('/plans/{plan}', [PlanAuditController::class, 'update'])
+        ->middleware('akta.role:admin');
+    Route::delete('/plans/{plan}', [PlanAuditController::class, 'destroy'])
+        ->middleware('akta.role:admin');
+
+    // Alur birokrasi: advance & reject (semua role terautentikasi, kontrol di dalam controller)
+    Route::post('/plans/{plan}/advance', [PlanAuditController::class, 'advance']);
+    Route::post('/plans/{plan}/reject', [PlanAuditController::class, 'reject']);
 
     // Menu untuk user yang sedang login (server memfilter berdasarkan role)
     Route::get('/menus', [MenuController::class, 'myMenus']);

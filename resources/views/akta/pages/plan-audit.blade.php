@@ -23,10 +23,14 @@
                 class="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
                 <option value="">Semua Status</option>
                 <option value="draft">Draft</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="running">Running</option>
-                <option value="done">Done</option>
-                <option value="cancelled">Cancelled</option>
+                <option value="pending_koordinator">Menunggu Koordinator</option>
+                <option value="pending_manajer">Menunggu Manajer</option>
+                <option value="pending_coo">Menunggu COO</option>
+                <option value="scheduled">Disetujui</option>
+                <option value="running">Audit Berjalan</option>
+                <option value="cabang_active">Cabang Aktif</option>
+                <option value="done">Selesai</option>
+                <option value="cancelled">Dibatalkan</option>
             </select>
 
             <button id="openCreatePlanButton" type="button"
@@ -43,24 +47,17 @@
             <table class="min-w-full divide-y divide-slate-800">
                 <thead class="bg-slate-950/60">
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Plan</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Cabang</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Tgl Plan</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Tim
-                        </th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Status</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Aksi</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Plan / Tgl</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Cabang</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Tim</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Status</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Aksi</th>
                     </tr>
                 </thead>
 
                 <tbody id="plansTableBody" class="divide-y divide-slate-800">
                     <tr>
-                        <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">
+                        <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-400">
                             Memuat plan audit...
                         </td>
                     </tr>
