@@ -128,6 +128,23 @@
                 </div>
             </div>
 
+            {{-- ── Cabang Action (SO/H1 dll) ── --}}
+            <div id="branchSection" class="hidden">
+                <div class="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 text-sm text-blue-200">
+                    Auditor sedang berada di cabang Anda. Konfirmasi kedatangan tim audit dengan menekan tombol <strong>Mulai Cabang</strong>.
+                </div>
+                <div class="flex justify-end gap-3 border-t border-slate-800 pt-4 mt-4">
+                    <button type="button" id="cancelBranchButton"
+                        class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">
+                        Tutup
+                    </button>
+                    <button type="button" id="mulaiCabangBtn"
+                        class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500">
+                        Mulai Cabang
+                    </button>
+                </div>
+            </div>
+
             {{-- ── Approval (koordinator) ── --}}
             <div id="approvalSection" class="hidden">
                 <div id="approvalInfo" class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">

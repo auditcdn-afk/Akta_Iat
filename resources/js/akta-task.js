@@ -118,7 +118,7 @@ function renderTasks() {
             </td>
             <td class="px-4 py-4 text-right">
                 <button type="button" class="execute-task rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10" data-id="${task.id}">
-                    ${isViewOnly() ? "Tinjau" : (task.status === "done" ? "Lihat / Ubah" : "Kerjakan")}
+                    ${isBranchUser() ? "Mulai Cabang" : isViewOnly() ? "Tinjau" : (task.status === "done" ? "Lihat / Ubah" : "Kerjakan")}
                 </button>
             </td>
         </tr>`;
@@ -154,8 +154,19 @@ const APPROVAL_STAGE = {
     coo:         "pending_coo",
 };
 
-function isViewOnly() {
+// HO roles yang punya form pelaksanaan sendiri
+const HO_ROLES = ["admin", "manajer", "auditor", "koordinator", "coo"];
+
+function isApprovalRole() {
     return Object.prototype.hasOwnProperty.call(APPROVAL_STAGE, currentUser?.role);
+}
+
+function isBranchUser() {
+    return !HO_ROLES.includes(currentUser?.role);
+}
+
+function isViewOnly() {
+    return isApprovalRole();
 }
 
 // Label status birokrasi untuk timeline
@@ -252,13 +263,23 @@ function openModal(task) {
     ].join("");
 
     const viewOnly = isViewOnly();
+    const branch = isBranchUser();
     const execSection = document.getElementById("execSection");
     const approvalSection = document.getElementById("approvalSection");
+    const branchSection = document.getElementById("branchSection");
 
-    if (viewOnly) {
-        // Sembunyikan form pelaksanaan
-        execSection?.classList.add("hidden");
+    // Sembunyikan semua seksi dulu
+    execSection?.classList.add("hidden");
+    approvalSection?.classList.add("hidden");
+    branchSection?.classList.add("hidden");
 
+    if (branch) {
+        // Branch user: tampilkan tombol Mulai Cabang jika plan sedang running
+        if (plan.status === "running") {
+            branchSection?.classList.remove("hidden");
+            document.getElementById("approvePlanId").value = plan.id || "";
+        }
+    } else if (viewOnly) {
         // Tampilkan tombol approve/reject jika plan berada di tahap role ini
         const stage = APPROVAL_STAGE[currentUser?.role];
         const canApprove = stage && plan.status === stage;
@@ -280,7 +301,6 @@ function openModal(task) {
         }
     } else {
         execSection?.classList.remove("hidden");
-        approvalSection?.classList.add("hidden");
 
         // Prefill bila sudah pernah dikerjakan; jika belum, tanggal mulai = hari ini
         document.getElementById("startedAt").value = toDateOnly(task.startedAt) || todayLocal();
@@ -312,6 +332,22 @@ async function approvePlan(planId) {
         await loadTasks();
     } catch (err) {
         showAlert(err.message || "Gagal menyetujui plan.", "error");
+    }
+}
+
+async function mulaiCabang(planId) {
+    if (!planId) return;
+    if (!confirm("Konfirmasi kedatangan tim audit di cabang Anda?")) return;
+    try {
+        const payload = await fetchJson(`/api/plans/${planId}/advance`, {
+            method: "POST",
+            headers: authHeaders(),
+        });
+        closeModal();
+        showAlert(payload.message || "Cabang aktif. Audit sedang berjalan.");
+        await loadTasks();
+    } catch (err) {
+        showAlert(err.message || "Gagal mengonfirmasi.", "error");
     }
 }
 
@@ -390,6 +426,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("closeTaskModalButton")?.addEventListener("click", closeModal);
     document.getElementById("cancelTaskFormButton")?.addEventListener("click", closeModal);
     document.getElementById("cancelTaskFormButton2")?.addEventListener("click", closeModal);
+    document.getElementById("cancelBranchButton")?.addEventListener("click", closeModal);
+
+    document.getElementById("mulaiCabangBtn")?.addEventListener("click", () => {
+        const planId = document.getElementById("approvePlanId")?.value;
+        mulaiCabang(planId).catch((err) => showAlert(err.message, "error"));
+    });
 
     document.getElementById("taskForm")?.addEventListener("submit", async (e) => {
         try { await saveExecution(e); }

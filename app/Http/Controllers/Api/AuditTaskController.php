@@ -36,10 +36,15 @@ class AuditTaskController extends Controller
         // Admin/manajer/koordinator/COO melihat seluruh task (pengawasan).
         $onlyMine = ! in_array($role, self::HO_OVERSIGHT, true);
 
+        // Untuk branch user (bukan HO, bukan approval), sertakan unit_usaha agar
+        // task cabang (assigned_to = cabang name) bisa cocok.
         $identities = array_values(array_filter([
             $user?->display_name,
             $user?->name,
             $user?->username,
+            (! in_array($role, self::HO_OVERSIGHT, true) && ! isset(self::APPROVAL_STAGE[$role]))
+                ? $user?->unit_usaha
+                : null,
         ]));
 
         // Task hanya tempat persinggahan kegiatan:

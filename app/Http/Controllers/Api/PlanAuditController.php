@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditTask;
 use App\Models\PlanAudit;
 use App\Models\User;
 use App\Services\ActivityLogger;
@@ -181,6 +182,29 @@ class PlanAuditController extends Controller
         $plan->save();
 
         $plan->recordLog('advance', $status, $plan->status, $request->user(), 'Disetujui / dilanjutkan');
+
+        // Saat plan berubah ke 'running', buat task untuk cabang agar muncul di Task mereka.
+        if ($plan->status === 'running' && $plan->cabang) {
+            $exists = AuditTask::query()
+                ->where('plan_audit_id', $plan->id)
+                ->where('assigned_to', $plan->cabang)
+                ->exists();
+
+            if (! $exists) {
+                AuditTask::query()->create([
+                    'plan_audit_id' => $plan->id,
+                    'judul'         => trim(($plan->jenis_audit ?: 'Audit') . ' - ' . $plan->cabang),
+                    'kategori'      => $plan->jenis_audit,
+                    'assigned_to'   => $plan->cabang,
+                    'priority'      => 'normal',
+                    'status'        => 'todo',
+                    'due_date'      => $plan->tgl_plan,
+                    'catatan'       => 'Tugas cabang: konfirmasi kedatangan auditor untuk plan ' . $plan->no_spt,
+                    'created_by'    => $request->user()?->username ?: 'system',
+                    'updated_by'    => $request->user()?->username ?: 'system',
+                ]);
+            }
+        }
 
         $logger->write($request, 'PLAN_ADVANCE', 'plan_audits',
             "Plan {$plan->no_spt}: {$status} → {$plan->status}", $request->user());
