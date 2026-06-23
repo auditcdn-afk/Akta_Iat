@@ -213,6 +213,10 @@ function switchTab(tab) {
     document.querySelectorAll(".audit-tab-panel").forEach((panel) => {
         panel.classList.toggle("hidden", panel.id !== `tabPanel-${tab}`);
     });
+    if (tab === "bank") {
+        document.getElementById("bankPlanAuditId").value = activePlanId || "";
+        loadBankForm().catch((e) => showAlert(e.message, "error"));
+    }
 }
 
 // ── Form Pemeriksaan Kas (Kas Besar, Kas Kecil, Pecahan, Blanko) ───────────────
@@ -445,6 +449,239 @@ async function saveKasForm() {
     showAlert(payload.message || "Pemeriksaan kas berhasil disimpan.");
 }
 
+// ── Form Pemeriksaan Bank ──────────────────────────────────────────────────────
+
+let bankLoadedIds = [];
+
+function cekRow(item = {}) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+        <td class="px-1 py-1.5"><input type="text" class="cek-nama w-full rounded border border-slate-300 px-2 py-1 text-sm" placeholder="Nama cek / no giro / range..." value="${escapeHtml(item.nomor || "")}"></td>
+        <td class="px-1 text-center w-10"><button type="button" class="remove-row text-red-500 hover:text-red-700">✕</button></td>`;
+    return tr;
+}
+
+function bankCardEl(item = {}) {
+    const d = item.detail_json || {};
+    const card = document.createElement("div");
+    card.className = "bank-card overflow-hidden rounded-2xl border border-slate-800 bg-white text-slate-800 shadow";
+    if (item.id) card.dataset.id = item.id;
+    card.innerHTML = `
+        <div class="flex items-center justify-between bg-[#1e3a5f] px-5 py-3 text-white">
+            <span class="bank-title text-sm font-bold uppercase tracking-wide">🏦 Bank</span>
+            <button type="button" class="bank-remove text-white/70 hover:text-white text-lg leading-none">✕</button>
+        </div>
+        <div class="space-y-4 p-5">
+            <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Nama Bank</label>
+                <input type="text" class="bank-nama w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="Nama Bank..." value="${escapeHtml(item.nama_bank || "")}">
+            </div>
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo Awal (Tanggal H-1 Pemeriksaan)</label>
+                    <input type="date" class="bank-saldo-awal-tgl w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" value="${escapeHtml(d.saldo_awal_tgl || activePlan?.tglPlan || "")}">
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo Awal (Rp)</label>
+                    <input type="text" inputmode="numeric" class="bank-saldo-awal bank-calc w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" value="${formatThousands(d.saldo_awal)}">
+                </div>
+            </div>
+
+            <div>
+                <div class="mb-2 text-sm font-bold text-emerald-600">▲ Penerimaan</div>
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-100 text-xs uppercase tracking-wide text-slate-500">
+                        <tr><th class="px-3 py-2 text-left w-40">Tanggal</th><th class="px-3 py-2 text-left">Keterangan</th><th class="px-3 py-2 text-right w-40">Jumlah (Rp)</th><th class="w-10"></th></tr>
+                    </thead>
+                    <tbody class="bank-penerimaan-body"></tbody>
+                </table>
+                <button type="button" data-add="bankPenerimaan" class="add-row-btn mt-2 rounded-lg border border-dashed border-blue-400 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50">+ Tambah Penerimaan</button>
+            </div>
+
+            <div>
+                <div class="mb-2 text-sm font-bold text-red-500">▼ Pengeluaran</div>
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-100 text-xs uppercase tracking-wide text-slate-500">
+                        <tr><th class="px-3 py-2 text-left w-40">Tanggal</th><th class="px-3 py-2 text-left">Keterangan</th><th class="px-3 py-2 text-right w-40">Jumlah (Rp)</th><th class="w-10"></th></tr>
+                    </thead>
+                    <tbody class="bank-pengeluaran-body"></tbody>
+                </table>
+                <button type="button" data-add="bankPengeluaran" class="add-row-btn mt-2 rounded-lg border border-dashed border-blue-400 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50">+ Tambah Pengeluaran</button>
+            </div>
+
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                <div class="flex justify-between py-1 text-slate-600"><span>Saldo Awal</span><span class="bank-sum-saldo-awal font-semibold text-blue-600">Rp 0</span></div>
+                <div class="flex justify-between py-1 text-slate-600"><span>Total Penerimaan</span><span class="bank-sum-penerimaan font-semibold text-emerald-600">Rp 0</span></div>
+                <div class="flex justify-between py-1 text-slate-600"><span>Total Pengeluaran</span><span class="bank-sum-pengeluaran font-semibold text-red-500">Rp 0</span></div>
+                <div class="mt-1 flex justify-between border-t border-slate-300 py-2 font-bold text-slate-800"><span>Saldo Buku (Sistem)</span><span class="bank-saldo-buku">Rp 0</span></div>
+                <div class="flex justify-between py-1 text-slate-600"><span>Saldo Rekening Koran</span><span class="bank-sum-rk font-semibold text-blue-600">Rp 0</span></div>
+                <div class="flex justify-between py-1 font-bold"><span class="text-red-500">Selisih</span><span class="bank-selisih text-red-500">Rp 0</span></div>
+            </div>
+
+            <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Keterangan Selisih</label>
+                <input type="text" class="bank-keterangan w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="contoh: Selisih biaya administrasi" value="${escapeHtml(d.keterangan_selisih || item.keterangan || "")}">
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo Rekening Koran (Tanggal)</label>
+                    <input type="date" class="bank-rk-tgl w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" value="${escapeHtml(d.saldo_rk_tgl || "")}">
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo Rekening Koran (Rp)</label>
+                    <input type="text" inputmode="numeric" class="bank-rk bank-calc w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" value="${formatThousands(item.saldo_bank ?? d.saldo_rk)}">
+                </div>
+            </div>
+        </div>`;
+
+    const fill = (sel, rows) => {
+        const body = card.querySelector(sel);
+        (rows || []).forEach((r) => body.appendChild(trxRow(r)));
+    };
+    fill(".bank-penerimaan-body", d.penerimaan);
+    fill(".bank-pengeluaran-body", d.pengeluaran);
+    return card;
+}
+
+function renumberBanks() {
+    document.querySelectorAll("#bankList .bank-card").forEach((card, i) => {
+        const t = card.querySelector(".bank-title");
+        if (t) t.textContent = `🏦 Bank ${i + 1}`;
+    });
+}
+
+function addBankCard(item = {}) {
+    document.getElementById("bankList").appendChild(bankCardEl(item));
+    renumberBanks();
+}
+
+function recalcBank() {
+    document.querySelectorAll("#bankList .bank-card").forEach((card) => {
+        const saldoAwal = num(card.querySelector(".bank-saldo-awal")?.value);
+        let pen = 0, peng = 0;
+        card.querySelectorAll(".bank-penerimaan-body .trx-jumlah").forEach((i) => pen += num(i.value));
+        card.querySelectorAll(".bank-pengeluaran-body .trx-jumlah").forEach((i) => peng += num(i.value));
+        const buku = saldoAwal + pen - peng;
+        const rk = num(card.querySelector(".bank-rk")?.value);
+        const selisih = rk - buku;
+        card.querySelector(".bank-sum-saldo-awal").textContent = formatRupiah(saldoAwal);
+        card.querySelector(".bank-sum-penerimaan").textContent = formatRupiah(pen);
+        card.querySelector(".bank-sum-pengeluaran").textContent = formatRupiah(peng);
+        card.querySelector(".bank-saldo-buku").textContent = formatRupiah(buku);
+        card.querySelector(".bank-sum-rk").textContent = formatRupiah(rk);
+        const selEl = card.querySelector(".bank-selisih");
+        selEl.textContent = formatRupiah(selisih) + (selisih === 0 ? " ✓" : "");
+        selEl.classList.toggle("text-emerald-600", selisih === 0);
+        selEl.classList.toggle("text-red-500", selisih !== 0);
+    });
+}
+
+function collectCardTrx(card, sel) {
+    return [...card.querySelectorAll(`${sel} tr`)].map((tr) => ({
+        tanggal: tr.querySelector(".trx-tanggal")?.value || "",
+        keterangan: tr.querySelector(".trx-ket")?.value || "",
+        jumlah: num(tr.querySelector(".trx-jumlah")?.value),
+    })).filter((r) => r.keterangan || r.jumlah);
+}
+
+function collectRegisterCek() {
+    return [...document.querySelectorAll("#registerCekBody tr")].map((tr) => ({
+        nomor: tr.querySelector(".cek-nama")?.value || "",
+    })).filter((r) => r.nomor);
+}
+
+function buildBankPayload(card, registerCek) {
+    const saldoAwal = num(card.querySelector(".bank-saldo-awal")?.value);
+    const penerimaan = collectCardTrx(card, ".bank-penerimaan-body");
+    const pengeluaran = collectCardTrx(card, ".bank-pengeluaran-body");
+    const totalPen = penerimaan.reduce((s, r) => s + r.jumlah, 0);
+    const totalPeng = pengeluaran.reduce((s, r) => s + r.jumlah, 0);
+    const saldoBuku = saldoAwal + totalPen - totalPeng;
+    const saldoBank = num(card.querySelector(".bank-rk")?.value);
+    const keterangan = card.querySelector(".bank-keterangan")?.value || "";
+    return {
+        plan_audit_id: Number(activePlanId),
+        nama_bank: card.querySelector(".bank-nama")?.value || "-",
+        saldo_buku: saldoBuku,
+        saldo_bank: saldoBank,
+        keterangan: keterangan || null,
+        detail_json: {
+            saldo_awal_tgl: card.querySelector(".bank-saldo-awal-tgl")?.value || "",
+            saldo_awal: saldoAwal,
+            penerimaan,
+            pengeluaran,
+            saldo_rk_tgl: card.querySelector(".bank-rk-tgl")?.value || "",
+            saldo_rk: saldoBank,
+            keterangan_selisih: keterangan,
+            register_cek: registerCek,
+        },
+    };
+}
+
+async function loadBankForm() {
+    const list = document.getElementById("bankList");
+    list.innerHTML = "";
+    bankLoadedIds = [];
+    document.getElementById("registerCekBody").innerHTML = "";
+    if (!activePlanId) { addBankCard(); return; }
+
+    const payload = await fetchJson(`/api/audit-detail/bank?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    const items = Array.isArray(payload) ? payload : (payload.data || []);
+    if (items.length) {
+        items.forEach((it) => { addBankCard(it); if (it.id) bankLoadedIds.push(it.id); });
+        const withCek = items.find((it) => (it.detail_json?.register_cek || []).length);
+        (withCek?.detail_json?.register_cek || []).forEach((r) => document.getElementById("registerCekBody").appendChild(cekRow(r)));
+    } else {
+        addBankCard();
+    }
+    recalcBank();
+
+    const editable = canManageKas();
+    document.querySelectorAll("#tabPanel-bank input").forEach((i) => { i.disabled = !editable; });
+    document.querySelectorAll("#tabPanel-bank .add-row-btn, #tabPanel-bank .remove-row, #tabPanel-bank .bank-remove, #addBankBtn").forEach((b) => { b.style.display = editable ? "" : "none"; });
+    const saveBtn = document.getElementById("saveBankFormBtn");
+    if (saveBtn) saveBtn.style.display = editable ? "" : "none";
+}
+
+async function saveBankForm() {
+    if (!canManageKas()) { showAlert("Role kamu hanya boleh melihat data.", "error"); return; }
+    if (!activePlanId) { showAlert("Plan audit tidak valid.", "error"); return; }
+
+    const registerCek = collectRegisterCek();
+    const cards = [...document.querySelectorAll("#bankList .bank-card")];
+    const keptIds = [];
+
+    for (const card of cards) {
+        const body = buildBankPayload(card, registerCek);
+        const id = card.dataset.id;
+        if (id) {
+            keptIds.push(Number(id));
+            await fetchJson(`/api/audit-detail/bank/${id}`, {
+                method: "PUT",
+                headers: { ...authHeaders(), "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+        } else {
+            const res = await fetchJson("/api/audit-detail/bank", {
+                method: "POST",
+                headers: { ...authHeaders(), "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+            if (res.data?.id) { card.dataset.id = res.data.id; keptIds.push(res.data.id); }
+        }
+    }
+
+    // Hapus record bank yang dibuang dari form
+    const removed = bankLoadedIds.filter((id) => !keptIds.includes(id));
+    for (const id of removed) {
+        await fetchJson(`/api/audit-detail/bank/${id}`, { method: "DELETE", headers: authHeaders() });
+    }
+    bankLoadedIds = keptIds;
+
+    showAlert("Pemeriksaan bank berhasil disimpan.");
+}
+
 // ── Audit modal (detail plan + mulai audit) ───────────────────────────────────
 
 function detailRow(label, value) {
@@ -604,6 +841,49 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     document.getElementById("saveKasFormBtn")?.addEventListener("click", () => {
         saveKasForm().catch((err) => showAlert(err.message || "Gagal menyimpan.", "error"));
+    });
+
+    // ── Bank panel ──
+    const bankPanel = document.getElementById("tabPanel-bank");
+    document.getElementById("addBankBtn")?.addEventListener("click", () => addBankCard());
+
+    bankPanel?.addEventListener("click", (e) => {
+        const addBtn = e.target.closest(".add-row-btn");
+        if (addBtn) {
+            const which = addBtn.dataset.add;
+            if (which === "registerCek") {
+                document.getElementById("registerCekBody").appendChild(cekRow());
+                return;
+            }
+            const card = addBtn.closest(".bank-card");
+            if (!card) return;
+            const sel = which === "bankPenerimaan" ? ".bank-penerimaan-body" : ".bank-pengeluaran-body";
+            card.querySelector(sel).appendChild(trxRow());
+            return;
+        }
+        const removeBank = e.target.closest(".bank-remove");
+        if (removeBank) {
+            removeBank.closest(".bank-card")?.remove();
+            renumberBanks();
+            recalcBank();
+            return;
+        }
+        const removeRow = e.target.closest(".remove-row");
+        if (removeRow) {
+            removeRow.closest("tr")?.remove();
+            recalcBank();
+        }
+    });
+
+    bankPanel?.addEventListener("input", (e) => {
+        const t = e.target;
+        const isRupiah = t.classList.contains("trx-jumlah") || t.classList.contains("bank-calc");
+        if (isRupiah && t.type === "text") applyThousandsFormat(t);
+        recalcBank();
+    });
+
+    document.getElementById("saveBankFormBtn")?.addEventListener("click", () => {
+        saveBankForm().catch((err) => showAlert(err.message || "Gagal menyimpan.", "error"));
     });
 
     setupFilters();
