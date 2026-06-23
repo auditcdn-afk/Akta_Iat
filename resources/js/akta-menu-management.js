@@ -73,7 +73,7 @@ function renderMenuTable() {
     if (!menuItems.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">
+                <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-400">
                     Tidak ada menu. Klik "Reset Default" untuk memuat dari konfigurasi.
                 </td>
             </tr>`;
@@ -87,11 +87,6 @@ function renderMenuTable() {
             <td class="px-3 py-3 align-top">
                 <input type="number" min="1" max="999" value="${Number(item.order || index + 1)}"
                     class="menu-order w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-            </td>
-
-            <td class="px-3 py-3 align-top">
-                <input type="text" value="${escapeHtml(item.label)}"
-                    class="menu-label w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
             </td>
 
             <td class="px-3 py-3 align-top">
@@ -123,7 +118,7 @@ function collectRowPayload(row, original) {
         .map((cb) => cb.dataset.role);
 
     return {
-        label: row.querySelector(".menu-label")?.value.trim() || original.label,
+        label: original.label,
         code: original.code || (original.label || "M").slice(0, 3).toUpperCase(),
         route_name: original.routeName,
         path: original.path,
