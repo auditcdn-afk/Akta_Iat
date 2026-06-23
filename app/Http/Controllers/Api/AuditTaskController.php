@@ -5,16 +5,40 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AuditTask;
 use App\Services\ActivityLogger;
+use App\Services\PlanTaskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class AuditTaskController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    // Role kantor pusat (HO) yang boleh melihat semua task.
+    private const HO_OVERSIGHT = ['admin', 'manajer', 'koordinator', 'coo'];
+
+    public function index(Request $request, PlanTaskService $planTasks): JsonResponse
     {
+        // Backfill otomatis: pastikan setiap plan (lama & baru) sudah punya task
+        // untuk auditor yang ditugaskan, sehingga langsung muncul di sini.
+        $planTasks->syncAll($request->user()?->username);
+
+        $user = $request->user();
+        $role = $user?->role;
+
+        // Auditor & role cabang hanya melihat task yang ditugaskan kepada dirinya.
+        // Admin/manajer/koordinator/COO melihat seluruh task (pengawasan).
+        $onlyMine = ! in_array($role, self::HO_OVERSIGHT, true);
+
+        $identities = array_values(array_filter([
+            $user?->display_name,
+            $user?->name,
+            $user?->username,
+        ]));
+
         $tasks = AuditTask::query()
             ->with('planAudit')
+            ->when($onlyMine && ! empty($identities), function ($query) use ($identities) {
+                $query->whereIn('assigned_to', $identities);
+            })
             ->when($request->filled('q'), function ($query) use ($request) {
                 $q = $request->query('q');
 

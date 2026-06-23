@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\AuditTask;
 use App\Models\PlanAudit;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Services\PlanTaskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -91,53 +91,11 @@ class PlanAuditController extends Controller
 
         // Otomatis buat task untuk auditor yang dituju (kepala tim + anggota tim),
         // sehingga plan langsung muncul di Task auditor bersangkutan.
-        $this->generateTasksForPlan($plan, $request->user()?->username);
+        app(PlanTaskService::class)->syncPlan($plan, $request->user()?->username);
 
         $logger->write($request, 'PLAN_CREATE', 'plan_audits', 'Membuat plan audit: ' . $plan->no_spt, $request->user());
 
         return response()->json(['ok' => true, 'message' => 'Plan audit berhasil dibuat. Task untuk auditor telah dibuat otomatis.', 'data' => $plan->toAktaArray()], 201);
-    }
-
-    // Buat task auto untuk tiap auditor (kepala tim + tim) yang ditugaskan ke plan.
-    private function generateTasksForPlan(PlanAudit $plan, ?string $actor): void
-    {
-        $assignees = collect([$plan->kepala_tim])
-            ->merge($plan->tim ?: [])
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($assignees->isEmpty()) {
-            return;
-        }
-
-        $judul = trim(($plan->jenis_audit ?: 'Audit') . ' - ' . ($plan->cabang ?: '-'));
-
-        foreach ($assignees as $assignee) {
-            // Hindari duplikasi bila plan dibuat ulang dengan auditor sama.
-            $exists = AuditTask::query()
-                ->where('plan_audit_id', $plan->id)
-                ->where('assigned_to', $assignee)
-                ->exists();
-
-            if ($exists) {
-                continue;
-            }
-
-            AuditTask::query()->create([
-                'plan_audit_id' => $plan->id,
-                'judul'         => $judul,
-                'kategori'      => $plan->jenis_audit,
-                'assigned_to'   => $assignee,
-                'priority'      => 'normal',
-                'status'        => 'todo',
-                'due_date'      => $plan->tgl_plan,
-                'catatan'       => 'Dibuat otomatis dari Plan Audit ' . $plan->no_spt
-                    . ($assignee === $plan->kepala_tim ? ' (Kepala Tim)' : ' (Tim Audit)'),
-                'created_by'    => $actor,
-                'updated_by'    => $actor,
-            ]);
-        }
     }
 
     public function show(PlanAudit $plan): JsonResponse
@@ -151,6 +109,9 @@ class PlanAuditController extends Controller
 
         $plan->fill([...$payload, 'updated_by' => $request->user()?->username]);
         $plan->save();
+
+        // Auditor bisa berubah saat diedit; buatkan task untuk yang baru ditambah.
+        app(PlanTaskService::class)->syncPlan($plan->fresh(), $request->user()?->username);
 
         $logger->write($request, 'PLAN_UPDATE', 'plan_audits', 'Update plan audit: ' . $plan->no_spt, $request->user());
 
