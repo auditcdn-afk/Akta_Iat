@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\PlanAudit;
+use App\Models\User;
 use App\Services\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,6 +12,26 @@ use Illuminate\Validation\Rule;
 
 class PlanAuditController extends Controller
 {
+    public function teamOptions(): JsonResponse
+    {
+        $users = User::query()
+            ->where('is_disabled', false)
+            ->orderBy('wilayah')
+            ->orderBy('unit_usaha')
+            ->orderBy('name')
+            ->get()
+            ->map(fn(User $u) => [
+                'username'    => $u->username,
+                'name'        => $u->name,
+                'displayName' => $u->display_name,
+                'role'        => $u->role,
+                'unitUsaha'   => $u->unit_usaha,
+                'wilayah'     => $u->wilayah,
+            ]);
+
+        return response()->json(['ok' => true, 'data' => $users]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $plans = PlanAudit::query()
@@ -42,6 +63,15 @@ class PlanAuditController extends Controller
     public function store(Request $request, ActivityLogger $logger): JsonResponse
     {
         $payload = $this->validatedPayload($request);
+
+        if (empty($payload['no_spt'])) {
+            $count = PlanAudit::query()->count() + 1;
+            $payload['no_spt'] = sprintf(
+                '%04d/%s/SPT-IAT',
+                $count,
+                now()->format('d/m/Y')
+            );
+        }
 
         $plan = PlanAudit::query()->create([
             ...$payload,

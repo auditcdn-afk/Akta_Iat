@@ -123,6 +123,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/data', [DataStoreController::class, 'write']);
     Route::post('/data', [DataStoreController::class, 'write']);
 
+    Route::get('/plan-users', [PlanAuditController::class, 'teamOptions']);
     Route::get('/plans', [PlanAuditController::class, 'index']);
     Route::get('/plans/{plan}', [PlanAuditController::class, 'show']);
 

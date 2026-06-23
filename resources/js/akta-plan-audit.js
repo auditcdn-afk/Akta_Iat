@@ -2,6 +2,8 @@ const SESSION_KEY = "akta_session";
 
 let plans = [];
 let currentUser = null;
+let usersList = [];
+let unitUsahaList = [];
 
 function getSession() {
     try {
@@ -107,6 +109,16 @@ async function loadCurrentUser() {
     currentUser = payload.user;
 }
 
+async function loadPlanUsers() {
+    const payload = await fetchJson("/api/plan-users");
+    usersList = payload.data || [];
+}
+
+async function loadUnitUsahaOptions() {
+    const payload = await fetchJson("/api/database/unit-usaha-options");
+    unitUsahaList = payload.data || [];
+}
+
 async function loadPlans() {
     const q = document.getElementById("planSearch")?.value || "";
     const status = document.getElementById("planStatusFilter")?.value || "";
@@ -199,33 +211,120 @@ function renderPlans() {
         .join("");
 }
 
+function renderCabangSelect(selected = "") {
+    const el = document.getElementById("cabang");
+    if (!el) return;
+
+    const options = unitUsahaList
+        .map(
+            (u) =>
+                `<option value="${escapeHtml(u.unitUsaha)}" ${u.unitUsaha === selected ? "selected" : ""}>${escapeHtml(u.unitUsaha)}</option>`,
+        )
+        .join("");
+
+    el.innerHTML = `<option value="">-- Pilih Cabang --</option>${options}`;
+}
+
+function renderKepalaTimSelect(selected = "") {
+    const el = document.getElementById("kepalaTim");
+    if (!el) return;
+
+    let lastWilayah = null;
+    let options = "";
+
+    for (const u of usersList) {
+        if (u.wilayah !== lastWilayah) {
+            if (lastWilayah !== null) options += "</optgroup>";
+            options += `<optgroup label="${escapeHtml(u.wilayah || "Lainnya")}">`;
+            lastWilayah = u.wilayah;
+        }
+        const label = escapeHtml(
+            (u.displayName || u.name || u.username) +
+                (u.unitUsaha ? ` — ${u.unitUsaha}` : ""),
+        );
+        const val = escapeHtml(u.displayName || u.name || u.username);
+        options += `<option value="${val}" ${val === selected ? "selected" : ""}>${label}</option>`;
+    }
+
+    if (lastWilayah !== null) options += "</optgroup>";
+
+    el.innerHTML = `<option value="">-- Pilih Kepala Tim --</option>${options}`;
+}
+
+function renderTimCheckboxes(selectedTim = []) {
+    const container = document.getElementById("timContainer");
+    if (!container) return;
+
+    if (!usersList.length) {
+        container.innerHTML =
+            '<p class="py-2 text-center text-slate-500">Tidak ada pengguna tersedia.</p>';
+        return;
+    }
+
+    let lastWilayah = null;
+    let html = "";
+
+    for (const u of usersList) {
+        const label = (u.displayName || u.name || u.username) + (u.unitUsaha ? ` — ${u.unitUsaha}` : "");
+        const isChecked = selectedTim.includes(u.displayName || u.name || u.username) ||
+            selectedTim.includes(u.name) ||
+            selectedTim.includes(u.username);
+
+        if (u.wilayah !== lastWilayah) {
+            if (lastWilayah !== null) html += "</div>";
+            html += `<div class="mb-2"><p class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">${escapeHtml(u.wilayah || "Lainnya")}</p><div class="space-y-1">`;
+            lastWilayah = u.wilayah;
+        }
+
+        html += `
+            <label class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-800/60">
+                <input type="checkbox" class="tim-checkbox h-4 w-4 rounded border-slate-600 bg-slate-900 accent-blue-500"
+                    value="${escapeHtml(u.displayName || u.name || u.username)}"
+                    ${isChecked ? "checked" : ""}>
+                <span class="text-sm text-slate-300">${escapeHtml(label)}</span>
+            </label>`;
+    }
+
+    if (lastWilayah !== null) html += "</div></div>";
+    container.innerHTML = html;
+}
+
+function getWilayahForCabang(cabang) {
+    const found = unitUsahaList.find((u) => u.unitUsaha === cabang);
+    return found?.wilayah || "";
+}
+
 function openModal(plan = null) {
     const modal = document.getElementById("planModal");
     const title = document.getElementById("planModalTitle");
 
     document.getElementById("planForm").reset();
+    renderCabangSelect();
+    renderKepalaTimSelect();
+    renderTimCheckboxes([]);
 
     if (plan) {
         title.textContent = "Edit Plan Audit";
 
         document.getElementById("planId").value = plan.id;
         document.getElementById("noSpt").value = plan.noSpt || "";
-        document.getElementById("jenisAudit").value =
-            plan.jenisAudit || "Reguler";
-        document.getElementById("cabang").value = plan.cabang || "";
-        document.getElementById("cabangArea").value = plan.cabangArea || "";
+        document.getElementById("jenisAudit").value = plan.jenisAudit || "Reguler";
         document.getElementById("tglMulai").value = plan.tglMulai || "";
         document.getElementById("tglSelesai").value = plan.tglSelesai || "";
-        document.getElementById("kepalaTim").value = plan.kepalaTim || "";
         document.getElementById("status").value = plan.status || "draft";
-        document.getElementById("tim").value = (plan.tim || []).join(", ");
         document.getElementById("keterangan").value = plan.keterangan || "";
+
+        renderCabangSelect(plan.cabang || "");
+        document.getElementById("cabangArea").value = plan.cabangArea || getWilayahForCabang(plan.cabang);
+        renderKepalaTimSelect(plan.kepalaTim || "");
+        renderTimCheckboxes(plan.tim || []);
     } else {
         title.textContent = "Tambah Plan Audit";
 
         document.getElementById("planId").value = "";
         document.getElementById("jenisAudit").value = "Reguler";
         document.getElementById("status").value = "draft";
+        document.getElementById("cabangArea").value = "";
     }
 
     modal.classList.remove("hidden");
@@ -240,20 +339,18 @@ function closeModal() {
 }
 
 function getFormPayload() {
-    const tim = document
-        .getElementById("tim")
-        .value.split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
+    const tim = Array.from(
+        document.querySelectorAll(".tim-checkbox:checked"),
+    ).map((cb) => cb.value);
 
     return {
         no_spt: document.getElementById("noSpt").value.trim(),
         jenis_audit: document.getElementById("jenisAudit").value,
-        cabang: document.getElementById("cabang").value.trim(),
+        cabang: document.getElementById("cabang").value,
         cabang_area: document.getElementById("cabangArea").value.trim(),
         tgl_mulai: document.getElementById("tglMulai").value || null,
         tgl_selesai: document.getElementById("tglSelesai").value || null,
-        kepala_tim: document.getElementById("kepalaTim").value.trim(),
+        kepala_tim: document.getElementById("kepalaTim").value,
         tim,
         status: document.getElementById("status").value,
         keterangan: document.getElementById("keterangan").value.trim(),
@@ -340,6 +437,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         .getElementById("cancelPlanFormButton")
         ?.addEventListener("click", closeModal);
 
+    // Auto-fill Wilayah Cabang when Cabang changes
+    document.getElementById("cabang")?.addEventListener("change", (e) => {
+        const wilayah = getWilayahForCabang(e.target.value);
+        const el = document.getElementById("cabangArea");
+        if (el) el.value = wilayah;
+    });
+
     document
         .getElementById("planForm")
         ?.addEventListener("submit", async (event) => {
@@ -390,6 +494,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 ?.classList.add("hidden");
         }
 
+        await Promise.all([loadPlanUsers(), loadUnitUsahaOptions()]);
         await loadPlans();
     } catch (error) {
         showAlert(error.message || "Gagal memuat plan audit.", "error");

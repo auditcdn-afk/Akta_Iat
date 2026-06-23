@@ -91,8 +91,8 @@
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
                     <label class="mb-1 block text-sm font-medium text-slate-300">No SPT</label>
-                    <input id="noSpt" type="text"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    <input id="noSpt" type="text" placeholder="Diisi otomatis jika dikosongkan"
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder-slate-600 outline-none focus:border-blue-500">
                 </div>
 
                 <div>
@@ -107,15 +107,17 @@
                 </div>
 
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Cabang</label>
-                    <input id="cabang" type="text" required
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Cabang <span class="text-red-400">*</span></label>
+                    <select id="cabang" required
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                        <option value="">-- Pilih Cabang --</option>
+                    </select>
                 </div>
 
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Cabang Area</label>
-                    <input id="cabangArea" type="text"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Wilayah Cabang</label>
+                    <input id="cabangArea" type="text" readonly
+                        class="w-full cursor-not-allowed rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-400 outline-none">
                 </div>
 
                 <div>
@@ -132,8 +134,10 @@
 
                 <div>
                     <label class="mb-1 block text-sm font-medium text-slate-300">Kepala Tim</label>
-                    <input id="kepalaTim" type="text"
+                    <select id="kepalaTim"
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                        <option value="">-- Pilih Kepala Tim --</option>
+                    </select>
                 </div>
 
                 <div>
@@ -150,12 +154,14 @@
 
                 <div class="sm:col-span-2">
                     <label class="mb-1 block text-sm font-medium text-slate-300">Tim Audit</label>
-                    <input id="tim" type="text" placeholder="Pisahkan dengan koma. Contoh: Budi, Sari, Andi"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    <div id="timContainer"
+                        class="max-h-48 overflow-y-auto rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-300">
+                        <p class="py-2 text-center text-slate-500">Memuat daftar tim...</p>
+                    </div>
                 </div>
 
                 <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Keterangan</label>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Catatan</label>
                     <textarea id="keterangan" rows="3"
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
                 </div>
