@@ -160,7 +160,7 @@ class AktaMenuService
     {
         return collect(config('akta_menu.items', []))
             ->map(fn($item) => array_merge($item, [
-                'roles'      => ($item['admin_only'] ?? false) ? ['admin'] : self::ROLES,
+                'roles'      => $item['roles'] ?? (($item['admin_only'] ?? false) ? ['admin'] : self::ROLES),
                 'is_active'  => true,
                 'route'      => $item['route'],
             ]))
@@ -170,7 +170,12 @@ class AktaMenuService
     private function configItemsForRole(string $role): array
     {
         return collect(config('akta_menu.items', []))
-            ->filter(fn($item) => $role === 'admin' || !($item['admin_only'] ?? false))
+            ->filter(function ($item) use ($role) {
+                if (isset($item['roles'])) {
+                    return in_array($role, $item['roles'], true);
+                }
+                return $role === 'admin' || !($item['admin_only'] ?? false);
+            })
             ->values()
             ->toArray();
     }

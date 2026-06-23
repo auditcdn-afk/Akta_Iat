@@ -30,6 +30,7 @@ return [
             'path' => '/akta/task',
             'code' => 'TK',
             'admin_only' => false,
+            'roles' => ['admin', 'manajer', 'auditor'],
         ],
         [
             'label' => 'Audit',
