@@ -8,6 +8,7 @@ use App\Services\ActivityLogger;
 use App\Services\PlanTaskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class AuditTaskController extends Controller
@@ -173,6 +174,70 @@ class AuditTaskController extends Controller
         return response()->json([
             'ok' => true,
             'message' => 'Task audit berhasil dihapus.',
+        ]);
+    }
+
+    /**
+     * Auditor merekam pelaksanaan audit: waktu Mulai, Selesai, dan Lampiran.
+     * Mulai & Selesai wajib; Lampiran opsional. Task otomatis jadi 'done'.
+     */
+    public function execute(
+        Request $request,
+        AuditTask $task,
+        ActivityLogger $logger
+    ): JsonResponse {
+        $user = $request->user();
+
+        // Auditor hanya boleh mengerjakan task miliknya; admin/manajer bebas.
+        $isOversight = in_array($user?->role, ['admin', 'manajer'], true);
+        $identities = array_filter([$user?->display_name, $user?->name, $user?->username]);
+
+        if (! $isOversight && ! in_array($task->assigned_to, $identities, true)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Task ini bukan ditugaskan kepada Anda.',
+            ], 403);
+        }
+
+        $data = $request->validate([
+            'started_at'  => ['required', 'date'],
+            'finished_at' => ['required', 'date', 'after_or_equal:started_at'],
+            'lampiran'    => ['nullable', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,xlsx,xls,doc,docx'],
+        ], [
+            'started_at.required'  => 'Waktu Mulai Audit wajib diisi.',
+            'finished_at.required' => 'Waktu Selesai Audit wajib diisi.',
+            'finished_at.after_or_equal' => 'Waktu Selesai tidak boleh sebelum Waktu Mulai.',
+        ]);
+
+        $task->started_at  = $data['started_at'];
+        $task->finished_at = $data['finished_at'];
+        $task->status      = 'done';
+        $task->completed_at = $data['finished_at'];
+
+        if ($request->hasFile('lampiran')) {
+            // Hapus lampiran lama bila ada
+            if ($task->lampiran_path) {
+                Storage::disk('public')->delete($task->lampiran_path);
+            }
+            $task->lampiran_path = $request->file('lampiran')->store('lampiran-audit', 'public');
+        }
+
+        $task->updated_by = $user?->username;
+        $task->save();
+        $task->load('planAudit');
+
+        $logger->write(
+            $request,
+            'TASK_EXECUTE',
+            'audit_tasks',
+            'Auditor menyelesaikan audit: ' . $task->judul,
+            $user
+        );
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Pelaksanaan audit berhasil disimpan.',
+            'data' => $task->toAktaArray(),
         ]);
     }
 

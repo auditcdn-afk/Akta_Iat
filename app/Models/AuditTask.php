@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class AuditTask extends Model
 {
@@ -17,6 +18,9 @@ class AuditTask extends Model
         'assigned_to',
         'priority',
         'status',
+        'started_at',
+        'finished_at',
+        'lampiran_path',
         'due_date',
         'completed_at',
         'catatan',
@@ -26,8 +30,15 @@ class AuditTask extends Model
 
     protected $casts = [
         'due_date' => 'date',
+        'started_at' => 'datetime',
+        'finished_at' => 'datetime',
         'completed_at' => 'datetime',
     ];
+
+    public function getLampiranUrlAttribute(): ?string
+    {
+        return $this->lampiran_path ? Storage::url($this->lampiran_path) : null;
+    }
 
     public function planAudit(): BelongsTo
     {
@@ -43,7 +54,11 @@ class AuditTask extends Model
                 'id' => $this->planAudit->id,
                 'noSpt' => $this->planAudit->no_spt,
                 'cabang' => $this->planAudit->cabang,
+                'cabangArea' => $this->planAudit->cabang_area,
                 'jenisAudit' => $this->planAudit->jenis_audit,
+                'tglPlan' => optional($this->planAudit->tgl_plan)->format('Y-m-d'),
+                'kepalaTim' => $this->planAudit->kepala_tim,
+                'tim' => $this->planAudit->tim ?: [],
                 'status' => $this->planAudit->status,
             ] : null,
             'judul' => $this->judul,
@@ -51,6 +66,10 @@ class AuditTask extends Model
             'assignedTo' => $this->assigned_to,
             'priority' => $this->priority,
             'status' => $this->status,
+            'startedAt' => optional($this->started_at)->format('Y-m-d\TH:i'),
+            'finishedAt' => optional($this->finished_at)->format('Y-m-d\TH:i'),
+            'lampiranUrl' => $this->lampiran_url,
+            'lampiranName' => $this->lampiran_path ? basename($this->lampiran_path) : null,
             'dueDate' => optional($this->due_date)->format('Y-m-d'),
             'completedAt' => optional($this->completed_at)->toDateTimeString(),
             'catatan' => $this->catatan,

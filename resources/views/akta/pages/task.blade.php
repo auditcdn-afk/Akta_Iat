@@ -1,47 +1,31 @@
 @extends('akta.layouts.app')
 
 @section('title', 'Task - AKTA IAT')
-@section('page_title', 'Task')
-@section('page_description', 'Pengelolaan tugas audit berdasarkan plan audit')
+@section('page_title', 'Tugas Audit')
+@section('page_description', 'Plan audit yang ditugaskan kepada Anda — rekam pelaksanaan audit')
 
 @section('content')
 <section class="space-y-5">
     <div
         class="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900 p-5 xl:flex-row xl:items-center xl:justify-between">
         <div>
-            <h2 class="text-lg font-bold">Daftar Task Audit</h2>
+            <h2 class="text-lg font-bold">Tugas Audit Saya</h2>
             <p class="mt-1 text-sm text-slate-400">
-                Kelola pekerjaan audit berdasarkan plan, PIC, prioritas, deadline, dan status.
+                Plan audit yang ditugaskan otomatis muncul di sini. Buka task untuk merekam Mulai, Selesai, dan Lampiran audit.
             </p>
         </div>
 
         <div class="flex flex-col gap-3 lg:flex-row">
-            <input id="taskSearch" type="search" placeholder="Cari task / cabang / PIC..."
+            <input id="taskSearch" type="search" placeholder="Cari task / cabang / no SPT..."
                 class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 lg:w-64">
 
             <select id="taskStatusFilter"
                 class="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
                 <option value="">Semua Status</option>
-                <option value="todo">Todo</option>
-                <option value="in_progress">In Progress</option>
-                <option value="review">Review</option>
-                <option value="done">Done</option>
-                <option value="cancelled">Cancelled</option>
+                <option value="todo">Belum Dikerjakan</option>
+                <option value="in_progress">Sedang Berjalan</option>
+                <option value="done">Selesai</option>
             </select>
-
-            <select id="taskPriorityFilter"
-                class="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                <option value="">Semua Priority</option>
-                <option value="low">Low</option>
-                <option value="normal">Normal</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-            </select>
-
-            <button id="openCreateTaskButton" type="button"
-                class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500">
-                Tambah Task
-            </button>
         </div>
     </div>
 
@@ -52,27 +36,19 @@
             <table class="min-w-full divide-y divide-slate-800">
                 <thead class="bg-slate-950/60">
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Task</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Plan</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">PIC
-                        </th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Deadline</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Priority</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Status</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Aksi</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Plan / Cabang</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis Audit</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Tgl Plan</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Pelaksanaan</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Status</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Aksi</th>
                     </tr>
                 </thead>
 
                 <tbody id="tasksTableBody" class="divide-y divide-slate-800">
                     <tr>
-                        <td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">
-                            Memuat task audit...
+                        <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">
+                            Memuat tugas audit...
                         </td>
                     </tr>
                 </tbody>
@@ -82,12 +58,11 @@
 </section>
 
 <div id="taskModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
-    <div
-        class="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+    <div class="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
         <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
             <div>
-                <h3 id="taskModalTitle" class="text-lg font-bold">Tambah Task Audit</h3>
-                <p class="text-sm text-slate-400">Isi pekerjaan audit yang harus dilakukan.</p>
+                <h3 id="taskModalTitle" class="text-lg font-bold">Pelaksanaan Audit</h3>
+                <p class="text-sm text-slate-400">Lengkapi waktu Mulai & Selesai audit, lampiran opsional.</p>
             </div>
 
             <button id="closeTaskModalButton" type="button"
@@ -96,83 +71,40 @@
             </button>
         </div>
 
-        <form id="taskForm" class="space-y-4 px-5 py-5">
+        <form id="taskForm" class="space-y-5 px-5 py-5">
             <input type="hidden" id="taskId">
 
+            {{-- ── Data Plan (read-only) ── --}}
+            <div class="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                <h4 class="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400">Data Plan Audit</h4>
+                <dl id="planDetail" class="grid gap-x-6 gap-y-3 sm:grid-cols-2 text-sm"></dl>
+            </div>
+
+            {{-- ── Form Pelaksanaan ── --}}
             <div class="grid gap-4 sm:grid-cols-2">
-                <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Plan Audit</label>
-                    <select id="planAuditId"
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">
+                        Mulai Audit <span class="text-red-400">*</span>
+                    </label>
+                    <input id="startedAt" type="datetime-local" required
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        <option value="">Tanpa Plan</option>
-                    </select>
-                </div>
-
-                <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Judul Task</label>
-                    <input id="judul" type="text" required
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"
-                        placeholder="Contoh: Pemeriksaan kas cabang">
                 </div>
 
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Kategori</label>
-                    <select id="kategori"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        <option value="">Pilih Kategori</option>
-                        <option value="Kas">Kas</option>
-                        <option value="Bank">Bank</option>
-                        <option value="Piutang">Piutang</option>
-                        <option value="BPKB">BPKB</option>
-                        <option value="HGP">HGP</option>
-                        <option value="KWT">KWT</option>
-                        <option value="MT">MT</option>
-                        <option value="Grading">Grading</option>
-                        <option value="Administrasi">Administrasi</option>
-                        <option value="Lainnya">Lainnya</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Assigned To</label>
-                    <input id="assignedTo" type="text"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"
-                        placeholder="Nama PIC / auditor">
-                </div>
-
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Priority</label>
-                    <select id="priority" required
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        <option value="low">Low</option>
-                        <option value="normal" selected>Normal</option>
-                        <option value="high">High</option>
-                        <option value="urgent">Urgent</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Status</label>
-                    <select id="status" required
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        <option value="todo">Todo</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="review">Review</option>
-                        <option value="done">Done</option>
-                        <option value="cancelled">Cancelled</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Deadline</label>
-                    <input id="dueDate" type="date"
+                    <label class="mb-1 block text-sm font-medium text-slate-300">
+                        Selesai Audit <span class="text-red-400">*</span>
+                    </label>
+                    <input id="finishedAt" type="datetime-local" required
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
                 </div>
 
                 <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Catatan</label>
-                    <textarea id="catatan" rows="3"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">File Lampiran (opsional)</label>
+                    <input id="lampiran" type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.doc,.docx"
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-white outline-none focus:border-blue-500">
+                    <p class="mt-1 text-xs text-slate-500">PDF, gambar, Excel, atau Word. Maks 10 MB.</p>
+                    <p id="currentLampiran" class="mt-2 hidden text-xs text-slate-400"></p>
                 </div>
             </div>
 
@@ -184,7 +116,7 @@
 
                 <button type="submit" id="saveTaskButton"
                     class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500">
-                    Simpan
+                    Simpan Pelaksanaan
                 </button>
             </div>
         </form>

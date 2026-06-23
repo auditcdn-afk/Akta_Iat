@@ -130,6 +130,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/tasks', [AuditTaskController::class, 'index']);
     Route::get('/tasks/{task}', [AuditTaskController::class, 'show']);
 
+    // Auditor merekam pelaksanaan audit (mulai/selesai/lampiran)
+    Route::post('/tasks/{task}/execute', [AuditTaskController::class, 'execute'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
     Route::get('/recommendations', [AuditRecommendationController::class, 'index']);
     Route::get('/recommendations/{recommendation}', [AuditRecommendationController::class, 'show']);
 
