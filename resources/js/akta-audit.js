@@ -1,9 +1,11 @@
 const SESSION_KEY = "akta_session";
 
 let plans = [];
-let kasItems = [];
 let currentUser = null;
 let activePlanId = null;
+let currentKasId = null;
+
+const PECAHAN = [100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100];
 
 function getSession() {
     try {
@@ -60,6 +62,20 @@ function canManageKas() {
 async function loadCurrentUser() {
     const payload = await fetchJson("/api/auth/me", { headers: authHeaders() });
     currentUser = payload.user;
+}
+
+function formatRupiah(value) {
+    return "Rp " + new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Number(value || 0));
+}
+
+function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val ?? "-";
+}
+
+function num(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
 }
 
 // ── Status labels ────────────────────────────────────────────────────────────
@@ -148,27 +164,17 @@ function renderTable() {
 
 function openPemeriksaan(plan) {
     activePlanId = plan.id;
+    document.getElementById("kasPlanAuditId").value = plan.id;
 
-    // Tunjukkan section pemeriksaan
     const section = document.getElementById("pemeriksaanSection");
     if (section) {
         section.classList.remove("hidden");
         setTimeout(() => section.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     }
 
-    // Label plan aktif
-    const label = `${plan.noSpt || "-"} • ${plan.cabang || "-"}`;
-    const planLabel = document.getElementById("pemeriksaanPlanLabel");
-    if (planLabel) planLabel.textContent = label;
-
-    // Pre-fill plan di dropdown kas form
-    fillKasPlanSelect();
-
-    // Reset ke tab Kas
+    setText("pemeriksaanPlanLabel", `${plan.noSpt || "-"} • ${plan.cabang || "-"}`);
     switchTab("kas");
-
-    // Load data kas untuk plan ini
-    loadKasData().catch((e) => showAlert(e.message, "error"));
+    loadKasForm().catch((e) => showAlert(e.message, "error"));
 }
 
 function closePemeriksaan() {
@@ -189,190 +195,234 @@ function switchTab(tab) {
     });
 }
 
-// ── Pemeriksaan Kas ───────────────────────────────────────────────────────────
+// ── Form Pemeriksaan Kas (Kas Besar, Kas Kecil, Pecahan, Blanko) ───────────────
 
-function formatRupiah(value) {
-    return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value || 0));
+function trxRow(item = {}) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+        <td class="px-3 py-1.5"><input type="date" class="trx-tanggal w-full rounded border border-slate-300 px-2 py-1 text-sm" value="${escapeHtml(item.tanggal || "")}"></td>
+        <td class="px-3 py-1.5"><input type="text" class="trx-ket w-full rounded border border-slate-300 px-2 py-1 text-sm" placeholder="Keterangan..." value="${escapeHtml(item.keterangan || "")}"></td>
+        <td class="px-3 py-1.5 text-right"><input type="number" min="0" class="trx-jumlah calc-trigger w-full rounded border border-slate-300 px-2 py-1 text-sm text-right" value="${num(item.jumlah)}"></td>
+        <td class="px-1 text-center"><button type="button" class="remove-row text-red-500 hover:text-red-700">✕</button></td>`;
+    return tr;
 }
 
-function setText(id, val) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = val ?? "-";
+function blankoRow(item = {}) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+        <td class="px-1 py-1.5 w-28"><input type="text" class="blk-jenis w-full rounded border border-slate-300 px-2 py-1 text-sm" placeholder="Jenis" value="${escapeHtml(item.jenis || "")}"></td>
+        <td class="px-1 py-1.5"><input type="text" class="blk-nomor w-full rounded border border-slate-300 px-2 py-1 text-sm" placeholder="Nomor range blanko..." value="${escapeHtml(item.nomor || "")}"></td>
+        <td class="px-1 text-center w-10"><button type="button" class="remove-row text-red-500 hover:text-red-700">✕</button></td>`;
+    return tr;
 }
 
-function fillKasPlanSelect() {
-    ["planAuditId"].forEach((elId) => {
-        const sel = document.getElementById(elId);
-        if (!sel) return;
-        sel.innerHTML = `<option value="">Pilih Plan Audit</option>`;
-        plans.forEach((p) => {
-            const opt = document.createElement("option");
-            opt.value = p.id;
-            opt.textContent = `${p.noSpt || "-"} • ${p.cabang || "-"}`;
-            if (String(p.id) === String(activePlanId)) opt.selected = true;
-            sel.appendChild(opt);
-        });
+function renderPecahan(data = []) {
+    const tbody = document.getElementById("pecahanBody");
+    if (!tbody) return;
+    const byNominal = {};
+    (data || []).forEach((p) => { byNominal[p.nominal] = p; });
+    tbody.innerHTML = "";
+    PECAHAN.forEach((nominal) => {
+        const item = byNominal[nominal] || {};
+        const tr = document.createElement("tr");
+        tr.className = "border-b border-slate-100";
+        tr.dataset.nominal = nominal;
+        tr.innerHTML = `
+            <td class="px-3 py-1.5 text-right font-semibold">${new Intl.NumberFormat("id-ID").format(nominal)}</td>
+            <td class="px-3 py-1.5 text-center"><input type="number" min="0" class="pcn-besar calc-trigger w-24 rounded border border-slate-300 px-2 py-1 text-sm text-center" value="${num(item.lembar_besar)}"></td>
+            <td class="px-3 py-1.5 text-right pcn-total-besar">Rp 0</td>
+            <td class="px-3 py-1.5 text-center"><input type="number" min="0" class="pcn-kecil calc-trigger w-24 rounded border border-slate-300 px-2 py-1 text-sm text-center" value="${num(item.lembar_kecil)}"></td>
+            <td class="px-3 py-1.5 text-right pcn-total-kecil">Rp 0</td>`;
+        tbody.appendChild(tr);
     });
 }
 
-async function loadKasSummary() {
-    const params = new URLSearchParams();
-    if (activePlanId) params.set("plan_audit_id", activePlanId);
-    const payload = await fetchJson(`/api/audit-detail/kas/summary?${params}`, { headers: authHeaders() });
-    const s = payload.data || {};
-    setText("kasTotalPosStat", s.total_pos || 0);
-    setText("kasSaldoFisikStat", formatRupiah(s.total_saldo_fisik || 0));
-    setText("kasSaldoBukuStat", formatRupiah(s.total_saldo_buku || 0));
-    setText("kasTotalSelisihStat", formatRupiah(s.total_selisih || 0));
-    setText("kasPosSelisihStat", s.pos_selisih || 0);
+function recalcKas() {
+    // Pecahan → saldo fisik
+    let fisikBesar = 0, fisikKecil = 0, lembarBesar = 0, lembarKecil = 0;
+    document.querySelectorAll("#pecahanBody tr").forEach((tr) => {
+        const nominal = num(tr.dataset.nominal);
+        const lb = num(tr.querySelector(".pcn-besar")?.value);
+        const lk = num(tr.querySelector(".pcn-kecil")?.value);
+        const tb = nominal * lb;
+        const tk = nominal * lk;
+        lembarBesar += lb; lembarKecil += lk;
+        fisikBesar += tb; fisikKecil += tk;
+        tr.querySelector(".pcn-total-besar").textContent = formatRupiah(tb);
+        tr.querySelector(".pcn-total-kecil").textContent = formatRupiah(tk);
+    });
+    setText("pecahanTotalLembarBesar", lembarBesar);
+    setText("pecahanTotalLembarKecil", lembarKecil);
+    setText("pecahanTotalBesar", formatRupiah(fisikBesar));
+    setText("pecahanTotalKecil", formatRupiah(fisikKecil));
+
+    // Kas Besar
+    const saldoAwal = num(document.getElementById("kbSaldoAwal")?.value);
+    let totalPenerimaan = 0, totalPengeluaran = 0;
+    document.querySelectorAll("#kbPenerimaanBody .trx-jumlah").forEach((i) => totalPenerimaan += num(i.value));
+    document.querySelectorAll("#kbPengeluaranBody .trx-jumlah").forEach((i) => totalPengeluaran += num(i.value));
+    const kbBuku = saldoAwal + totalPenerimaan - totalPengeluaran;
+    const kbSelisih = fisikBesar - kbBuku;
+    setText("kbSumSaldoAwal", formatRupiah(saldoAwal));
+    setText("kbSumPenerimaan", formatRupiah(totalPenerimaan));
+    setText("kbSumPengeluaran", formatRupiah(totalPengeluaran));
+    setText("kbSaldoBuku", formatRupiah(kbBuku));
+    setText("kbSaldoFisik", formatRupiah(fisikBesar));
+    setText("kbSelisih", formatRupiah(kbSelisih));
+
+    // Kas Kecil
+    const cadangan = num(document.getElementById("kkCadangan")?.value);
+    let totalBon = 0;
+    document.querySelectorAll("#kkBonBody .trx-jumlah").forEach((i) => totalBon += num(i.value));
+    const kkBuku = cadangan - totalBon;
+    const kkSelisih = fisikKecil - kkBuku;
+    setText("kkSumCadangan", formatRupiah(cadangan));
+    setText("kkSumBon", formatRupiah(totalBon));
+    setText("kkSaldoBuku", formatRupiah(kkBuku));
+    setText("kkSaldoFisik", formatRupiah(fisikKecil));
+    setText("kkSelisih", formatRupiah(kkSelisih));
 }
 
-async function loadKasItems() {
-    const q         = document.getElementById("kasSearch")?.value || "";
-    const hasSelisih = document.getElementById("kasSelisihFilter")?.value || "";
-    const params    = new URLSearchParams();
-    if (activePlanId)  params.set("plan_audit_id", activePlanId);
-    if (q)             params.set("q", q);
-    if (hasSelisih)    params.set("has_selisih", hasSelisih);
-    const payload = await fetchJson(`/api/audit-detail/kas?${params}`, { headers: authHeaders() });
-    kasItems = Array.isArray(payload) ? payload : (payload.data || []);
-    renderKasItems();
+function collectTrx(bodyId) {
+    return [...document.querySelectorAll(`#${bodyId} tr`)].map((tr) => ({
+        tanggal: tr.querySelector(".trx-tanggal")?.value || "",
+        keterangan: tr.querySelector(".trx-ket")?.value || "",
+        jumlah: num(tr.querySelector(".trx-jumlah")?.value),
+    })).filter((r) => r.keterangan || r.jumlah);
 }
 
-async function loadKasData() {
-    await Promise.all([loadKasSummary(), loadKasItems()]);
+function collectBlanko(bodyId) {
+    return [...document.querySelectorAll(`#${bodyId} tr`)].map((tr) => ({
+        jenis: tr.querySelector(".blk-jenis")?.value || "",
+        nomor: tr.querySelector(".blk-nomor")?.value || "",
+    })).filter((r) => r.jenis || r.nomor);
 }
 
-function renderKasItems() {
-    const tbody = document.getElementById("kasTableBody");
-    if (!tbody) return;
-    if (!kasItems.length) {
-        tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">Belum ada pemeriksaan kas untuk plan ini.</td></tr>`;
-        return;
-    }
-    tbody.innerHTML = kasItems.map((item) => {
-        const plan = item.plan_audit || item.planAudit || {};
-        const selisih = Number(item.selisih || 0);
-        const selisihClass = selisih === 0 ? "text-emerald-300" : "text-red-300";
-        const actions = canManageKas()
-            ? `<button class="view-kas rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${item.id}">Detail</button>
-               <button class="edit-kas ml-2 rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10" data-id="${item.id}">Edit</button>
-               <button class="delete-kas ml-2 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${item.id}">Hapus</button>`
-            : `<button class="view-kas rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${item.id}">Detail</button>`;
-        return `
-        <tr class="hover:bg-slate-950/50">
-            <td class="px-4 py-4">
-                <div class="font-semibold text-slate-100">${escapeHtml(item.nama_pos || "-")}</div>
-                <div class="text-xs text-slate-500">ID: ${item.id}</div>
-            </td>
-            <td class="px-4 py-4 text-sm text-slate-300">
-                <div>${escapeHtml(item.no_spt || plan.noSpt || "-")}</div>
-                <div class="text-xs text-slate-500">${escapeHtml(item.cabang || plan.cabang || "-")}</div>
-            </td>
-            <td class="px-4 py-4 text-right text-sm font-semibold text-blue-300">${escapeHtml(formatRupiah(item.saldo_fisik || 0))}</td>
-            <td class="px-4 py-4 text-right text-sm font-semibold text-amber-300">${escapeHtml(formatRupiah(item.saldo_buku || 0))}</td>
-            <td class="px-4 py-4 text-right text-sm font-bold ${selisihClass}">${escapeHtml(formatRupiah(selisih))}</td>
-            <td class="px-4 py-4 text-sm text-slate-300 max-w-xs line-clamp-2">${escapeHtml(item.keterangan || "-")}</td>
-            <td class="px-4 py-4 text-right whitespace-nowrap">${actions}</td>
-        </tr>`;
-    }).join("");
+function collectPecahan() {
+    return [...document.querySelectorAll("#pecahanBody tr")].map((tr) => ({
+        nominal: num(tr.dataset.nominal),
+        lembar_besar: num(tr.querySelector(".pcn-besar")?.value),
+        lembar_kecil: num(tr.querySelector(".pcn-kecil")?.value),
+    })).filter((r) => r.lembar_besar || r.lembar_kecil);
 }
 
-// ── Modal Kas ─────────────────────────────────────────────────────────────────
-
-function openKasModal(item = null) {
-    document.getElementById("kasForm")?.reset();
-    fillKasPlanSelect();
-    const title = document.getElementById("kasModalTitle");
-    if (item) {
-        if (title) title.textContent = "Edit Pemeriksaan Kas";
-        document.getElementById("kasId").value = item.id;
-        document.getElementById("planAuditId").value = item.plan_audit_id || "";
-        document.getElementById("namaPos").value = item.nama_pos || "";
-        document.getElementById("saldoFisik").value = item.saldo_fisik || 0;
-        document.getElementById("saldoBuku").value = item.saldo_buku || 0;
-        document.getElementById("keterangan").value = item.keterangan || "";
-        document.getElementById("detailJson").value = item.detail_json ? JSON.stringify(item.detail_json, null, 2) : "";
-    } else {
-        if (title) title.textContent = "Tambah Pemeriksaan Kas";
-        document.getElementById("kasId").value = "";
-        document.getElementById("saldoFisik").value = 0;
-        document.getElementById("saldoBuku").value = 0;
-        document.getElementById("detailJson").value = JSON.stringify({ penerimaan: [], pengeluaran: [], blanko: [] }, null, 2);
-    }
-    const modal = document.getElementById("kasModal");
-    modal?.classList.remove("hidden");
-    modal?.classList.add("flex");
+function resetKasForm() {
+    currentKasId = null;
+    document.getElementById("kasId").value = "";
+    document.getElementById("kbSaldoAwalTgl").value = "";
+    document.getElementById("kbSaldoAwal").value = 0;
+    document.getElementById("kbKeterangan").value = "";
+    document.getElementById("kkCadangan").value = 0;
+    document.getElementById("kkKeterangan").value = "";
+    document.getElementById("kbPenerimaanBody").innerHTML = "";
+    document.getElementById("kbPengeluaranBody").innerHTML = "";
+    document.getElementById("kkBonBody").innerHTML = "";
+    document.getElementById("blankoH1Body").innerHTML = "";
+    document.getElementById("blankoH2Body").innerHTML = "";
+    renderPecahan([]);
 }
 
-function closeKasModal() {
-    const modal = document.getElementById("kasModal");
-    modal?.classList.add("hidden");
-    modal?.classList.remove("flex");
-}
+function populateKasForm(d = {}) {
+    const kb = d.kas_besar || {};
+    const kk = d.kas_kecil || {};
+    document.getElementById("kbSaldoAwalTgl").value = kb.saldo_awal_tgl || "";
+    document.getElementById("kbSaldoAwal").value = num(kb.saldo_awal);
+    document.getElementById("kbKeterangan").value = kb.keterangan || "";
+    document.getElementById("kkCadangan").value = num(kk.cadangan);
+    document.getElementById("kkKeterangan").value = kk.keterangan || "";
 
-function openKasDetail(item) {
-    if (!item) return;
-    setText("kasDetailTitle", item.nama_pos || "Detail Pemeriksaan Kas");
-    setText("kasDetailSubtitle", `${item.no_spt || "-"} • ${item.cabang || "-"}`);
-    setText("detailSaldoFisik", formatRupiah(item.saldo_fisik || 0));
-    setText("detailSaldoBuku", formatRupiah(item.saldo_buku || 0));
-    setText("detailSelisih", formatRupiah(item.selisih || 0));
-    const info = document.getElementById("detailInfo");
-    if (info) {
-        const row = (l, v) => `<div class="rounded-xl border border-slate-800 bg-slate-900/70 p-3"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500">${escapeHtml(l)}</div><div class="mt-1 break-words text-sm font-semibold text-slate-200">${escapeHtml(v || "-")}</div></div>`;
-        info.innerHTML = row("No SPT", item.no_spt) + row("Cabang", item.cabang) + row("Jenis Audit", item.jenis_audit) + row("Keterangan", item.keterangan) + row("Dibuat oleh", item.created_by) + row("Diperbarui", item.updated_by);
-    }
-    const preview = document.getElementById("detailJsonPreview");
-    if (preview) preview.textContent = item.detail_json ? JSON.stringify(item.detail_json, null, 2) : "{}";
-    const modal = document.getElementById("kasDetailModal");
-    modal?.classList.remove("hidden");
-    modal?.classList.add("flex");
-}
-
-function closeKasDetail() {
-    const modal = document.getElementById("kasDetailModal");
-    modal?.classList.add("hidden");
-    modal?.classList.remove("flex");
-}
-
-async function saveKas(e) {
-    e.preventDefault();
-    if (!canManageKas()) { showAlert("Role kamu hanya boleh melihat data.", "error"); return; }
-    const id = document.getElementById("kasId").value;
-    const isEdit = Boolean(id);
-    const rawJson = document.getElementById("detailJson").value.trim();
-    let detailJson = null;
-    if (rawJson) {
-        try { detailJson = JSON.parse(rawJson); } catch { throw new Error("Detail JSON tidak valid."); }
-    }
-    const body = {
-        plan_audit_id: document.getElementById("planAuditId").value ? Number(document.getElementById("planAuditId").value) : null,
-        nama_pos: document.getElementById("namaPos").value.trim(),
-        saldo_fisik: Number(document.getElementById("saldoFisik").value || 0),
-        saldo_buku: Number(document.getElementById("saldoBuku").value || 0),
-        keterangan: document.getElementById("keterangan").value.trim() || null,
-        detail_json: detailJson,
+    const fill = (bodyId, rows, builder) => {
+        const body = document.getElementById(bodyId);
+        body.innerHTML = "";
+        (rows || []).forEach((r) => body.appendChild(builder(r)));
     };
-    const payload = await fetchJson(isEdit ? `/api/audit-detail/kas/${id}` : "/api/audit-detail/kas", {
+    fill("kbPenerimaanBody", kb.penerimaan, trxRow);
+    fill("kbPengeluaranBody", kb.pengeluaran, trxRow);
+    fill("kkBonBody", kk.bon, trxRow);
+    fill("blankoH1Body", d.blanko_h1, blankoRow);
+    fill("blankoH2Body", d.blanko_h2, blankoRow);
+    renderPecahan(d.pecahan || []);
+    recalcKas();
+}
+
+async function loadKasForm() {
+    resetKasForm();
+    if (!activePlanId) { recalcKas(); return; }
+    const payload = await fetchJson(`/api/audit-detail/kas?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    const items = Array.isArray(payload) ? payload : (payload.data || []);
+    const record = items[0];
+    if (record) {
+        currentKasId = record.id;
+        document.getElementById("kasId").value = record.id;
+        populateKasForm(record.detail_json || {});
+    } else {
+        recalcKas();
+    }
+
+    // Auditor/admin/manajer boleh edit; lainnya read-only
+    const editable = canManageKas();
+    document.querySelectorAll("#tabPanel-kas input").forEach((i) => { i.disabled = !editable; });
+    document.querySelectorAll("#tabPanel-kas .add-row-btn, #tabPanel-kas .remove-row").forEach((b) => { b.style.display = editable ? "" : "none"; });
+    const saveBtn = document.getElementById("saveKasFormBtn");
+    if (saveBtn) saveBtn.style.display = editable ? "" : "none";
+}
+
+function buildDetailJson() {
+    return {
+        kas_besar: {
+            saldo_awal_tgl: document.getElementById("kbSaldoAwalTgl").value || "",
+            saldo_awal: num(document.getElementById("kbSaldoAwal").value),
+            penerimaan: collectTrx("kbPenerimaanBody"),
+            pengeluaran: collectTrx("kbPengeluaranBody"),
+            keterangan: document.getElementById("kbKeterangan").value || "",
+        },
+        kas_kecil: {
+            cadangan: num(document.getElementById("kkCadangan").value),
+            bon: collectTrx("kkBonBody"),
+            keterangan: document.getElementById("kkKeterangan").value || "",
+        },
+        pecahan: collectPecahan(),
+        blanko_h1: collectBlanko("blankoH1Body"),
+        blanko_h2: collectBlanko("blankoH2Body"),
+    };
+}
+
+async function saveKasForm() {
+    if (!canManageKas()) { showAlert("Role kamu hanya boleh melihat data.", "error"); return; }
+    if (!activePlanId) { showAlert("Plan audit tidak valid.", "error"); return; }
+
+    const detail = buildDetailJson();
+
+    // Hitung total untuk kolom ringkasan di DB
+    const fisikBesar = detail.pecahan.reduce((s, p) => s + p.nominal * p.lembar_besar, 0);
+    const fisikKecil = detail.pecahan.reduce((s, p) => s + p.nominal * p.lembar_kecil, 0);
+    const totalPenerimaan = detail.kas_besar.penerimaan.reduce((s, r) => s + r.jumlah, 0);
+    const totalPengeluaran = detail.kas_besar.pengeluaran.reduce((s, r) => s + r.jumlah, 0);
+    const totalBon = detail.kas_kecil.bon.reduce((s, r) => s + r.jumlah, 0);
+    const kbBuku = detail.kas_besar.saldo_awal + totalPenerimaan - totalPengeluaran;
+    const kkBuku = detail.kas_kecil.cadangan - totalBon;
+
+    const body = {
+        plan_audit_id: Number(activePlanId),
+        nama_pos: "Pemeriksaan Kas",
+        saldo_fisik: fisikBesar + fisikKecil,
+        saldo_buku: kbBuku + kkBuku,
+        keterangan: [detail.kas_besar.keterangan, detail.kas_kecil.keterangan].filter(Boolean).join(" | ") || null,
+        detail_json: detail,
+    };
+
+    const isEdit = Boolean(currentKasId);
+    const payload = await fetchJson(isEdit ? `/api/audit-detail/kas/${currentKasId}` : "/api/audit-detail/kas", {
         method: isEdit ? "PUT" : "POST",
         headers: { ...authHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify(body),
     });
-    closeKasModal();
-    showAlert(payload.message || "Pemeriksaan kas berhasil disimpan.");
-    await loadKasData();
-}
 
-async function deleteKas(id) {
-    const item = kasItems.find((r) => String(r.id) === String(id));
-    if (!item || !confirm(`Hapus pemeriksaan kas "${item.nama_pos}"?`)) return;
-    const payload = await fetchJson(`/api/audit-detail/kas/${id}`, {
-        method: "DELETE",
-        headers: authHeaders(),
-    });
-    showAlert(payload.message || "Pemeriksaan kas berhasil dihapus.");
-    await loadKasData();
+    if (payload.data?.id) {
+        currentKasId = payload.data.id;
+        document.getElementById("kasId").value = payload.data.id;
+    }
+    showAlert(payload.message || "Pemeriksaan kas berhasil disimpan.");
 }
 
 // ── Audit modal (detail plan + mulai audit) ───────────────────────────────────
@@ -458,7 +508,6 @@ async function startAudit(plan) {
         closeAuditModal();
         showAlert("Audit dimulai. Silakan isi data pemeriksaan di bawah.");
         await loadPlans();
-        // Cari plan yang baru running dan buka pemeriksaan
         const updated = plans.find((p) => String(p.id) === String(plan.id));
         if (updated) openPemeriksaan(updated);
     } catch (err) {
@@ -477,61 +526,61 @@ function setupFilters() {
     document.getElementById("auditStatusFilter")?.addEventListener("change", () => {
         loadPlans().catch((e) => showAlert(e.message, "error"));
     });
-
-    let kasTimer = null;
-    document.getElementById("kasSearch")?.addEventListener("input", () => {
-        clearTimeout(kasTimer);
-        kasTimer = setTimeout(() => loadKasItems().catch((e) => showAlert(e.message, "error")), 300);
-    });
-    document.getElementById("kasSelisihFilter")?.addEventListener("change", () => {
-        loadKasItems().catch((e) => showAlert(e.message, "error"));
-    });
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", async () => {
-    // Tab switching
     document.querySelectorAll(".audit-tab-btn").forEach((btn) => {
         btn.addEventListener("click", () => switchTab(btn.dataset.tab));
     });
 
-    // Tutup section pemeriksaan
     document.getElementById("closePemeriksaanBtn")?.addEventListener("click", closePemeriksaan);
 
-    // Tombol aksi di baris tabel plan
     document.getElementById("auditTableBody")?.addEventListener("click", (e) => {
         const btn = e.target.closest(".open-audit-btn");
         if (!btn) return;
         const plan = plans.find((p) => String(p.id) === String(btn.dataset.id));
         if (!plan) return;
-        if (plan.status === "scheduled") {
-            openAuditModal(plan);
-        } else {
-            openPemeriksaan(plan);
+        if (plan.status === "scheduled") openAuditModal(plan);
+        else openPemeriksaan(plan);
+    });
+
+    document.getElementById("closeAuditModal")?.addEventListener("click", closeAuditModal);
+
+    // Tombol tambah baris (penerimaan, pengeluaran, bon, blanko)
+    const kasPanel = document.getElementById("tabPanel-kas");
+    kasPanel?.addEventListener("click", (e) => {
+        const addBtn = e.target.closest(".add-row-btn");
+        if (addBtn) {
+            const which = addBtn.dataset.add;
+            const map = {
+                kbPenerimaan: ["kbPenerimaanBody", trxRow],
+                kbPengeluaran: ["kbPengeluaranBody", trxRow],
+                kkBon: ["kkBonBody", trxRow],
+                blankoH1: ["blankoH1Body", blankoRow],
+                blankoH2: ["blankoH2Body", blankoRow],
+            };
+            const [bodyId, builder] = map[which] || [];
+            if (bodyId) document.getElementById(bodyId).appendChild(builder());
+            return;
+        }
+        const removeBtn = e.target.closest(".remove-row");
+        if (removeBtn) {
+            removeBtn.closest("tr")?.remove();
+            recalcKas();
         }
     });
 
-    // Modal plan
-    document.getElementById("closeAuditModal")?.addEventListener("click", closeAuditModal);
-
-    // Modal kas
-    document.getElementById("openCreateKasButton")?.addEventListener("click", () => openKasModal());
-    document.getElementById("closeKasModalButton")?.addEventListener("click", closeKasModal);
-    document.getElementById("cancelKasFormButton")?.addEventListener("click", closeKasModal);
-    document.getElementById("closeKasDetailButton")?.addEventListener("click", closeKasDetail);
-
-    document.getElementById("kasForm")?.addEventListener("submit", async (e) => {
-        try { await saveKas(e); } catch (err) { showAlert(err.message || "Gagal menyimpan.", "error"); }
+    // Recalc otomatis saat input berubah
+    kasPanel?.addEventListener("input", (e) => {
+        if (e.target.classList.contains("calc-trigger") || e.target.id === "kbSaldoAwal" || e.target.id === "kkCadangan") {
+            recalcKas();
+        }
     });
 
-    document.getElementById("kasTableBody")?.addEventListener("click", async (e) => {
-        const viewBtn   = e.target.closest(".view-kas");
-        const editBtn   = e.target.closest(".edit-kas");
-        const deleteBtn = e.target.closest(".delete-kas");
-        if (viewBtn)   { openKasDetail(kasItems.find((r) => String(r.id) === String(viewBtn.dataset.id))); return; }
-        if (editBtn)   { openKasModal(kasItems.find((r) => String(r.id) === String(editBtn.dataset.id))); return; }
-        if (deleteBtn) { try { await deleteKas(deleteBtn.dataset.id); } catch (err) { showAlert(err.message, "error"); } }
+    document.getElementById("saveKasFormBtn")?.addEventListener("click", () => {
+        saveKasForm().catch((err) => showAlert(err.message || "Gagal menyimpan.", "error"));
     });
 
     setupFilters();
@@ -539,7 +588,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
         await loadCurrentUser();
         await loadPlans();
-        if (!canManageKas()) document.getElementById("openCreateKasButton")?.classList.add("hidden");
     } catch (err) {
         showAlert(err.message || "Gagal memuat data audit.", "error");
     }
