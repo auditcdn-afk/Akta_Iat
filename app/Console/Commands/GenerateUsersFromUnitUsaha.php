@@ -17,7 +17,7 @@ class GenerateUsersFromUnitUsaha extends Command
      *   php artisan akta:generate-users --password=rahasia123
      */
     protected $signature = 'akta:generate-users
-        {--password=akta12345 : Password default untuk akun baru}
+        {--password=12345678 : Password default untuk akun baru}
         {--dry-run : Tampilkan hasil tanpa menyimpan}';
 
     protected $description = 'Buat akun pengguna dari seluruh data unit usaha (role diambil dari jenis, diurutkan per wilayah).';
@@ -79,8 +79,9 @@ class GenerateUsersFromUnitUsaha extends Command
                 $updated++;
             } else {
                 User::query()->create($attributes + [
-                    'username' => $username,
-                    'password' => Hash::make($password),
+                    'username'       => $username,
+                    'password'       => Hash::make($password),
+                    'plain_password' => $password,
                 ]);
                 $created++;
             }

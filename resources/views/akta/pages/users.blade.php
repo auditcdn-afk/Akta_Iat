@@ -106,20 +106,23 @@
                             class="w-[13%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Unit</th>
                         <th
-                            class="w-[12%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            class="w-[10%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Wilayah</th>
                         <th
                             class="w-[12%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            Password</th>
+                        <th
+                            class="w-[10%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Status</th>
                         <th
-                            class="w-[13%] px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            class="w-[12%] px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Aksi</th>
                     </tr>
                 </thead>
 
                 <tbody id="usersTableBody" class="divide-y divide-slate-800">
                     <tr>
-                        <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">
+                        <td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">
                             Memuat data pengguna...
                         </td>
                     </tr>

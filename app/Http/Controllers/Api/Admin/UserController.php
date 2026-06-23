@@ -48,6 +48,7 @@ class UserController extends Controller
             'display_name' => $payload['display_name'] ?: $payload['name'],
             'email' => $payload['email'] ?: $payload['username'] . '@akta.local',
             'password' => Hash::make($payload['password']),
+            'plain_password' => $payload['password'],
             'role' => $payload['role'],
             'unit_usaha' => $payload['unit_usaha'] ?? '',
             'wilayah' => $payload['wilayah'] ?? null,
@@ -113,6 +114,7 @@ class UserController extends Controller
 
         if (! empty($payload['password'])) {
             $user->password = Hash::make($payload['password']);
+            $user->plain_password = $payload['password'];
             $user->tokens()->delete();
         }
 
@@ -184,6 +186,7 @@ class UserController extends Controller
             'role' => $user->role,
             'unitUsaha' => $user->unit_usaha ?: '',
             'wilayah' => $user->wilayah ?: '',
+            'password' => $user->plain_password ?: '',
             'isDisabled' => (bool) $user->is_disabled,
             'createdBy' => $user->created_by,
             'createdAt' => optional($user->created_at)->toDateTimeString(),

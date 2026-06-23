@@ -18,6 +18,12 @@ function colorClass(color) {
     return COLOR_MAP[color] || COLOR_MAP.slate;
 }
 
+function escHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+}
+
 // ── Role API ──────────────────────────────────────────────────
 async function loadRoles() {
     const response = await fetch("/api/admin/roles", { headers: authHeaders() });
@@ -319,7 +325,7 @@ function renderUsers() {
     if (!users.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">
+                <td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">
                     Belum ada pengguna.
                 </td>
             </tr>
@@ -348,6 +354,15 @@ function renderUsers() {
 
             <td class="px-4 py-4 text-sm text-slate-300">
                 ${user.wilayah || "-"}
+            </td>
+
+            <td class="px-4 py-4 text-sm">
+                ${
+                    user.password
+                        ? `<span class="pw-cell font-mono text-slate-300" data-pw="${escHtml(user.password)}" data-shown="0">••••••••</span>
+                           <button type="button" class="toggle-pw ml-2 text-xs text-slate-500 hover:text-slate-300" data-id="${user.id}">lihat</button>`
+                        : '<span class="text-slate-600">-</span>'
+                }
             </td>
 
             <td class="px-4 py-4">
@@ -557,6 +572,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         ?.addEventListener("click", async (event) => {
             const editButton = event.target.closest(".edit-user");
             const deleteButton = event.target.closest(".delete-user");
+            const togglePw = event.target.closest(".toggle-pw");
+
+            if (togglePw) {
+                const cell = togglePw.parentElement.querySelector(".pw-cell");
+                if (cell) {
+                    const shown = cell.dataset.shown === "1";
+                    cell.textContent = shown ? "••••••••" : cell.dataset.pw;
+                    cell.dataset.shown = shown ? "0" : "1";
+                    togglePw.textContent = shown ? "lihat" : "sembunyikan";
+                }
+                return;
+            }
 
             if (editButton) {
                 const user = users.find(
