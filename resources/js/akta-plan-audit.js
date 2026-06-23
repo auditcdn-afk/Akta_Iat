@@ -288,6 +288,23 @@ function renderTimCheckboxes(selectedTim = []) {
     container.innerHTML = html;
 }
 
+function pad(value, length = 2) {
+    return String(value).padStart(length, "0");
+}
+
+function todayIso() {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// Preview No SPT: 0001/DD/MM/YYYY/SPT-IAT (urutan = jumlah plan + 1).
+// Server tetap menghasilkan nomor final saat disimpan agar tidak bentrok.
+function nextNoSptPreview() {
+    const seq = pad(plans.length + 1, 4);
+    const d = new Date();
+    return `${seq}/${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}/SPT-IAT`;
+}
+
 function openModal(plan = null) {
     const modal = document.getElementById("planModal");
     const title = document.getElementById("planModalTitle");
@@ -314,7 +331,8 @@ function openModal(plan = null) {
 
         document.getElementById("planId").value = "";
         document.getElementById("jenisAudit").value = "Audit";
-        document.getElementById("tglPlan").value = "Otomatis saat disimpan";
+        document.getElementById("noSpt").value = nextNoSptPreview();
+        document.getElementById("tglPlan").value = todayIso();
     }
 
     modal.classList.remove("hidden");
