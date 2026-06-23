@@ -21,6 +21,7 @@ class User extends Authenticatable
         'password',
         'role',
         'unit_usaha',
+        'wilayah',
         'is_disabled',
         'created_by',
     ];
@@ -64,6 +65,7 @@ class User extends Authenticatable
             'email' => $this->email,
             'role' => $this->role,
             'unitUsaha' => $this->unit_usaha ?: '',
+            'wilayah' => $this->wilayah ?: '',
             'isDisabled' => (bool) $this->is_disabled,
         ];
     }

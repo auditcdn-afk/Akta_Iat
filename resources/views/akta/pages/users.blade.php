@@ -103,20 +103,23 @@
                             class="w-[16%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Role</th>
                         <th
-                            class="w-[16%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            class="w-[13%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Unit</th>
                         <th
-                            class="w-[16%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            class="w-[12%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            Wilayah</th>
+                        <th
+                            class="w-[12%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Status</th>
                         <th
-                            class="w-[16%] px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            class="w-[13%] px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Aksi</th>
                     </tr>
                 </thead>
 
                 <tbody id="usersTableBody" class="divide-y divide-slate-800">
                     <tr>
-                        <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-400">
+                        <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">
                             Memuat data pengguna...
                         </td>
                     </tr>
@@ -186,6 +189,18 @@
                     <input id="unitUsaha" type="text"
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"
                         placeholder="HO / AUDIT / Cabang">
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Wilayah</label>
+                    <select id="wilayah"
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                        <option value="">-- Pilih Wilayah --</option>
+                        <option value="HO">HO</option>
+                        <option value="Riau">Riau</option>
+                        <option value="Aceh">Aceh</option>
+                        <option value="Kepri">Kepri</option>
+                    </select>
                 </div>
 
                 <div>

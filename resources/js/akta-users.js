@@ -236,6 +236,7 @@ function openModal(user = null) {
         renderRoleSelect();
         document.getElementById("role").value = user.role || "auditor";
         document.getElementById("unitUsaha").value = user.unitUsaha || "";
+        document.getElementById("wilayah").value = user.wilayah || "";
         document.getElementById("isDisabled").checked = Boolean(
             user.isDisabled,
         );
@@ -280,7 +281,7 @@ function renderUsers() {
     if (!users.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-400">
+                <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">
                     Belum ada pengguna.
                 </td>
             </tr>
@@ -305,6 +306,10 @@ function renderUsers() {
 
             <td class="px-4 py-4 text-sm text-slate-300">
                 ${user.unitUsaha || "-"}
+            </td>
+
+            <td class="px-4 py-4 text-sm text-slate-300">
+                ${user.wilayah || "-"}
             </td>
 
             <td class="px-4 py-4">
@@ -363,6 +368,7 @@ function getFormPayload() {
         email: document.getElementById("email").value.trim(),
         role: document.getElementById("role").value,
         unit_usaha: document.getElementById("unitUsaha").value.trim(),
+        wilayah: document.getElementById("wilayah").value,
         is_disabled: document.getElementById("isDisabled").checked,
     };
 

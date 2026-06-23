@@ -37,6 +37,7 @@ class UserController extends Controller
             'password' => ['required', 'string', 'min:8'],
             'role' => ['required', 'string', Rule::in(Role::allNames() ?: ['admin', 'manajer', 'auditor', 'viewer'])],
             'unit_usaha' => ['nullable', 'string', 'max:100'],
+            'wilayah' => ['nullable', 'string', Rule::in(['HO', 'Riau', 'Aceh', 'Kepri'])],
             'is_disabled' => ['nullable', 'boolean'],
         ]);
 
@@ -48,6 +49,7 @@ class UserController extends Controller
             'password' => Hash::make($payload['password']),
             'role' => $payload['role'],
             'unit_usaha' => $payload['unit_usaha'] ?? '',
+            'wilayah' => $payload['wilayah'] ?? null,
             'is_disabled' => (bool) ($payload['is_disabled'] ?? false),
             'created_by' => $request->user()?->username,
         ]);
@@ -77,6 +79,7 @@ class UserController extends Controller
             'password' => ['nullable', 'string', 'min:8'],
             'role' => ['required', 'string', Rule::in(Role::allNames() ?: ['admin', 'manajer', 'auditor', 'viewer'])],
             'unit_usaha' => ['nullable', 'string', 'max:100'],
+            'wilayah' => ['nullable', 'string', Rule::in(['HO', 'Riau', 'Aceh', 'Kepri'])],
             'is_disabled' => ['nullable', 'boolean'],
         ]);
 
@@ -103,6 +106,7 @@ class UserController extends Controller
             'email' => $payload['email'] ?: $payload['username'] . '@akta.local',
             'role' => $payload['role'],
             'unit_usaha' => $payload['unit_usaha'] ?? '',
+            'wilayah' => $payload['wilayah'] ?? null,
             'is_disabled' => (bool) ($payload['is_disabled'] ?? false),
         ]);
 
@@ -178,6 +182,7 @@ class UserController extends Controller
             'email' => $user->email,
             'role' => $user->role,
             'unitUsaha' => $user->unit_usaha ?: '',
+            'wilayah' => $user->wilayah ?: '',
             'isDisabled' => (bool) $user->is_disabled,
             'createdBy' => $user->created_by,
             'createdAt' => optional($user->created_at)->toDateTimeString(),
