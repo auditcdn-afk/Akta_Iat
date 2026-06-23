@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\Admin\MonitoringController;
 use App\Http\Controllers\Api\Admin\MenuController;
 use App\Http\Controllers\Api\Admin\RoleController;
+use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PlanAuditController;
 use App\Http\Controllers\Api\AuditTaskController;
 use App\Http\Controllers\Api\AuditRecommendationController;
@@ -29,6 +30,13 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::middleware(['auth:sanctum'])->group(function () {
+
+    // ─── Akun Saya (profil self-service) ──────────────────────────
+    Route::get('/profile', [ProfileController::class, 'show']);
+    Route::put('/profile', [ProfileController::class, 'update']);
+    Route::post('/profile/photo', [ProfileController::class, 'uploadPhoto']);
+    Route::delete('/profile/photo', [ProfileController::class, 'deletePhoto']);
+    Route::put('/profile/password', [ProfileController::class, 'changePassword']);
 
     // ─── Database Master Data ─────────────────────────────────────
     Route::prefix('database')->group(function () {

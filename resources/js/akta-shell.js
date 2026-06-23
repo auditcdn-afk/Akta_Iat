@@ -48,6 +48,22 @@ function renderUser(user) {
     setText("topbarUserName", displayName);
     setText("topbarUserRole", roleText);
     setText("dashboardAuthStatus", "Aktif");
+
+    renderAvatar(user, displayName);
+}
+
+function renderAvatar(user, displayName) {
+    const initial = (displayName || "U").trim().charAt(0).toUpperCase();
+    const avatar = document.getElementById("topbarAvatar");
+    const initialEl = document.getElementById("topbarAvatarInitial");
+
+    if (initialEl) {
+        initialEl.textContent = initial;
+    }
+
+    if (avatar && user.photoUrl) {
+        avatar.innerHTML = `<img src="${user.photoUrl}" alt="Foto" class="h-full w-full object-cover">`;
+    }
 }
 
 function applyRoleVisibility(user) {

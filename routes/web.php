@@ -67,6 +67,8 @@ Route::prefix('akta')->name('akta.')->group(function () {
     })->name('pengaturan');
 
     Route::view('/manajemen-menu', 'akta.pages.menu-management')->name('manajemen-menu');
+
+    Route::view('/profile', 'akta.pages.profile')->name('profile');
 });
 
 /*

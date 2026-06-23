@@ -10,10 +10,18 @@
         </div>
 
         <div class="flex shrink-0 items-center gap-3">
-            <div class="hidden text-right sm:block">
-                <div id="topbarUserName" class="text-sm font-semibold">Memuat...</div>
-                <div id="topbarUserRole" class="text-xs text-slate-400">-</div>
-            </div>
+            <a href="{{ route('akta.profile') }}"
+                class="flex items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-slate-800/60"
+                title="Akun Saya">
+                <div class="hidden text-right sm:block">
+                    <div id="topbarUserName" class="text-sm font-semibold">Memuat...</div>
+                    <div id="topbarUserRole" class="text-xs text-slate-400">-</div>
+                </div>
+                <span id="topbarAvatar"
+                    class="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-blue-600 text-sm font-bold text-white">
+                    <span id="topbarAvatarInitial">A</span>
+                </span>
+            </a>
 
             <button id="shellLogoutButton" type="button"
                 class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-red-500 hover:bg-red-500/10 hover:text-red-200">

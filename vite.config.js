@@ -20,6 +20,7 @@ export default defineConfig({
                 'resources/js/akta-users.js',
                 'resources/js/akta-monitoring.js',
                 'resources/js/akta-menu-management.js',
+                'resources/js/akta-profile.js',
             ],
             refresh: true,
         }),

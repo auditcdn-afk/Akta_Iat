@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -18,6 +19,7 @@ class User extends Authenticatable
         'name',
         'display_name',
         'email',
+        'photo_path',
         'password',
         'plain_password',
         'role',
@@ -47,6 +49,11 @@ class User extends Authenticatable
         return $value ?: $this->name ?: $this->username ?: 'User';
     }
 
+    public function getPhotoUrlAttribute(): ?string
+    {
+        return $this->photo_path ? Storage::url($this->photo_path) : null;
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
@@ -65,6 +72,7 @@ class User extends Authenticatable
             'displayName' => $this->display_name,
             'name' => $this->name,
             'email' => $this->email,
+            'photoUrl' => $this->photo_url,
             'role' => $this->role,
             'unitUsaha' => $this->unit_usaha ?: '',
             'wilayah' => $this->wilayah ?: '',
