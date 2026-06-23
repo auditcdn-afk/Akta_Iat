@@ -175,6 +175,12 @@ function openModal(task) {
         planDetailRow("Status Pelaksanaan", task.startedAt
             ? `${toDateOnly(task.startedAt)} s/d ${toDateOnly(task.finishedAt) || "-"}`
             : "Belum dikerjakan"),
+        task.lampiranUrl
+            ? `<div>
+                   <dt class="text-xs uppercase tracking-wide text-slate-500">File Lampiran</dt>
+                   <dd class="mt-0.5 font-medium"><a href="${escapeHtml(task.lampiranUrl)}" target="_blank" class="text-blue-400 underline">${escapeHtml(task.lampiranName || "Lihat lampiran")}</a></dd>
+               </div>`
+            : planDetailRow("File Lampiran", "Belum ada"),
     ].join("");
 
     const viewOnly = isViewOnly();

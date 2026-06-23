@@ -81,7 +81,9 @@ class PlanAuditController extends Controller
         }
 
         $payload['tgl_plan'] = $payload['tgl_plan'] ?? now()->toDateString();
-        $payload['status']   = 'draft';
+        // Plan baru langsung menunggu persetujuan Koordinator (sesuai birokrasi:
+        // manajer buat plan → koordinator approved → manajer approved → COO approved).
+        $payload['status']   = 'pending_koordinator';
 
         $plan = PlanAudit::query()->create([
             ...$payload,
