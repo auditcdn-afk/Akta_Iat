@@ -59,6 +59,24 @@ class PlanAudit extends Model
         return $this->hasMany(AuditTask::class, 'plan_audit_id');
     }
 
+    public function logs(): HasMany
+    {
+        return $this->hasMany(PlanAuditLog::class, 'plan_audit_id');
+    }
+
+    /** Catat satu entri riwayat status birokrasi. */
+    public function recordLog(string $action, ?string $from, ?string $to, ?\App\Models\User $user = null, ?string $note = null): void
+    {
+        $this->logs()->create([
+            'action'      => $action,
+            'from_status' => $from,
+            'to_status'   => $to,
+            'actor'       => $user?->username,
+            'actor_role'  => $user?->role,
+            'note'        => $note,
+        ]);
+    }
+
     public function recommendations(): HasMany
     {
         return $this->hasMany(AuditRecommendation::class, 'plan_audit_id');

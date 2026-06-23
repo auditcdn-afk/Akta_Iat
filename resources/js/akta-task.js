@@ -158,9 +158,75 @@ function isViewOnly() {
     return Object.prototype.hasOwnProperty.call(APPROVAL_STAGE, currentUser?.role);
 }
 
+// Label status birokrasi untuk timeline
+const PLAN_STATUS_LABEL = {
+    draft: "Draft",
+    pending_koordinator: "Menunggu Koordinator",
+    pending_manajer: "Menunggu Manajer Audit",
+    pending_coo: "Menunggu COO",
+    scheduled: "Terjadwal",
+    running: "Audit Berjalan",
+    cabang_active: "Cabang Aktif",
+    done: "Selesai",
+    cancelled: "Dibatalkan",
+};
+
+const ACTION_META = {
+    created: { label: "Plan dibuat",   dot: "bg-blue-500" },
+    advance: { label: "Disetujui",     dot: "bg-emerald-500" },
+    reject:  { label: "Ditolak",       dot: "bg-red-500" },
+    execute: { label: "Pelaksanaan",   dot: "bg-amber-500" },
+};
+
+const ROLE_LABEL = {
+    admin: "Admin",
+    manajer: "Manajer Audit",
+    auditor: "Auditor",
+    koordinator: "Koordinator",
+    coo: "COO",
+};
+
+function statusLabel(s) {
+    return PLAN_STATUS_LABEL[s] || (s || "-");
+}
+
+function renderTimeline(logs) {
+    const el = document.getElementById("planTimeline");
+    if (!el) return;
+
+    if (!logs || !logs.length) {
+        el.innerHTML = `<li class="text-xs text-slate-500">Belum ada riwayat status.</li>`;
+        return;
+    }
+
+    el.innerHTML = logs.map((log) => {
+        const meta = ACTION_META[log.action] || { label: log.action, dot: "bg-slate-500" };
+        const role = ROLE_LABEL[log.actorRole] || log.actorRole || "";
+        const who = [log.actor, role ? `(${role})` : ""].filter(Boolean).join(" ");
+        const transisi = (log.fromStatus && log.toStatus && log.fromStatus !== log.toStatus)
+            ? `<span class="text-slate-400">${escapeHtml(statusLabel(log.fromStatus))} → <span class="text-slate-200">${escapeHtml(statusLabel(log.toStatus))}</span></span>`
+            : `<span class="text-slate-200">${escapeHtml(statusLabel(log.toStatus))}</span>`;
+
+        return `
+        <li class="flex gap-3">
+            <span class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${meta.dot}"></span>
+            <div class="flex-1">
+                <div class="flex flex-wrap items-center gap-x-2">
+                    <span class="font-semibold text-slate-100">${escapeHtml(meta.label)}</span>
+                    ${transisi}
+                </div>
+                ${log.note ? `<div class="text-xs text-slate-400">${escapeHtml(log.note)}</div>` : ""}
+                <div class="text-xs text-slate-500">${escapeHtml(who)} • ${escapeHtml(log.createdAt || "")}</div>
+            </div>
+        </li>`;
+    }).join("");
+}
+
 function openModal(task) {
     const modal = document.getElementById("taskModal");
     const plan = task.planAudit || {};
+
+    renderTimeline(plan.logs);
 
     document.getElementById("taskForm").reset();
     document.getElementById("taskId").value = task.id;

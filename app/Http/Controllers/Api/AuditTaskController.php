@@ -36,7 +36,7 @@ class AuditTaskController extends Controller
         ]));
 
         $tasks = AuditTask::query()
-            ->with('planAudit')
+            ->with(['planAudit.logs' => fn($q) => $q->orderBy('created_at')])
             ->when($onlyMine && ! empty($identities), function ($query) use ($identities) {
                 $query->whereIn('assigned_to', $identities);
             })
@@ -225,6 +225,17 @@ class AuditTaskController extends Controller
         $task->updated_by = $user?->username;
         $task->save();
         $task->load('planAudit');
+
+        // Catat di riwayat birokrasi plan
+        if ($task->planAudit) {
+            $task->planAudit->recordLog(
+                'execute',
+                $task->planAudit->status,
+                $task->planAudit->status,
+                $user,
+                "Auditor merekam pelaksanaan: {$data['started_at']} s/d {$data['finished_at']}"
+            );
+        }
 
         $logger->write(
             $request,

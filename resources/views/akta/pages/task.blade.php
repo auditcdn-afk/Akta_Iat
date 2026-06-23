@@ -81,6 +81,12 @@
                 <dl id="planDetail" class="grid gap-x-6 gap-y-3 sm:grid-cols-2 text-sm"></dl>
             </div>
 
+            {{-- ── Riwayat Status Birokrasi ── --}}
+            <div class="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                <h4 class="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400">Riwayat Status Birokrasi</h4>
+                <ol id="planTimeline" class="space-y-3 text-sm"></ol>
+            </div>
+
             {{-- ── Form Pelaksanaan (auditor / admin / manajer) ── --}}
             <div id="execSection" class="space-y-4">
                 <div class="grid gap-4 sm:grid-cols-2">

@@ -95,6 +95,8 @@ class PlanAuditController extends Controller
         // sehingga plan langsung muncul di Task auditor bersangkutan.
         app(PlanTaskService::class)->syncPlan($plan, $request->user()?->username);
 
+        $plan->recordLog('created', null, $plan->status, $request->user(), 'Plan audit dibuat');
+
         $logger->write($request, 'PLAN_CREATE', 'plan_audits', 'Membuat plan audit: ' . $plan->no_spt, $request->user());
 
         return response()->json(['ok' => true, 'message' => 'Plan audit berhasil dibuat. Task untuk auditor telah dibuat otomatis.', 'data' => $plan->toAktaArray()], 201);
@@ -155,6 +157,8 @@ class PlanAuditController extends Controller
         $plan->updated_by = $request->user()?->username;
         $plan->save();
 
+        $plan->recordLog('advance', $status, $plan->status, $request->user(), 'Disetujui / dilanjutkan');
+
         $logger->write($request, 'PLAN_ADVANCE', 'plan_audits',
             "Plan {$plan->no_spt}: {$status} → {$plan->status}", $request->user());
 
@@ -182,12 +186,16 @@ class PlanAuditController extends Controller
             return response()->json(['ok' => false, 'message' => 'Role kamu tidak bisa menolak.'], 403);
         }
 
+        $alasan = trim((string) $request->input('alasan')) ?: null;
+
         $plan->status = 'draft';
         $plan->updated_by = $request->user()?->username;
         $plan->save();
 
+        $plan->recordLog('reject', $status, 'draft', $request->user(), $alasan ? "Ditolak: {$alasan}" : 'Ditolak');
+
         $logger->write($request, 'PLAN_REJECT', 'plan_audits',
-            "Plan {$plan->no_spt} ditolak dari {$status} → draft", $request->user());
+            "Plan {$plan->no_spt} ditolak dari {$status} → draft" . ($alasan ? " ({$alasan})" : ''), $request->user());
 
         return response()->json(['ok' => true, 'message' => 'Plan dikembalikan ke Draft.', 'data' => $plan->toAktaArray()]);
     }
