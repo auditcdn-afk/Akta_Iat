@@ -110,12 +110,12 @@ function renderTable() {
     const tbody = document.getElementById("auditTableBody");
     if (!tbody) return;
 
-    const relevant = plans.filter(p =>
-        ["scheduled", "running", "cabang_active", "done"].includes(p.status)
-    );
+    // Halaman audit hanya menampilkan plan yang sudah terjadwal (siap dimulai).
+    // Plan yang sudah running ditangani di halaman Pemeriksaan.
+    const relevant = plans.filter(p => p.status === "scheduled");
 
     if (!relevant.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">Belum ada plan audit yang siap dikerjakan.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">Belum ada plan audit yang terjadwal. Plan yang sedang berjalan dapat diakses di menu Pemeriksaan.</td></tr>`;
         return;
     }
 
@@ -123,14 +123,8 @@ function renderTable() {
         const meta    = STATUS_META[plan.status] || STATUS_META.scheduled;
         const tim     = [plan.kepalaTim, ...(plan.tim || [])].filter(Boolean);
         const timHtml = tim.length ? escapeHtml(tim.join(", ")) : "-";
-        const btnLabel = plan.status === "scheduled" ? "Mulai Audit"
-                       : plan.status === "running"   ? "Lanjutkan"
-                       : "Lihat Detail";
-        const btnColor = plan.status === "scheduled"
-            ? "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
-            : plan.status === "running"
-            ? "border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
-            : "border-slate-600 text-slate-300 hover:bg-slate-800";
+        const btnLabel = "Mulai Audit";
+        const btnColor = "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10";
 
         return `
         <tr class="hover:bg-slate-950/50">
@@ -223,15 +217,8 @@ function openAuditModal(plan) {
         startBtn.type = "button";
         startBtn.className = "rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-500";
         startBtn.textContent = "Mulai Audit";
-        startBtn.addEventListener("click", () => advancePlan(plan.id, "Mulai pelaksanaan audit"));
+        startBtn.addEventListener("click", () => startAudit(plan.id));
         actions.appendChild(startBtn);
-    } else if (plan.status === "running") {
-        const doneBtn = document.createElement("button");
-        doneBtn.type = "button";
-        doneBtn.className = "rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-500";
-        doneBtn.textContent = "Selesaikan Audit";
-        doneBtn.addEventListener("click", () => advancePlan(plan.id, "Audit selesai, menunggu konfirmasi cabang"));
-        actions.appendChild(doneBtn);
     }
 
     const modal = document.getElementById("auditModal");
@@ -245,19 +232,18 @@ function closeAuditModal() {
     modal.classList.remove("flex");
 }
 
-async function advancePlan(planId, note = "") {
-    if (!confirm(`Konfirmasi: ${note}?`)) return;
+async function startAudit(planId) {
+    if (!confirm("Konfirmasi mulai pelaksanaan audit? Anda akan diarahkan ke halaman Pemeriksaan.")) return;
     try {
-        const payload = await fetchJson(`/api/plans/${planId}/advance`, {
+        await fetchJson(`/api/plans/${planId}/advance`, {
             method: "POST",
             headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({ note }),
+            body: JSON.stringify({ note: "Mulai pelaksanaan audit" }),
         });
-        closeAuditModal();
-        showAlert(payload.message || "Status plan berhasil diperbarui.");
-        await loadPlans();
+        // Setelah plan running, arahkan ke halaman pemeriksaan kas
+        window.location.href = "/akta/audit-detail/kas";
     } catch (err) {
-        showAlert(err.message || "Gagal memperbarui status.", "error");
+        showAlert(err.message || "Gagal memulai audit.", "error");
     }
 }
 

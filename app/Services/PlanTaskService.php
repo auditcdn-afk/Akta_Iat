@@ -17,6 +17,7 @@ class PlanTaskService
 {
     /**
      * Buat task yang belum ada untuk seluruh auditor pada satu plan.
+     * Jika plan sudah `running`, buat juga task untuk cabang.
      * Mengembalikan jumlah task baru yang dibuat.
      */
     public function syncPlan(PlanAudit $plan, ?string $actor = null): int
@@ -55,6 +56,30 @@ class PlanTaskService
             ]);
 
             $created++;
+        }
+
+        // Saat plan sudah running, pastikan task cabang ada (untuk backfill).
+        if ($plan->status === 'running' && $plan->cabang) {
+            $branchExists = AuditTask::query()
+                ->where('plan_audit_id', $plan->id)
+                ->where('assigned_to', $plan->cabang)
+                ->exists();
+
+            if (! $branchExists) {
+                AuditTask::query()->create([
+                    'plan_audit_id' => $plan->id,
+                    'judul'         => $judul,
+                    'kategori'      => $plan->jenis_audit,
+                    'assigned_to'   => $plan->cabang,
+                    'priority'      => 'normal',
+                    'status'        => 'todo',
+                    'due_date'      => $plan->tgl_plan,
+                    'catatan'       => 'Tugas cabang: konfirmasi kedatangan auditor untuk plan ' . $plan->no_spt,
+                    'created_by'    => $actor ?: 'system',
+                    'updated_by'    => $actor ?: 'system',
+                ]);
+                $created++;
+            }
         }
 
         return $created;
