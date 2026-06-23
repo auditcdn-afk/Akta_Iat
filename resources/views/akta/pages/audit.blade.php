@@ -20,7 +20,10 @@
 
             <select id="auditStatusFilter"
                 class="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                <option value="">Semua</option>
                 <option value="scheduled">Terjadwal</option>
+                <option value="running">Sedang Berjalan</option>
+                <option value="cabang_active">Cabang Aktif</option>
             </select>
         </div>
     </div>
