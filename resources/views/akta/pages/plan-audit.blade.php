@@ -48,7 +48,7 @@
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Cabang</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Jadwal</th>
+                            Tgl Plan</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Tim
                         </th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -99,11 +99,33 @@
                     <label class="mb-1 block text-sm font-medium text-slate-300">Jenis Audit</label>
                     <select id="jenisAudit" required
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        <option value="Reguler">Reguler</option>
-                        <option value="Khusus">Khusus</option>
-                        <option value="Follow Up">Follow Up</option>
-                        <option value="Investigasi">Investigasi</option>
+                        <option value="Audit">Audit</option>
+                        <option value="Audit Online Kas + Unit SMH">Audit Online Kas + Unit SMH</option>
+                        <option value="Audit Online Kas + HGP & AHM Oils">Audit Online Kas + HGP & AHM Oils</option>
+                        <option value="Audit Verifikasi HO">Audit Verifikasi HO</option>
+                        <option value="Audit Verifikasi Lapangan">Audit Verifikasi Lapangan</option>
+                        <option value="Audit Serah Terima Sales Office Head">Audit Serah Terima Sales Office Head</option>
+                        <option value="Audit Serah Terima Warehouse">Audit Serah Terima Warehouse</option>
+                        <option value="Audit Kas + HGP & AHM Oils">Audit Kas + HGP & AHM Oils</option>
+                        <option value="Audit Kas + Unit SMH">Audit Kas + Unit SMH</option>
+                        <option value="Audit Kas + BPKB">Audit Kas + BPKB</option>
+                        <option value="Audit Serah Terima Partkeeper">Audit Serah Terima Partkeeper</option>
+                        <option value="Audit Serah Terima Workshop Head">Audit Serah Terima Workshop Head</option>
+                        <option value="Audit PJS SO HEAD">Audit PJS SO HEAD</option>
+                        <option value="Audit PJS SO ADH">Audit PJS SO ADH</option>
+                        <option value="Audit CHTC">Audit CHTC</option>
+                        <option value="Audit PAV/HC3/HOHO MDN">Audit PAV/HC3/HOHO MDN</option>
+                        <option value="Faktur">Faktur</option>
+                        <option value="Audit Serah Terima Kasir">Audit Serah Terima Kasir</option>
+                        <option value="Audit Serah Terima Pos Head">Audit Serah Terima Pos Head</option>
                     </select>
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Tanggal Plan</label>
+                    <input id="tglPlan" type="text" readonly
+                        class="w-full cursor-not-allowed rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-400 outline-none">
+                    <p class="mt-1 text-xs text-slate-500">Terisi otomatis saat plan dibuat.</p>
                 </div>
 
                 <div>
@@ -115,40 +137,10 @@
                 </div>
 
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Wilayah Cabang</label>
-                    <input id="cabangArea" type="text" readonly
-                        class="w-full cursor-not-allowed rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-400 outline-none">
-                </div>
-
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Tanggal Mulai</label>
-                    <input id="tglMulai" type="date"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                </div>
-
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Tanggal Selesai</label>
-                    <input id="tglSelesai" type="date"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                </div>
-
-                <div>
                     <label class="mb-1 block text-sm font-medium text-slate-300">Kepala Tim</label>
                     <select id="kepalaTim"
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
                         <option value="">-- Pilih Kepala Tim --</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Status</label>
-                    <select id="status" required
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        <option value="draft">Draft</option>
-                        <option value="scheduled">Scheduled</option>
-                        <option value="running">Running</option>
-                        <option value="done">Done</option>
-                        <option value="cancelled">Cancelled</option>
                     </select>
                 </div>
 

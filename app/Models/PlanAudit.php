@@ -14,6 +14,7 @@ class PlanAudit extends Model
         'cabang',
         'cabang_area',
         'jenis_audit',
+        'tgl_plan',
         'tgl_mulai',
         'tgl_selesai',
         'kepala_tim',
@@ -26,6 +27,7 @@ class PlanAudit extends Model
 
     protected $casts = [
         'tim' => 'array',
+        'tgl_plan' => 'date',
         'tgl_mulai' => 'date',
         'tgl_selesai' => 'date',
     ];
@@ -38,6 +40,7 @@ class PlanAudit extends Model
             'cabang' => $this->cabang,
             'cabangArea' => $this->cabang_area,
             'jenisAudit' => $this->jenis_audit,
+            'tglPlan' => optional($this->tgl_plan)->format('Y-m-d'),
             'tglMulai' => optional($this->tgl_mulai)->format('Y-m-d'),
             'tglSelesai' => optional($this->tgl_selesai)->format('Y-m-d'),
             'kepalaTim' => $this->kepala_tim,

@@ -148,7 +148,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/tasks/{task}', [AuditTaskController::class, 'destroy']);
     });
 
-    Route::middleware('akta.role:admin,manajer,auditor')->group(function () {
+    // Tambah plan = manajer & admin; perbaikan/hapus = manajer & admin (UX di tangan admin)
+    Route::middleware('akta.role:admin,manajer')->group(function () {
         Route::post('/plans', [PlanAuditController::class, 'store']);
         Route::put('/plans/{plan}', [PlanAuditController::class, 'update']);
         Route::delete('/plans/{plan}', [PlanAuditController::class, 'destroy']);

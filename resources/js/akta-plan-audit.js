@@ -25,7 +25,8 @@ function authHeaders() {
 }
 
 function canManagePlans() {
-    return ["admin", "manajer", "auditor"].includes(currentUser?.role);
+    // Tambah/perbaiki plan hanya untuk manajer audit & admin (UX di tangan admin)
+    return ["admin", "manajer"].includes(currentUser?.role);
 }
 
 function showAlert(message, type = "success") {
@@ -183,12 +184,10 @@ function renderPlans() {
 
                 <td class="px-4 py-4">
                     <div class="text-sm font-semibold text-slate-200">${escapeHtml(plan.cabang || "-")}</div>
-                    <div class="text-xs text-slate-500">${escapeHtml(plan.cabangArea || "-")}</div>
                 </td>
 
                 <td class="px-4 py-4 text-sm text-slate-300">
-                    <div>${escapeHtml(plan.tglMulai || "-")}</div>
-                    <div class="text-xs text-slate-500">s/d ${escapeHtml(plan.tglSelesai || "-")}</div>
+                    ${escapeHtml(plan.tglPlan || "-")}
                 </td>
 
                 <td class="px-4 py-4">
@@ -289,11 +288,6 @@ function renderTimCheckboxes(selectedTim = []) {
     container.innerHTML = html;
 }
 
-function getWilayahForCabang(cabang) {
-    const found = unitUsahaList.find((u) => u.unitUsaha === cabang);
-    return found?.wilayah || "";
-}
-
 function openModal(plan = null) {
     const modal = document.getElementById("planModal");
     const title = document.getElementById("planModalTitle");
@@ -308,23 +302,19 @@ function openModal(plan = null) {
 
         document.getElementById("planId").value = plan.id;
         document.getElementById("noSpt").value = plan.noSpt || "";
-        document.getElementById("jenisAudit").value = plan.jenisAudit || "Reguler";
-        document.getElementById("tglMulai").value = plan.tglMulai || "";
-        document.getElementById("tglSelesai").value = plan.tglSelesai || "";
-        document.getElementById("status").value = plan.status || "draft";
+        document.getElementById("jenisAudit").value = plan.jenisAudit || "Audit";
+        document.getElementById("tglPlan").value = plan.tglPlan || "";
         document.getElementById("keterangan").value = plan.keterangan || "";
 
         renderCabangSelect(plan.cabang || "");
-        document.getElementById("cabangArea").value = plan.cabangArea || getWilayahForCabang(plan.cabang);
         renderKepalaTimSelect(plan.kepalaTim || "");
         renderTimCheckboxes(plan.tim || []);
     } else {
         title.textContent = "Tambah Plan Audit";
 
         document.getElementById("planId").value = "";
-        document.getElementById("jenisAudit").value = "Reguler";
-        document.getElementById("status").value = "draft";
-        document.getElementById("cabangArea").value = "";
+        document.getElementById("jenisAudit").value = "Audit";
+        document.getElementById("tglPlan").value = "Otomatis saat disimpan";
     }
 
     modal.classList.remove("hidden");
@@ -347,12 +337,8 @@ function getFormPayload() {
         no_spt: document.getElementById("noSpt").value.trim(),
         jenis_audit: document.getElementById("jenisAudit").value,
         cabang: document.getElementById("cabang").value,
-        cabang_area: document.getElementById("cabangArea").value.trim(),
-        tgl_mulai: document.getElementById("tglMulai").value || null,
-        tgl_selesai: document.getElementById("tglSelesai").value || null,
         kepala_tim: document.getElementById("kepalaTim").value,
         tim,
-        status: document.getElementById("status").value,
         keterangan: document.getElementById("keterangan").value.trim(),
     };
 }
@@ -436,13 +422,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     document
         .getElementById("cancelPlanFormButton")
         ?.addEventListener("click", closeModal);
-
-    // Auto-fill Wilayah Cabang when Cabang changes
-    document.getElementById("cabang")?.addEventListener("change", (e) => {
-        const wilayah = getWilayahForCabang(e.target.value);
-        const el = document.getElementById("cabangArea");
-        if (el) el.value = wilayah;
-    });
 
     document
         .getElementById("planForm")

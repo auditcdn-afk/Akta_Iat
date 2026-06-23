@@ -16,6 +16,7 @@ class PlanAuditController extends Controller
     {
         $users = User::query()
             ->where('is_disabled', false)
+            ->where('role', 'auditor')
             ->orderBy('wilayah')
             ->orderBy('unit_usaha')
             ->orderBy('name')
@@ -71,6 +72,16 @@ class PlanAuditController extends Controller
                 $count,
                 now()->format('d/m/Y')
             );
+        }
+
+        // Tanggal plan terisi otomatis saat dibuat (jika kosong)
+        if (empty($payload['tgl_plan'])) {
+            $payload['tgl_plan'] = now()->toDateString();
+        }
+
+        // Status otomatis untuk plan baru
+        if (empty($payload['status'])) {
+            $payload['status'] = 'draft';
         }
 
         $plan = PlanAudit::query()->create([
@@ -160,14 +171,15 @@ class PlanAuditController extends Controller
             'no_spt' => ['nullable', 'string', 'max:100'],
             'cabang' => ['required', 'string', 'max:150'],
             'cabang_area' => ['nullable', 'string', 'max:150'],
-            'jenis_audit' => ['required', 'string', 'max:100'],
+            'jenis_audit' => ['required', 'string', 'max:150'],
+            'tgl_plan' => ['nullable', 'date'],
             'tgl_mulai' => ['nullable', 'date'],
             'tgl_selesai' => ['nullable', 'date', 'after_or_equal:tgl_mulai'],
             'kepala_tim' => ['nullable', 'string', 'max:150'],
             'tim' => ['nullable', 'array'],
             'tim.*' => ['nullable', 'string', 'max:150'],
             'status' => [
-                'required',
+                'nullable',
                 'string',
                 Rule::in(['draft', 'scheduled', 'running', 'done', 'cancelled']),
             ],
@@ -175,6 +187,16 @@ class PlanAuditController extends Controller
         ]);
 
         $payload['tim'] = array_values(array_filter($payload['tim'] ?? []));
+
+        // Status & tgl_plan tidak diutak-atik dari form (otomatis); jangan
+        // menimpa nilai existing dengan null saat update.
+        if (! array_key_exists('status', $payload) || $payload['status'] === null) {
+            unset($payload['status']);
+        }
+
+        if (! array_key_exists('tgl_plan', $payload) || $payload['tgl_plan'] === null) {
+            unset($payload['tgl_plan']);
+        }
 
         return $payload;
     }
