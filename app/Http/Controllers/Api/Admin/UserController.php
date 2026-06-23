@@ -16,7 +16,8 @@ class UserController extends Controller
     public function index(): JsonResponse
     {
         $users = User::query()
-            ->orderBy('role')
+            ->orderByRaw('wilayah IS NULL, wilayah')
+            ->orderBy('unit_usaha')
             ->orderBy('username')
             ->get()
             ->map(fn(User $user) => $this->formatUser($user));
