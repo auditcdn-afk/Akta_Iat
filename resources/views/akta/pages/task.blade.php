@@ -86,7 +86,7 @@
                     <label class="mb-1 block text-sm font-medium text-slate-300">
                         Mulai Audit <span class="text-red-400">*</span>
                     </label>
-                    <input id="startedAt" type="datetime-local" required
+                    <input id="startedAt" type="date" required
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
                 </div>
 
@@ -94,7 +94,7 @@
                     <label class="mb-1 block text-sm font-medium text-slate-300">
                         Selesai Audit <span class="text-red-400">*</span>
                     </label>
-                    <input id="finishedAt" type="datetime-local" required
+                    <input id="finishedAt" type="date" required
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
                 </div>
 

@@ -204,9 +204,9 @@ class AuditTaskController extends Controller
             'finished_at' => ['required', 'date', 'after_or_equal:started_at'],
             'lampiran'    => ['nullable', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,xlsx,xls,doc,docx'],
         ], [
-            'started_at.required'  => 'Waktu Mulai Audit wajib diisi.',
-            'finished_at.required' => 'Waktu Selesai Audit wajib diisi.',
-            'finished_at.after_or_equal' => 'Waktu Selesai tidak boleh sebelum Waktu Mulai.',
+            'started_at.required'  => 'Tanggal Mulai Audit wajib diisi.',
+            'finished_at.required' => 'Tanggal Selesai Audit wajib diisi.',
+            'finished_at.after_or_equal' => 'Tanggal Selesai tidak boleh sebelum Tanggal Mulai.',
         ]);
 
         $task->started_at  = $data['started_at'];

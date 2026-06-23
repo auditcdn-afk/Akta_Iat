@@ -81,7 +81,7 @@ async function loadTasks() {
 
 function fmtDateTime(value) {
     if (!value) return "-";
-    return String(value).replace("T", " ");
+    return String(value).slice(0, 10);
 }
 
 function renderTasks() {
@@ -135,10 +135,15 @@ function planDetailRow(label, value) {
         </div>`;
 }
 
-function nowLocal() {
+function todayLocal() {
     const d = new Date();
     const pad = (n) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function toDateOnly(value) {
+    if (!value) return "";
+    return String(value).slice(0, 10);
 }
 
 function openModal(task) {
@@ -159,9 +164,9 @@ function openModal(task) {
         planDetailRow("PIC Task", task.assignedTo),
     ].join("");
 
-    // Prefill bila sudah pernah dikerjakan; jika belum, waktu mulai = sekarang
-    document.getElementById("startedAt").value = task.startedAt || nowLocal();
-    document.getElementById("finishedAt").value = task.finishedAt || "";
+    // Prefill bila sudah pernah dikerjakan; jika belum, tanggal mulai = hari ini
+    document.getElementById("startedAt").value = toDateOnly(task.startedAt) || todayLocal();
+    document.getElementById("finishedAt").value = toDateOnly(task.finishedAt) || "";
 
     const current = document.getElementById("currentLampiran");
     if (task.lampiranUrl) {
@@ -190,11 +195,11 @@ async function saveExecution(event) {
     const fileInput = document.getElementById("lampiran");
 
     if (!startedAt || !finishedAt) {
-        showAlert("Waktu Mulai dan Selesai audit wajib diisi.", "error");
+        showAlert("Tanggal Mulai dan Selesai audit wajib diisi.", "error");
         return;
     }
     if (finishedAt < startedAt) {
-        showAlert("Waktu Selesai tidak boleh sebelum Waktu Mulai.", "error");
+        showAlert("Tanggal Selesai tidak boleh sebelum Tanggal Mulai.", "error");
         return;
     }
 
