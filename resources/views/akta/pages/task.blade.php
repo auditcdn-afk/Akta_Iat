@@ -11,7 +11,7 @@
         <div>
             <h2 class="text-lg font-bold">Tugas Audit Saya</h2>
             <p class="mt-1 text-sm text-slate-400">
-                Plan audit yang ditugaskan otomatis muncul di sini. Buka task untuk merekam Mulai, Selesai, dan Lampiran audit.
+                Task hanya tempat persinggahan kegiatan. Setelah kegiatan selesai (atau sudah disetujui), task otomatis hilang dari daftar ini.
             </p>
         </div>
 
@@ -24,7 +24,6 @@
                 <option value="">Semua Status</option>
                 <option value="todo">Belum Dikerjakan</option>
                 <option value="in_progress">Sedang Berjalan</option>
-                <option value="done">Selesai</option>
             </select>
         </div>
     </div>

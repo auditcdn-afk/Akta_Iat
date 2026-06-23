@@ -16,6 +16,13 @@ class AuditTaskController extends Controller
     // Role kantor pusat (HO) yang boleh melihat semua task.
     private const HO_OVERSIGHT = ['admin', 'manajer', 'koordinator', 'coo'];
 
+    // Role approval: hanya melihat task yang plannya menunggu persetujuan mereka.
+    private const APPROVAL_STAGE = [
+        'koordinator' => 'pending_koordinator',
+        'manajer'     => 'pending_manajer',
+        'coo'         => 'pending_coo',
+    ];
+
     public function index(Request $request, PlanTaskService $planTasks): JsonResponse
     {
         // Backfill otomatis: pastikan setiap plan (lama & baru) sudah punya task
@@ -35,10 +42,25 @@ class AuditTaskController extends Controller
             $user?->username,
         ]));
 
+        // Task hanya tempat persinggahan kegiatan:
+        // - Role approval (koordinator/manajer/coo) hanya melihat task yang
+        //   plannya sedang menunggu persetujuan mereka. Setelah disetujui,
+        //   plan pindah tahap dan task otomatis hilang dari daftar mereka.
+        // - Selain itu, task yang sudah selesai (status done) selalu disembunyikan.
+        $approvalStage = self::APPROVAL_STAGE[$role] ?? null;
+
         $tasks = AuditTask::query()
             ->with(['planAudit.logs' => fn($q) => $q->orderBy('created_at')])
-            ->when($onlyMine && ! empty($identities), function ($query) use ($identities) {
-                $query->whereIn('assigned_to', $identities);
+            ->when($approvalStage, function ($query) use ($approvalStage) {
+                $query->whereHas('planAudit', fn($q) => $q->where('status', $approvalStage));
+            })
+            ->when(! $approvalStage, function ($query) use ($onlyMine, $identities) {
+                // Auditor/cabang: hanya task miliknya. Semua role non-approval:
+                // sembunyikan task yang sudah selesai (transit).
+                if ($onlyMine && ! empty($identities)) {
+                    $query->whereIn('assigned_to', $identities);
+                }
+                $query->where('status', '!=', 'done');
             })
             ->when($request->filled('q'), function ($query) use ($request) {
                 $q = $request->query('q');
