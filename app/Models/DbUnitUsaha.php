@@ -8,17 +8,16 @@ class DbUnitUsaha extends Model
 {
     protected $table = 'db_unit_usaha';
 
-    protected $fillable = ['kode', 'nama', 'alamat', 'keterangan'];
+    protected $fillable = ['unit_usaha', 'wilayah', 'jenis'];
 
     public function toAktaArray(): array
     {
         return [
-            'id'         => $this->id,
-            'kode'       => $this->kode,
-            'nama'       => $this->nama,
-            'alamat'     => $this->alamat,
-            'keterangan' => $this->keterangan,
-            'createdAt'  => optional($this->created_at)->toDateTimeString(),
+            'id'        => $this->id,
+            'unitUsaha' => $this->unit_usaha,
+            'wilayah'   => $this->wilayah,
+            'jenis'     => $this->jenis,
+            'createdAt' => optional($this->created_at)->toDateTimeString(),
         ];
     }
 }

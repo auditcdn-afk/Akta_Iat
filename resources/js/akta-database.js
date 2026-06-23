@@ -145,23 +145,22 @@ const TABS = {
     "unit-usaha": {
         label: "Unit Usaha",
         fields: [
-            { key: "kode", label: "Kode", type: "text", span: 1 },
-            { key: "nama", label: "Nama Unit Usaha", type: "text", required: true, span: 1 },
-            { key: "alamat", label: "Alamat", type: "textarea", span: 2 },
-            { key: "keterangan", label: "Keterangan", type: "textarea", span: 2 },
+            { key: "unit_usaha", label: "Unit Usaha", type: "text", required: true, span: 1 },
+            { key: "wilayah", label: "Wilayah", type: "text", span: 1 },
+            { key: "jenis", label: "Jenis", type: "text", span: 1 },
         ],
         renderRow(row, no, isAdmin) {
             return `
             <tr class="hover:bg-slate-950/50">
                 <td class="px-4 py-3 text-sm text-slate-500">${no}</td>
-                <td class="px-4 py-3 text-sm font-mono text-slate-300">${escHtml(row.kode)}</td>
-                <td class="px-4 py-3 text-sm text-slate-100">${escHtml(row.nama)}</td>
-                <td class="px-4 py-3 text-sm text-slate-400 max-w-xs truncate">${escHtml(row.alamat)}</td>
+                <td class="px-4 py-3 text-sm text-slate-100">${escHtml(row.unitUsaha)}</td>
+                <td class="px-4 py-3 text-sm text-slate-300">${escHtml(row.wilayah)}</td>
+                <td class="px-4 py-3 text-sm text-slate-400">${escHtml(row.jenis)}</td>
                 ${adminActions(row.id, isAdmin)}
             </tr>`;
         },
         getFormData(row) {
-            return { kode: row?.kode || "", nama: row?.nama || "", alamat: row?.alamat || "", keterangan: row?.keterangan || "" };
+            return { unit_usaha: row?.unitUsaha || "", wilayah: row?.wilayah || "", jenis: row?.jenis || "" };
         },
     },
     grading: {
@@ -169,7 +168,7 @@ const TABS = {
         fields: [
             { key: "id_grading",        label: "ID Grading",         type: "text",   span: 1 },
             { key: "jenis",             label: "Jenis",               type: "text",   span: 1 },
-            { key: "area",              label: "Area",                type: "text",   span: 1 },
+            { key: "wilayah",           label: "Wilayah",             type: "text",   span: 1 },
             { key: "nama_pemeriksaan",  label: "Nama Pemeriksaan",    type: "textarea", span: 2 },
             { key: "hasil_pemeriksaan", label: "Hasil Pemeriksaan",   type: "textarea", span: 2 },
             { key: "nilai",             label: "Nilai",               type: "number", span: 1 },
@@ -187,7 +186,7 @@ const TABS = {
             <tr class="hover:bg-slate-950/50">
                 <td class="px-4 py-3 text-sm text-slate-500">${no}</td>
                 <td class="px-4 py-3 text-sm font-mono text-blue-300">${escHtml(row.idGrading)}</td>
-                <td class="px-4 py-3 text-sm text-slate-300">${escHtml(row.jenis)} <span class="text-xs text-slate-500">/ ${escHtml(row.area)}</span></td>
+                <td class="px-4 py-3 text-sm text-slate-300">${escHtml(row.jenis)} <span class="text-xs text-slate-500">/ ${escHtml(row.wilayah)}</span></td>
                 <td class="px-4 py-3 text-xs text-slate-400 max-w-xs">
                     <div class="truncate" title="${escHtml(row.namaPemeriksaan)}">${escHtml(row.namaPemeriksaan)}</div>
                     <div class="mt-0.5 flex gap-2 text-slate-500">
@@ -201,7 +200,7 @@ const TABS = {
         },
         getFormData(row) {
             return {
-                id_grading: row?.idGrading || "", jenis: row?.jenis || "", area: row?.area || "",
+                id_grading: row?.idGrading || "", jenis: row?.jenis || "", wilayah: row?.wilayah || "",
                 nama_pemeriksaan: row?.namaPemeriksaan || "", hasil_pemeriksaan: row?.hasilPemeriksaan || "",
                 nilai: row?.nilai ?? "", bknf: row?.bknf || "", pknf: row?.pknf ?? "",
                 bkf: row?.bkf || "", pkf: row?.pkf ?? "", bnknf: row?.bnknf || "",

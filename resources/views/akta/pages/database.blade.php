@@ -41,8 +41,8 @@
         ['harga-smh', 'HARGA SMH', 'Kode Model', 'Nama SMH', 'Harga (Rp)', 'Kode Model | Nama SMH | Harga (Rp)'],
         ['plafon', 'PLAFON', 'Kode', 'Nama', 'Nilai', 'Kode | Nama | Nilai | Keterangan'],
         ['perlengkapan', 'PERLENGKAPAN', 'Tipe', 'NOSIN', 'ACEH', 'TIPE | NOSIN | ACEH | RIAU | KEPRI | Type'],
-        ['unit-usaha', 'UNIT USAHA', 'Kode', 'Nama', 'Alamat', 'Kode | Nama | Alamat | Keterangan'],
-        ['grading', 'GRADING', 'ID Grading', 'Jenis / Area', 'Nama Pemeriksaan', 'IDGrading | Jenis | Area | Nama Pemeriksaan | Hasil Pemeriksaan | Nilai | BKNF | PKNF | BKF | PKF | BNKNF | PNKNF | BNKF | PNKF'],
+        ['unit-usaha', 'UNIT USAHA', 'Unit Usaha', 'Wilayah', 'Jenis', 'Unit Usaha | Wilayah | Jenis'],
+        ['grading', 'GRADING', 'ID Grading', 'Jenis / Wilayah', 'Nama Pemeriksaan', 'IDGrading | Jenis | Wilayah | Nama Pemeriksaan | Hasil Pemeriksaan | Nilai | BKNF | PKNF | BKF | PKF | BNKNF | PNKNF | BNKF | PNKF'],
         ['mt', 'MANAGEMENT TRAINEE (MT)', 'Nama Singkat', 'Nama Peralatan (IND)', 'Kode Peralatan', 'No. | Nama Singkat | Nama Peralatan (IND) | Kode Peralatan'],
         ['het', 'HET', 'Kode Part', 'Nama Part', 'HET Baru (Rp)', 'Kodepart | Nama part | HET BARU'],
     ] as [$key, $title, $col1, $col2, $col3, $importFmt])
