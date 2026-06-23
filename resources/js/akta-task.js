@@ -146,6 +146,16 @@ function toDateOnly(value) {
     return String(value).slice(0, 10);
 }
 
+// Roles yang hanya boleh melihat (bukan mengisi form pelaksanaan)
+const VIEW_ONLY_ROLES = ["koordinator", "coo"];
+
+function isViewOnly() {
+    return VIEW_ONLY_ROLES.includes(currentUser?.role);
+}
+
+// Status plan yang bisa di-advance oleh koordinator
+const KOORDINATOR_APPROVABLE = "pending_koordinator";
+
 function openModal(task) {
     const modal = document.getElementById("taskModal");
     const plan = task.planAudit || {};
@@ -162,22 +172,78 @@ function openModal(task) {
         planDetailRow("Kepala Tim", plan.kepalaTim),
         planDetailRow("Tim Audit", (plan.tim || []).join(", ")),
         planDetailRow("PIC Task", task.assignedTo),
+        planDetailRow("Status Pelaksanaan", task.startedAt
+            ? `${toDateOnly(task.startedAt)} s/d ${toDateOnly(task.finishedAt) || "-"}`
+            : "Belum dikerjakan"),
     ].join("");
 
-    // Prefill bila sudah pernah dikerjakan; jika belum, tanggal mulai = hari ini
-    document.getElementById("startedAt").value = toDateOnly(task.startedAt) || todayLocal();
-    document.getElementById("finishedAt").value = toDateOnly(task.finishedAt) || "";
+    const viewOnly = isViewOnly();
+    const execSection = document.getElementById("execSection");
+    const approvalSection = document.getElementById("approvalSection");
 
-    const current = document.getElementById("currentLampiran");
-    if (task.lampiranUrl) {
-        current.innerHTML = `Lampiran saat ini: <a href="${escapeHtml(task.lampiranUrl)}" target="_blank" class="text-blue-400 underline">${escapeHtml(task.lampiranName || "file")}</a>`;
-        current.classList.remove("hidden");
+    if (viewOnly) {
+        // Sembunyikan form pelaksanaan
+        execSection?.classList.add("hidden");
+
+        // Tampilkan tombol approve/reject jika plan masih bisa di-advance
+        const canApprove = plan.status === KOORDINATOR_APPROVABLE && currentUser?.role === "koordinator";
+        if (approvalSection) {
+            approvalSection.classList.toggle("hidden", !canApprove);
+            document.getElementById("approvePlanId").value = plan.id || "";
+        }
     } else {
-        current.classList.add("hidden");
+        execSection?.classList.remove("hidden");
+        approvalSection?.classList.add("hidden");
+
+        // Prefill bila sudah pernah dikerjakan; jika belum, tanggal mulai = hari ini
+        document.getElementById("startedAt").value = toDateOnly(task.startedAt) || todayLocal();
+        document.getElementById("finishedAt").value = toDateOnly(task.finishedAt) || "";
+
+        const current = document.getElementById("currentLampiran");
+        if (task.lampiranUrl) {
+            current.innerHTML = `Lampiran saat ini: <a href="${escapeHtml(task.lampiranUrl)}" target="_blank" class="text-blue-400 underline">${escapeHtml(task.lampiranName || "file")}</a>`;
+            current.classList.remove("hidden");
+        } else {
+            current.classList.add("hidden");
+        }
     }
 
     modal.classList.remove("hidden");
     modal.classList.add("flex");
+}
+
+async function approvePlan(planId) {
+    if (!planId) return;
+    if (!confirm("Setujui plan audit ini?")) return;
+    try {
+        const payload = await fetchJson(`/api/plans/${planId}/advance`, {
+            method: "POST",
+            headers: authHeaders(),
+        });
+        closeModal();
+        showAlert(payload.message || "Plan audit disetujui.");
+        await loadTasks();
+    } catch (err) {
+        showAlert(err.message || "Gagal menyetujui plan.", "error");
+    }
+}
+
+async function rejectPlan(planId) {
+    if (!planId) return;
+    const alasan = prompt("Masukkan alasan penolakan:");
+    if (alasan === null) return;
+    try {
+        const payload = await fetchJson(`/api/plans/${planId}/reject`, {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ alasan }),
+        });
+        closeModal();
+        showAlert(payload.message || "Plan audit ditolak.", "error");
+        await loadTasks();
+    } catch (err) {
+        showAlert(err.message || "Gagal menolak plan.", "error");
+    }
 }
 
 function closeModal() {
@@ -236,10 +302,21 @@ function setupFilters() {
 document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("closeTaskModalButton")?.addEventListener("click", closeModal);
     document.getElementById("cancelTaskFormButton")?.addEventListener("click", closeModal);
+    document.getElementById("cancelTaskFormButton2")?.addEventListener("click", closeModal);
 
     document.getElementById("taskForm")?.addEventListener("submit", async (e) => {
         try { await saveExecution(e); }
         catch (err) { showAlert(err.message || "Gagal menyimpan pelaksanaan audit.", "error"); }
+    });
+
+    document.getElementById("approveBtn")?.addEventListener("click", () => {
+        const planId = document.getElementById("approvePlanId")?.value;
+        approvePlan(planId).catch((err) => showAlert(err.message, "error"));
+    });
+
+    document.getElementById("rejectBtn")?.addEventListener("click", () => {
+        const planId = document.getElementById("approvePlanId")?.value;
+        rejectPlan(planId).catch((err) => showAlert(err.message, "error"));
     });
 
     document.getElementById("tasksTableBody")?.addEventListener("click", (e) => {

@@ -73,6 +73,7 @@
 
         <form id="taskForm" class="space-y-5 px-5 py-5">
             <input type="hidden" id="taskId">
+            <input type="hidden" id="approvePlanId">
 
             {{-- ── Data Plan (read-only) ── --}}
             <div class="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
@@ -80,44 +81,67 @@
                 <dl id="planDetail" class="grid gap-x-6 gap-y-3 sm:grid-cols-2 text-sm"></dl>
             </div>
 
-            {{-- ── Form Pelaksanaan ── --}}
-            <div class="grid gap-4 sm:grid-cols-2">
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">
-                        Mulai Audit <span class="text-red-400">*</span>
-                    </label>
-                    <input id="startedAt" type="date" required
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+            {{-- ── Form Pelaksanaan (auditor / admin / manajer) ── --}}
+            <div id="execSection" class="space-y-4">
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-300">
+                            Mulai Audit <span class="text-red-400">*</span>
+                        </label>
+                        <input id="startedAt" type="date" required
+                            class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-300">
+                            Selesai Audit <span class="text-red-400">*</span>
+                        </label>
+                        <input id="finishedAt" type="date" required
+                            class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <label class="mb-1 block text-sm font-medium text-slate-300">File Lampiran (opsional)</label>
+                        <input id="lampiran" type="file"
+                            accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.doc,.docx"
+                            class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-white outline-none focus:border-blue-500">
+                        <p class="mt-1 text-xs text-slate-500">PDF, gambar, Excel, atau Word. Maks 10 MB.</p>
+                        <p id="currentLampiran" class="mt-2 hidden text-xs text-slate-400"></p>
+                    </div>
                 </div>
 
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">
-                        Selesai Audit <span class="text-red-400">*</span>
-                    </label>
-                    <input id="finishedAt" type="date" required
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                </div>
+                <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
+                    <button type="button" id="cancelTaskFormButton"
+                        class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">
+                        Batal
+                    </button>
 
-                <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-slate-300">File Lampiran (opsional)</label>
-                    <input id="lampiran" type="file"
-                        accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.doc,.docx"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-white outline-none focus:border-blue-500">
-                    <p class="mt-1 text-xs text-slate-500">PDF, gambar, Excel, atau Word. Maks 10 MB.</p>
-                    <p id="currentLampiran" class="mt-2 hidden text-xs text-slate-400"></p>
+                    <button type="submit" id="saveTaskButton"
+                        class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500">
+                        Simpan Pelaksanaan
+                    </button>
                 </div>
             </div>
 
-            <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
-                <button type="button" id="cancelTaskFormButton"
-                    class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">
-                    Batal
-                </button>
-
-                <button type="submit" id="saveTaskButton"
-                    class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500">
-                    Simpan Pelaksanaan
-                </button>
+            {{-- ── Approval (koordinator) ── --}}
+            <div id="approvalSection" class="hidden">
+                <div class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
+                    Plan audit ini menunggu persetujuan Koordinator. Periksa data plan di atas lalu pilih tindakan.
+                </div>
+                <div class="flex justify-end gap-3 border-t border-slate-800 pt-4 mt-4">
+                    <button type="button" id="cancelTaskFormButton2"
+                        class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">
+                        Tutup
+                    </button>
+                    <button type="button" id="rejectBtn"
+                        class="rounded-xl border border-red-500/40 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-500/10">
+                        Tolak
+                    </button>
+                    <button type="button" id="approveBtn"
+                        class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500">
+                        Setujui
+                    </button>
+                </div>
             </div>
         </form>
     </div>
