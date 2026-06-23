@@ -37,7 +37,7 @@ class UserController extends Controller
             'password' => ['required', 'string', 'min:8'],
             'role' => ['required', 'string', Rule::in(Role::allNames() ?: ['admin', 'manajer', 'auditor', 'viewer'])],
             'unit_usaha' => ['nullable', 'string', 'max:100'],
-            'wilayah' => ['nullable', 'string', Rule::in(['HO', 'Riau', 'Aceh', 'Kepri'])],
+            'wilayah' => ['nullable', 'string', 'max:100'],
             'is_disabled' => ['nullable', 'boolean'],
         ]);
 
@@ -79,7 +79,7 @@ class UserController extends Controller
             'password' => ['nullable', 'string', 'min:8'],
             'role' => ['required', 'string', Rule::in(Role::allNames() ?: ['admin', 'manajer', 'auditor', 'viewer'])],
             'unit_usaha' => ['nullable', 'string', 'max:100'],
-            'wilayah' => ['nullable', 'string', Rule::in(['HO', 'Riau', 'Aceh', 'Kepri'])],
+            'wilayah' => ['nullable', 'string', 'max:100'],
             'is_disabled' => ['nullable', 'boolean'],
         ]);
 

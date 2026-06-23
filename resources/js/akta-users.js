@@ -2,6 +2,7 @@ const SESSION_KEY = "akta_session";
 
 let users = [];
 let roles = [];
+let unitUsahaList = [];
 
 // ── Color map untuk badge role ────────────────────────────────
 const COLOR_MAP = {
@@ -166,6 +167,41 @@ async function deleteRole(id) {
     showRoleAlert(payload.message || "Role berhasil dihapus.");
 }
 
+// ── Unit Usaha API ────────────────────────────────────────────
+async function loadUnitUsahaOptions() {
+    const response = await fetch("/api/database/unit-usaha-options", { headers: authHeaders() });
+    const payload  = await response.json().catch(() => ({}));
+    if (!response.ok) return;
+
+    unitUsahaList = payload.data || [];
+    renderUnitUsahaSelect();
+}
+
+function renderUnitUsahaSelect(selected = "") {
+    const select = document.getElementById("unitUsaha");
+    if (!select) return;
+
+    const options = ['<option value="">-- Pilih Unit Usaha --</option>'];
+    let found = false;
+    unitUsahaList.forEach((u) => {
+        if (!u.unitUsaha) return;
+        if (u.unitUsaha === selected) found = true;
+        options.push(`<option value="${u.unitUsaha}">${u.unitUsaha}${u.wilayah ? " — " + u.wilayah : ""}</option>`);
+    });
+    // Pertahankan nilai lama yang mungkin tidak ada di daftar (mis. "HO" / "AUDIT")
+    if (selected && !found) {
+        options.push(`<option value="${selected}">${selected}</option>`);
+    }
+
+    select.innerHTML = options.join("");
+    select.value = selected || "";
+}
+
+function wilayahForUnit(unitUsaha) {
+    const match = unitUsahaList.find((u) => u.unitUsaha === unitUsaha);
+    return match ? (match.wilayah || "") : "";
+}
+
 function getSession() {
     try {
         const rawSession = sessionStorage.getItem(SESSION_KEY);
@@ -235,8 +271,10 @@ function openModal(user = null) {
         document.getElementById("email").value = user.email || "";
         renderRoleSelect();
         document.getElementById("role").value = user.role || "auditor";
-        document.getElementById("unitUsaha").value = user.unitUsaha || "";
-        document.getElementById("wilayah").value = user.wilayah || "";
+        renderUnitUsahaSelect(user.unitUsaha || "");
+        // Wilayah: pakai dari unit usaha bila cocok, jika tidak pakai nilai lama user
+        document.getElementById("wilayah").value =
+            wilayahForUnit(user.unitUsaha) || user.wilayah || "";
         document.getElementById("isDisabled").checked = Boolean(
             user.isDisabled,
         );
@@ -489,6 +527,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
+    // Saat unit usaha dipilih → wilayah terisi otomatis dari database
+    document.getElementById("unitUsaha")?.addEventListener("change", (e) => {
+        document.getElementById("wilayah").value = wilayahForUnit(e.target.value);
+    });
+
     document
         .getElementById("openCreateUserButton")
         ?.addEventListener("click", () => openModal());
@@ -536,7 +579,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
     try {
-        await Promise.all([loadUsers(), loadRoles()]);
+        await Promise.all([loadUsers(), loadRoles(), loadUnitUsahaOptions()]);
     } catch (error) {
         showAlert(error.message || "Gagal memuat data.", "error");
     }

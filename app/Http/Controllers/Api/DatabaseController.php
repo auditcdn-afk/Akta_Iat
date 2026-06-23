@@ -68,6 +68,27 @@ class DatabaseController extends Controller
         return $class;
     }
 
+    /**
+     * Daftar lengkap unit usaha (tanpa paginasi) untuk dropdown.
+     * Dipakai di form Pengguna agar wilayah terisi otomatis saat unit usaha dipilih.
+     */
+    public function unitUsahaOptions(): JsonResponse
+    {
+        $rows = DbUnitUsaha::query()
+            ->orderBy('unit_usaha')
+            ->get(['id', 'unit_usaha', 'wilayah', 'jenis']);
+
+        return response()->json([
+            'ok'   => true,
+            'data' => $rows->map(fn(DbUnitUsaha $r) => [
+                'id'        => $r->id,
+                'unitUsaha' => $r->unit_usaha,
+                'wilayah'   => $r->wilayah,
+                'jenis'     => $r->jenis,
+            ]),
+        ]);
+    }
+
     public function index(Request $request, string $type): JsonResponse
     {
         $model = $this->resolveModel($type);

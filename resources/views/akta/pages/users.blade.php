@@ -186,21 +186,18 @@
 
                 <div>
                     <label class="mb-1 block text-sm font-medium text-slate-300">Unit Usaha</label>
-                    <input id="unitUsaha" type="text"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"
-                        placeholder="HO / AUDIT / Cabang">
+                    <select id="unitUsaha"
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                        <option value="">-- Pilih Unit Usaha --</option>
+                    </select>
+                    <p class="mt-1 text-xs text-slate-500">Pilih unit usaha, wilayah akan terisi otomatis.</p>
                 </div>
 
                 <div>
                     <label class="mb-1 block text-sm font-medium text-slate-300">Wilayah</label>
-                    <select id="wilayah"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        <option value="">-- Pilih Wilayah --</option>
-                        <option value="HO">HO</option>
-                        <option value="Riau">Riau</option>
-                        <option value="Aceh">Aceh</option>
-                        <option value="Kepri">Kepri</option>
-                    </select>
+                    <input id="wilayah" type="text" readonly
+                        class="w-full cursor-not-allowed rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-slate-300 outline-none"
+                        placeholder="Otomatis dari unit usaha">
                 </div>
 
                 <div>

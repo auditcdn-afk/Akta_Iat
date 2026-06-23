@@ -32,6 +32,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // ─── Database Master Data ─────────────────────────────────────
     Route::prefix('database')->group(function () {
+        Route::get('/unit-usaha-options', [DatabaseController::class, 'unitUsahaOptions']);
         Route::get('/{type}', [DatabaseController::class, 'index']);
 
         Route::middleware('akta.role:admin')->group(function () {
