@@ -3582,13 +3582,13 @@ function cfRenderPenerimaan() {
         };
         tr.querySelectorAll('input').forEach(inp => {
             inp.addEventListener('input', () => { syncRow(); cfCalcAndRefresh(); });
-            inp.addEventListener('blur',  () => saveCf().catch(() => {}));
+            inp.addEventListener('blur',  () => _doSaveCf().catch(() => {}));
         });
         tr.querySelector('[data-del-p]')?.addEventListener('click', () => {
             _cfData.penerimaan.splice(idx, 1);
             cfRenderPenerimaan();
             cfCalcAndRefresh();
-            saveCf().catch(() => {});
+            _doSaveCf().catch(() => {});
         });
     });
 }
@@ -3623,13 +3623,13 @@ function cfRenderPengeluaran() {
         };
         tr.querySelectorAll('input').forEach(inp => {
             inp.addEventListener('input', () => { syncRow(); cfCalcAndRefresh(); });
-            inp.addEventListener('blur',  () => saveCf().catch(() => {}));
+            inp.addEventListener('blur',  () => _doSaveCf().catch(() => {}));
         });
         tr.querySelector('[data-del-k]')?.addEventListener('click', () => {
             _cfData.pengeluaran.splice(idx, 1);
             cfRenderPengeluaran();
             cfCalcAndRefresh();
-            saveCf().catch(() => {});
+            _doSaveCf().catch(() => {});
         });
     });
 }
@@ -3674,21 +3674,25 @@ function cfRenderRingkasan() {
             };
             cfCalcAndRefresh();
         });
-        inp.addEventListener('blur', () => saveCf().catch(() => {}));
+        inp.addEventListener('blur', () => _doSaveCf().catch(() => {}));
     });
 }
 
-async function saveCf() {
-    if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
+async function _doSaveCf() {
+    if (!activePlanId) throw new Error('Pilih plan audit terlebih dahulu.');
     if (!_cfData) _cfData = cfEmptyData();
     _cfData.company        = document.getElementById('cfCompany')?.value || '';
     _cfData.tglPemeriksaan = document.getElementById('cfTglPemeriksaan')?.value || '';
     cfSyncSaldoAwal();
-    const res = await fetchJson('/api/audit-detail/cek-fisik', {
+    return await fetchJson('/api/audit-detail/cek-fisik', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ planAuditId: activePlanId, data: _cfData }),
     });
+}
+
+async function saveCf() {
+    const res = await _doSaveCf();
     showAlert(res.message, 'success');
 }
 
@@ -3696,12 +3700,12 @@ function initCfForm() {
     // Saldo awal inputs → recalc live
     ['cfSaldoAwalCf','cfSaldoAwalStuj','cfSaldoAwalFstnk','cfSaldoAwalTgl'].forEach(id => {
         document.getElementById(id)?.addEventListener('input', () => { cfSyncSaldoAwal(); cfCalcAndRefresh(); });
-        document.getElementById(id)?.addEventListener('blur',  () => saveCf().catch(() => {}));
+        document.getElementById(id)?.addEventListener('blur',  () => _doSaveCf().catch(() => {}));
     });
 
     // Header info auto-save on blur
     ['cfCompany','cfTglPemeriksaan'].forEach(id => {
-        document.getElementById(id)?.addEventListener('blur', () => saveCf().catch(() => {}));
+        document.getElementById(id)?.addEventListener('blur', () => _doSaveCf().catch(() => {}));
     });
 
     document.getElementById('cfAddPenerimaan')?.addEventListener('click', () => {
