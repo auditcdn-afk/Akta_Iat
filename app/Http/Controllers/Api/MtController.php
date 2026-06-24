@@ -3,11 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\DbPerlengkapan;
-use App\Models\DbUnitUsaha;
+use App\Models\DbMt;
 use App\Models\PemeriksaanMt;
-use App\Models\PlanAudit;
-use App\Models\SmhOnhandItem;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -34,47 +31,30 @@ class MtController extends Controller
         return response()->json(['message' => 'Data MT tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
     }
 
-    // Ambil daftar nama tools dari SMH onhand (fallback ke db_perlengkapan)
+    // Ambil daftar tools dari db_mt, dikelompokkan per jenis
     public function tools(Request $request): JsonResponse
     {
-        $planId = $request->query('plan_audit_id');
+        $jenis = $request->query('jenis'); // 'baru' | 'lama' | 'fi'
 
-        $itemsQuery = SmhOnhandItem::query()->whereNotNull('perlengkapan_json');
-        if ($planId) {
-            $itemsQuery->whereHas('pemeriksaan', fn($q) => $q->where('plan_audit_id', $planId));
+        $jenisMap = [
+            'baru' => 'MT Baru',
+            'lama' => 'MT Lama',
+            'fi'   => 'MT FI',
+        ];
+
+        $query = DbMt::orderBy('nomor');
+
+        if ($jenis && isset($jenisMap[$jenis])) {
+            $query->where('jenis', $jenisMap[$jenis]);
         }
 
-        $allNama = [];
-        foreach ($itemsQuery->get() as $item) {
-            foreach ($item->perlengkapan_json ?? [] as $pl) {
-                $nama = trim($pl['nama'] ?? '');
-                if ($nama !== '') $allNama[$nama] = true;
-            }
-        }
+        $rows = $query->get()->map(fn($r) => [
+            'nama'          => $r->nama_peralatan ?: $r->nama_singkat,
+            'namaSingkat'   => $r->nama_singkat,
+            'kode'          => $r->kode_peralatan,
+            'jenis'         => $r->jenis,
+        ]);
 
-        $result = array_keys($allNama);
-
-        if (empty($result)) {
-            $wilayah = $this->wilayahFromPlan($planId);
-            $dbRows  = DbPerlengkapan::when($wilayah, fn($q) => $q->where('wilayah', $wilayah))->get();
-            foreach ($dbRows as $row) {
-                foreach ($row->itemList() as $nama) {
-                    if (!in_array($nama, $result)) $result[] = $nama;
-                }
-            }
-        }
-
-        sort($result);
-        return response()->json(['data' => $result]);
-    }
-
-    private function wilayahFromPlan(?string $planId): ?string
-    {
-        if (!$planId) return null;
-        $plan = PlanAudit::find($planId);
-        if (!$plan?->cabang) return null;
-        $uu = DbUnitUsaha::where('nama', $plan->cabang)
-            ->orWhere('kode', $plan->cabang)->first();
-        return $uu ? strtolower(trim($uu->alamat ?? '')) : null;
+        return response()->json(['data' => $rows]);
     }
 }

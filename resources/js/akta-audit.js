@@ -3720,24 +3720,27 @@ function initCfForm() {
 // MT — Pemeriksaan MT (Lama / FI / Baru)
 // ══════════════════════════════════════════════════════════════════
 
-let _mtData   = null;
-let _mtTools  = [];   // daftar nama tools dari DB
+let _mtData       = null;
+let _mtToolsCache = {};   // { 'baru': [...], 'lama': [...], 'fi': [...] }
 
 const MT_KATEGORI = ['bagus', 'rusak', 'skAudit', 'hilang'];
 const MT_LABEL    = { bagus: 'Bagus', rusak: 'Rusak', skAudit: 'SK Audit', hilang: 'Hilang' };
 const MT_COLOR    = { bagus: 'emerald', rusak: 'red', skAudit: 'blue', hilang: 'orange' };
 
 function mtEmptyData() {
-    // data per jenis (baru/lama/fi), per mekanik
-    // struktur: { entries: [ { mekanik, jenis, bagus:[], rusak:[], skAudit:[], hilang:[] } ] }
     return { entries: [] };
 }
 
-function mtActiveEntry() {
+function mtActiveJenis() {
+    return document.querySelector('.mt-jenis-btn.active')?.dataset.mtJenis || 'baru';
+}
+
+function mtActiveMekanik() {
+    return (document.getElementById('mtMekanik')?.value || '').trim();
+}
+
+function mtGetEntry(mekanik, jenis) {
     if (!_mtData) _mtData = mtEmptyData();
-    const mekanik = (document.getElementById('mtMekanik')?.value || '').trim();
-    const jenis   = document.querySelector('.mt-jenis-btn.active')?.dataset.mtJenis || 'baru';
-    if (!mekanik) return null;
     let entry = (_mtData.entries || []).find(e => e.mekanik === mekanik && e.jenis === jenis);
     if (!entry) {
         entry = { mekanik, jenis, bagus: [], rusak: [], skAudit: [], hilang: [] };
@@ -3746,22 +3749,24 @@ function mtActiveEntry() {
     return entry;
 }
 
+async function mtLoadTools(jenis) {
+    if (_mtToolsCache[jenis]) return _mtToolsCache[jenis];
+    const res = await fetchJson(`/api/audit-detail/mt/tools?jenis=${jenis}`, { headers: authHeaders() });
+    _mtToolsCache[jenis] = (res.data || []).map(t => t.nama || t.namaSingkat || '').filter(Boolean);
+    return _mtToolsCache[jenis];
+}
+
 async function loadMtTab() {
     if (!activePlanId) { mtInitForm(); return; }
-    const [resData, resTools] = await Promise.all([
-        fetchJson(`/api/audit-detail/mt?plan_audit_id=${activePlanId}`, { headers: authHeaders() }),
-        fetchJson(`/api/audit-detail/mt/tools?plan_audit_id=${activePlanId}`, { headers: authHeaders() }),
-    ]);
-    if (resData.data && resData.data.data && !Array.isArray(resData.data.data)) {
-        _mtData = { ...mtEmptyData(), ...resData.data.data };
+    const res = await fetchJson(`/api/audit-detail/mt?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    if (res.data && res.data.data && !Array.isArray(res.data.data)) {
+        _mtData = { ...mtEmptyData(), ...res.data.data };
     }
-    _mtTools = resTools.data || [];
     mtInitForm();
 }
 
 function mtInitForm() {
     if (!_mtData) _mtData = mtEmptyData();
-    // Set default jenis active = baru
     const activeBtns = document.querySelectorAll('.mt-jenis-btn');
     if (activeBtns.length && !document.querySelector('.mt-jenis-btn.active')) {
         activeBtns[0].classList.add('active', 'bg-blue-600', 'text-white', 'border-blue-600');
@@ -3769,11 +3774,28 @@ function mtInitForm() {
     mtRenderKategori();
 }
 
+async function mtAutoLoadTools() {
+    const mekanik = mtActiveMekanik();
+    const jenis   = mtActiveJenis();
+    if (!mekanik) return;
+
+    const entry = mtGetEntry(mekanik, jenis);
+    // Jika semua kategori kosong → auto-load semua tools ke Bagus
+    const isEmpty = MT_KATEGORI.every(k => (entry[k] || []).length === 0);
+    if (!isEmpty) return;
+
+    const tools = await mtLoadTools(jenis);
+    if (tools.length === 0) return;
+    entry.bagus = [...tools];
+    mtRenderKategori();
+    _doSaveMt().catch(() => {});
+}
+
 function mtRenderKategori() {
     const wrap = document.getElementById('mtKategoriWrap');
     if (!wrap) return;
-    const mekanik = (document.getElementById('mtMekanik')?.value || '').trim();
-    const jenis   = document.querySelector('.mt-jenis-btn.active')?.dataset.mtJenis || 'baru';
+    const mekanik = mtActiveMekanik();
+    const jenis   = mtActiveJenis();
 
     if (!mekanik) {
         wrap.innerHTML = `<p class="text-sm text-slate-500 text-center py-4">Isi nama mekanik terlebih dahulu.</p>`;
@@ -3782,7 +3804,6 @@ function mtRenderKategori() {
 
     const entry = (_mtData?.entries || []).find(e => e.mekanik === mekanik && e.jenis === jenis)
         || { bagus: [], rusak: [], skAudit: [], hilang: [] };
-    const jenisLabel = jenis.charAt(0).toUpperCase() + jenis.slice(1);
 
     wrap.innerHTML = MT_KATEGORI.map(kat => {
         const color = MT_COLOR[kat];
@@ -3795,34 +3816,30 @@ function mtRenderKategori() {
             </span>`).join('');
 
         return `
-        <div class="rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3" data-mt-kat="${kat}">
-            <div class="flex items-center justify-between">
-                <span class="text-sm font-semibold text-${color}-400">${MT_LABEL[kat]} <span class="text-slate-400 font-normal text-xs">: ${items.length}</span></span>
-            </div>
+        <div class="rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3">
+            <span class="text-sm font-semibold text-${color}-400">${MT_LABEL[kat]}
+                <span class="text-slate-400 font-normal text-xs">: ${items.length}</span>
+            </span>
             <div class="flex gap-2">
                 <input type="text" id="mtInput-${kat}" placeholder="Cari atau ketik nama tool..."
                     class="flex-1 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-${color}-500 focus:outline-none"
-                    list="mtToolsList">
+                    list="mtToolsList-${kat}">
+                <datalist id="mtToolsList-${kat}"></datalist>
                 <button type="button" data-mt-add-kat="${kat}"
-                    class="rounded-lg bg-${color}-600 px-4 py-2 text-sm font-semibold text-white hover:bg-${color}-500 transition">
-                    +
-                </button>
+                    class="rounded-lg bg-${color}-600 px-4 py-2 text-sm font-semibold text-white hover:bg-${color}-500 transition">+</button>
             </div>
-            <div class="flex flex-wrap gap-2 min-h-6" id="mtChips-${kat}">
-                ${chips || `<span class="text-xs text-slate-600">Belum ada item.</span>`}
+            <div class="flex flex-wrap gap-2 min-h-6">
+                ${chips || `<span class="text-xs text-slate-500 italic">Belum ada item.</span>`}
             </div>
         </div>`;
     }).join('');
 
-    // Datalist untuk autocomplete dari _mtTools
-    let dl = document.getElementById('mtToolsList');
-    if (!dl) {
-        dl = document.createElement('datalist');
-        dl.id = 'mtToolsList';
-        document.body.appendChild(dl);
-    }
-    dl.innerHTML = _mtTools.map(t => `<option value="${escapeHtml(t)} (${jenisLabel})">`).join('') +
-        _mtTools.map(t => `<option value="${escapeHtml(t)}">`).join('');
+    // Populate autocomplete datalists dari cache
+    const cached = _mtToolsCache[jenis] || [];
+    MT_KATEGORI.forEach(kat => {
+        const dl = document.getElementById(`mtToolsList-${kat}`);
+        if (dl) dl.innerHTML = cached.map(t => `<option value="${escapeHtml(t)}">`).join('');
+    });
 
     // Wire + buttons
     MT_KATEGORI.forEach(kat => {
@@ -3831,30 +3848,30 @@ function mtRenderKategori() {
         const doAdd  = () => {
             const val = inp?.value.trim();
             if (!val) return;
-            const entry = mtActiveEntry();
-            if (!entry) { showAlert('Isi nama mekanik terlebih dahulu.', 'error'); return; }
-            if (!entry[kat].includes(val)) {
-                entry[kat].push(val);
+            const e2 = mtGetEntry(mekanik, jenis);
+            if (!e2[kat].includes(val)) {
+                e2[kat].push(val);
                 mtRenderKategori();
                 _doSaveMt().catch(() => {});
             }
             if (inp) inp.value = '';
         };
         addBtn?.addEventListener('click', doAdd);
-        inp?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doAdd(); } });
+        inp?.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); doAdd(); } });
 
-        // Remove chips
         wrap.querySelectorAll(`[data-mt-remove-kat="${kat}"]`).forEach(btn => {
             btn.addEventListener('click', () => {
-                const idx   = parseInt(btn.dataset.mtRemoveIdx);
-                const entry = mtActiveEntry();
-                if (!entry) return;
-                entry[kat].splice(idx, 1);
+                const idx = parseInt(btn.dataset.mtRemoveIdx);
+                const e2  = mtGetEntry(mekanik, jenis);
+                e2[kat].splice(idx, 1);
                 mtRenderKategori();
                 _doSaveMt().catch(() => {});
             });
         });
     });
+
+    // Load tools from DB if entry empty (async, after render)
+    mtAutoLoadTools().catch(() => {});
 }
 
 async function _doSaveMt() {
@@ -3873,7 +3890,6 @@ async function saveMt() {
 }
 
 function initMtForm() {
-    // Jenis toggle
     document.querySelectorAll('.mt-jenis-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.mt-jenis-btn').forEach(b => {
@@ -3886,10 +3902,8 @@ function initMtForm() {
         });
     });
 
-    // Mekanik input
     document.getElementById('mtMekanik')?.addEventListener('blur', () => {
         mtRenderKategori();
-        _doSaveMt().catch(() => {});
     });
 
     document.getElementById('mtSaveBtn')?.addEventListener('click', () => {
