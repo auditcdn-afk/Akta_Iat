@@ -226,6 +226,9 @@ function switchTab(tab) {
     if (tab === "materai") {
         loadMateraiTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "bpkb") {
+        loadBpkbTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1664,6 +1667,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     setupFilters();
     initMateraiForm();
+    initBpkbForm();
 
     try {
         await loadCurrentUser();
@@ -1883,5 +1887,284 @@ function initMateraiForm() {
         const file = fileInput?.files?.[0];
         if (!file) { showAlert("Pilih file HTML terlebih dahulu.", "warning"); return; }
         uploadMateraiFile(file);
+    });
+}
+
+// ─── Onhand BPKB ─────────────────────────────────────────────────────────────
+
+let bpkbData   = { summary: {}, items: [] };
+let bpkbRtab   = "scan";   // active result sub-tab
+let bpkbSuggestTimer = null;
+
+async function loadBpkbTab() {
+    const planId = activePlanId;
+    if (!planId) return;
+    const res = await fetchJson(`/api/audit-detail/bpkb?plan_audit_id=${planId}`, { headers: authHeaders() });
+    bpkbData = res;
+    bpkbRenderStats(res.summary);
+    bpkbRenderResult(res.items);
+}
+
+function bpkbRenderStats(s) {
+    const statsEl = document.getElementById("bpkbStats");
+    const dbStatus = document.getElementById("bpkbDbStatus");
+    const colsEl   = document.getElementById("bpkbCols");
+    if (!statsEl) return;
+    if (!s || s.total === 0) {
+        statsEl.classList.add("hidden");
+        dbStatus?.classList.add("hidden");
+        return;
+    }
+    dbStatus?.classList.remove("hidden");
+    statsEl.classList.remove("hidden");
+    if (colsEl) colsEl.classList.remove("hidden");
+
+    const cards = [
+        { label: "TOTAL BPKB",          val: s.total,                     cls: "text-slate-100" },
+        { label: "REG",                  val: s.reg,                       cls: "text-slate-100" },
+        { label: "KDS",                  val: s.kds,                       cls: "text-slate-100" },
+        { label: "SUDAH SCAN",           val: s.sudahScan,                 cls: "text-emerald-400" },
+        { label: "BELUM SCAN",           val: s.belumScan,                 cls: "text-red-400" },
+        { label: `REG >120 HARI\nDARI TOTAL BPKB REG`, val: `${s.reg120} (${s.reg120Pct}%)`, cls: "text-amber-400" },
+    ];
+    statsEl.innerHTML = cards.map(c => `
+        <div class="rounded-xl border border-slate-700 bg-slate-800 p-3 text-center">
+            <div class="text-lg font-bold ${c.cls}">${c.val}</div>
+            <div class="mt-1 text-[10px] leading-tight text-slate-400 uppercase tracking-wide whitespace-pre-line">${c.label}</div>
+        </div>`).join("");
+
+    // update result sub-tab counters
+    const items = bpkbData.items ?? [];
+    document.getElementById("bpkbCountScan").textContent  = items.filter(i => i.sudahScan && i.jenis !== "LUAR").length;
+    document.getElementById("bpkbCountBelum").textContent = items.filter(i => !i.sudahScan).length;
+    document.getElementById("bpkbCountLuar").textContent  = items.filter(i => i.jenis === "LUAR").length;
+    const scanCount = document.getElementById("bpkbScanCount");
+    if (scanCount) { scanCount.textContent = `${s.sudahScan} TERSCAN`; scanCount.classList.remove("hidden"); }
+    const summary = document.getElementById("bpkbResultSummary");
+    if (summary) {
+        summary.textContent = `Total DB: ${s.total}   Sudah Scan: ${s.sudahScan}   Belum: ${s.belumScan}`;
+        summary.classList.remove("hidden");
+    }
+}
+
+function bpkbRenderResult(items) {
+    const wrap = document.getElementById("bpkbResultWrap");
+    if (!wrap) return;
+
+    let filtered;
+    if (bpkbRtab === "scan")  filtered = items.filter(i => i.sudahScan && i.jenis !== "LUAR");
+    if (bpkbRtab === "belum") filtered = items.filter(i => !i.sudahScan);
+    if (bpkbRtab === "luar")  filtered = items.filter(i => i.jenis === "LUAR");
+
+    if (!filtered.length) {
+        wrap.innerHTML = '<p class="text-sm text-slate-500 py-2">Tidak ada data.</p>';
+        return;
+    }
+
+    const rows = filtered.map((item, idx) => `
+        <tr class="border-b border-slate-800 hover:bg-slate-800/40 text-xs">
+            <td class="px-3 py-2 text-slate-400">${idx + 1}</td>
+            <td class="px-3 py-2 font-mono font-semibold text-slate-100">${escHtml(item.noBpkb ?? "")}</td>
+            <td class="px-3 py-2 text-slate-300">${escHtml(item.noPolisi ?? "")}</td>
+            <td class="px-3 py-2 text-slate-300">${item.tglTerima ?? ""}</td>
+            <td class="px-3 py-2 text-slate-300">${escHtml(item.namaPemilik ?? "")}</td>
+            <td class="px-3 py-2 font-mono text-slate-300">${escHtml(item.noMesin ?? "")}</td>
+            <td class="px-3 py-2 font-mono text-slate-300">${escHtml(item.noRangka ?? "")}</td>
+            <td class="px-3 py-2">
+                <span class="rounded px-2 py-0.5 text-[10px] font-bold ${item.jenis === 'REG' ? 'bg-blue-900/50 text-blue-300' : item.jenis === 'KDS' ? 'bg-purple-900/50 text-purple-300' : 'bg-red-900/50 text-red-300'}">${item.jenis ?? ""}</span>
+            </td>
+            <td class="px-3 py-2 text-slate-400">${item.umur ?? ""}</td>
+            <td class="px-3 py-2 text-slate-400">${escHtml(item.keterangan ?? "")}</td>
+            <td class="px-3 py-2">
+                <button class="bpkb-unscan-btn text-red-400 hover:text-red-300" data-id="${item.id}" title="Hapus scan">✕</button>
+            </td>
+        </tr>`).join("");
+
+    wrap.innerHTML = `
+        <table class="w-full text-xs">
+            <thead class="bg-slate-800 text-slate-400">
+                <tr>
+                    <th class="px-3 py-2 text-left w-8">NO.</th>
+                    <th class="px-3 py-2 text-left">NO BPKB</th>
+                    <th class="px-3 py-2 text-left">NO POLISI</th>
+                    <th class="px-3 py-2 text-left">TGL TERIMA</th>
+                    <th class="px-3 py-2 text-left">NAMA PEMILIK</th>
+                    <th class="px-3 py-2 text-left">NO MESIN</th>
+                    <th class="px-3 py-2 text-left">NO RANGKA</th>
+                    <th class="px-3 py-2 text-left">JENIS</th>
+                    <th class="px-3 py-2 text-left">UMUR</th>
+                    <th class="px-3 py-2 text-left">KETERANGAN</th>
+                    <th class="px-3 py-2 w-8"></th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>`;
+
+    wrap.querySelectorAll(".bpkb-unscan-btn").forEach(btn => {
+        btn.addEventListener("click", bpkbUnscan);
+    });
+}
+
+async function bpkbUnscan(e) {
+    const id = e.currentTarget.dataset.id;
+    if (!confirm("Hapus scan item ini?")) return;
+    try {
+        await fetchJson(`/api/audit-detail/bpkb/scan/${id}`, { method: "DELETE", headers: authHeaders() });
+        await loadBpkbTab();
+    } catch (err) {
+        showAlert(err.message || "Gagal menghapus.", "error");
+    }
+}
+
+async function bpkbScanSubmit() {
+    const planId = activePlanId;
+    if (!planId) { showAlert("Pilih plan audit terlebih dahulu.", "warning"); return; }
+    const noBpkb = document.getElementById("bpkbScanInput")?.value?.trim();
+    const ket    = document.getElementById("bpkbScanKet")?.value?.trim();
+    if (!noBpkb) { showAlert("Masukkan No BPKB.", "warning"); return; }
+
+    const resultEl = document.getElementById("bpkbScanResult");
+    try {
+        const res = await fetchJson("/api/audit-detail/bpkb/scan", {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ plan_audit_id: planId, no_bpkb: noBpkb, keterangan: ket || null }),
+        });
+        const item = res.data;
+        if (resultEl) {
+            const nama = item.namaPemilik ? ` — ${item.namaPemilik}` : "";
+            const pol  = item.noPolisi   ? ` ${item.noPolisi}` : "";
+            if (res.status === "found") {
+                resultEl.innerHTML = `<span class="text-emerald-400">✓ Ditemukan: ${escHtml(item.namaPemilik ?? "")}${pol ? " — " + escHtml(pol.trim()) : ""}</span>`;
+            } else {
+                resultEl.innerHTML = `<span class="text-amber-400">⚠ Tidak ada di onhand — dicatat sebagai Fisik Diluar On Hand</span>`;
+            }
+            resultEl.classList.remove("hidden");
+        }
+        document.getElementById("bpkbScanInput").value = "";
+        document.getElementById("bpkbScanKet").value   = "";
+        document.getElementById("bpkbSuggestions").classList.add("hidden");
+        await loadBpkbTab();
+    } catch (err) {
+        if (resultEl) { resultEl.innerHTML = `<span class="text-red-400">${err.message}</span>`; resultEl.classList.remove("hidden"); }
+    }
+}
+
+async function bpkbSearchSuggest(q) {
+    const planId = activePlanId;
+    if (!planId || q.length < 3) {
+        document.getElementById("bpkbSuggestions")?.classList.add("hidden");
+        return;
+    }
+    try {
+        const res = await fetchJson(`/api/audit-detail/bpkb/search?plan_audit_id=${planId}&q=${encodeURIComponent(q)}`, { headers: authHeaders() });
+        const box = document.getElementById("bpkbSuggestions");
+        if (!box) return;
+        const items = res.data ?? [];
+        if (!items.length) { box.classList.add("hidden"); return; }
+        box.innerHTML = items.map(i => `
+            <div class="bpkb-suggest-item cursor-pointer px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 border-b border-slate-700 last:border-0"
+                data-val="${escHtml(i.noBpkb)}">
+                <span class="font-mono font-semibold">${escHtml(i.noBpkb)}</span>
+                <span class="ml-3 text-slate-400">${escHtml(i.namaPemilik ?? "")} ${escHtml(i.noPolisi ?? "")}</span>
+            </div>`).join("");
+        box.classList.remove("hidden");
+        box.querySelectorAll(".bpkb-suggest-item").forEach(el => {
+            el.addEventListener("click", () => {
+                document.getElementById("bpkbScanInput").value = el.dataset.val;
+                box.classList.add("hidden");
+            });
+        });
+    } catch (_) {}
+}
+
+function initBpkbForm() {
+    const dropZone  = document.getElementById("bpkbDropZone");
+    const fileInput = document.getElementById("bpkbFileInput");
+    const fileLabel = document.getElementById("bpkbFileLabel");
+    const uploadBtn = document.getElementById("bpkbUploadBtn");
+    const resetBtn  = document.getElementById("bpkbResetBtn");
+    const scanInput = document.getElementById("bpkbScanInput");
+    const scanBtn   = document.getElementById("bpkbScanBtn");
+
+    if (!dropZone) return;
+
+    // Upload Excel
+    const doUpload = async (file) => {
+        const planId = activePlanId;
+        if (!planId) { showAlert("Pilih plan audit terlebih dahulu.", "warning"); return; }
+        const msg = document.getElementById("bpkbUploadMsg");
+        const showMsg = (text, cls) => { if (msg) { msg.textContent = text; msg.className = `text-xs ${cls}`; msg.classList.remove("hidden"); } };
+        showMsg("Mengimpor…", "text-blue-400");
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("plan_audit_id", planId);
+        try {
+            const res = await fetchJson("/api/audit-detail/bpkb/upload", { method: "POST", headers: authHeaders(), body: fd });
+            showMsg(res.message ?? "Berhasil diimpor.", "text-emerald-400");
+            await loadBpkbTab();
+        } catch (err) {
+            showMsg(err.message || "Gagal impor.", "text-red-400");
+        }
+    };
+
+    dropZone.addEventListener("click", () => fileInput?.click());
+    dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("border-yellow-500"); });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("border-yellow-500"));
+    dropZone.addEventListener("drop", (e) => {
+        e.preventDefault(); dropZone.classList.remove("border-yellow-500");
+        const file = e.dataTransfer?.files?.[0];
+        if (file) { if (fileLabel) { fileLabel.textContent = file.name; fileLabel.classList.remove("hidden"); } doUpload(file); }
+    });
+    fileInput?.addEventListener("change", () => {
+        const file = fileInput.files?.[0];
+        if (file && fileLabel) { fileLabel.textContent = file.name; fileLabel.classList.remove("hidden"); }
+    });
+    uploadBtn?.addEventListener("click", () => {
+        const file = fileInput?.files?.[0];
+        if (!file) { showAlert("Pilih file Excel terlebih dahulu.", "warning"); return; }
+        doUpload(file);
+    });
+
+    // Reset
+    resetBtn?.addEventListener("click", async () => {
+        const planId = activePlanId;
+        if (!planId) return;
+        if (!confirm("Hapus semua data BPKB untuk plan ini?")) return;
+        try {
+            await fetchJson(`/api/audit-detail/bpkb/reset?plan_audit_id=${planId}`, { method: "DELETE", headers: authHeaders() });
+            bpkbData = { summary: {}, items: [] };
+            bpkbRenderStats({});
+            bpkbRenderResult([]);
+            document.getElementById("bpkbDbStatus")?.classList.add("hidden");
+            document.getElementById("bpkbStats")?.classList.add("hidden");
+        } catch (err) { showAlert(err.message || "Gagal reset.", "error"); }
+    });
+
+    // Scan input
+    scanInput?.addEventListener("input", () => {
+        clearTimeout(bpkbSuggestTimer);
+        bpkbSuggestTimer = setTimeout(() => bpkbSearchSuggest(scanInput.value.trim()), 200);
+    });
+    scanInput?.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); bpkbScanSubmit(); }
+    });
+    document.addEventListener("click", (e) => {
+        if (!e.target.closest("#bpkbScanInput") && !e.target.closest("#bpkbSuggestions")) {
+            document.getElementById("bpkbSuggestions")?.classList.add("hidden");
+        }
+    });
+    scanBtn?.addEventListener("click", bpkbScanSubmit);
+
+    // Result sub-tabs
+    document.getElementById("bpkbResultTabs")?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".bpkb-result-tab");
+        if (!btn) return;
+        bpkbRtab = btn.dataset.rtab;
+        document.querySelectorAll(".bpkb-result-tab").forEach(b => {
+            b.className = "bpkb-result-tab rounded-lg px-4 py-1.5 text-xs font-semibold text-slate-300 border border-slate-700 hover:bg-slate-800";
+        });
+        btn.className = "bpkb-result-tab rounded-lg px-4 py-1.5 text-xs font-semibold bg-blue-600 text-white";
+        bpkbRenderResult(bpkbData.items ?? []);
     });
 }

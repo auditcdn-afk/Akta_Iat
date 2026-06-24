@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\PemeriksaanSmhController;
 use App\Http\Controllers\Api\PemeriksaanPerlengkapanController;
 use App\Http\Controllers\Api\PemeriksaanMateraiController;
 use App\Http\Controllers\Api\PlafonController;
+use App\Http\Controllers\Api\BpkbOnhandController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', [DataStoreController::class, 'ping']);
@@ -126,6 +127,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/audit-detail/materai/{pemeriksaanMaterai}/fisik',       [PemeriksaanMateraiController::class, 'updateFisik'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::delete('/audit-detail/materai/{pemeriksaanMaterai}',          [PemeriksaanMateraiController::class, 'destroy'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── BPKB Onhand ──
+    Route::get('/audit-detail/bpkb',                              [BpkbOnhandController::class, 'index']);
+    Route::get('/audit-detail/bpkb/search',                       [BpkbOnhandController::class, 'search']);
+    Route::post('/audit-detail/bpkb/upload',                      [BpkbOnhandController::class, 'upload'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/bpkb/scan',                        [BpkbOnhandController::class, 'scan'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::delete('/audit-detail/bpkb/scan/{bpkbOnhandItem}',    [BpkbOnhandController::class, 'unscan'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::delete('/audit-detail/bpkb/reset',                     [BpkbOnhandController::class, 'reset'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── SMH ──
