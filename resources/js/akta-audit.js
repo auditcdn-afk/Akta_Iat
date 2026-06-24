@@ -2654,16 +2654,41 @@ function _kwCalcDiff(tglStr, tglAudit) {
     return Math.round((tglAudit - d) / 864e5);
 }
 
+function _kwParseNum(v) {
+    if (typeof v === "number") return v;
+    return parseFloat((v ?? "").toString().replace(/[^0-9.]/g, "")) || 0;
+}
+
 function kwMapRows(rawRows) {
     if (!rawRows.length) return [];
 
     const tglAuditVal = document.getElementById("kwTglAudit")?.value;
     const tglAudit    = tglAuditVal ? new Date(tglAuditVal) : null;
 
-    // ── Strategy 1: grouped-leasing format ──
-    // Data row:    col[0] non-empty AND col[8] is a positive number (Nilai Kwitansi)
-    // Leasing row: col[0] non-empty AND col[8] empty/0 AND ≤2 non-empty cells in row
-    // Skip:        col[0] empty, "Sub Total" rows, footer notes
+    // Auto-detect the column width (max col count) to handle varied layouts
+    const maxCols = rawRows.reduce((m, r) => Math.max(m, r.length), 0);
+
+    // ── Strategy 1: auto-detect nilai column (largest numeric values) then use positional offset ──
+    // Detect column indices by scanning rows: nilai col = last numeric col with large values
+    // For Honda kwitansi format: NO(0), ?(1), TGL(2), NAMA(3), ?(4), NO.AR(5), FAKTUR(6), ?(7), NILAI(8)
+    // But verify nilai col index by finding which column has the most numeric values > 1000
+
+    // Find which column most often contains a large positive number (candidate for nilai)
+    const colNumCount = {};
+    for (const row of rawRows) {
+        for (let ci = 0; ci < row.length; ci++) {
+            const n = _kwParseNum(row[ci]);
+            if (n >= 1000) colNumCount[ci] = (colNumCount[ci] || 0) + 1;
+        }
+    }
+    // Pick the column with most large-number hits
+    let nilaiColIdx = 8; // default
+    let bestCount = 0;
+    for (const [ci, cnt] of Object.entries(colNumCount)) {
+        if (cnt > bestCount) { bestCount = cnt; nilaiColIdx = parseInt(ci); }
+    }
+
+    console.log("[KW] auto-detected nilaiColIdx:", nilaiColIdx, "maxCols:", maxCols, "colNumCount:", colNumCount);
 
     const items = [];
     let currentLeasing = "LAINNYA";
@@ -2671,15 +2696,13 @@ function kwMapRows(rawRows) {
 
     for (const row of rawRows) {
         const col0 = (row[0] ?? "").toString().trim();
-        const col7 = (row[7] ?? "").toString().trim().toLowerCase();
+        const rowText = row.map(c => (c ?? "").toString().toLowerCase()).join(" ");
 
         if (!col0) continue;
-        if (col7 === "sub total" || col0.toLowerCase().startsWith("sub total")) continue;
-        if (col0.startsWith("*") || col7.includes("total")) continue;
+        if (col0.toLowerCase().startsWith("sub total") || rowText.includes("sub total")) continue;
+        if (col0.startsWith("*") || col0.toLowerCase().startsWith("total")) continue;
 
-        const col8 = row[8];
-        const nilai = typeof col8 === "number" ? col8
-            : parseFloat((col8 ?? "").toString().replace(/[^0-9.]/g, "")) || 0;
+        const nilai = _kwParseNum(row[nilaiColIdx]);
 
         if (nilai > 0) {
             // This is a kwitansi data row
@@ -2960,6 +2983,17 @@ async function kwHandleFile(file) {
     const msgEl = document.getElementById("kwImportMsg");
     try {
         const { rawRows, filename } = await kwParseExcel(file);
+        // Debug: log first 5 rows to console so we can inspect column structure
+        console.log("[KW] rawRows count:", rawRows.length);
+        if (rawRows.length > 0) {
+            console.log("[KW] first 10 rows:");
+            rawRows.slice(0, 10).forEach((r, i) => {
+                const col8 = r[8];
+                const nilai = typeof col8 === "number" ? col8
+                    : parseFloat((col8 ?? "").toString().replace(/[^0-9.]/g, "")) || 0;
+                console.log(`  [${i}] col0="${r[0]}" col8raw=`, col8, `(type=${typeof col8}) nilai=${nilai}`);
+            });
+        }
         const mapped = kwMapRows(rawRows);
         if (!mapped.length) {
             if (msgEl) { msgEl.textContent = "Tidak ada data kwitansi ditemukan di file."; msgEl.classList.remove("hidden"); }
