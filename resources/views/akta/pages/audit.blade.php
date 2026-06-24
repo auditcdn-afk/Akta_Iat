@@ -736,15 +736,7 @@
                     </div>
                     <p id="bpkbScanResult" class="mt-2 hidden text-sm"></p>
                 </div>
-                <div>
-                    <label class="mb-1 block text-xs font-semibold text-slate-400 uppercase tracking-wide">Keterangan (opsional)</label>
-                    <input id="bpkbScanKet" type="text" placeholder="Keterangan tambahan... (kosongkan jika tidak ada)"
-                        class="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none">
-                </div>
-                <button id="bpkbScanBtn" type="button"
-                    class="rounded-xl bg-slate-700 px-6 py-2 text-sm font-semibold text-white hover:bg-slate-600">
-                    ✓ Tambah
-                </button>
+                <p class="text-xs text-slate-500">Tekan Enter untuk scan. Jika nomor ditemukan, keterangan otomatis berubah menjadi <strong class="text-emerald-400">fisik ada</strong>.</p>
             </div>
 
             {{-- Hasil --}}

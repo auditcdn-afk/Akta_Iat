@@ -1953,7 +1953,7 @@ function bpkbRenderResult(items) {
 
     let filtered;
     if (bpkbRtab === "scan")  filtered = items.filter(i => i.sudahScan && i.jenis !== "LUAR");
-    if (bpkbRtab === "belum") filtered = items.filter(i => !i.sudahScan);
+    if (bpkbRtab === "belum") filtered = items.filter(i => !i.sudahScan && i.jenis !== "LUAR");
     if (bpkbRtab === "luar")  filtered = items.filter(i => i.jenis === "LUAR");
 
     if (!filtered.length) {
@@ -1961,7 +1961,14 @@ function bpkbRenderResult(items) {
         return;
     }
 
-    const rows = filtered.map((item, idx) => `
+    const rows = filtered.map((item, idx) => {
+        const ketHtml = item.keterangan
+            ? `<span class="text-emerald-400 font-semibold">${escHtml(item.keterangan)}</span>`
+            : `<span class="text-slate-600">—</span>`;
+        const unscanBtn = item.sudahScan
+            ? `<button class="bpkb-unscan-btn text-red-400 hover:text-red-300" data-id="${item.id}" title="Batalkan scan">✕</button>`
+            : "";
+        return `
         <tr class="border-b border-slate-800 hover:bg-slate-800/40 text-xs">
             <td class="px-3 py-2 text-slate-400">${idx + 1}</td>
             <td class="px-3 py-2 font-mono font-semibold text-slate-100">${escHtml(item.noBpkb ?? "")}</td>
@@ -1971,14 +1978,13 @@ function bpkbRenderResult(items) {
             <td class="px-3 py-2 font-mono text-slate-300">${escHtml(item.noMesin ?? "")}</td>
             <td class="px-3 py-2 font-mono text-slate-300">${escHtml(item.noRangka ?? "")}</td>
             <td class="px-3 py-2">
-                <span class="rounded px-2 py-0.5 text-[10px] font-bold ${item.jenis === 'REG' ? 'bg-blue-900/50 text-blue-300' : item.jenis === 'KDS' ? 'bg-purple-900/50 text-purple-300' : 'bg-red-900/50 text-red-300'}">${item.jenis ?? ""}</span>
+                <span class="rounded px-2 py-0.5 text-[10px] font-bold ${item.jenis === "REG" ? "bg-blue-900/50 text-blue-300" : item.jenis === "KDS" ? "bg-purple-900/50 text-purple-300" : "bg-red-900/50 text-red-300"}">${item.jenis ?? ""}</span>
             </td>
             <td class="px-3 py-2 text-slate-400">${item.umur ?? ""}</td>
-            <td class="px-3 py-2 text-slate-400">${escHtml(item.keterangan ?? "")}</td>
-            <td class="px-3 py-2">
-                <button class="bpkb-unscan-btn text-red-400 hover:text-red-300" data-id="${item.id}" title="Hapus scan">✕</button>
-            </td>
-        </tr>`).join("");
+            <td class="px-3 py-2">${ketHtml}</td>
+            <td class="px-3 py-2">${unscanBtn}</td>
+        </tr>`;
+    }).join("");
 
     wrap.innerHTML = `
         <table class="w-full text-xs">
@@ -2020,30 +2026,27 @@ async function bpkbScanSubmit() {
     const planId = activePlanId;
     if (!planId) { showAlert("Pilih plan audit terlebih dahulu.", "warning"); return; }
     const noBpkb = document.getElementById("bpkbScanInput")?.value?.trim();
-    const ket    = document.getElementById("bpkbScanKet")?.value?.trim();
-    if (!noBpkb) { showAlert("Masukkan No BPKB.", "warning"); return; }
+    if (!noBpkb) return;
 
     const resultEl = document.getElementById("bpkbScanResult");
     try {
         const res = await fetchJson("/api/audit-detail/bpkb/scan", {
             method: "POST",
             headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({ plan_audit_id: planId, no_bpkb: noBpkb, keterangan: ket || null }),
+            body: JSON.stringify({ plan_audit_id: planId, no_bpkb: noBpkb }),
         });
         const item = res.data;
         if (resultEl) {
-            const nama = item.namaPemilik ? ` — ${item.namaPemilik}` : "";
-            const pol  = item.noPolisi   ? ` ${item.noPolisi}` : "";
             if (res.status === "found") {
-                resultEl.innerHTML = `<span class="text-emerald-400">✓ Ditemukan: ${escHtml(item.namaPemilik ?? "")}${pol ? " — " + escHtml(pol.trim()) : ""}</span>`;
+                const pol = item.noPolisi ? " — " + escHtml(item.noPolisi) : "";
+                resultEl.innerHTML = `<span class="text-emerald-400">✓ Ditemukan: ${escHtml(item.namaPemilik ?? "")}${pol}</span>`;
             } else {
                 resultEl.innerHTML = `<span class="text-amber-400">⚠ Tidak ada di onhand — dicatat sebagai Fisik Diluar On Hand</span>`;
             }
             resultEl.classList.remove("hidden");
         }
         document.getElementById("bpkbScanInput").value = "";
-        document.getElementById("bpkbScanKet").value   = "";
-        document.getElementById("bpkbSuggestions").classList.add("hidden");
+        document.getElementById("bpkbSuggestions")?.classList.add("hidden");
         await loadBpkbTab();
     } catch (err) {
         if (resultEl) { resultEl.innerHTML = `<span class="text-red-400">${err.message}</span>`; resultEl.classList.remove("hidden"); }
@@ -2085,7 +2088,6 @@ function initBpkbForm() {
     const uploadBtn = document.getElementById("bpkbUploadBtn");
     const resetBtn  = document.getElementById("bpkbResetBtn");
     const scanInput = document.getElementById("bpkbScanInput");
-    const scanBtn   = document.getElementById("bpkbScanBtn");
 
     if (!dropZone) return;
 
@@ -2154,8 +2156,6 @@ function initBpkbForm() {
             document.getElementById("bpkbSuggestions")?.classList.add("hidden");
         }
     });
-    scanBtn?.addEventListener("click", bpkbScanSubmit);
-
     // Result sub-tabs
     document.getElementById("bpkbResultTabs")?.addEventListener("click", (e) => {
         const btn = e.target.closest(".bpkb-result-tab");

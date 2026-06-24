@@ -157,7 +157,6 @@ class BpkbOnhandController extends Controller
         $data   = $request->validate([
             'plan_audit_id' => 'required|integer|exists:plan_audits,id',
             'no_bpkb'       => 'required|string|max:100',
-            'keterangan'    => 'nullable|string|max:255',
         ]);
         $planId = $data['plan_audit_id'];
         $noBpkb = trim($data['no_bpkb']);
@@ -166,11 +165,11 @@ class BpkbOnhandController extends Controller
             ->where('no_bpkb', $noBpkb)->first();
 
         if ($item) {
-            // Ada di onhand — tandai sudah scan
+            // Ada di onhand — tandai fisik ada
             $item->update([
-                'sudah_scan'  => true,
-                'keterangan'  => $data['keterangan'] ?? $item->keterangan,
-                'scan_at'     => now(),
+                'sudah_scan' => true,
+                'keterangan' => 'fisik ada',
+                'scan_at'    => now(),
             ]);
             return response()->json(['status' => 'found', 'data' => $item->fresh()->toAktaArray()]);
         }
@@ -179,9 +178,9 @@ class BpkbOnhandController extends Controller
         $item = BpkbOnhandItem::updateOrCreate(
             ['plan_audit_id' => $planId, 'no_bpkb' => $noBpkb],
             [
-                'sudah_scan'  => true,
-                'keterangan'  => $data['keterangan'] ?? 'Fisik diluar onhand',
-                'scan_at'     => now(),
+                'sudah_scan' => true,
+                'keterangan' => 'Fisik diluar onhand',
+                'scan_at'    => now(),
                 'jenis'       => 'LUAR',
             ]
         );
