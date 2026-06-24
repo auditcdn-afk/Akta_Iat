@@ -1679,7 +1679,7 @@ async function loadMateraiTab() {
     const planId = activePlanId;
     if (!planId) return;
     const wrap = document.getElementById("mtResultWrap");
-    if (wrap) wrap.innerHTML = '<p class="text-muted">Memuat data…</p>';
+    if (wrap) wrap.innerHTML = '<p class="text-sm text-slate-400 px-1">Memuat data…</p>';
     const data = await fetchJson(`/api/audit-detail/materai?plan_audit_id=${planId}`, { headers: authHeaders() });
     renderMateraiAll(data.data ?? []);
 }
@@ -1688,7 +1688,7 @@ function renderMateraiAll(rows) {
     const wrap = document.getElementById("mtResultWrap");
     if (!wrap) return;
     if (!rows.length) {
-        wrap.innerHTML = '<p class="text-muted">Belum ada data. Silakan impor file HTML dari MTP SPP.</p>';
+        wrap.innerHTML = '<p class="text-sm text-slate-400 px-1">Belum ada data. Silakan impor file HTML dari MTP SPP.</p>';
         return;
     }
     wrap.innerHTML = rows.map(renderMateraiBlock).join("");
@@ -1703,65 +1703,62 @@ function renderMateraiAll(rows) {
 function renderMateraiBlock(rec) {
     const trx = rec.transaksi ?? [];
     const trxRows = trx.map((t) => `
-        <tr>
-            <td class="text-center">${t.no ?? ""}</td>
-            <td>${t.tanggal ?? ""}</td>
-            <td>${t.nomor ?? ""}</td>
-            <td>${t.keterangan ?? ""}</td>
-            <td class="text-end">${fmtNum(t.debet)}</td>
-            <td class="text-end">${fmtNum(t.kredit)}</td>
-            <td class="text-end">${fmtNum(t.saldo)}</td>
+        <tr class="border-b border-slate-700 text-xs">
+            <td class="px-2 py-1 text-center text-slate-400">${t.no ?? ""}</td>
+            <td class="px-2 py-1 text-slate-300">${t.tanggal ?? ""}</td>
+            <td class="px-2 py-1 text-slate-300">${t.nomor ?? ""}</td>
+            <td class="px-2 py-1 text-slate-300">${t.keterangan ?? ""}</td>
+            <td class="px-2 py-1 text-right text-slate-200">${fmtNum(t.debet)}</td>
+            <td class="px-2 py-1 text-right text-slate-200">${fmtNum(t.kredit)}</td>
+            <td class="px-2 py-1 text-right font-semibold text-slate-100">${fmtNum(t.saldo)}</td>
         </tr>`).join("");
 
     const selisih = rec.selisih ?? null;
     const selisihHtml = selisih !== null
-        ? `<span class="fw-bold ${selisih === 0 ? "text-success" : "text-danger"}">${selisih > 0 ? "+" : ""}${fmtNum(selisih)}</span>`
-        : `<span class="text-muted">–</span>`;
+        ? `<span class="font-bold ${selisih === 0 ? "text-emerald-400" : "text-red-400"}">${selisih > 0 ? "+" : ""}${fmtNum(selisih)}</span>`
+        : `<span class="text-slate-500">–</span>`;
 
     return `
-    <div class="card mb-3 shadow-sm" data-mt-id="${rec.id}">
-        <div class="card-header d-flex justify-content-between align-items-center py-2">
-            <strong>${escHtml(rec.jenisMaterai ?? "")}</strong>
-            <button class="btn btn-sm btn-outline-danger mt-delete-btn" data-id="${rec.id}" title="Hapus">
-                <i class="bi bi-trash"></i>
-            </button>
+    <div class="rounded-2xl border border-slate-700 bg-slate-900 overflow-hidden" data-mt-id="${rec.id}">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-700 bg-slate-800/60">
+            <span class="font-semibold text-slate-100">${escHtml(rec.jenisMaterai ?? "")}</span>
+            <button class="mt-delete-btn rounded-lg px-3 py-1 text-xs font-semibold text-red-400 border border-red-800 hover:bg-red-900/30" data-id="${rec.id}">Hapus</button>
         </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-sm table-bordered mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th class="text-center" style="width:40px">No</th>
-                            <th>Tanggal</th>
-                            <th>Nomor</th>
-                            <th>Keterangan</th>
-                            <th class="text-end">Debet</th>
-                            <th class="text-end">Kredit</th>
-                            <th class="text-end">Saldo</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr class="table-info">
-                            <td colspan="6" class="fw-semibold">Saldo Awal</td>
-                            <td class="text-end fw-semibold">${fmtNum(rec.saldoAwal)}</td>
-                        </tr>
-                        ${trxRows}
-                        <tr class="table-secondary fw-semibold">
-                            <td colspan="4" class="text-end">Total</td>
-                            <td class="text-end">${fmtNum(rec.totalDebet)}</td>
-                            <td class="text-end">${fmtNum(rec.totalKredit)}</td>
-                            <td class="text-end">${fmtNum(rec.saldoAkhir)}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            <div class="p-3 border-top d-flex align-items-center gap-3 flex-wrap">
-                <label class="mb-0 fw-semibold">Fisik (pcs):</label>
-                <input type="number" min="0" class="form-control form-control-sm mt-fisik-input" style="width:120px"
-                    data-id="${rec.id}" value="${rec.fisik ?? ""}">
-                <span class="ms-2">Selisih: ${selisihHtml}</span>
-                <small class="text-muted ms-auto">Saldo buku: ${fmtNum(rec.saldoAkhir)}</small>
-            </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+                <thead class="bg-slate-800 text-slate-400">
+                    <tr>
+                        <th class="px-2 py-2 text-center w-8">No</th>
+                        <th class="px-2 py-2 text-left">Tanggal</th>
+                        <th class="px-2 py-2 text-left">Nomor</th>
+                        <th class="px-2 py-2 text-left">Keterangan</th>
+                        <th class="px-2 py-2 text-right">Debet</th>
+                        <th class="px-2 py-2 text-right">Kredit</th>
+                        <th class="px-2 py-2 text-right">Saldo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="border-b border-slate-700 bg-blue-900/20 text-xs font-semibold">
+                        <td colspan="6" class="px-2 py-1 text-blue-300">Saldo Awal</td>
+                        <td class="px-2 py-1 text-right text-blue-200">${fmtNum(rec.saldoAwal)}</td>
+                    </tr>
+                    ${trxRows}
+                    <tr class="bg-slate-800 text-xs font-bold">
+                        <td colspan="4" class="px-2 py-2 text-right text-slate-300">Total</td>
+                        <td class="px-2 py-2 text-right text-slate-200">${fmtNum(rec.totalDebet)}</td>
+                        <td class="px-2 py-2 text-right text-slate-200">${fmtNum(rec.totalKredit)}</td>
+                        <td class="px-2 py-2 text-right text-white">${fmtNum(rec.saldoAkhir)}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="flex flex-wrap items-center gap-4 px-4 py-3 border-t border-slate-700 bg-slate-800/40">
+            <label class="text-sm font-semibold text-slate-300">Fisik (pcs):</label>
+            <input type="number" min="0"
+                class="mt-fisik-input w-28 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-100 focus:border-blue-500 focus:outline-none"
+                data-id="${rec.id}" value="${rec.fisik ?? ""}">
+            <span class="text-sm text-slate-400">Selisih: ${selisihHtml}</span>
+            <span class="ml-auto text-xs text-slate-500">Saldo buku: ${fmtNum(rec.saldoAkhir)}</span>
         </div>
     </div>`;
 }
@@ -1791,9 +1788,10 @@ async function onMateraiFisikChange(e) {
         const card = document.querySelector(`[data-mt-id="${id}"]`);
         if (card) {
             const selisih = rec.selisih ?? null;
-            const span = card.querySelector(".mt-fisik-input")?.closest(".d-flex")?.querySelector("span");
+            const footer = card.querySelector(".mt-fisik-input")?.closest("div");
+            const span = footer?.querySelector("span");
             if (span) {
-                span.innerHTML = `Selisih: <span class="fw-bold ${selisih === 0 ? "text-success" : "text-danger"}">${selisih > 0 ? "+" : ""}${fmtNum(selisih)}</span>`;
+                span.innerHTML = `Selisih: <span class="font-bold ${selisih === 0 ? "text-emerald-400" : "text-red-400"}">${selisih > 0 ? "+" : ""}${fmtNum(selisih)}</span>`;
             }
         }
     } catch (err) {
@@ -1820,16 +1818,22 @@ async function uploadMateraiFile(file) {
     const planId = activePlanId;
     if (!planId) { showAlert("Pilih plan audit terlebih dahulu.", "warning"); return; }
     const msg = document.getElementById("mtUploadMsg");
-    if (msg) { msg.textContent = "Mengimpor…"; msg.className = "text-info small"; }
+    const showMsg = (text, color) => {
+        if (!msg) return;
+        msg.textContent = text;
+        msg.className = `text-xs ${color}`;
+        msg.classList.remove("hidden");
+    };
+    showMsg("Mengimpor…", "text-blue-400");
     const fd = new FormData();
     fd.append("file", file);
     fd.append("plan_audit_id", planId);
     try {
         const res = await fetchJson("/api/audit-detail/materai/upload", { method: "POST", headers: authHeaders(), body: fd });
-        if (msg) { msg.textContent = res.message ?? "Berhasil diimpor."; msg.className = "text-success small"; }
+        showMsg(res.message ?? "Berhasil diimpor.", "text-emerald-400");
         renderMateraiAll(res.data ?? []);
     } catch (err) {
-        if (msg) { msg.textContent = err.message || "Gagal impor."; msg.className = "text-danger small"; }
+        showMsg(err.message || "Gagal impor.", "text-red-400");
     }
 }
 
@@ -1855,14 +1859,17 @@ function initMateraiForm() {
         dropZone.classList.remove("border-primary");
         const file = e.dataTransfer?.files?.[0];
         if (file) {
-            if (fileLabel) fileLabel.textContent = file.name;
+            if (fileLabel) { fileLabel.textContent = file.name; fileLabel.classList.remove("hidden"); }
             uploadMateraiFile(file);
         }
     });
 
     fileInput?.addEventListener("change", () => {
         const file = fileInput.files?.[0];
-        if (file && fileLabel) fileLabel.textContent = file.name;
+        if (file && fileLabel) {
+            fileLabel.textContent = file.name;
+            fileLabel.classList.remove("hidden");
+        }
     });
 
     uploadBtn?.addEventListener("click", () => {
