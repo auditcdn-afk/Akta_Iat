@@ -1892,9 +1892,10 @@ function initMateraiForm() {
 
 // ─── Onhand BPKB ─────────────────────────────────────────────────────────────
 
-let bpkbData   = { summary: {}, items: [] };
-let bpkbRtab   = "scan";   // active result sub-tab
+let bpkbData        = { summary: {}, items: [] };
+let bpkbRtab        = "scan";
 let bpkbSuggestTimer = null;
+let bpkbAutoTimer    = null;
 
 async function loadBpkbTab() {
     const planId = activePlanId;
@@ -2145,11 +2146,22 @@ function initBpkbForm() {
 
     // Scan input
     scanInput?.addEventListener("input", () => {
+        const q = scanInput.value.trim();
         clearTimeout(bpkbSuggestTimer);
-        bpkbSuggestTimer = setTimeout(() => bpkbSearchSuggest(scanInput.value.trim()), 200);
+        clearTimeout(bpkbAutoTimer);
+        // Autocomplete suggest
+        bpkbSuggestTimer = setTimeout(() => bpkbSearchSuggest(q), 200);
+        // Auto-scan: jika input berhenti 600ms dan panjang >= 5 (karakter BPKB)
+        if (q.length >= 5) {
+            bpkbAutoTimer = setTimeout(() => bpkbScanSubmit(), 600);
+        }
     });
     scanInput?.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") { e.preventDefault(); bpkbScanSubmit(); }
+        if (e.key === "Enter") {
+            e.preventDefault();
+            clearTimeout(bpkbAutoTimer);
+            bpkbScanSubmit();
+        }
     });
     document.addEventListener("click", (e) => {
         if (!e.target.closest("#bpkbScanInput") && !e.target.closest("#bpkbSuggestions")) {
