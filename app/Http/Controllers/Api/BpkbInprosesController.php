@@ -41,6 +41,7 @@ class BpkbInprosesController extends Controller
             'rincian_inproses_json'      => $request->input('rincianInproses', []),
             'onhand_bpkb'                => (int) $request->input('onhandBpkb', 0),
             'keterangan_selisih_onhand'  => $request->input('keteranganSelisihOnhand'),
+            'inproses_blocks_json'       => $request->input('inprosesBlocks', []),
             'updated_by'                 => $who,
         ];
 

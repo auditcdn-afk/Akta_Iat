@@ -18,6 +18,7 @@ class PemeriksaanBpkbInproses extends Model
         'fisik_inproses_hitung',
         'ket_selisih_inproses_json', 'rincian_inproses_json',
         'onhand_bpkb', 'keterangan_selisih_onhand',
+        'inproses_blocks_json',
         'created_by', 'updated_by',
     ];
 
@@ -34,6 +35,7 @@ class PemeriksaanBpkbInproses extends Model
         'penyelesaian_inproses_json'=> 'array',
         'ket_selisih_inproses_json' => 'array',
         'rincian_inproses_json'     => 'array',
+        'inproses_blocks_json'      => 'array',
     ];
 
     public function planAudit(): BelongsTo
@@ -61,6 +63,7 @@ class PemeriksaanBpkbInproses extends Model
             'rincianInproses'         => $this->rincian_inproses_json ?? [],
             'onhandBpkb'              => $this->onhand_bpkb,
             'keteranganSelisihOnhand' => $this->keterangan_selisih_onhand,
+            'inprosesBlocks'          => $this->inproses_blocks_json ?? [],
             'updatedAt'               => $this->updated_at?->toDateTimeString(),
         ];
     }

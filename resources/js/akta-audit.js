@@ -2187,14 +2187,12 @@ function initBpkbForm() {
 
 // ─── BPKB Inproses ───────────────────────────────────────────────────────────
 
-const BPKI_SECTIONS = {
-    penerimaanFisik:      { container: "bpkiPenerimaanFisikRows",    labelPlaceholder: "Keterangan", qtyLabel: "QTY" },
-    pengeluaranBpkb:      { container: "bpkiPengeluaranBpkbRows",    labelPlaceholder: "Keterangan", qtyLabel: "QTY" },
-    pendaftaranBpkb:      { container: "bpkiPendaftaranBpkbRows",    labelPlaceholder: "Keterangan", qtyLabel: "QTY" },
-    penyelesaianInproses: { container: "bpkiPenyelesaianInprosesRows", labelPlaceholder: "Keterangan", qtyLabel: "QTY" },
-    ketSelisihInproses:   { container: "bpkiKetSelisihInprosesRows", labelPlaceholder: "Keterangan", qtyLabel: "QTY (Buku)" },
-    rincianInproses:      { container: "bpkiRincianInprosesRows",    labelPlaceholder: "Contoh: Maret 2025", qtyLabel: "QTY (Buku)" },
+const BPKI_LEFT_SECTIONS = {
+    penerimaanFisik: { container: "bpkiPenerimaanFisikRows", labelPlaceholder: "Keterangan", qtyLabel: "QTY" },
+    pengeluaranBpkb: { container: "bpkiPengeluaranBpkbRows", labelPlaceholder: "Keterangan", qtyLabel: "QTY" },
 };
+
+let _bpkiBlockUid = 0;
 
 async function loadBpkiTab() {
     const planId = activePlanId;
@@ -2208,144 +2206,343 @@ function bpkiPopulate(data) {
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ""; };
     setVal("bpkiTglAwal",                d.tglAwal ?? "");
     setVal("bpkiSaldoAwalFisik",         d.saldoAwalFisik ?? 0);
-    setVal("bpkiFilterInproses",         d.filterInproses ?? "");
-    setVal("bpkiSaldoAwalInproses",      d.saldoAwalInproses ?? 0);
     setVal("bpkiFisikBpkbHitung",        d.fisikBpkbHitung ?? "");
     setVal("bpkiKeteranganSelisih",      d.keteranganSelisih ?? "");
-    setVal("bpkiFisikInprosesHitung",    d.fisikInprosesHitung ?? "");
     setVal("bpkiOnhandBpkb",             d.onhandBpkb ?? 0);
     setVal("bpkiKeteranganSelisihOnhand",d.keteranganSelisihOnhand ?? "");
 
-    bpkiRenderRows("penerimaanFisik",      d.penerimaanFisik ?? [{}]);
-    bpkiRenderRows("pengeluaranBpkb",      d.pengeluaranBpkb ?? [{}]);
-    bpkiRenderRows("pendaftaranBpkb",      d.pendaftaranBpkb ?? [{}]);
-    bpkiRenderRows("penyelesaianInproses", d.penyelesaianInproses ?? [{}]);
-    bpkiRenderRows("ketSelisihInproses",   d.ketSelisihInproses ?? [{}]);
-    bpkiRenderRows("rincianInproses",      d.rincianInproses ?? [{}]);
+    bpkiRenderLeftRows("penerimaanFisik", d.penerimaanFisik ?? [{}]);
+    bpkiRenderLeftRows("pengeluaranBpkb", d.pengeluaranBpkb ?? [{}]);
+
+    // Clear dynamic blocks
+    _bpkiBlockUid = 0;
+    const blocksEl = document.getElementById("bpkiInprosesBlocks");
+    const ketEl    = document.getElementById("bpkiKetSelisihSection");
+    if (blocksEl) blocksEl.innerHTML = "";
+    if (ketEl)    ketEl.innerHTML = "";
+
+    // Build blocks array (backward-compat: old single fields → one block)
+    const blocks = (d.inprosesBlocks && d.inprosesBlocks.length > 0)
+        ? d.inprosesBlocks
+        : [{
+            filterInproses:      d.filterInproses,
+            saldoAwalInproses:   d.saldoAwalInproses,
+            pendaftaranBpkb:     d.pendaftaranBpkb,
+            penyelesaianInproses:d.penyelesaianInproses,
+            fisikInprosesHitung: d.fisikInprosesHitung,
+            ketSelisihInproses:  d.ketSelisihInproses,
+            rincianInproses:     d.rincianInproses,
+          }];
+
+    blocks.forEach(b => bpkiAddInprosesBlock(b));
     bpkiRecalc();
 }
 
-function bpkiRenderRows(section, rows) {
-    const cfg = BPKI_SECTIONS[section];
+function bpkiRenderLeftRows(section, rows) {
+    const cfg = BPKI_LEFT_SECTIONS[section];
     if (!cfg) return;
     const wrap = document.getElementById(cfg.container);
     if (!wrap) return;
     wrap.innerHTML = "";
-    (rows.length ? rows : [{}]).forEach(row => bpkiAddRow(section, row));
+    (rows.length ? rows : [{}]).forEach(row => bpkiAddLeftRow(section, row));
 }
 
-function bpkiAddRow(section, data = {}) {
-    const cfg = BPKI_SECTIONS[section];
+function bpkiAddLeftRow(section, data = {}) {
+    const cfg = BPKI_LEFT_SECTIONS[section];
     if (!cfg) return;
     const wrap = document.getElementById(cfg.container);
     if (!wrap) return;
-    const isRincian = section === "rincianInproses";
     const div = document.createElement("div");
     div.className = "flex items-center gap-2";
     div.dataset.bpkiRow = section;
     div.innerHTML = `
-        <input type="text" placeholder="${cfg.labelPlaceholder}" value="${escHtml(data.keterangan ?? data.bulan ?? "")}"
-            class="bpki-label flex-1 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-100 focus:border-blue-500 focus:outline-none bpki-recalc-input">
+        <input type="text" placeholder="${cfg.labelPlaceholder}" value="${escHtml(data.keterangan ?? "")}"
+            class="bpki-label flex-1 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
         <input type="number" min="0" value="${data.qty ?? 0}"
-            class="bpki-qty w-24 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-100 focus:border-blue-500 focus:outline-none bpki-recalc-input"
-            placeholder="${cfg.qtyLabel}">
-        <button type="button" class="bpki-remove-row text-red-400 hover:text-red-300 px-1">✕</button>`;
+            class="bpki-qty w-20 rounded-lg border border-slate-600 bg-slate-800 px-2 py-1.5 text-xs text-slate-100 focus:border-blue-500 focus:outline-none bpki-recalc">
+        <button type="button" class="text-red-400 hover:text-red-300 px-1 text-xs">✕</button>`;
     wrap.appendChild(div);
-    div.querySelector(".bpki-recalc-input")?.addEventListener("input", bpkiRecalc);
     div.querySelector(".bpki-qty")?.addEventListener("input", bpkiRecalc);
-    div.querySelector(".bpki-remove-row")?.addEventListener("click", () => { div.remove(); bpkiRecalc(); });
+    div.querySelector("button")?.addEventListener("click", () => { div.remove(); bpkiRecalc(); });
 }
 
-function bpkiGetRows(section) {
-    const cfg = BPKI_SECTIONS[section];
+function bpkiSumLeft(section) {
+    const cfg = BPKI_LEFT_SECTIONS[section];
+    if (!cfg) return 0;
+    const wrap = document.getElementById(cfg.container);
+    if (!wrap) return 0;
+    return [...wrap.querySelectorAll("[data-bpki-row] .bpki-qty")]
+        .reduce((s, el) => s + (parseInt(el.value, 10) || 0), 0);
+}
+
+function bpkiGetLeftRows(section) {
+    const cfg = BPKI_LEFT_SECTIONS[section];
     if (!cfg) return [];
     const wrap = document.getElementById(cfg.container);
     if (!wrap) return [];
-    const isRincian = section === "rincianInproses";
-    return [...wrap.querySelectorAll("[data-bpki-row]")].map(row => {
-        const label = row.querySelector(".bpki-label")?.value?.trim() ?? "";
-        const qty   = parseInt(row.querySelector(".bpki-qty")?.value ?? 0, 10) || 0;
-        return isRincian ? { bulan: label, qty } : { keterangan: label, qty };
-    }).filter(r => (r.keterangan ?? r.bulan) || r.qty);
+    return [...wrap.querySelectorAll("[data-bpki-row]")].map(row => ({
+        keterangan: row.querySelector(".bpki-label")?.value?.trim() ?? "",
+        qty: parseInt(row.querySelector(".bpki-qty")?.value ?? 0, 10) || 0,
+    })).filter(r => r.keterangan || r.qty);
 }
 
-function bpkiSumRows(section) {
-    return bpkiGetRows(section).reduce((s, r) => s + (r.qty || 0), 0);
+function bpkiAddInprosesBlock(data = {}) {
+    const blocksEl = document.getElementById("bpkiInprosesBlocks");
+    const ketEl    = document.getElementById("bpkiKetSelisihSection");
+    if (!blocksEl || !ketEl) return;
+
+    const uid = ++_bpkiBlockUid;
+    const isFirst = blocksEl.children.length === 0;
+    const label = data.filterInproses ? escHtml(data.filterInproses) : `Inproses ${uid}`;
+
+    // ── Block column ──
+    const block = document.createElement("div");
+    block.className = "bpki-inp-block w-72 flex-shrink-0 space-y-3 rounded-xl border border-blue-800 bg-slate-900 p-3";
+    block.dataset.uid = uid;
+
+    const removeBtn = isFirst ? "" : `
+        <button type="button" class="bpki-block-remove text-red-400 hover:text-red-300 text-xs ml-auto" data-uid="${uid}">✕ Hapus</button>`;
+
+    block.innerHTML = `
+        <div class="flex items-center gap-2 pb-1 border-b border-slate-700">
+            <span class="text-xs font-bold text-blue-300 uppercase">📋 Inproses</span>
+            <input type="text" value="${label}" placeholder="Filter / Label"
+                class="bpki-block-filter flex-1 rounded-lg border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
+            ${removeBtn}
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-400 mb-1 uppercase">Saldo Awal (Unit)</label>
+            <input type="number" min="0" value="${data.saldoAwalInproses ?? 0}"
+                class="bpki-block-saldo-awal w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-100 focus:border-blue-500 focus:outline-none bpki-recalc">
+        </div>
+        <div>
+            <p class="text-xs font-semibold text-blue-400 mb-1">+ Pendaftaran BPKB</p>
+            <div class="bpki-block-pendaftaran-rows space-y-1"></div>
+            <button type="button" class="bpki-block-add-row mt-1 text-xs text-slate-400 border border-dashed border-slate-600 rounded px-3 py-1 hover:text-blue-400 hover:border-blue-500" data-target="pendaftaran">+ Baris</button>
+        </div>
+        <div>
+            <p class="text-xs font-semibold text-red-400 mb-1">− Penyelesaian Inproses</p>
+            <div class="bpki-block-penyelesaian-rows space-y-1"></div>
+            <button type="button" class="bpki-block-add-row mt-1 text-xs text-slate-400 border border-dashed border-slate-600 rounded px-3 py-1 hover:text-red-400 hover:border-red-500" data-target="penyelesaian">+ Baris</button>
+        </div>
+        <div class="rounded-lg border border-slate-700 bg-slate-800/40 p-2 space-y-1 text-xs">
+            <div class="flex justify-between"><span class="text-slate-400">Saldo Awal</span><span class="bpki-block-r-saldo-awal text-slate-200">0</span></div>
+            <div class="flex justify-between"><span class="text-blue-400">+ Pendaftaran</span><span class="bpki-block-r-pendaftaran text-blue-400">0</span></div>
+            <div class="flex justify-between"><span class="text-red-400">− Penyelesaian</span><span class="bpki-block-r-penyelesaian text-red-400">0</span></div>
+            <div class="flex justify-between border-t border-slate-700 pt-1 font-bold"><span class="text-slate-200">Saldo Buku</span><span class="bpki-block-r-buku text-slate-100">0</span></div>
+            <div class="flex justify-between font-bold"><span class="text-amber-300">Selisih</span><span class="bpki-block-r-selisih text-emerald-400">Nihil</span></div>
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-400 mb-1 uppercase">Fisik Inproses (Hitung)</label>
+            <input type="number" min="0" value="${data.fisikInprosesHitung ?? ""}" placeholder="0"
+                class="bpki-block-fisik-hitung w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-100 focus:border-blue-500 focus:outline-none bpki-recalc">
+        </div>`;
+
+    blocksEl.appendChild(block);
+
+    // Populate rows
+    const pendRows = block.querySelector(".bpki-block-pendaftaran-rows");
+    const penyRows = block.querySelector(".bpki-block-penyelesaian-rows");
+    (data.pendaftaranBpkb?.length ? data.pendaftaranBpkb : [{}]).forEach(r => _bpkiAddBlockRow(pendRows, r));
+    (data.penyelesaianInproses?.length ? data.penyelesaianInproses : [{}]).forEach(r => _bpkiAddBlockRow(penyRows, r));
+
+    // Events
+    block.querySelector(".bpki-block-saldo-awal")?.addEventListener("input", bpkiRecalc);
+    block.querySelector(".bpki-block-fisik-hitung")?.addEventListener("input", bpkiRecalc);
+    block.querySelector(".bpki-block-remove")?.addEventListener("click", () => {
+        block.remove();
+        document.querySelector(`.bpki-ket-block[data-uid="${uid}"]`)?.remove();
+        bpkiRecalc();
+    });
+    block.querySelectorAll(".bpki-block-add-row").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const target = btn.dataset.target === "pendaftaran" ? pendRows : penyRows;
+            _bpkiAddBlockRow(target);
+            bpkiRecalc();
+        });
+    });
+
+    // ── Ket Selisih + Rincian section ──
+    const ketBlock = document.createElement("div");
+    ketBlock.className = "bpki-ket-block rounded-xl border border-slate-700 bg-slate-900 overflow-hidden";
+    ketBlock.dataset.uid = uid;
+    ketBlock.innerHTML = `
+        <div class="px-4 py-2.5 bg-slate-800 flex items-center gap-2">
+            <span class="text-xs font-bold text-slate-200 uppercase">📝 Ket. Selisih &amp; Rincian — <span class="bpki-ket-label text-blue-300">${label}</span></span>
+        </div>
+        <div class="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+                <p class="text-xs font-semibold text-slate-400 mb-2 uppercase">Keterangan Selisih Inproses</p>
+                <div class="bpki-ket-rows space-y-1"></div>
+                <button type="button" class="bpki-ket-add mt-2 rounded-lg border border-dashed border-slate-600 px-4 py-1.5 text-xs font-semibold text-slate-400 hover:border-slate-400">+ Tambah Baris</button>
+                <div class="mt-2 text-right text-xs text-slate-400">Total: <span class="bpki-ket-total text-slate-200">0</span> buku</div>
+            </div>
+            <div>
+                <p class="text-xs font-semibold text-slate-400 mb-2 uppercase">Rincian Per Bulan</p>
+                <div class="bpki-rincian-rows space-y-1"></div>
+                <button type="button" class="bpki-rincian-add mt-2 rounded-lg border border-dashed border-slate-600 px-4 py-1.5 text-xs font-semibold text-slate-400 hover:border-slate-400">+ Tambah Bulan</button>
+                <div class="mt-2 text-right text-xs text-slate-400">Total: <span class="bpki-rincian-total text-slate-200">0</span> buku</div>
+            </div>
+        </div>`;
+
+    ketEl.appendChild(ketBlock);
+
+    const ketRows     = ketBlock.querySelector(".bpki-ket-rows");
+    const rincianRows = ketBlock.querySelector(".bpki-rincian-rows");
+    (data.ketSelisihInproses?.length ? data.ketSelisihInproses : [{}]).forEach(r => _bpkiAddKetRow(ketRows, r, false));
+    (data.rincianInproses?.length    ? data.rincianInproses    : [{}]).forEach(r => _bpkiAddKetRow(rincianRows, r, true));
+
+    ketBlock.querySelector(".bpki-ket-add")?.addEventListener("click", () => { _bpkiAddKetRow(ketRows, {}, false); bpkiRecalc(); });
+    ketBlock.querySelector(".bpki-rincian-add")?.addEventListener("click", () => { _bpkiAddKetRow(rincianRows, {}, true); bpkiRecalc(); });
+
+    // Sync label
+    block.querySelector(".bpki-block-filter")?.addEventListener("input", (e) => {
+        const lbl = ketBlock.querySelector(".bpki-ket-label");
+        if (lbl) lbl.textContent = e.target.value || `Inproses ${uid}`;
+    });
+}
+
+function _bpkiAddBlockRow(container, data = {}) {
+    const div = document.createElement("div");
+    div.className = "flex items-center gap-1";
+    div.innerHTML = `
+        <input type="text" placeholder="Keterangan" value="${escHtml(data.keterangan ?? "")}"
+            class="flex-1 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
+        <input type="number" min="0" value="${data.qty ?? 0}"
+            class="bpki-block-row-qty w-16 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none bpki-recalc">
+        <button type="button" class="text-red-400 hover:text-red-300 text-xs px-1">✕</button>`;
+    container.appendChild(div);
+    div.querySelector(".bpki-block-row-qty")?.addEventListener("input", bpkiRecalc);
+    div.querySelector("button")?.addEventListener("click", () => { div.remove(); bpkiRecalc(); });
+}
+
+function _bpkiAddKetRow(container, data = {}, isRincian = false) {
+    const div = document.createElement("div");
+    div.className = "flex items-center gap-1";
+    const placeholder = isRincian ? "Contoh: Maret 2025" : "Keterangan";
+    const val = escHtml(data.keterangan ?? data.bulan ?? "");
+    div.innerHTML = `
+        <input type="text" placeholder="${placeholder}" value="${val}"
+            class="flex-1 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
+        <input type="number" min="0" value="${data.qty ?? 0}"
+            class="bpki-ket-qty w-16 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
+        <button type="button" class="text-red-400 hover:text-red-300 text-xs px-1">✕</button>`;
+    container.appendChild(div);
+    div.querySelector(".bpki-ket-qty")?.addEventListener("input", bpkiRecalc);
+    div.querySelector("button")?.addEventListener("click", () => { div.remove(); bpkiRecalc(); });
+}
+
+function bpkiCollectBlock(block) {
+    const uid = block.dataset.uid;
+    const ketBlock = document.querySelector(`.bpki-ket-block[data-uid="${uid}"]`);
+
+    const getRows = (container, isRincian = false) =>
+        [...(container?.querySelectorAll(".flex.items-center") ?? [])].map(row => {
+            const inputs = row.querySelectorAll("input");
+            const label = inputs[0]?.value?.trim() ?? "";
+            const qty = parseInt(inputs[1]?.value ?? 0, 10) || 0;
+            return isRincian ? { bulan: label, qty } : { keterangan: label, qty };
+        }).filter(r => (r.keterangan ?? r.bulan) || r.qty);
+
+    return {
+        filterInproses:      block.querySelector(".bpki-block-filter")?.value?.trim() || null,
+        saldoAwalInproses:   parseInt(block.querySelector(".bpki-block-saldo-awal")?.value ?? 0, 10) || 0,
+        pendaftaranBpkb:     getRows(block.querySelector(".bpki-block-pendaftaran-rows")),
+        penyelesaianInproses:getRows(block.querySelector(".bpki-block-penyelesaian-rows")),
+        fisikInprosesHitung: (() => { const v = parseInt(block.querySelector(".bpki-block-fisik-hitung")?.value, 10); return isNaN(v) ? null : v; })(),
+        ketSelisihInproses:  getRows(ketBlock?.querySelector(".bpki-ket-rows")),
+        rincianInproses:     getRows(ketBlock?.querySelector(".bpki-rincian-rows"), true),
+    };
 }
 
 function bpkiRecalc() {
     const g = (id) => parseInt(document.getElementById(id)?.value ?? 0, 10) || 0;
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-    const selisihLabel = (diff) => diff === 0 ? '<span class="text-emerald-400">Nihil</span>' : `<span class="text-red-400">${diff > 0 ? "+" : ""}${diff}</span>`;
+    const selisihHtml = (diff) => diff === 0
+        ? '<span class="text-emerald-400">Nihil</span>'
+        : `<span class="text-red-400">${diff > 0 ? "+" : ""}${diff}</span>`;
 
-    // Fisik
+    // Left panel – Fisik
     const saldoAwalFisik   = g("bpkiSaldoAwalFisik");
-    const penerimaanFisik  = bpkiSumRows("penerimaanFisik");
-    const pengeluaranFisik = bpkiSumRows("pengeluaranBpkb");
+    const penerimaanFisik  = bpkiSumLeft("penerimaanFisik");
+    const pengeluaranFisik = bpkiSumLeft("pengeluaranBpkb");
     const saldoBukuFisik   = saldoAwalFisik + penerimaanFisik - pengeluaranFisik;
     const fisikHitung      = g("bpkiFisikBpkbHitung");
-    const selisihFisik     = fisikHitung - saldoBukuFisik;
 
     set("bpkiRFisikSaldoAwal",   saldoAwalFisik);
     set("bpkiRFisikPenerimaan",  penerimaanFisik);
     set("bpkiRFisikPengeluaran", pengeluaranFisik);
     set("bpkiRFisikBuku",        saldoBukuFisik);
-    set("bpkiRFisikHitung",      fisikHitung);
     const selElF = document.getElementById("bpkiRFisikSelisih");
-    if (selElF) selElF.innerHTML = selisihLabel(selisihFisik);
+    if (selElF) selElF.innerHTML = selisihHtml(fisikHitung - saldoBukuFisik);
 
-    // Inproses
-    const saldoAwalInp   = g("bpkiSaldoAwalInproses");
-    const pendaftaran    = bpkiSumRows("pendaftaranBpkb");
-    const penyelesaian   = bpkiSumRows("penyelesaianInproses");
-    const saldoBukuInp   = saldoAwalInp + pendaftaran - penyelesaian;
-    const inpHitung      = g("bpkiFisikInprosesHitung");
-    const selisihInp     = inpHitung - saldoBukuInp;
+    // Per-block inproses
+    document.querySelectorAll(".bpki-inp-block").forEach(block => {
+        const saldo    = parseInt(block.querySelector(".bpki-block-saldo-awal")?.value ?? 0, 10) || 0;
+        const pendSum  = [...block.querySelectorAll(".bpki-block-pendaftaran-rows .bpki-block-row-qty")]
+            .reduce((s, el) => s + (parseInt(el.value, 10) || 0), 0);
+        const penySum  = [...block.querySelectorAll(".bpki-block-penyelesaian-rows .bpki-block-row-qty")]
+            .reduce((s, el) => s + (parseInt(el.value, 10) || 0), 0);
+        const buku     = saldo + pendSum - penySum;
+        const fisik    = parseInt(block.querySelector(".bpki-block-fisik-hitung")?.value ?? 0, 10) || 0;
 
-    set("bpkiRInpSaldoAwal",    saldoAwalInp);
-    set("bpkiRInpPendaftaran",  pendaftaran);
-    set("bpkiRInpPenyelesaian", penyelesaian);
-    set("bpkiRInpBuku",         saldoBukuInp);
-    set("bpkiRInpHitung",       inpHitung);
-    const selElI = document.getElementById("bpkiRInpSelisih");
-    if (selElI) selElI.innerHTML = selisihLabel(selisihInp);
+        const setText = (cls, val) => { const el = block.querySelector(cls); if (el) el.textContent = val; };
+        setText(".bpki-block-r-saldo-awal",   saldo);
+        setText(".bpki-block-r-pendaftaran",   pendSum);
+        setText(".bpki-block-r-penyelesaian",  penySum);
+        setText(".bpki-block-r-buku",          buku);
+        const selEl = block.querySelector(".bpki-block-r-selisih");
+        if (selEl) selEl.innerHTML = selisihHtml(fisik - buku);
+    });
 
-    // Totals keterangan & rincian
-    set("bpkiTotalKetSelisih", bpkiSumRows("ketSelisihInproses"));
-    set("bpkiTotalRincian",    bpkiSumRows("rincianInproses"));
+    // Ket totals
+    document.querySelectorAll(".bpki-ket-block").forEach(kb => {
+        const ketTotal     = [...kb.querySelectorAll(".bpki-ket-rows .bpki-ket-qty")]
+            .reduce((s, el) => s + (parseInt(el.value, 10) || 0), 0);
+        const rincianTotal = [...kb.querySelectorAll(".bpki-rincian-rows .bpki-ket-qty")]
+            .reduce((s, el) => s + (parseInt(el.value, 10) || 0), 0);
+        const kt = kb.querySelector(".bpki-ket-total");
+        const rt = kb.querySelector(".bpki-rincian-total");
+        if (kt) kt.textContent = ketTotal;
+        if (rt) rt.textContent = rincianTotal;
+    });
 
     // On Hand vs Fisik
-    const onhand        = g("bpkiOnhandBpkb");
-    const selisihOnhand = onhand - fisikHitung;
-    set("bpkiOhFisik",   fisikHitung);
-    set("bpkiOhOnhand",  onhand);
+    const onhand = g("bpkiOnhandBpkb");
+    set("bpkiOhFisik",  fisikHitung);
+    set("bpkiOhOnhand", onhand);
     const selElO = document.getElementById("bpkiOhSelisih");
-    if (selElO) selElO.innerHTML = selisihLabel(selisihOnhand);
+    if (selElO) selElO.innerHTML = selisihHtml(onhand - fisikHitung);
 }
 
 async function saveBpki() {
     const planId = activePlanId;
     if (!planId) { showAlert("Pilih plan audit terlebih dahulu.", "warning"); return; }
-    const g = (id) => document.getElementById(id)?.value?.trim() ?? "";
+    const g  = (id) => document.getElementById(id)?.value?.trim() ?? "";
     const gi = (id) => { const v = parseInt(document.getElementById(id)?.value, 10); return isNaN(v) ? null : v; };
+
+    const inprosesBlocks = [...document.querySelectorAll(".bpki-inp-block")].map(bpkiCollectBlock);
+    const first = inprosesBlocks[0] ?? {};
 
     const payload = {
         planAuditId:             planId,
         tglAwal:                 g("bpkiTglAwal") || null,
         saldoAwalFisik:          gi("bpkiSaldoAwalFisik") ?? 0,
-        penerimaanFisik:         bpkiGetRows("penerimaanFisik"),
-        pengeluaranBpkb:         bpkiGetRows("pengeluaranBpkb"),
+        penerimaanFisik:         bpkiGetLeftRows("penerimaanFisik"),
+        pengeluaranBpkb:         bpkiGetLeftRows("pengeluaranBpkb"),
         fisikBpkbHitung:         gi("bpkiFisikBpkbHitung"),
         keteranganSelisih:       g("bpkiKeteranganSelisih") || null,
-        filterInproses:          g("bpkiFilterInproses") || null,
-        saldoAwalInproses:       gi("bpkiSaldoAwalInproses") ?? 0,
-        pendaftaranBpkb:         bpkiGetRows("pendaftaranBpkb"),
-        penyelesaianInproses:    bpkiGetRows("penyelesaianInproses"),
-        fisikInprosesHitung:     gi("bpkiFisikInprosesHitung"),
-        ketSelisihInproses:      bpkiGetRows("ketSelisihInproses"),
-        rincianInproses:         bpkiGetRows("rincianInproses"),
         onhandBpkb:              gi("bpkiOnhandBpkb") ?? 0,
         keteranganSelisihOnhand: g("bpkiKeteranganSelisihOnhand") || null,
+        inprosesBlocks,
+        // backward-compat single-block fields
+        filterInproses:          first.filterInproses ?? null,
+        saldoAwalInproses:       first.saldoAwalInproses ?? 0,
+        pendaftaranBpkb:         first.pendaftaranBpkb ?? [],
+        penyelesaianInproses:    first.penyelesaianInproses ?? [],
+        fisikInprosesHitung:     first.fisikInprosesHitung ?? null,
+        ketSelisihInproses:      first.ketSelisihInproses ?? [],
+        rincianInproses:         first.rincianInproses ?? [],
     };
 
     const msg = document.getElementById("bpkiSaveMsg");
@@ -2368,15 +2565,21 @@ function initBpkiForm() {
     const panel = document.getElementById("tabPanel-bpkb-inproses");
     if (!panel) return;
 
-    // Add row buttons
+    // Left panel add-row buttons
     panel.addEventListener("click", (e) => {
         const addBtn = e.target.closest("[data-bpki-add]");
-        if (addBtn) { bpkiAddRow(addBtn.dataset.bpkiAdd); bpkiRecalc(); }
+        if (addBtn) { bpkiAddLeftRow(addBtn.dataset.bpkiAdd); bpkiRecalc(); }
     });
 
-    // Recalc on numeric inputs
+    // Recalc on left panel numeric inputs
     panel.addEventListener("input", (e) => {
         if (e.target.classList.contains("bpki-recalc")) bpkiRecalc();
+    });
+
+    // Add inproses block
+    document.getElementById("bpkiAddBlockBtn")?.addEventListener("click", () => {
+        bpkiAddInprosesBlock();
+        bpkiRecalc();
     });
 
     // Save

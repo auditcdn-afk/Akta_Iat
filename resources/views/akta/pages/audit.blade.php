@@ -765,10 +765,14 @@
         {{-- Panel: BPKB Inproses --}}
         <div id="tabPanel-bpkb-inproses" class="audit-tab-panel hidden space-y-5">
 
-            {{-- Header simpan --}}
-            <div class="flex items-center justify-between">
+            {{-- Header --}}
+            <div class="flex flex-wrap items-center justify-between gap-3">
                 <h3 class="text-base font-bold text-slate-100">Pemeriksaan BPKB Inproses</h3>
                 <div class="flex items-center gap-3">
+                    <button id="bpkiAddBlockBtn" type="button"
+                        class="rounded-xl border border-blue-500 px-4 py-2 text-xs font-semibold text-blue-400 hover:bg-blue-500/10">
+                        + Tambah Kolom Inproses
+                    </button>
                     <span id="bpkiSaveMsg" class="hidden text-xs"></span>
                     <button id="bpkiSaveBtn" type="button"
                         class="rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-500">
@@ -777,188 +781,90 @@
                 </div>
             </div>
 
-            {{-- Dua kolom utama --}}
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {{-- Horizontal scroll: kiri (fixed) + kanan (dynamic blocks) --}}
+            <div class="overflow-x-auto">
+                <div class="flex gap-5 min-w-max">
 
-                {{-- Kiri: LAPORAN POSISI BPKB --}}
-                <div class="space-y-4">
-                    <div class="rounded-xl border border-slate-700 bg-slate-900 overflow-hidden">
-                        <div class="flex items-center justify-between px-4 py-2.5 bg-slate-800">
-                            <span class="text-xs font-bold text-amber-300 uppercase tracking-wide">📋 Laporan Posisi BPKB</span>
-                        </div>
-                        <div class="p-4 space-y-3">
-                            <div class="flex items-center gap-3">
-                                <div class="flex items-center gap-2 text-xs font-semibold text-slate-300 whitespace-nowrap">🗕 Saldo Awal — Fisik BPKB</div>
-                                <input id="bpkiTglAwal" type="date" class="flex-1 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-100 focus:border-blue-500 focus:outline-none">
+                    {{-- Kiri: Laporan Posisi BPKB (fixed width) --}}
+                    <div class="w-80 flex-shrink-0 space-y-4">
+                        <div class="rounded-xl border border-slate-700 bg-slate-900 overflow-hidden">
+                            <div class="px-4 py-2.5 bg-slate-800">
+                                <span class="text-xs font-bold text-amber-300 uppercase tracking-wide">📋 Laporan Posisi BPKB</span>
                             </div>
-                            <div>
-                                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Saldo Fisik BPKB (Unit)</label>
-                                <input id="bpkiSaldoAwalFisik" type="number" min="0" value="0"
-                                    class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none bpki-recalc">
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- Penerimaan Fisik --}}
-                    <div class="rounded-xl border border-emerald-800 bg-slate-900 overflow-hidden">
-                        <div class="px-4 py-2.5 bg-emerald-900/60">
-                            <span class="text-xs font-bold text-emerald-300 uppercase">✅ Penerimaan/Penyelesaian S/D —</span>
-                        </div>
-                        <div class="p-4">
-                            <p class="text-xs font-semibold text-emerald-400 mb-2">Penerimaan Fisik BPKB</p>
-                            <div id="bpkiPenerimaanFisikRows" class="space-y-1"></div>
-                            <button type="button" data-bpki-add="penerimaanFisik"
-                                class="mt-2 rounded-lg border border-dashed border-slate-600 px-4 py-1.5 text-xs font-semibold text-slate-400 hover:border-emerald-500 hover:text-emerald-400">
-                                + Tambah Baris
-                            </button>
-                        </div>
-                    </div>
-
-                    {{-- Pengeluaran --}}
-                    <div class="rounded-xl border border-red-800 bg-slate-900 overflow-hidden">
-                        <div class="px-4 py-2.5 bg-red-900/60">
-                            <span class="text-xs font-bold text-red-300 uppercase">▼ Pengeluaran S/D —</span>
-                        </div>
-                        <div class="p-4">
-                            <p class="text-xs font-semibold text-red-400 mb-2">Pengeluaran BPKB (BAST, TT BPKB, dll)</p>
-                            <div id="bpkiPengeluaranBpkbRows" class="space-y-1"></div>
-                            <button type="button" data-bpki-add="pengeluaranBpkb"
-                                class="mt-2 rounded-lg border border-dashed border-slate-600 px-4 py-1.5 text-xs font-semibold text-slate-400 hover:border-red-500 hover:text-red-400">
-                                + Tambah Baris
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {{-- Kanan: LAPORAN INPROSES --}}
-                <div class="space-y-4">
-                    <div class="rounded-xl border border-slate-700 bg-slate-900 overflow-hidden">
-                        <div class="flex items-center gap-3 px-4 py-2.5 bg-slate-800">
-                            <span class="text-xs font-bold text-blue-300 uppercase tracking-wide">📋 Laporan Inproses —</span>
-                            <input id="bpkiFilterInproses" type="text" placeholder="Contoh: PKU, MKN..."
-                                class="flex-1 rounded-lg border border-slate-600 bg-slate-700 px-3 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
-                        </div>
-                        <div class="p-4 space-y-3">
-                            <div class="flex items-center gap-2 text-xs font-semibold text-slate-300">
-                                🗕 Saldo Awal — Inproses —
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Saldo Inproses — (Unit)</label>
-                                <input id="bpkiSaldoAwalInproses" type="number" min="0" value="0"
-                                    class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none bpki-recalc">
+                            <div class="p-4 space-y-3">
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Tanggal Awal</label>
+                                    <input id="bpkiTglAwal" type="date" class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-100 focus:border-blue-500 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Saldo Fisik BPKB (Unit)</label>
+                                    <input id="bpkiSaldoAwalFisik" type="number" min="0" value="0"
+                                        class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none bpki-recalc">
+                                </div>
                             </div>
                         </div>
+
+                        {{-- Penerimaan Fisik --}}
+                        <div class="rounded-xl border border-emerald-800 bg-slate-900 overflow-hidden">
+                            <div class="px-4 py-2.5 bg-emerald-900/60">
+                                <span class="text-xs font-bold text-emerald-300 uppercase">✅ Penerimaan Fisik BPKB</span>
+                            </div>
+                            <div class="p-4">
+                                <div id="bpkiPenerimaanFisikRows" class="space-y-1"></div>
+                                <button type="button" data-bpki-add="penerimaanFisik"
+                                    class="mt-2 rounded-lg border border-dashed border-slate-600 px-4 py-1.5 text-xs font-semibold text-slate-400 hover:border-emerald-500 hover:text-emerald-400">
+                                    + Tambah Baris
+                                </button>
+                            </div>
+                        </div>
+
+                        {{-- Pengeluaran --}}
+                        <div class="rounded-xl border border-red-800 bg-slate-900 overflow-hidden">
+                            <div class="px-4 py-2.5 bg-red-900/60">
+                                <span class="text-xs font-bold text-red-300 uppercase">▼ Pengeluaran BPKB</span>
+                            </div>
+                            <div class="p-4">
+                                <div id="bpkiPengeluaranBpkbRows" class="space-y-1"></div>
+                                <button type="button" data-bpki-add="pengeluaranBpkb"
+                                    class="mt-2 rounded-lg border border-dashed border-slate-600 px-4 py-1.5 text-xs font-semibold text-slate-400 hover:border-red-500 hover:text-red-400">
+                                    + Tambah Baris
+                                </button>
+                            </div>
+                        </div>
+
+                        {{-- Rekap Fisik --}}
+                        <div class="rounded-xl border border-slate-700 bg-slate-900 overflow-hidden">
+                            <div class="px-4 py-2.5 bg-slate-800">
+                                <span class="text-xs font-bold text-slate-200 uppercase">📊 Rekap Fisik BPKB</span>
+                            </div>
+                            <div class="p-4 space-y-2 text-sm">
+                                <div class="flex justify-between"><span class="text-slate-400">Saldo Awal</span><span id="bpkiRFisikSaldoAwal" class="text-slate-200">0</span></div>
+                                <div class="flex justify-between"><span class="text-emerald-400">+ Penerimaan</span><span id="bpkiRFisikPenerimaan" class="text-emerald-400">0</span></div>
+                                <div class="flex justify-between"><span class="text-red-400">− Pengeluaran</span><span id="bpkiRFisikPengeluaran" class="text-red-400">0</span></div>
+                                <div class="flex justify-between border-t border-slate-700 pt-2 font-bold"><span class="text-slate-200">Saldo Buku</span><span id="bpkiRFisikBuku" class="text-slate-100">0</span></div>
+                                <div class="flex justify-between font-bold text-base"><span class="text-amber-300">Selisih</span><span id="bpkiRFisikSelisih" class="text-emerald-400">Nihil</span></div>
+                                <div class="mt-3">
+                                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Fisik BPKB (Hitung)</label>
+                                    <input id="bpkiFisikBpkbHitung" type="number" min="0" placeholder="0"
+                                        class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none bpki-recalc">
+                                </div>
+                                <div class="mt-2">
+                                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Keterangan</label>
+                                    <textarea id="bpkiKeteranganSelisih" rows="2" placeholder="Keterangan selisih..."
+                                        class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none resize-none"></textarea>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    {{-- Pendaftaran BPKB --}}
-                    <div class="rounded-xl border border-blue-800 bg-slate-900 overflow-hidden">
-                        <div class="px-4 py-2.5 bg-blue-900/60">
-                            <span class="text-xs font-bold text-blue-300 uppercase">📘 Pendaftaran S/D —</span>
-                        </div>
-                        <div class="p-4">
-                            <p class="text-xs font-semibold text-blue-400 mb-2">Pendaftaran BPKB</p>
-                            <div id="bpkiPendaftaranBpkbRows" class="space-y-1"></div>
-                            <button type="button" data-bpki-add="pendaftaranBpkb"
-                                class="mt-2 rounded-lg border border-dashed border-slate-600 px-4 py-1.5 text-xs font-semibold text-slate-400 hover:border-blue-500 hover:text-blue-400">
-                                + Tambah Baris
-                            </button>
-                        </div>
-                    </div>
+                    {{-- Kanan: Dynamic Inproses Blocks --}}
+                    <div id="bpkiInprosesBlocks" class="flex gap-4 items-start"></div>
 
-                    {{-- Penyelesaian Inproses --}}
-                    <div class="rounded-xl border border-emerald-800 bg-slate-900 overflow-hidden">
-                        <div class="px-4 py-2.5 bg-emerald-900/60">
-                            <span class="text-xs font-bold text-emerald-300 uppercase">✅ Penerimaan/Penyelesaian S/D —</span>
-                        </div>
-                        <div class="p-4">
-                            <p class="text-xs font-semibold text-emerald-400 mb-2">Penyelesaian Inproses BPKB</p>
-                            <div id="bpkiPenyelesaianInprosesRows" class="space-y-1"></div>
-                            <button type="button" data-bpki-add="penyelesaianInproses"
-                                class="mt-2 rounded-lg border border-dashed border-slate-600 px-4 py-1.5 text-xs font-semibold text-slate-400 hover:border-emerald-500 hover:text-emerald-400">
-                                + Tambah Baris
-                            </button>
-                        </div>
-                    </div>
                 </div>
             </div>
 
-            {{-- Rekap & Selisih --}}
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                {{-- Rekap Fisik --}}
-                <div class="rounded-xl border border-slate-700 bg-slate-900 overflow-hidden">
-                    <div class="px-4 py-2.5 bg-slate-800">
-                        <span class="text-xs font-bold text-slate-200 uppercase">📊 Rekap & Selisih — Fisik BPKB</span>
-                    </div>
-                    <div class="p-4 space-y-2 text-sm">
-                        <div class="flex justify-between"><span class="text-slate-400">Saldo Awal Fisik</span><span id="bpkiRFisikSaldoAwal" class="text-slate-200">0</span></div>
-                        <div class="flex justify-between"><span class="text-emerald-400">+ Penerimaan Fisik</span><span id="bpkiRFisikPenerimaan" class="text-emerald-400">0</span></div>
-                        <div class="flex justify-between"><span class="text-red-400">− Pengeluaran Fisik</span><span id="bpkiRFisikPengeluaran" class="text-red-400">0</span></div>
-                        <div class="flex justify-between border-t border-slate-700 pt-2 font-bold"><span class="text-slate-200">Saldo Buku Fisik</span><span id="bpkiRFisikBuku" class="text-slate-100">0</span></div>
-                        <div class="flex justify-between font-bold"><span class="text-slate-200">Fisik BPKB (Hitung)</span><span id="bpkiRFisikHitung" class="text-slate-100">0</span></div>
-                        <div class="flex justify-between font-bold text-base"><span class="text-amber-300">Selisih Fisik</span><span id="bpkiRFisikSelisih" class="text-emerald-400">Nihil</span></div>
-                        <div class="mt-3">
-                            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Fisik BPKB (Hitung)</label>
-                            <input id="bpkiFisikBpkbHitung" type="number" min="0" placeholder="0"
-                                class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none bpki-recalc">
-                        </div>
-                        <div class="mt-2">
-                            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Keterangan (opsional)</label>
-                            <textarea id="bpkiKeteranganSelisih" rows="3" placeholder="Keterangan tambahan terkait rekap selisih..."
-                                class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none resize-none"></textarea>
-                        </div>
-                    </div>
-                </div>
-
-                {{-- Rekap Inproses --}}
-                <div class="rounded-xl border border-slate-700 bg-slate-900 overflow-hidden">
-                    <div class="px-4 py-2.5 bg-slate-800">
-                        <span class="text-xs font-bold text-slate-200 uppercase">📊 Rekap & Selisih — Inproses</span>
-                    </div>
-                    <div class="p-4 space-y-2 text-sm">
-                        <div class="flex justify-between"><span class="text-slate-400">Saldo Awal Inproses</span><span id="bpkiRInpSaldoAwal" class="text-slate-200">0</span></div>
-                        <div class="flex justify-between"><span class="text-blue-400">+ Pendaftaran</span><span id="bpkiRInpPendaftaran" class="text-blue-400">0</span></div>
-                        <div class="flex justify-between"><span class="text-red-400">− Penyelesaian Inproses</span><span id="bpkiRInpPenyelesaian" class="text-red-400">0</span></div>
-                        <div class="flex justify-between border-t border-slate-700 pt-2 font-bold"><span class="text-slate-200">Saldo Buku Inproses</span><span id="bpkiRInpBuku" class="text-slate-100">0</span></div>
-                        <div class="flex justify-between font-bold"><span class="text-slate-200">Fisik Inproses (Hitung)</span><span id="bpkiRInpHitung" class="text-slate-100">0</span></div>
-                        <div class="flex justify-between font-bold text-base"><span class="text-amber-300">Selisih Inproses</span><span id="bpkiRInpSelisih" class="text-emerald-400">Nihil</span></div>
-                        <div class="mt-3">
-                            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Fisik Inproses (Hitung)</label>
-                            <input id="bpkiFisikInprosesHitung" type="number" min="0" placeholder="0"
-                                class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none bpki-recalc">
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Keterangan Selisih Inproses & Rincian Per Bulan --}}
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <div class="rounded-xl border border-slate-700 bg-slate-900 overflow-hidden">
-                    <div class="px-4 py-2.5 bg-slate-800">
-                        <span class="text-xs font-bold text-slate-200 uppercase">📝 Keterangan Selisih Inproses</span>
-                    </div>
-                    <div class="p-4">
-                        <div id="bpkiKetSelisihInprosesRows" class="space-y-1"></div>
-                        <button type="button" data-bpki-add="ketSelisihInproses"
-                            class="mt-2 rounded-lg border border-dashed border-slate-600 px-4 py-1.5 text-xs font-semibold text-slate-400 hover:border-slate-400">
-                            + Tambah Baris
-                        </button>
-                        <div class="mt-2 text-right text-xs font-semibold text-slate-400">Total: <span id="bpkiTotalKetSelisih" class="text-slate-200">0</span> buku</div>
-                    </div>
-                </div>
-                <div class="rounded-xl border border-slate-700 bg-slate-900 overflow-hidden">
-                    <div class="px-4 py-2.5 bg-slate-800">
-                        <span class="text-xs font-bold text-slate-200 uppercase">📅 Rincian Inproses Per Bulan</span>
-                    </div>
-                    <div class="p-4">
-                        <div id="bpkiRincianInprosesRows" class="space-y-1"></div>
-                        <button type="button" data-bpki-add="rincianInproses"
-                            class="mt-2 rounded-lg border border-dashed border-slate-600 px-4 py-1.5 text-xs font-semibold text-slate-400 hover:border-slate-400">
-                            + Tambah Bulan
-                        </button>
-                        <div class="mt-2 text-right text-xs font-semibold text-slate-400">Total: <span id="bpkiTotalRincian" class="text-slate-200">0</span> buku</div>
-                    </div>
-                </div>
-            </div>
+            {{-- Keterangan Selisih & Rincian (dynamic, per block) --}}
+            <div id="bpkiKetSelisihSection" class="space-y-4"></div>
 
             {{-- On Hand BPKB vs Fisik --}}
             <div class="rounded-xl border border-slate-700 bg-slate-900 overflow-hidden">
