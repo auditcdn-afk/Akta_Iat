@@ -1526,21 +1526,79 @@
                 </div>
             </div>
 
-            {{-- Scan No. Part --}}
+            {{-- Form Pemeriksaan (scan / dropdown No. Part) --}}
             <div class="rounded-2xl border border-blue-700/40 bg-blue-900/10 p-5">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-                    <div class="flex flex-1 flex-col gap-1">
-                        <label class="text-xs font-semibold uppercase tracking-wide text-blue-300">🔍 Scan / Input No. Part</label>
-                        <input type="text" id="hgpScanInput" placeholder="Scan barcode atau ketik No. Part lalu Enter..."
-                            autocomplete="off"
-                            class="rounded-lg border border-blue-600/50 bg-slate-900 px-4 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
+                <h4 class="mb-4 text-sm font-bold uppercase tracking-wide text-blue-300">🔍 Input Pemeriksaan Fisik</h4>
+                <div class="space-y-4">
+                    {{-- Tanggal --}}
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-semibold text-slate-300">Tanggal</label>
+                        <input type="date" id="hgpFormTgl"
+                            class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
                     </div>
-                    <button id="hgpScanBtn" type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-blue-500 active:scale-95 transition">
-                        ➕ Tambah Fisik
-                    </button>
+
+                    {{-- Sparepart / No. Part (scan barcode + dropdown) --}}
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-semibold text-slate-300">Sparepart / No. Part <span class="text-red-400">*</span></label>
+                        <input type="text" id="hgpFormPart" list="hgpPartList" autocomplete="off"
+                            placeholder="Scan barcode atau pilih No. Part..."
+                            class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
+                        <datalist id="hgpPartList"></datalist>
+                        <p id="hgpFormPartInfo" class="mt-0.5 text-xs text-slate-400"></p>
+                    </div>
+
+                    {{-- Qty --}}
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-semibold text-slate-300">Qty (Fisik Scan) <span class="text-red-400">*</span></label>
+                        <div class="flex items-center gap-2">
+                            <button id="hgpFormQtyDec" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-slate-200 hover:bg-slate-600">−</button>
+                            <input type="number" id="hgpFormQty" value="0" min="0"
+                                class="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
+                            <button id="hgpFormQtyInc" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-slate-200 hover:bg-slate-600">+</button>
+                        </div>
+                    </div>
+
+                    {{-- Akhir --}}
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-semibold text-slate-300">Akhir</label>
+                        <input type="text" id="hgpFormAkhir" readonly value="0"
+                            class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-300">
+                    </div>
+
+                    {{-- Selisih --}}
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-semibold text-slate-300">Selisih</label>
+                        <input type="text" id="hgpFormSelisih" readonly value="0"
+                            class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-300">
+                    </div>
+
+                    {{-- Keterangan --}}
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-semibold text-slate-300">Keterangan</label>
+                        <input type="text" id="hgpFormKet" placeholder="Keterangan..."
+                            class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
+                    </div>
+
+                    {{-- Log Scan --}}
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-semibold text-slate-300">Log Scan</label>
+                        <div id="hgpFormLog" class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-400">
+                            Fisik Terscan : 0 | Saldo Awal : -
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 pt-1">
+                        <button id="hgpFormSaveBtn" type="button"
+                            class="flex-1 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-blue-500 active:scale-95 transition">
+                            ✓ Simpan Pemeriksaan
+                        </button>
+                        <button id="hgpFormResetBtn" type="button"
+                            class="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800 transition">
+                            Reset
+                        </button>
+                    </div>
+                    <p id="hgpFormMsg" class="hidden text-xs font-medium"></p>
                 </div>
-                <p id="hgpScanMsg" class="mt-2 hidden text-xs font-medium"></p>
             </div>
 
             {{-- Tabel item HGP --}}

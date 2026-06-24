@@ -4068,42 +4068,108 @@ async function hgpHandleFile(file) {
         });
         if (msg) { msg.textContent = `${res.data.length} item diimport (data lama diganti).`; }
         hgpRenderItems();
+        hgpPopulateDatalist();
         _doSaveHgp().catch(() => {});
     } catch (e) {
         if (msg) msg.textContent = 'Gagal: ' + (e.message || 'Unknown error');
     }
 }
 
-function hgpScan(code) {
-    const msg = document.getElementById('hgpScanMsg');
+/* ---- Form pemeriksaan (scan / dropdown No. Part) ---- */
+let _hgpSelIdx = -1; // index item yang sedang dipilih di form
+
+function hgpPopulateDatalist() {
+    const dl = document.getElementById('hgpPartList');
+    if (!dl) return;
+    const items = _hgpData?.items || [];
+    dl.innerHTML = items.map(it =>
+        `<option value="${(it.noPart || it.sparepart || '').replace(/"/g, '&quot;')}">${(it.sparepart || '').replace(/"/g, '&quot;')}</option>`
+    ).join('');
+}
+
+function hgpFindIdx(code) {
+    const term = (code || '').trim().toLowerCase();
+    if (!term) return -1;
+    const items = _hgpData?.items || [];
+    let idx = items.findIndex(it => (it.noPart || '').toLowerCase() === term);
+    if (idx < 0) idx = items.findIndex(it => (it.sparepart || '').toLowerCase() === term);
+    if (idx < 0) idx = items.findIndex(it => (it.noPart || '').toLowerCase().includes(term));
+    return idx;
+}
+
+function hgpFormRecalc() {
+    const qty = hgpN(document.getElementById('hgpFormQty')?.value);
+    const it  = _hgpSelIdx >= 0 ? _hgpData.items[_hgpSelIdx] : null;
+    const saldo = it ? hgpN(it.saldoAwal) : 0;
+    const akhir = qty;
+    const selisih = qty - saldo;
+    const elAkhir = document.getElementById('hgpFormAkhir');
+    const elSel   = document.getElementById('hgpFormSelisih');
+    if (elAkhir) elAkhir.value = akhir;
+    if (elSel) {
+        elSel.value = (selisih >= 0 ? '+' : '') + selisih;
+        elSel.classList.remove('text-red-400', 'text-yellow-400', 'text-slate-300');
+        elSel.classList.add(selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300');
+    }
+    const log = document.getElementById('hgpFormLog');
+    if (log) {
+        const scan = it ? (it.logScan?.length || 0) : 0;
+        log.textContent = `Fisik Terscan : ${scan} | Saldo Awal : ${it ? saldo : '-'}`;
+    }
+}
+
+function hgpFormSelectPart(code) {
+    const info = document.getElementById('hgpFormPartInfo');
+    const idx  = hgpFindIdx(code);
+    _hgpSelIdx = idx;
+    if (idx < 0) {
+        if (info) { info.textContent = code ? `No. Part "${code}" tidak ditemukan dalam data import.` : ''; info.className = 'mt-0.5 text-xs text-red-400'; }
+        hgpFormRecalc();
+        return;
+    }
+    const it = _hgpData.items[idx];
+    if (info) { info.textContent = `${it.noPart || '-'} — ${it.sparepart || ''} (Saldo Awal: ${hgpN(it.saldoAwal)})`; info.className = 'mt-0.5 text-xs text-green-400'; }
+    // Pre-fill dari record yang ada
+    const qtyEl = document.getElementById('hgpFormQty');
+    const ketEl = document.getElementById('hgpFormKet');
+    const tglEl = document.getElementById('hgpFormTgl');
+    if (qtyEl) qtyEl.value = hgpN(it.fisik);
+    if (ketEl) ketEl.value = it.keterangan || '';
+    if (tglEl && it.tgl) tglEl.value = it.tgl;
+    hgpFormRecalc();
+}
+
+function hgpFormSaveEntry() {
+    const msg = document.getElementById('hgpFormMsg');
     const showMsg = (text, ok) => {
         if (!msg) return;
         msg.classList.remove('hidden');
         msg.textContent = text;
-        msg.className = 'mt-2 text-xs font-medium ' + (ok ? 'text-green-400' : 'text-red-400');
+        msg.className = 'text-xs font-medium ' + (ok ? 'text-green-400' : 'text-red-400');
     };
-    const term = (code || '').trim().toLowerCase();
-    if (!term) return;
-    const items = _hgpData?.items || [];
-    // Cari berdasarkan No. Part dulu, lalu nama part
-    let idx = items.findIndex(it => (it.noPart || '').toLowerCase() === term);
-    if (idx < 0) idx = items.findIndex(it => (it.sparepart || '').toLowerCase() === term);
-    if (idx < 0) idx = items.findIndex(it => (it.noPart || '').toLowerCase().includes(term));
-    if (idx < 0) {
-        showMsg(`No. Part "${code}" tidak ditemukan.`, false);
-        return;
-    }
-    const it = items[idx];
-    it.fisik = hgpN(it.fisik) + 1;
+    if (_hgpSelIdx < 0) { showMsg('Pilih / scan No. Part terlebih dahulu.', false); return; }
+    const it = _hgpData.items[_hgpSelIdx];
+    const qty = hgpN(document.getElementById('hgpFormQty')?.value);
+    it.fisik = qty;
+    it.keterangan = document.getElementById('hgpFormKet')?.value || '';
+    it.tgl = document.getElementById('hgpFormTgl')?.value || it.tgl;
     if (!Array.isArray(it.logScan)) it.logScan = [];
-    it.logScan.push({ at: new Date().toISOString() });
+    it.logScan.push({ at: new Date().toISOString(), qty });
     hgpCalcItem(it);
     hgpRenderItems();
     _doSaveHgp().catch(() => {});
-    showMsg(`✓ ${it.noPart || it.sparepart} — ${it.sparepart} | Fisik: ${hgpN(it.fisik)} | Selisih: ${it.selisih >= 0 ? '+' : ''}${it.selisih}`, true);
-    // Scroll ke baris yang discan
-    const rowInput = document.querySelector(`#hgpTableBody input[data-hgp-i="${idx}"][data-hgp-f="fisik"]`);
-    rowInput?.closest('tr')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    showMsg(`✓ Tersimpan: ${it.noPart || it.sparepart} — Fisik ${qty}, Selisih ${it.selisih >= 0 ? '+' : ''}${it.selisih}`, true);
+    hgpFormRecalc();
+}
+
+function hgpFormReset() {
+    _hgpSelIdx = -1;
+    const ids = ['hgpFormPart', 'hgpFormKet'];
+    ids.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    const qty = document.getElementById('hgpFormQty'); if (qty) qty.value = 0;
+    const info = document.getElementById('hgpFormPartInfo'); if (info) info.textContent = '';
+    const msg = document.getElementById('hgpFormMsg'); if (msg) msg.classList.add('hidden');
+    hgpFormRecalc();
 }
 
 async function loadHgpTab() {
@@ -4114,6 +4180,7 @@ async function loadHgpTab() {
     }
     if (!_hgpData) _hgpData = hgpEmptyData();
     hgpRenderItems();
+    hgpPopulateDatalist();
 }
 
 async function _doSaveHgp() {
@@ -4153,27 +4220,35 @@ function initHgpForm() {
         saveHgp().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
     });
 
-    const scanInput = document.getElementById('hgpScanInput');
-    scanInput?.addEventListener('keydown', e => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            hgpScan(scanInput.value);
-            scanInput.value = '';
-            scanInput.focus();
-        }
+    // Form pemeriksaan: scan / pilih No. Part
+    const partInput = document.getElementById('hgpFormPart');
+    partInput?.addEventListener('change', () => hgpFormSelectPart(partInput.value));
+    partInput?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); hgpFormSelectPart(partInput.value); }
     });
-    document.getElementById('hgpScanBtn')?.addEventListener('click', () => {
-        if (scanInput) {
-            hgpScan(scanInput.value);
-            scanInput.value = '';
-            scanInput.focus();
-        }
+
+    const qtyInput = document.getElementById('hgpFormQty');
+    qtyInput?.addEventListener('input', () => hgpFormRecalc());
+    document.getElementById('hgpFormQtyInc')?.addEventListener('click', () => {
+        if (qtyInput) { qtyInput.value = hgpN(qtyInput.value) + 1; hgpFormRecalc(); }
     });
+    document.getElementById('hgpFormQtyDec')?.addEventListener('click', () => {
+        if (qtyInput) { const v = hgpN(qtyInput.value); qtyInput.value = v > 0 ? v - 1 : 0; hgpFormRecalc(); }
+    });
+
+    document.getElementById('hgpFormSaveBtn')?.addEventListener('click', () => hgpFormSaveEntry());
+    document.getElementById('hgpFormResetBtn')?.addEventListener('click', () => hgpFormReset());
+
+    // Default tanggal hari ini
+    const tglEl = document.getElementById('hgpFormTgl');
+    if (tglEl && !tglEl.value) tglEl.value = new Date().toISOString().slice(0, 10);
 
     document.getElementById('hgpClearBtn')?.addEventListener('click', () => {
         if (!confirm('Hapus semua data HGP & AHM Oils? Data lama akan dikosongkan, lalu import ulang file Excel.')) return;
         _hgpData = hgpEmptyData();
         hgpRenderItems();
+        hgpPopulateDatalist();
+        hgpFormReset();
         const msg = document.getElementById('hgpImportMsg');
         if (msg) { msg.classList.remove('hidden'); msg.textContent = 'Data dikosongkan. Silakan import ulang file Excel.'; }
         _doSaveHgp().catch(() => {});
