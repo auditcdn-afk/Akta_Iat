@@ -845,14 +845,15 @@ function plSelectJenis(nama) {
     document.getElementById('plJenisInput').value = nama;
     document.getElementById('plJenisList')?.classList.add('hidden');
 
-    // Auto-isi saldo dari jumlah unit SMH onhand yang perlengkapan ini ADA (ada=true)
+    // Saldo = total onhand - unit SMH yang perlengkapan ini sudah ada (ada=true)
     const smh  = plSmhMap[nama];
     const info = document.getElementById('plJenisSmhInfo');
     if (smh) {
-        const saldoVal = smh.ada; // jumlah unit yang perlengkapannya ada
+        const totalOnhand = smh.totalOnhand || 0;
+        const saldoVal = Math.max(0, totalOnhand - smh.ada);
         document.getElementById('plSaldo').value = saldoVal;
         if (info) {
-            info.textContent = `Onhand SMH: ${smh.ada} unit ada / ${smh.total} unit diperiksa → saldo = ${saldoVal}`;
+            info.textContent = `Onhand: ${totalOnhand} unit − SMH ada: ${smh.ada} unit = saldo ${saldoVal}`;
             info.classList.remove('hidden');
         }
     } else {

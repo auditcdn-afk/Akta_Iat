@@ -94,6 +94,13 @@ class PemeriksaanPerlengkapanController extends Controller
 
         $items = $itemsQuery->get();
 
+        // Total unit onhand untuk plan ini (semua item, tidak hanya yang punya perlengkapan_json)
+        $totalOnhandQuery = SmhOnhandItem::query();
+        if ($planId) {
+            $totalOnhandQuery->whereHas('pemeriksaan', fn($q) => $q->where('plan_audit_id', $planId));
+        }
+        $totalOnhand = $totalOnhandQuery->count();
+
         // Hitung per item: ada vs total di setiap unit
         $summary = [];
         foreach ($items as $item) {
@@ -101,7 +108,7 @@ class PemeriksaanPerlengkapanController extends Controller
                 $nama = trim($pl['nama'] ?? '');
                 if ($nama === '') continue;
                 if (!isset($summary[$nama])) {
-                    $summary[$nama] = ['nama' => $nama, 'ada' => 0, 'total' => 0];
+                    $summary[$nama] = ['nama' => $nama, 'ada' => 0, 'total' => 0, 'totalOnhand' => $totalOnhand];
                 }
                 $summary[$nama]['total']++;
                 if ($pl['ada'] ?? false) $summary[$nama]['ada']++;
