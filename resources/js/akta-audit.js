@@ -2660,10 +2660,10 @@ function kwMapRows(rawRows) {
     const tglAuditVal = document.getElementById("kwTglAudit")?.value;
     const tglAudit    = tglAuditVal ? new Date(tglAuditVal) : null;
 
-    // ── Strategy 1: grouped-leasing format (no column header row with named columns) ──
-    // Detect: scan all rows, a "data row" has col[2] as a Date/date-string AND col[0] non-empty
-    // A "leasing name row" has col[0] non-empty but col[2] empty and only 1-2 non-empty cells
-    // A "sub total row" has text "Sub Total" / "Total" somewhere
+    // ── Strategy 1: grouped-leasing format ──
+    // Data row:    col[0] non-empty AND col[8] is a positive number (Nilai Kwitansi)
+    // Leasing row: col[0] non-empty AND col[8] empty/0 AND ≤2 non-empty cells in row
+    // Skip:        col[0] empty, "Sub Total" rows, footer notes
 
     const items = [];
     let currentLeasing = "LAINNYA";
@@ -2671,22 +2671,20 @@ function kwMapRows(rawRows) {
 
     for (const row of rawRows) {
         const col0 = (row[0] ?? "").toString().trim();
-        const col2 = row[2];
         const col7 = (row[7] ?? "").toString().trim().toLowerCase();
 
-        if (!col0) continue;                                    // empty row
-        if (col7 === "sub total" || col0.toLowerCase() === "sub total") continue; // subtotal
-        if (col0.startsWith("*") || col0.toLowerCase().startsWith("diketahui") || col0.toLowerCase().startsWith("dibuat")) continue; // footer notes
+        if (!col0) continue;
+        if (col7 === "sub total" || col0.toLowerCase().startsWith("sub total")) continue;
+        if (col0.startsWith("*") || col7.includes("total")) continue;
 
-        const tglStr = _kwToDateStr(col2);
-        const isDataRow = tglStr.length > 0 && col0 !== "";
+        const col8 = row[8];
+        const nilai = typeof col8 === "number" ? col8
+            : parseFloat((col8 ?? "").toString().replace(/[^0-9.]/g, "")) || 0;
 
-        if (isDataRow) {
+        if (nilai > 0) {
+            // This is a kwitansi data row
             foundByPosition = true;
-            const rawNilai = row[8];
-            const nilai = typeof rawNilai === "number" ? rawNilai
-                : parseFloat((rawNilai ?? "").toString().replace(/[^0-9.]/g, "")) || 0;
-
+            const tglStr = _kwToDateStr(row[2]);
             items.push({
                 leasing:       currentLeasing,
                 noKwitansi:    col0,
@@ -2700,11 +2698,9 @@ function kwMapRows(rawRows) {
                 fisik:         false,
             });
         } else {
-            // Potential leasing name: col[0] non-empty, col[2] empty, ≤2 non-empty cells total
+            // Potential leasing name row: only 1-2 non-empty cells
             const nonEmpty = row.filter(c => c !== "" && c !== null && c !== undefined).length;
-            if (nonEmpty <= 2) {
-                currentLeasing = col0;
-            }
+            if (nonEmpty <= 2) currentLeasing = col0;
         }
     }
 
