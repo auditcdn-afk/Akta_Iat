@@ -1182,8 +1182,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         const simpanBtn = e.target.closest('#smhFormSimpanBtn');
         if (simpanBtn) {
             const itemId = Number(simpanBtn.dataset.id);
+            if (!itemId) { showAlert('ID unit tidak ditemukan. Scan ulang unit.', 'error'); return; }
             const res    = document.getElementById('smhScanResult');
             const plItems = [...res.querySelectorAll('.smh-pl-cb')].map(cb => ({ nama: cb.dataset.nama, ada: cb.checked }));
+            simpanBtn.disabled = true;
+            simpanBtn.textContent = 'Menyimpan...';
             try {
                 await smhCheckItem(itemId, {
                     status_fisik:       'ada',
@@ -1192,12 +1195,18 @@ document.addEventListener("DOMContentLoaded", async () => {
                     keterangan_kondisi: res.querySelector('#smhFormKondisi')?.value || null,
                     perlengkapan_json:  plItems,
                 });
+                showAlert('Pemeriksaan SMH berhasil disimpan.');
                 renderSmhTable(document.getElementById('smhFilterStatus')?.value || '');
                 populateSmhDropdown();
-                showAlert('Pemeriksaan SMH berhasil disimpan.');
+                // Refresh form tanpa blokir — error refresh tidak membatalkan simpan
                 const q = document.getElementById('smhScanInput').value.trim();
-                await smhScanUnit(q);
-            } catch (err) { showAlert(err.message, 'error'); }
+                smhScanUnit(q).catch(() => {});
+            } catch (err) {
+                showAlert('Gagal menyimpan: ' + err.message, 'error');
+            } finally {
+                simpanBtn.disabled = false;
+                simpanBtn.textContent = 'Simpan Pemeriksaan';
+            }
             return;
         }
         // Tombol Tidak Ditemukan
