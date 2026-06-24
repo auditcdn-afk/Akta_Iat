@@ -2852,6 +2852,7 @@ async function kwHandleFile(file) {
             msgEl.classList.remove("hidden");
         }
         kwRender();
+        saveKw().catch(() => {});
     } catch (err) {
         if (msgEl) { msgEl.textContent = "❌ " + err.message; msgEl.classList.remove("hidden"); }
     }
@@ -3012,6 +3013,7 @@ async function prHandleFile(file) {
             msgEl.classList.remove('hidden');
         }
         prRender();
+        savePr().catch(() => {});
     } catch (err) {
         if (msgEl) { msgEl.textContent = '❌ ' + err.message; msgEl.classList.remove('hidden'); }
     }
