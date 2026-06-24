@@ -223,6 +223,9 @@ function switchTab(tab) {
     if (tab === "plafon") {
         loadPlafonTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "materai") {
+        loadMateraiTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1660,6 +1663,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     setupFilters();
+    initMateraiForm();
 
     try {
         await loadCurrentUser();
@@ -1668,3 +1672,202 @@ document.addEventListener("DOMContentLoaded", async () => {
         showAlert(err.message || "Gagal memuat data audit.", "error");
     }
 });
+
+// ─── Pemeriksaan Materai ──────────────────────────────────────────────────────
+
+async function loadMateraiTab() {
+    const planId = activePlanId;
+    if (!planId) return;
+    const wrap = document.getElementById("mtResultWrap");
+    if (wrap) wrap.innerHTML = '<p class="text-muted">Memuat data…</p>';
+    const data = await fetchJson(`/api/audit-detail/materai?plan_audit_id=${planId}`, { headers: authHeaders() });
+    renderMateraiAll(data.data ?? []);
+}
+
+function renderMateraiAll(rows) {
+    const wrap = document.getElementById("mtResultWrap");
+    if (!wrap) return;
+    if (!rows.length) {
+        wrap.innerHTML = '<p class="text-muted">Belum ada data. Silakan impor file HTML dari MTP SPP.</p>';
+        return;
+    }
+    wrap.innerHTML = rows.map(renderMateraiBlock).join("");
+    wrap.querySelectorAll(".mt-fisik-input").forEach((inp) => {
+        inp.addEventListener("change", onMateraiFisikChange);
+    });
+    wrap.querySelectorAll(".mt-delete-btn").forEach((btn) => {
+        btn.addEventListener("click", onMateraiDelete);
+    });
+}
+
+function renderMateraiBlock(rec) {
+    const trx = rec.transaksi ?? [];
+    const trxRows = trx.map((t) => `
+        <tr>
+            <td class="text-center">${t.no ?? ""}</td>
+            <td>${t.tanggal ?? ""}</td>
+            <td>${t.nomor ?? ""}</td>
+            <td>${t.keterangan ?? ""}</td>
+            <td class="text-end">${fmtNum(t.debet)}</td>
+            <td class="text-end">${fmtNum(t.kredit)}</td>
+            <td class="text-end">${fmtNum(t.saldo)}</td>
+        </tr>`).join("");
+
+    const selisih = rec.selisih ?? null;
+    const selisihHtml = selisih !== null
+        ? `<span class="fw-bold ${selisih === 0 ? "text-success" : "text-danger"}">${selisih > 0 ? "+" : ""}${fmtNum(selisih)}</span>`
+        : `<span class="text-muted">–</span>`;
+
+    return `
+    <div class="card mb-3 shadow-sm" data-mt-id="${rec.id}">
+        <div class="card-header d-flex justify-content-between align-items-center py-2">
+            <strong>${escHtml(rec.jenisMaterai ?? "")}</strong>
+            <button class="btn btn-sm btn-outline-danger mt-delete-btn" data-id="${rec.id}" title="Hapus">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="text-center" style="width:40px">No</th>
+                            <th>Tanggal</th>
+                            <th>Nomor</th>
+                            <th>Keterangan</th>
+                            <th class="text-end">Debet</th>
+                            <th class="text-end">Kredit</th>
+                            <th class="text-end">Saldo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="table-info">
+                            <td colspan="6" class="fw-semibold">Saldo Awal</td>
+                            <td class="text-end fw-semibold">${fmtNum(rec.saldoAwal)}</td>
+                        </tr>
+                        ${trxRows}
+                        <tr class="table-secondary fw-semibold">
+                            <td colspan="4" class="text-end">Total</td>
+                            <td class="text-end">${fmtNum(rec.totalDebet)}</td>
+                            <td class="text-end">${fmtNum(rec.totalKredit)}</td>
+                            <td class="text-end">${fmtNum(rec.saldoAkhir)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-3 border-top d-flex align-items-center gap-3 flex-wrap">
+                <label class="mb-0 fw-semibold">Fisik (pcs):</label>
+                <input type="number" min="0" class="form-control form-control-sm mt-fisik-input" style="width:120px"
+                    data-id="${rec.id}" value="${rec.fisik ?? ""}">
+                <span class="ms-2">Selisih: ${selisihHtml}</span>
+                <small class="text-muted ms-auto">Saldo buku: ${fmtNum(rec.saldoAkhir)}</small>
+            </div>
+        </div>
+    </div>`;
+}
+
+function fmtNum(val) {
+    const n = parseInt(val ?? 0, 10);
+    if (isNaN(n)) return "0";
+    return n.toLocaleString("id-ID");
+}
+
+function escHtml(str) {
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+async function onMateraiFisikChange(e) {
+    const inp = e.target;
+    const id = inp.dataset.id;
+    const fisik = parseInt(inp.value, 10);
+    if (isNaN(fisik) || fisik < 0) return;
+    try {
+        const res = await fetchJson(`/api/audit-detail/materai/${id}/fisik`, {
+            method: "PUT",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ fisik }),
+        });
+        const rec = res.data;
+        const card = document.querySelector(`[data-mt-id="${id}"]`);
+        if (card) {
+            const selisih = rec.selisih ?? null;
+            const span = card.querySelector(".mt-fisik-input")?.closest(".d-flex")?.querySelector("span");
+            if (span) {
+                span.innerHTML = `Selisih: <span class="fw-bold ${selisih === 0 ? "text-success" : "text-danger"}">${selisih > 0 ? "+" : ""}${fmtNum(selisih)}</span>`;
+            }
+        }
+    } catch (err) {
+        showAlert(err.message || "Gagal menyimpan fisik.", "error");
+    }
+}
+
+async function onMateraiDelete(e) {
+    const id = e.currentTarget.dataset.id;
+    if (!confirm("Hapus data meterai ini?")) return;
+    try {
+        await fetchJson(`/api/audit-detail/materai/${id}`, { method: "DELETE", headers: authHeaders() });
+        document.querySelector(`[data-mt-id="${id}"]`)?.remove();
+        const wrap = document.getElementById("mtResultWrap");
+        if (wrap && !wrap.querySelector("[data-mt-id]")) {
+            wrap.innerHTML = '<p class="text-muted">Belum ada data. Silakan impor file HTML dari MTP SPP.</p>';
+        }
+    } catch (err) {
+        showAlert(err.message || "Gagal menghapus.", "error");
+    }
+}
+
+async function uploadMateraiFile(file) {
+    const planId = activePlanId;
+    if (!planId) { showAlert("Pilih plan audit terlebih dahulu.", "warning"); return; }
+    const msg = document.getElementById("mtUploadMsg");
+    if (msg) { msg.textContent = "Mengimpor…"; msg.className = "text-info small"; }
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("plan_audit_id", planId);
+    try {
+        const res = await fetchJson("/api/audit-detail/materai/upload", { method: "POST", headers: authHeaders(), body: fd });
+        if (msg) { msg.textContent = res.message ?? "Berhasil diimpor."; msg.className = "text-success small"; }
+        renderMateraiAll(res.data ?? []);
+    } catch (err) {
+        if (msg) { msg.textContent = err.message || "Gagal impor."; msg.className = "text-danger small"; }
+    }
+}
+
+function initMateraiForm() {
+    const dropZone  = document.getElementById("mtDropZone");
+    const fileInput = document.getElementById("mtFileInput");
+    const fileLabel = document.getElementById("mtFileLabel");
+    const uploadBtn = document.getElementById("mtUploadBtn");
+
+    if (!dropZone) return;
+
+    dropZone.addEventListener("click", () => fileInput?.click());
+
+    dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.classList.add("border-primary");
+    });
+    dropZone.addEventListener("dragleave", () => {
+        dropZone.classList.remove("border-primary");
+    });
+    dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.classList.remove("border-primary");
+        const file = e.dataTransfer?.files?.[0];
+        if (file) {
+            if (fileLabel) fileLabel.textContent = file.name;
+            uploadMateraiFile(file);
+        }
+    });
+
+    fileInput?.addEventListener("change", () => {
+        const file = fileInput.files?.[0];
+        if (file && fileLabel) fileLabel.textContent = file.name;
+    });
+
+    uploadBtn?.addEventListener("click", () => {
+        const file = fileInput?.files?.[0];
+        if (!file) { showAlert("Pilih file HTML terlebih dahulu.", "warning"); return; }
+        uploadMateraiFile(file);
+    });
+}
