@@ -217,6 +217,9 @@ function switchTab(tab) {
         document.getElementById("bankPlanAuditId").value = activePlanId || "";
         loadBankForm().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "smh") {
+        loadSmhForm().catch((e) => showAlert(e.message, "error"));
+    }
 }
 
 // ── Form Pemeriksaan Kas (Kas Besar, Kas Kecil, Pecahan, Blanko) ───────────────
@@ -447,6 +450,151 @@ async function saveKasForm() {
         document.getElementById("kasId").value = payload.data.id;
     }
     showAlert(payload.message || "Pemeriksaan kas berhasil disimpan.");
+}
+
+// ── Form Pemeriksaan SMH ──────────────────────────────────────────────────────
+
+let smhPmxId = null;
+let smhItems = [];
+
+function smhStatusBadge(status) {
+    if (status === 'ada')       return '<span class="inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-600">Ada ✓</span>';
+    if (status === 'tidak_ada') return '<span class="inline-flex rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-xs font-bold text-red-600">Tidak Ada</span>';
+    return '<span class="inline-flex rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">Belum</span>';
+}
+
+function smhStatusRowClass(status) {
+    if (status === 'ada')       return 'bg-emerald-50';
+    if (status === 'tidak_ada') return 'bg-red-50';
+    return '';
+}
+
+function renderSmhTable(filter = '') {
+    const tbody = document.getElementById('smhTableBody');
+    if (!tbody) return;
+    const filtered = filter
+        ? smhItems.filter(it => filter === 'belum' ? !it.statusFisik : it.statusFisik === filter)
+        : smhItems;
+
+    if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="11" class="px-4 py-6 text-center text-sm text-slate-400">Tidak ada unit.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map((it, idx) => `
+        <tr class="border-b border-slate-100 hover:bg-slate-50 ${smhStatusRowClass(it.statusFisik)}" data-item-id="${it.id}">
+            <td class="px-3 py-2 text-center text-xs text-slate-500">${idx + 1}</td>
+            <td class="px-3 py-2 font-mono text-xs">${escapeHtml(it.noMesin || '-')}</td>
+            <td class="px-3 py-2 font-mono text-xs">${escapeHtml(it.noRangka || '-')}</td>
+            <td class="px-3 py-2 text-xs">${escapeHtml(it.noSpb || '-')}</td>
+            <td class="px-3 py-2 text-xs">${escapeHtml(it.tglSpb || '-')}</td>
+            <td class="px-3 py-2 text-center text-xs">${it.umur ?? '-'} hr</td>
+            <td class="px-3 py-2 text-xs font-semibold">${escapeHtml(it.kodeModel || '-')}</td>
+            <td class="px-3 py-2 text-xs">${escapeHtml(it.warna || '-')}</td>
+            <td class="px-3 py-2 text-xs">${escapeHtml(it.gudang || '-')}</td>
+            <td class="px-3 py-2 text-center">
+                <select class="smh-status-select rounded border border-slate-300 px-1 py-0.5 text-xs" data-id="${it.id}">
+                    <option value="">— Pilih —</option>
+                    <option value="ada" ${it.statusFisik === 'ada' ? 'selected' : ''}>Ada ✓</option>
+                    <option value="tidak_ada" ${it.statusFisik === 'tidak_ada' ? 'selected' : ''}>Tidak Ada</option>
+                </select>
+            </td>
+            <td class="px-3 py-2">
+                <input type="text" class="smh-ket-input w-full rounded border border-slate-300 px-1 py-0.5 text-xs" placeholder="ket..." data-id="${it.id}" value="${escapeHtml(it.keteranganFisik || '')}">
+            </td>
+        </tr>`).join('');
+}
+
+function updateSmhSummary(data) {
+    document.getElementById('smhTotalUnit').textContent   = data.totalUnit ?? smhItems.length;
+    document.getElementById('smhTotalAda').textContent    = data.totalDitemukan ?? smhItems.filter(i => i.statusFisik === 'ada').length;
+    document.getElementById('smhTotalTidakAda').textContent = data.totalTidakDitemukan ?? smhItems.filter(i => i.statusFisik === 'tidak_ada').length;
+    document.getElementById('smhTotalBelum').textContent  = data.totalBelumDiperiksa ?? smhItems.filter(i => !i.statusFisik).length;
+    document.getElementById('smhSummary').classList.remove('hidden');
+    document.getElementById('smhSummary').classList.add('grid');
+    document.getElementById('smhTableWrap').classList.remove('hidden');
+    document.getElementById('smhScanBox').classList.remove('hidden');
+    document.getElementById('smhSyncBtn').classList.remove('hidden');
+}
+
+async function loadSmhForm() {
+    smhPmxId = null;
+    smhItems = [];
+    ['smhSummary', 'smhScanBox', 'smhTableWrap', 'smhSyncResult'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    document.getElementById('smhTglOnhand').textContent = '';
+    if (!activePlanId) return;
+
+    const payload = await fetchJson(`/api/audit-detail/smh?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    const items = payload.data || [];
+    if (!items.length) return;
+
+    const rec = items[0];
+    smhPmxId = rec.id;
+    smhItems = rec.items || [];
+    document.getElementById('smhTglOnhand').textContent = rec.tglOnhand ? `Tgl Onhand: ${rec.tglOnhand}` : '';
+    updateSmhSummary(rec);
+    renderSmhTable();
+}
+
+async function smhCheckItem(itemId, statusFisik, keteranganFisik = '') {
+    const payload = await fetchJson(`/api/audit-detail/smh/items/${itemId}`, {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status_fisik: statusFisik, keterangan_fisik: keteranganFisik }),
+    });
+    // Update local data
+    const idx = smhItems.findIndex(i => i.id === itemId);
+    if (idx >= 0) {
+        smhItems[idx].statusFisik = statusFisik;
+        smhItems[idx].keteranganFisik = keteranganFisik;
+    }
+    updateSmhSummary({
+        totalUnit: smhItems.length,
+        totalDitemukan: smhItems.filter(i => i.statusFisik === 'ada').length,
+        totalTidakDitemukan: smhItems.filter(i => i.statusFisik === 'tidak_ada').length,
+        totalBelumDiperiksa: smhItems.filter(i => !i.statusFisik).length,
+    });
+    return payload;
+}
+
+async function smhScanUnit(q) {
+    const res = document.getElementById('smhScanResult');
+    if (!q || q.length < 3) { res.classList.add('hidden'); return; }
+    const payload = await fetchJson(`/api/audit-detail/smh/scan?q=${encodeURIComponent(q)}&plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    const it = payload.data;
+    if (!it) {
+        res.className = 'rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700';
+        res.innerHTML = `<strong>Tidak ditemukan</strong> — unit dengan No. Mesin / Rangka "<em>${escapeHtml(q)}</em>" tidak ada dalam daftar onhand.`;
+        res.classList.remove('hidden');
+        return;
+    }
+    res.className = 'rounded-xl border border-emerald-400 bg-emerald-50 p-4 text-sm space-y-3';
+    res.innerHTML = `
+        <div class="font-bold text-emerald-700">Unit ditemukan dalam daftar onhand</div>
+        <div class="grid gap-2 sm:grid-cols-3 text-slate-700">
+            <div><span class="text-xs text-slate-500 block">No. Mesin</span><strong>${escapeHtml(it.noMesin || '-')}</strong></div>
+            <div><span class="text-xs text-slate-500 block">No. Rangka</span><strong>${escapeHtml(it.noRangka || '-')}</strong></div>
+            <div><span class="text-xs text-slate-500 block">Model</span>${escapeHtml(it.kodeModel || '-')} / ${escapeHtml(it.warna || '-')}</div>
+            <div><span class="text-xs text-slate-500 block">No. SPB</span>${escapeHtml(it.noSpb || '-')}</div>
+            <div><span class="text-xs text-slate-500 block">Gudang</span>${escapeHtml(it.gudang || '-')}</div>
+            <div><span class="text-xs text-slate-500 block">Umur</span>${it.umur ?? '-'} hari</div>
+        </div>
+        <div class="flex gap-3 items-center pt-1">
+            <span class="text-xs text-slate-600 font-semibold">Status fisik:</span>
+            <button type="button" data-scan-check="${it.id}" data-val="ada"
+                class="rounded-lg border border-emerald-400 bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-200">
+                ✓ Ada / Ditemukan
+            </button>
+            <button type="button" data-scan-check="${it.id}" data-val="tidak_ada"
+                class="rounded-lg border border-red-400 bg-red-100 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-200">
+                ✗ Tidak Ditemukan
+            </button>
+        </div>`;
+    res.classList.remove('hidden');
+
+    // Scroll ke baris di tabel
+    const row = document.querySelector(`#smhTableBody tr[data-item-id="${it.id}"]`);
+    if (row) { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); row.classList.add('ring-2', 'ring-blue-400'); setTimeout(() => row.classList.remove('ring-2', 'ring-blue-400'), 2000); }
 }
 
 // ── Form Pemeriksaan Bank ──────────────────────────────────────────────────────
@@ -841,6 +989,96 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     document.getElementById("saveKasFormBtn")?.addEventListener("click", () => {
         saveKasForm().catch((err) => showAlert(err.message || "Gagal menyimpan.", "error"));
+    });
+
+    // ── SMH panel ──
+    document.getElementById('smhUploadBtn')?.addEventListener('click', async () => {
+        const fileInput = document.getElementById('smhFileInput');
+        if (!fileInput?.files[0]) { showAlert('Pilih file onhand terlebih dahulu.', 'error'); return; }
+        if (!activePlanId) { showAlert('Plan audit tidak aktif.', 'error'); return; }
+        const form = new FormData();
+        form.append('file', fileInput.files[0]);
+        form.append('plan_audit_id', activePlanId);
+        try {
+            const res = await fetchJson('/api/audit-detail/smh/upload', {
+                method: 'POST',
+                headers: authHeaders(),
+                body: form,
+            });
+            showAlert(res.message || 'Upload berhasil.');
+            smhPmxId = res.data.id;
+            smhItems = res.data.items || [];
+            document.getElementById('smhTglOnhand').textContent = res.data.tglOnhand ? `Tgl Onhand: ${res.data.tglOnhand}` : '';
+            updateSmhSummary(res.data);
+            renderSmhTable();
+        } catch (e) { showAlert(e.message, 'error'); }
+    });
+
+    document.getElementById('smhScanBtn')?.addEventListener('click', () => {
+        const q = document.getElementById('smhScanInput').value.trim();
+        smhScanUnit(q).catch((e) => showAlert(e.message, 'error'));
+    });
+
+    document.getElementById('smhScanInput')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const q = e.target.value.trim();
+            smhScanUnit(q).catch((err) => showAlert(err.message, 'error'));
+        }
+    });
+
+    document.getElementById('smhScanResult')?.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-scan-check]');
+        if (!btn) return;
+        const itemId = Number(btn.dataset.scanCheck);
+        const val    = btn.dataset.val;
+        try {
+            await smhCheckItem(itemId, val);
+            renderSmhTable(document.getElementById('smhFilterStatus')?.value || '');
+            const q = document.getElementById('smhScanInput').value.trim();
+            await smhScanUnit(q);
+        } catch (err) { showAlert(err.message, 'error'); }
+    });
+
+    document.getElementById('smhFilterStatus')?.addEventListener('change', (e) => {
+        renderSmhTable(e.target.value);
+    });
+
+    document.getElementById('smhTableBody')?.addEventListener('change', async (e) => {
+        const sel = e.target.closest('.smh-status-select');
+        if (!sel || !sel.value) return;
+        const itemId = Number(sel.dataset.id);
+        const ket    = document.querySelector(`.smh-ket-input[data-id="${itemId}"]`)?.value || '';
+        try {
+            await smhCheckItem(itemId, sel.value, ket);
+            const row = sel.closest('tr');
+            if (row) { row.className = `border-b border-slate-100 hover:bg-slate-50 ${smhStatusRowClass(sel.value)}`; }
+        } catch (err) { showAlert(err.message, 'error'); }
+    });
+
+    document.getElementById('smhTableBody')?.addEventListener('blur', async (e) => {
+        const inp = e.target.closest('.smh-ket-input');
+        if (!inp) return;
+        const itemId = Number(inp.dataset.id);
+        const item   = smhItems.find(i => i.id === itemId);
+        if (!item?.statusFisik) return;
+        try { await smhCheckItem(itemId, item.statusFisik, inp.value); } catch (_) {}
+    }, true);
+
+    document.getElementById('smhSyncBtn')?.addEventListener('click', async () => {
+        if (!smhPmxId) return;
+        try {
+            const res = await fetchJson(`/api/audit-detail/smh/${smhPmxId}/sync-perlengkapan`, { headers: authHeaders() });
+            const body = document.getElementById('smhSyncBody');
+            const list = res.data || [];
+            body.innerHTML = list.length
+                ? list.map(r => `<div class="flex gap-3 items-center py-1 border-b border-slate-100">
+                    <span class="text-xs ${r.matched ? 'text-emerald-600 font-bold' : 'text-red-500'}">${r.matched ? '✓' : '✗'}</span>
+                    <span class="font-mono text-xs">${escapeHtml(r.kode_model_intern || '-')}</span>
+                    <span class="text-xs text-slate-500">${r.matched ? escapeHtml(r.perlengkapan?.tipe || r.perlengkapan?.nosin || '-') : 'Tidak ditemukan di database perlengkapan'}</span>
+                  </div>`).join('')
+                : '<p class="text-sm text-slate-400">Tidak ada kode model untuk disinkronkan.</p>';
+            document.getElementById('smhSyncResult').classList.remove('hidden');
+        } catch (e) { showAlert(e.message, 'error'); }
     });
 
     // ── Bank panel ──
