@@ -51,7 +51,7 @@ class BpkbOnhandController extends Controller
     public function upload(Request $request): JsonResponse
     {
         $request->validate([
-            'file'          => 'required|file|mimes:xlsx,xls,csv',
+            'file'          => 'required|file',
             'plan_audit_id' => 'required|integer|exists:plan_audits,id',
         ]);
 
@@ -63,47 +63,42 @@ class BpkbOnhandController extends Controller
         $sheet = $spreadsheet->getActiveSheet();
         $rows  = $sheet->toArray(null, true, true, false);
 
-        // Deteksi baris header
+        // Deteksi baris header — strip tanda baca sebelum compare
         $headerRow = null;
         $colMap    = [];
+        $normalize = fn($v) => preg_replace('/[^A-Z0-9 ]/', '', strtoupper(trim((string)($v ?? ''))));
+
         foreach ($rows as $ri => $row) {
-            $normalized = array_map(fn($v) => strtoupper(trim((string)($v ?? ''))), $row);
-            foreach ($normalized as $ci => $cell) {
-                if (str_contains($cell, 'NO BPKB') || str_contains($cell, 'NO.BPKB') || $cell === 'BPKB') {
+            foreach ($row as $ci => $cell) {
+                $c = $normalize($cell);
+                if (str_contains($c, 'NO BPKB') || str_contains($c, 'NOBPKB') || $c === 'BPKB')
                     $colMap['no_bpkb'] = $ci;
-                }
-                if (str_contains($cell, 'NO POLISI') || str_contains($cell, 'NOPOL')) {
+                if (str_contains($c, 'NO POLISI') || str_contains($c, 'NOPOL'))
                     $colMap['no_polisi'] = $ci;
-                }
-                if (str_contains($cell, 'TGL TERIMA') || str_contains($cell, 'TANGGAL TERIMA')) {
+                if (str_contains($c, 'TGL TERIMA') || str_contains($c, 'TANGGAL TERIMA') || str_contains($c, 'TGL  TERIMA'))
                     $colMap['tgl_terima'] = $ci;
-                }
-                if (str_contains($cell, 'NAMA PEMILIK') || $cell === 'PEMILIK') {
+                if (str_contains($c, 'NAMA PEMILIK') || $c === 'PEMILIK')
                     $colMap['nama_pemilik'] = $ci;
-                }
-                if (str_contains($cell, 'NO.TELEPON') || str_contains($cell, 'TELEPON') || str_contains($cell, 'NO TELEPON')) {
-                    $colMap['no_telepon'] = $ci;
-                }
-                if (str_contains($cell, 'NO MESIN') || str_contains($cell, 'NO.MESIN')) {
+                if (str_contains($c, 'NO MESIN') || str_contains($c, 'NOMESIN'))
                     $colMap['no_mesin'] = $ci;
-                }
-                if (str_contains($cell, 'NO RANGKA') || str_contains($cell, 'NO.RANGKA')) {
+                if (str_contains($c, 'NO RANGKA') || str_contains($c, 'NORANGKA'))
                     $colMap['no_rangka'] = $ci;
-                }
-                if ($cell === 'JENIS' || $cell === 'TYPE') {
+                if ($c === 'JENIS' || $c === 'TYPE')
                     $colMap['jenis'] = $ci;
-                }
-                if ($cell === 'UMUR' || str_contains($cell, 'UMUR')) {
+                if ($c === 'UMUR' || str_contains($c, 'UMUR'))
                     $colMap['umur'] = $ci;
-                }
             }
-            if (!empty($colMap) && isset($colMap['no_bpkb'])) {
+            if (isset($colMap['no_bpkb'])) {
                 $headerRow = $ri;
+                // Telepon: cari kolom setelah nama_pemilik yang tidak punya header tapi berisi angka
+                if (!isset($colMap['no_telepon']) && isset($colMap['nama_pemilik'])) {
+                    $colMap['no_telepon'] = $colMap['nama_pemilik'] + 1;
+                }
                 break;
             }
         }
 
-        if ($headerRow === null || !isset($colMap['no_bpkb'])) {
+        if ($headerRow === null) {
             return response()->json(['message' => 'Kolom NO BPKB tidak ditemukan di file Excel.'], 422);
         }
 
@@ -111,49 +106,42 @@ class BpkbOnhandController extends Controller
         foreach ($rows as $ri => $row) {
             if ($ri <= $headerRow) continue;
             $noBpkb = trim((string)($row[$colMap['no_bpkb']] ?? ''));
-            if ($noBpkb === '' || strtoupper($noBpkb) === 'NO BPKB') continue;
+            if ($noBpkb === '') continue;
 
-            // Parse nama pemilik & telepon (bisa satu kolom "NAMA & TELEPON")
+            // Nama pemilik & telepon
             $namaPemilik = trim((string)($row[$colMap['nama_pemilik'] ?? -1] ?? ''));
             $noTelepon   = trim((string)($row[$colMap['no_telepon']   ?? -1] ?? ''));
 
-            // Jika telepon kosong, coba pisah dari nama "Anton Riadi — 08123..."
-            if ($noTelepon === '' && str_contains($namaPemilik, ' ')) {
-                $parts = preg_split('/[\s\-\|]+/', $namaPemilik, 2);
-                if (isset($parts[1]) && preg_match('/^[0-9+]/', $parts[1])) {
-                    $namaPemilik = $parts[0];
-                    $noTelepon   = $parts[1];
-                }
-            }
-
-            // Parse tanggal
-            $tglRaw   = $row[$colMap['tgl_terima'] ?? -1] ?? null;
+            // Parse tanggal — support "dd-mm-yyyy", "dd/mm/yyyy", atau Excel serial
+            $tglRaw    = $row[$colMap['tgl_terima'] ?? -1] ?? null;
             $tglTerima = null;
             if ($tglRaw) {
                 if (is_numeric($tglRaw)) {
-                    // Excel serial date
-                    $tglTerima = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($tglRaw)->format('Y-m-d');
+                    $tglTerima = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float)$tglRaw)->format('Y-m-d');
+                } elseif (preg_match('/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/', trim((string)$tglRaw), $m)) {
+                    $tglTerima = "{$m[3]}-{$m[2]}-{$m[1]}";
                 } else {
                     $parsed = date_create((string)$tglRaw);
                     if ($parsed) $tglTerima = $parsed->format('Y-m-d');
                 }
             }
 
-            $jenis = strtoupper(trim((string)($row[$colMap['jenis'] ?? -1] ?? '')));
-            $umur  = (int)($row[$colMap['umur'] ?? -1] ?? 0);
+            $jenis    = strtoupper(trim((string)($row[$colMap['jenis'] ?? -1] ?? '')));
+            $umurRaw  = trim((string)($row[$colMap['umur'] ?? -1] ?? ''));
+            $umur     = (int) preg_replace('/[^0-9]/', '', $umurRaw); // strip "4,647" → 4647
 
             BpkbOnhandItem::updateOrCreate(
                 ['plan_audit_id' => $planId, 'no_bpkb' => $noBpkb],
                 [
-                    'no_polisi'   => trim((string)($row[$colMap['no_polisi']   ?? -1] ?? '')) ?: null,
-                    'tgl_terima'  => $tglTerima,
-                    'nama_pemilik'=> $namaPemilik ?: null,
-                    'no_telepon'  => $noTelepon ?: null,
-                    'no_mesin'    => trim((string)($row[$colMap['no_mesin']    ?? -1] ?? '')) ?: null,
-                    'no_rangka'   => trim((string)($row[$colMap['no_rangka']   ?? -1] ?? '')) ?: null,
-                    'jenis'       => in_array($jenis, ['REG', 'KDS']) ? $jenis : null,
-                    'umur'        => $umur > 0 ? $umur : null,
-                    'created_by'  => $who,
+                    'no_polisi'    => trim((string)($row[$colMap['no_polisi']  ?? -1] ?? '')) ?: null,
+                    'tgl_terima'   => $tglTerima,
+                    'nama_pemilik' => $namaPemilik ?: null,
+                    'no_telepon'   => $noTelepon ?: null,
+                    'no_mesin'     => trim((string)($row[$colMap['no_mesin']   ?? -1] ?? '')) ?: null,
+                    'no_rangka'    => trim((string)($row[$colMap['no_rangka']  ?? -1] ?? '')) ?: null,
+                    'jenis'        => in_array($jenis, ['REG', 'KDS']) ? $jenis : null,
+                    'umur'         => $umur > 0 ? $umur : null,
+                    'created_by'   => $who,
                 ]
             );
             $saved++;
