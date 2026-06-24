@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\BpkbInprosesController;
 use App\Http\Controllers\Api\KwitansiController;
 use App\Http\Controllers\Api\PiutangRegulerController;
 use App\Http\Controllers\Api\PiutangCdnController;
+use App\Http\Controllers\Api\TtpGantungController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', [DataStoreController::class, 'ping']);
@@ -162,6 +163,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/audit-detail/piutang-reguler', [PiutangRegulerController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/piutang-reguler/parse-excel', [PiutangRegulerController::class, 'parseExcel'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── TTP Gantung ──
+    Route::get('/audit-detail/ttp-gantung',  [TtpGantungController::class, 'show']);
+    Route::post('/audit-detail/ttp-gantung', [TtpGantungController::class, 'save'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/ttp-gantung/parse-html', [TtpGantungController::class, 'parseHtml'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── Piutang CDN ──

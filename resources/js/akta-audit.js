@@ -241,6 +241,9 @@ function switchTab(tab) {
     if (tab === "piutang-cdn") {
         loadPcdnTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "ttp-gantung") {
+        loadTtpTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1684,6 +1687,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initKwForm();
     initPrForm();
     initPcdnForm();
+    initTtpForm();
 
     try {
         await loadCurrentUser();
@@ -3227,5 +3231,204 @@ function initPcdnForm() {
 
     document.getElementById('pcdnSaveBtn')?.addEventListener('click', () => {
         savePcdn().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
+    });
+}
+
+// ══════════════════════════════════════════════════════════
+// ── TTP Gantung Module ──
+// ══════════════════════════════════════════════════════════
+
+let _ttpItems = [];
+
+async function loadTtpTab() {
+    if (!activePlanId) { ttpRender(); return; }
+    const res = await fetchJson(`/api/audit-detail/ttp-gantung?plan_audit_id=${activePlanId}`);
+    if (res.data && (res.data.ttp ?? []).length > 0) {
+        _ttpItems = res.data.ttp;
+        const el = document.getElementById('ttpTglAudit');
+        if (el && res.data.tglAudit) el.value = res.data.tglAudit;
+    }
+    ttpRender();
+}
+
+function ttpDiff(tglTtp) {
+    if (!tglTtp) return null;
+    const ref = document.getElementById('ttpTglAudit')?.value || new Date().toISOString().slice(0, 10);
+    const d1  = new Date(tglTtp);
+    const d2  = new Date(ref);
+    if (isNaN(d1) || isNaN(d2)) return null;
+    return Math.floor((d2 - d1) / 86400000);
+}
+
+function ttpFmtRp(val) {
+    const n = parseFloat(val) || 0;
+    if (n === 0) return 'Rp 0';
+    const abs = Math.abs(n);
+    if (abs >= 1_000_000_000) return (n < 0 ? '-' : '') + 'Rp ' + (abs / 1_000_000_000).toFixed(1) + ' M';
+    if (abs >= 1_000_000)     return (n < 0 ? '-' : '') + 'Rp ' + (abs / 1_000_000).toFixed(1) + ' Jt';
+    if (abs >= 1_000)         return (n < 0 ? '-' : '') + 'Rp ' + (abs / 1_000).toFixed(1) + ' Rb';
+    return 'Rp ' + n.toLocaleString('id-ID');
+}
+
+function ttpFmtNum(val) {
+    const n = parseFloat(val) || 0;
+    return n === 0 ? '0' : n.toLocaleString('id-ID');
+}
+
+function ttpRender() {
+    const items = _ttpItems;
+
+    const totBelum = items.reduce((s, r) => s + (r.belumCair || 0), 0);
+    const diffs    = items.map(r => ttpDiff(r.tglTtp)).filter(d => d !== null && d >= 0);
+    const maxDiff  = diffs.length ? Math.max(...diffs) : 0;
+
+    const s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    s('ttpStatTotal', items.length);
+    s('ttpStatBelum', ttpFmtRp(totBelum));
+    s('ttpStatDiff',  maxDiff + ' hari');
+
+    const section = document.getElementById('ttpTableSection');
+    const count   = document.getElementById('ttpTableCount');
+    const tbody   = document.getElementById('ttpTableBody');
+    if (!tbody) return;
+
+    if (items.length === 0) {
+        if (section) section.classList.add('hidden');
+        tbody.innerHTML = '';
+        return;
+    }
+
+    if (section) section.classList.remove('hidden');
+    if (count) count.textContent = `${items.length} Data`;
+
+    let currentLeasing = '';
+    let no = 0;
+    const rows = [];
+
+    items.forEach((r, idx) => {
+        // Insert leasing group header row
+        if (r.leasing !== currentLeasing) {
+            currentLeasing = r.leasing;
+            rows.push(`
+                <tr class="bg-slate-700/60">
+                    <td class="px-3 py-1.5"></td>
+                    <td colspan="12" class="px-3 py-1.5 font-bold text-slate-200 uppercase tracking-wide">${currentLeasing}</td>
+                </tr>`);
+        }
+        no++;
+        const diff = ttpDiff(r.tglTtp);
+        const diffTxt = diff === null ? '-' : diff + ' hr';
+        const diffCls = diff === null ? 'text-slate-500'
+                      : diff > 60    ? 'text-red-400 font-bold'
+                      : diff > 30    ? 'text-orange-400 font-semibold'
+                      : 'text-slate-300';
+        const belumCls = r.belumCair > 0 ? 'text-orange-300 font-semibold' : 'text-slate-500';
+
+        rows.push(`
+            <tr class="hover:bg-slate-800/40 transition">
+                <td class="px-3 py-2 text-slate-400">${no}</td>
+                <td class="px-3 py-2 font-mono text-blue-300">${r.noTtp || '-'}</td>
+                <td class="px-3 py-2 text-slate-300 whitespace-nowrap">${r.tglTtp || '-'}</td>
+                <td class="px-3 py-2 font-mono text-xs text-slate-300">${r.noFaktur || '-'}</td>
+                <td class="px-3 py-2 text-slate-100">${r.nama || '-'}</td>
+                <td class="px-3 py-2 text-right text-slate-200">${ttpFmtNum(r.nilai)}</td>
+                <td class="px-3 py-2 text-right ${r.sudahCair > 0 ? 'text-green-400' : 'text-slate-500'}">${ttpFmtNum(r.sudahCair)}</td>
+                <td class="px-3 py-2 text-center text-slate-400">${r.pencTgl || '-'}</td>
+                <td class="px-3 py-2 text-right ${r.pencNilai > 0 ? 'text-green-400' : 'text-slate-500'}">${ttpFmtNum(r.pencNilai)}</td>
+                <td class="px-3 py-2 text-right ${belumCls}">${ttpFmtNum(r.belumCair)}</td>
+                <td class="px-3 py-2 text-xs text-slate-400 max-w-[220px] whitespace-pre-wrap">${r.keterangan || '-'}</td>
+                <td class="px-3 py-2 text-center ${diffCls}">${diffTxt}</td>
+                <td class="px-3 py-2 text-center">
+                    <input type="checkbox" data-ttp-idx="${idx}" ${r.fisik ? 'checked' : ''}
+                        class="ttp-fisik-cb h-4 w-4 cursor-pointer accent-blue-500">
+                </td>
+            </tr>`);
+    });
+
+    tbody.innerHTML = rows.join('');
+
+    // Fisik checkbox sync + auto-save
+    tbody.querySelectorAll('.ttp-fisik-cb').forEach(cb => {
+        cb.addEventListener('change', (e) => {
+            const i = parseInt(e.target.dataset.ttpIdx, 10);
+            if (_ttpItems[i]) _ttpItems[i].fisik = e.target.checked;
+            saveTtp().catch(() => {});
+        });
+    });
+}
+
+async function saveTtp() {
+    if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
+    const tglAudit = document.getElementById('ttpTglAudit')?.value || null;
+    const res = await fetchJson('/api/audit-detail/ttp-gantung', {
+        method: 'POST',
+        body: JSON.stringify({ planAuditId: activePlanId, tglAudit, ttp: _ttpItems }),
+    });
+    showAlert(res.message, 'success');
+}
+
+async function ttpHandleFile(file) {
+    const msgEl = document.getElementById('ttpImportMsg');
+    try {
+        if (msgEl) { msgEl.textContent = '⏳ Memproses file...'; msgEl.classList.remove('hidden'); }
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('/api/audit-detail/ttp-gantung/parse-html', {
+            method: 'POST',
+            headers: authHeaders(),
+            body: fd,
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message || 'Gagal memproses file.');
+        const raw = json.data ?? [];
+        if (raw.length === 0) throw new Error('Tidak ada data TTP ditemukan dalam file.');
+        // Preserve existing fisik & keterangan on re-import
+        const existingMap = {};
+        _ttpItems.forEach(it => { existingMap[it.noTtp] = it; });
+        _ttpItems = raw.map(it => {
+            const old = existingMap[it.noTtp];
+            if (old) { it.fisik = old.fisik; it.keterangan = it.keterangan || old.keterangan; }
+            return it;
+        });
+        if (msgEl) {
+            msgEl.textContent = `✅ ${raw.length} data dipulihkan dari "${file.name}"`;
+            msgEl.classList.remove('hidden');
+        }
+        ttpRender();
+        saveTtp().catch(() => {});
+    } catch (err) {
+        if (msgEl) { msgEl.textContent = '❌ ' + err.message; msgEl.classList.remove('hidden'); }
+    }
+}
+
+function initTtpForm() {
+    const fileInput = document.getElementById('ttpFileInput');
+    fileInput?.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        await ttpHandleFile(file);
+        fileInput.value = '';
+    });
+
+    const dropzone = document.getElementById('ttpDropzone');
+    if (dropzone) {
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('border-blue-400'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-blue-400'));
+        dropzone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-blue-400');
+            const file = e.dataTransfer.files[0];
+            if (file) await ttpHandleFile(file);
+        });
+    }
+
+    // Re-render when tgl audit changes (diff recalculates)
+    document.getElementById('ttpTglAudit')?.addEventListener('change', () => {
+        ttpRender();
+        saveTtp().catch(() => {});
+    });
+
+    document.getElementById('ttpSaveBtn')?.addEventListener('click', () => {
+        saveTtp().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
     });
 }
