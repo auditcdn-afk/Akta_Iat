@@ -151,7 +151,7 @@ class PemeriksaanMateraiController extends Controller
                 // Ambil totalDebet, totalKredit, saldoAkhir dari kolom
                 if (count($cols) >= 3) {
                     $saldoAkhir  = $this->toInt($cols[count($cols) - 1]);
-                    $totalKredit = $this->toInt($cols[count($cols) - 2]);
+                    $totalKredit = $this->toSignedInt($cols[count($cols) - 2]);
                     $totalDebet  = $this->toInt($cols[count($cols) - 3]);
                 }
                 continue;
@@ -169,18 +169,34 @@ class PemeriksaanMateraiController extends Controller
                 continue;
             }
 
-            // Baris transaksi normal: NO | TANGGAL | NOMOR | KETERANGAN | DEBET | KREDIT | SALDO
-            if (is_numeric($cols[0]) && count($cols) >= 5) {
+            // Baris transaksi: bisa NO (numerik) atau TANGGAL (dd-mm-yyyy / dd/mm/yyyy)
+            $isDate = (bool) preg_match('/^\d{2}[-\/]\d{2}[-\/]\d{4}/', $cols[0]);
+            $isNo   = is_numeric($cols[0]);
+            if (($isNo || $isDate) && count($cols) >= 5) {
                 $n = count($cols);
-                $transaksi[] = [
-                    'no'          => (int) $cols[0],
-                    'tanggal'     => $cols[1] ?? '',
-                    'nomor'       => $cols[2] ?? '',
-                    'keterangan'  => $cols[3] ?? '',
-                    'debet'       => $this->toInt($cols[$n - 3] ?? ''),
-                    'kredit'      => $this->toInt($cols[$n - 2] ?? ''),
-                    'saldo'       => $this->toInt($cols[$n - 1] ?? ''),
-                ];
+                if ($isNo && $n >= 7) {
+                    // Format 7 kolom: NO | TANGGAL | NOMOR | KETERANGAN | DEBET | KREDIT | SALDO
+                    $transaksi[] = [
+                        'no'         => (int) $cols[0],
+                        'tanggal'    => $cols[1] ?? '',
+                        'nomor'      => $cols[2] ?? '',
+                        'keterangan' => $cols[3] ?? '',
+                        'debet'      => $this->toInt($cols[$n - 3] ?? ''),
+                        'kredit'     => $this->toSignedInt($cols[$n - 2] ?? ''),
+                        'saldo'      => $this->toInt($cols[$n - 1] ?? ''),
+                    ];
+                } else {
+                    // Format 6 kolom: TANGGAL | NOMOR | KETERANGAN | DEBET | KREDIT | SALDO
+                    $transaksi[] = [
+                        'no'         => count($transaksi) + 1,
+                        'tanggal'    => $cols[0] ?? '',
+                        'nomor'      => $cols[1] ?? '',
+                        'keterangan' => $cols[2] ?? '',
+                        'debet'      => $this->toInt($cols[$n - 3] ?? ''),
+                        'kredit'     => $this->toSignedInt($cols[$n - 2] ?? ''),
+                        'saldo'      => $this->toInt($cols[$n - 1] ?? ''),
+                    ];
+                }
             }
         }
 
@@ -199,10 +215,12 @@ class PemeriksaanMateraiController extends Controller
 
     private function makeBlock(string $jenis, int $saldoAwal, int $debet, int $kredit, int $saldoAkhir, array $transaksi): array
     {
-        // Hitung ulang total dari transaksi jika nilai header kosong
-        if ($debet === 0 && $kredit === 0 && !empty($transaksi)) {
-            $debet  = array_sum(array_column($transaksi, 'debet'));
-            $kredit = array_sum(array_column($transaksi, 'kredit'));
+        // Hitung ulang dari transaksi jika header tidak ada nilainya
+        if ($debet === 0 && !empty($transaksi)) {
+            $debet = (int) array_sum(array_column($transaksi, 'debet'));
+        }
+        if ($kredit === 0 && !empty($transaksi)) {
+            $kredit = (int) array_sum(array_column($transaksi, 'kredit'));
         }
         if ($saldoAkhir === 0 && !empty($transaksi)) {
             $saldoAkhir = (int) end($transaksi)['saldo'];
@@ -228,8 +246,15 @@ class PemeriksaanMateraiController extends Controller
 
     private function toInt(string $val): int
     {
-        // "1.234" atau "1,234" → 1234 ; strip non-numeric
         $clean = preg_replace('/[^0-9]/', '', $val);
         return $clean !== '' ? (int) $clean : 0;
+    }
+
+    private function toSignedInt(string $val): int
+    {
+        $neg   = str_contains($val, '-');
+        $clean = preg_replace('/[^0-9]/', '', $val);
+        $n     = $clean !== '' ? (int) $clean : 0;
+        return $neg ? -$n : $n;
     }
 }

@@ -1766,7 +1766,7 @@ function renderMateraiBlock(rec) {
 function fmtNum(val) {
     const n = parseInt(val ?? 0, 10);
     if (isNaN(n)) return "0";
-    return n.toLocaleString("id-ID");
+    return (n < 0 ? "-" : "") + Math.abs(n).toLocaleString("id-ID");
 }
 
 function escHtml(str) {
