@@ -1198,9 +1198,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                 showAlert('Pemeriksaan SMH berhasil disimpan.');
                 renderSmhTable(document.getElementById('smhFilterStatus')?.value || '');
                 populateSmhDropdown();
-                // Refresh form tanpa blokir — error refresh tidak membatalkan simpan
-                const q = document.getElementById('smhScanInput').value.trim();
-                smhScanUnit(q).catch(() => {});
+                // Reset scan form untuk siap scan unit berikutnya
+                const scanInput = document.getElementById('smhScanInput');
+                if (scanInput) { scanInput.value = ''; scanInput.focus(); }
+                document.getElementById('smhScanResult')?.classList.add('hidden');
+                hideSmhSuggestions();
             } catch (err) {
                 showAlert('Gagal menyimpan: ' + err.message, 'error');
             } finally {
