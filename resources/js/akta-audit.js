@@ -3936,7 +3936,7 @@ function hgpSaldo(item) {
 function hgpCalcItem(item) {
     const fisik   = hgpN(item.fisik);
     const saldo   = hgpSaldo(item);
-    item.akhir    = saldo;          // Akhir = stok akhir sistem (saldo akhir)
+    item.akhir    = saldo - fisik;  // Akhir = sisa stok = saldo akhir - fisik
     item.selisih  = fisik - saldo;  // Selisih = fisik - saldo akhir
 }
 
@@ -4110,7 +4110,7 @@ function hgpFormRecalc() {
     const qty = hgpN(document.getElementById('hgpFormQty')?.value);
     const it  = _hgpSelIdx >= 0 ? _hgpData.items[_hgpSelIdx] : null;
     const saldo = it ? hgpSaldo(it) : 0;
-    const akhir = saldo;          // Akhir = saldo akhir sistem
+    const akhir = saldo - qty;    // Akhir = sisa stok = saldo akhir - fisik
     const selisih = qty - saldo;  // Selisih = fisik - saldo akhir
     const elAkhir = document.getElementById('hgpFormAkhir');
     const elSel   = document.getElementById('hgpFormSelisih');
@@ -4146,6 +4146,44 @@ function hgpFormSelectPart(code) {
     if (ketEl) ketEl.value = it.keterangan || '';
     if (tglEl && it.tgl) tglEl.value = it.tgl;
     hgpFormRecalc();
+}
+
+// Scan barcode: akumulasi fisik +1 setiap scan kode yang sama, tiap scan tercatat di log.
+let _hgpScanGuard = false;
+function hgpScanAccumulate(code) {
+    const info = document.getElementById('hgpFormPartInfo');
+    const idx  = hgpFindIdx(code);
+    if (idx < 0) {
+        _hgpSelIdx = -1;
+        if (info) { info.textContent = `No. Part "${code}" tidak ditemukan dalam data import.`; info.className = 'mt-0.5 text-xs text-red-400'; }
+        return;
+    }
+    _hgpSelIdx = idx;
+    const it = _hgpData.items[idx];
+    it.fisik = hgpN(it.fisik) + 1;                       // akumulasi
+    if (!Array.isArray(it.logScan)) it.logScan = [];
+    it.logScan.push({ at: new Date().toISOString(), qty: 1 }); // history per scan
+    it.tgl = document.getElementById('hgpFormTgl')?.value || it.tgl;
+    hgpCalcItem(it);
+
+    // Update tampilan form
+    if (info) { info.textContent = `${it.noPart || '-'} — ${it.sparepart || ''} (Saldo Akhir: ${hgpSaldo(it)})`; info.className = 'mt-0.5 text-xs text-green-400'; }
+    const qtyEl = document.getElementById('hgpFormQty');
+    const ketEl = document.getElementById('hgpFormKet');
+    if (qtyEl) qtyEl.value = hgpN(it.fisik);
+    if (ketEl && !ketEl.value) ketEl.value = it.keterangan || '';
+    hgpFormRecalc();
+
+    hgpRenderItems();
+    _doSaveHgp().catch(() => {});
+
+    // Kosongkan input untuk scan berikutnya (tanpa memicu reset via change)
+    const partInput = document.getElementById('hgpFormPart');
+    if (partInput) {
+        _hgpScanGuard = true;
+        partInput.value = '';
+        setTimeout(() => { _hgpScanGuard = false; }, 0);
+    }
 }
 
 function hgpFormSaveEntry() {
@@ -4188,6 +4226,8 @@ async function loadHgpTab() {
         _hgpData = { items: res.data.items };
     }
     if (!_hgpData) _hgpData = hgpEmptyData();
+    // Normalisasi akhir/selisih sesuai rumus terbaru (akhir = saldo - fisik)
+    (_hgpData.items || []).forEach(it => hgpCalcItem(it));
     hgpRenderItems();
     hgpPopulateDatalist();
 }
@@ -4231,9 +4271,13 @@ function initHgpForm() {
 
     // Form pemeriksaan: scan / pilih No. Part
     const partInput = document.getElementById('hgpFormPart');
-    partInput?.addEventListener('change', () => hgpFormSelectPart(partInput.value));
+    // Pilih dari dropdown → load (tanpa akumulasi). Scan + Enter → akumulasi fisik +1.
+    partInput?.addEventListener('change', () => {
+        if (_hgpScanGuard) return;
+        if (partInput.value) hgpFormSelectPart(partInput.value);
+    });
     partInput?.addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); hgpFormSelectPart(partInput.value); }
+        if (e.key === 'Enter') { e.preventDefault(); hgpScanAccumulate(partInput.value); }
     });
 
     const qtyInput = document.getElementById('hgpFormQty');
