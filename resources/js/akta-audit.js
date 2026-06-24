@@ -1295,32 +1295,31 @@ async function loadPlafonTab() {
     if (!activePlanId) return;
 
     document.getElementById('pfAnalisaWrap')?.classList.add('hidden');
+    document.getElementById('pfRingkasanWrap')?.classList.add('hidden');
 
-    // Ambil cabang dari plan aktif sebagai unit usaha
-    const cabang = activePlan?.cabang || '';
-    document.getElementById('pfKodeUnit').textContent = cabang || '—';
-
-    // Cari info unit usaha (wilayah, plafon) dari API
-    try {
-        const res = await fetchJson(`/api/audit-detail/plafon/units?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
-        const unitInfo = (res.data || []).find(u => u.unitUsaha?.toUpperCase() === cabang?.toUpperCase());
-        document.getElementById('pfPlafonCover').textContent = unitInfo?.plafonNilai != null ? fmtRupiah(unitInfo.plafonNilai) : '—';
-        document.getElementById('pfDaerah').textContent      = unitInfo?.wilayah || '—';
-    } catch (e) { /* silent */ }
-
-    // Muat analisa berdasarkan cabang plan
     try {
         const res = await fetchJson(
-            `/api/audit-detail/plafon/analisa?plan_audit_id=${activePlanId}${cabang ? '&gudang=' + encodeURIComponent(cabang) : ''}`,
+            `/api/audit-detail/plafon/analisa?plan_audit_id=${activePlanId}`,
             { headers: authHeaders() }
         );
+        pfRenderHeader(res);
         pfRenderAnalisa(res);
+        pfRenderRingkasan(res);
     } catch (e) {
-        showAlert('Gagal memuat analisa: ' + e.message, 'error');
+        showAlert('Gagal memuat analisa plafon: ' + e.message, 'error');
     }
+}
 
-    // Ringkasan semua gudang dalam plan
-    pfLoadRingkasan();
+function pfRenderHeader(data) {
+    // Isi kartu Unit Usaha Terpilih dari cabang plan
+    const cabang = activePlan?.cabang || '—';
+    document.getElementById('pfKodeUnit').textContent = cabang;
+
+    // Ambil info dari unit pertama yang punya data (atau total)
+    const totalPlafon = data.totalPlafon;
+    const wilayah = data.perUnit?.[0]?.wilayah || '—';
+    document.getElementById('pfPlafonCover').textContent = totalPlafon ? fmtRupiah(totalPlafon) : '—';
+    document.getElementById('pfDaerah').textContent      = wilayah;
 }
 
 function pfRenderAnalisa(data) {
@@ -1331,27 +1330,28 @@ function pfRenderAnalisa(data) {
     document.getElementById('pfStatTotal').textContent      = data.totalUnit;
     document.getElementById('pfStatDitemukan').textContent  = data.ditemukan;
     document.getElementById('pfStatTidak').textContent      = data.tidakDitemukan;
-    document.getElementById('pfStatPlafon').textContent     = fmtRupiah(data.plafonNilai);
+    document.getElementById('pfStatPlafon').textContent     = fmtRupiah(data.totalPlafon);
     document.getElementById('pfStatNilai').textContent      = fmtRupiah(data.totalNilaiSmh);
 
-    // Progress bar
+    // Progress bar total
     const progressWrap = document.getElementById('pfProgressWrap');
-    if (data.plafonNilai && data.plafonNilai > 0) {
+    if (data.totalPlafon && data.totalPlafon > 0) {
         progressWrap?.classList.remove('hidden');
-        const pct = Math.min(100, data.persentase || 0);
+        const pct = Math.min(100, data.persentaseTotal || 0);
         document.getElementById('pfProgressBar').style.width = pct + '%';
         document.getElementById('pfProgressBar').className = `h-3 rounded-full transition-all duration-500 ${pct > 80 ? 'bg-red-500' : pct > 50 ? 'bg-yellow-500' : 'bg-emerald-500'}`;
-        document.getElementById('pfProgressLabel').textContent = `Total nilai SMH ${fmtRupiah(data.totalNilaiSmh)} dari plafon ${fmtRupiah(data.plafonNilai)}`;
-        document.getElementById('pfSisaCoverLabel').textContent = `Sisa Cover: ${fmtRupiah(data.sisaCover)}`;
+        document.getElementById('pfProgressLabel').textContent = `Total nilai SMH ${fmtRupiah(data.totalNilaiSmh)} dari plafon ${fmtRupiah(data.totalPlafon)}`;
+        document.getElementById('pfSisaCoverLabel').textContent = `Sisa Cover: ${fmtRupiah(data.sisaTotal)}`;
         document.getElementById('pfProgressPct').textContent = `${pct}% dari plafon terpakai`;
     } else {
         progressWrap?.classList.add('hidden');
     }
 
-    // Detail tabel
+    // Detail tabel semua unit
     const tbody = document.getElementById('pfDetailBody');
     if (tbody) {
-        tbody.innerHTML = (data.detail || []).map(r => {
+        const allDetail = (data.perUnit || []).flatMap(u => u.detail || []);
+        tbody.innerHTML = allDetail.map(r => {
             const statusCls = r.ditemukan ? 'text-emerald-400' : 'text-orange-400';
             const statusTxt = r.ditemukan ? '✓ Ada' : '✕ Tidak';
             return `<tr class="hover:bg-slate-800/40">
@@ -1362,24 +1362,13 @@ function pfRenderAnalisa(data) {
                 <td class="px-3 py-2 text-xs text-slate-400">${escapeHtml(r.gudang || '-')}</td>
                 <td class="px-3 py-2 text-center text-xs font-bold ${statusCls}">${statusTxt}</td>
             </tr>`;
-        }).join('');
+        }).join('') || `<tr><td colspan="6" class="px-3 py-6 text-center text-xs text-slate-500">Belum ada data onhand untuk plan ini</td></tr>`;
     }
 }
 
-async function pfLoadRingkasan() {
-    if (!activePlanId) return;
-    try {
-        const res = await fetchJson(
-            `/api/audit-detail/plafon/ringkasan?plan_audit_id=${activePlanId}`,
-            { headers: authHeaders() }
-        );
-        pfRenderRingkasan(res);
-    } catch (e) { /* silent */ }
-}
-
-function pfRenderRingkasan(res) {
+function pfRenderRingkasan(data) {
     const wrap = document.getElementById('pfRingkasanWrap');
-    const rows = res.data || [];
+    const rows = data.perUnit || [];
     if (!rows.length) { wrap?.classList.add('hidden'); return; }
     wrap?.classList.remove('hidden');
 
@@ -1388,8 +1377,8 @@ function pfRenderRingkasan(res) {
         tbody.innerHTML = rows.map(r => {
             const pctBar = r.persentase != null
                 ? `<div class="h-1.5 w-full rounded-full bg-slate-700 mt-1"><div class="h-1.5 rounded-full ${r.persentase > 80 ? 'bg-red-500' : 'bg-blue-500'}" style="width:${Math.min(100, r.persentase)}%"></div></div>` : '';
-            return `<tr class="hover:bg-slate-800/40 cursor-pointer" data-pfunit="${escapeHtml(r.gudang)}">
-                <td class="px-3 py-2 text-xs font-semibold text-slate-200">${escapeHtml(r.gudang)}</td>
+            return `<tr class="hover:bg-slate-800/40">
+                <td class="px-3 py-2 text-xs font-semibold text-slate-200">${escapeHtml(r.namaUnit || r.gudang)}<div class="text-xs font-normal text-slate-400">${escapeHtml(r.wilayah || '')}</div></td>
                 <td class="px-3 py-2 text-center text-xs text-slate-300">${r.totalUnit}</td>
                 <td class="px-3 py-2 text-center text-xs text-emerald-400">${r.ditemukan}</td>
                 <td class="px-3 py-2 text-right text-xs text-blue-300">${fmtRupiah(r.totalNilai)}</td>
@@ -1400,41 +1389,24 @@ function pfRenderRingkasan(res) {
         }).join('');
     }
 
-    document.getElementById('pfRingkasanTotalNilai').textContent  = fmtRupiah(res.totalNilai);
-    document.getElementById('pfRingkasanTotalPlafon').textContent = fmtRupiah(res.totalPlafon);
-    document.getElementById('pfRingkasanTotalSisa').textContent   = fmtRupiah(res.sisaTotal);
+    document.getElementById('pfRingkasanTotalNilai').textContent  = fmtRupiah(data.totalNilaiSmh);
+    document.getElementById('pfRingkasanTotalPlafon').textContent = fmtRupiah(data.totalPlafon);
+    document.getElementById('pfRingkasanTotalSisa').textContent   = fmtRupiah(data.sisaTotal);
 
-    // Progress total
     const progWrap = document.getElementById('pfRingkasanProgressWrap');
-    if (res.totalPlafon > 0) {
+    if (data.totalPlafon > 0) {
         progWrap?.classList.remove('hidden');
-        const pct = Math.min(100, res.persentase || 0);
+        const pct = Math.min(100, data.persentaseTotal || 0);
         document.getElementById('pfRingkasanBar').style.width = pct + '%';
-        document.getElementById('pfRingkasanProgressLabel').textContent = `Total nilai SMH ${fmtRupiah(res.totalNilai)} dari plafon ${fmtRupiah(res.totalPlafon)}`;
-        document.getElementById('pfRingkasanSisaLabel').textContent = `Sisa Cover: ${fmtRupiah(res.sisaTotal)}`;
+        document.getElementById('pfRingkasanProgressLabel').textContent = `Total nilai SMH ${fmtRupiah(data.totalNilaiSmh)} dari plafon ${fmtRupiah(data.totalPlafon)}`;
+        document.getElementById('pfRingkasanSisaLabel').textContent = `Sisa Cover: ${fmtRupiah(data.sisaTotal)}`;
         document.getElementById('pfRingkasanPct').textContent = `${pct}% dari plafon terpakai`;
     } else {
         progWrap?.classList.add('hidden');
     }
 }
 
-function initPlafonForm() {
-    // Klik baris ringkasan → tampilkan analisa unit tersebut
-    document.getElementById('pfRingkasanBody')?.addEventListener('click', async e => {
-        const row = e.target.closest('[data-pfunit]');
-        if (!row) return;
-        const gudang = row.dataset.pfunit;
-        document.getElementById('pfKodeUnit').textContent = gudang;
-        try {
-            const res = await fetchJson(
-                `/api/audit-detail/plafon/analisa?plan_audit_id=${activePlanId}&gudang=${encodeURIComponent(gudang)}`,
-                { headers: authHeaders() }
-            );
-            pfRenderAnalisa(res);
-            document.getElementById('pfAnalisaWrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } catch (e) { showAlert(e.message, 'error'); }
-    });
-}
+function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 

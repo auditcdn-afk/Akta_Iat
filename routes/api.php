@@ -115,9 +115,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── Plafon ──
-    Route::get('/audit-detail/plafon/units',     [PlafonController::class, 'units']);
     Route::get('/audit-detail/plafon/analisa',   [PlafonController::class, 'analisa']);
-    Route::get('/audit-detail/plafon/ringkasan', [PlafonController::class, 'ringkasan']);
+    Route::get('/audit-detail/plafon/unit-list', [PlafonController::class, 'unitList']);
 
     // ── SMH ──
     Route::get('/audit-detail/smh', [PemeriksaanSmhController::class, 'index']);

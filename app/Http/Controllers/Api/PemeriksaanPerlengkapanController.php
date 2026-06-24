@@ -191,8 +191,9 @@ class PemeriksaanPerlengkapanController extends Controller
         if (!$planId) return null;
         $plan = PlanAudit::find($planId);
         if (!$plan?->cabang) return null;
-        $uu = DbUnitUsaha::where('unit_usaha', $plan->cabang)->first();
-        return $uu ? strtolower(trim($uu->wilayah ?? '')) : null;
+        $uu = DbUnitUsaha::where('nama', $plan->cabang)
+            ->orWhere('kode', $plan->cabang)->first();
+        return $uu ? strtolower(trim($uu->alamat ?? '')) : null;
     }
 
     private function ensureCanWrite(Request $request): void
