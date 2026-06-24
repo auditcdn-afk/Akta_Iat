@@ -3459,9 +3459,10 @@ async function loadCfTab() {
     if (!activePlanId) { cfInitForm(); return; }
     const res = await fetchJson(`/api/audit-detail/cek-fisik?plan_audit_id=${activePlanId}`,
         { headers: authHeaders() });
-    const saved = res.data?.data;
-    if (saved && typeof saved === 'object' && !Array.isArray(saved) && Object.keys(saved).length > 0) {
-        _cfData = saved;
+    // res.data = toAktaArray() = { id, planAuditId, data: {...}, updatedAt }
+    // res.data.data = the stored _cfData object
+    if (res.data && res.data.data && !Array.isArray(res.data.data)) {
+        _cfData = { ...cfEmptyData(), ...res.data.data };
     }
     cfInitForm();
 }
@@ -3534,6 +3535,7 @@ function cfInitForm() {
 
     cfRenderPenerimaan();
     cfRenderPengeluaran();
+    cfRenderRingkasan();
     cfCalcAndRefresh();
 }
 
