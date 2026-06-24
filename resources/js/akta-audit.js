@@ -3952,15 +3952,18 @@ function hgpRenderItems() {
     if (!tbody) return;
     const items = _hgpData?.items || [];
     if (items.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
         hgpUpdateStats();
         return;
     }
     tbody.innerHTML = items.map((it, i) => {
-        const selClass = it.selisih < 0 ? 'text-red-400 font-bold' : it.selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
+        const selisih  = hgpN(it.selisih);
+        const selClass = selisih < 0 ? 'text-red-400 font-bold' : selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
         const scan = it.logScan?.length || 0;
+        const selSign = selisih >= 0 ? '+' : '';
         return `<tr class="hover:bg-slate-800/40">
             <td class="px-3 py-2 text-slate-400">${i + 1}</td>
+            <td class="px-3 py-2 text-slate-400 text-xs">${it.noPart || ''}</td>
             <td class="px-3 py-2 text-slate-100 font-medium">${it.sparepart || ''}</td>
             <td class="px-3 py-2">
                 <input type="date" data-hgp-i="${i}" data-hgp-f="tgl"
@@ -3978,7 +3981,7 @@ function hgpRenderItems() {
                 </div>
             </td>
             <td class="px-3 py-2 text-right text-slate-300">${hgpN(it.akhir)}</td>
-            <td class="px-3 py-2 text-right ${selClass}">${it.selisih >= 0 ? '+' : ''}${it.selisih}</td>
+            <td class="px-3 py-2 text-right ${selClass}">${selSign}${selisih}</td>
             <td class="px-3 py-2">
                 <input type="text" data-hgp-i="${i}" data-hgp-f="keterangan"
                     value="${it.keterangan || ''}"

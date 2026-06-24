@@ -54,64 +54,71 @@ class HgpController extends Controller
 
         $items = [];
         $headerPassed = false;
-        $colSparepart = 0; // kolom nama sparepart
-        $colQty       = 1; // kolom qty / saldo awal
+        $colNoPart    = null;
+        $colNama      = null;
+        $colAwal      = null;
+        $colKet       = null;
 
         foreach ($rows as $row) {
-            $c0 = trim((string)($row[0] ?? ''));
-            $c1 = trim((string)($row[1] ?? ''));
-
-            // Deteksi header: baris yang mengandung "sparepart" atau "nama"
             if (!$headerPassed) {
+                $hasNama = false;
                 foreach ($row as $ci => $cell) {
                     $lower = strtolower(trim((string)$cell));
-                    if (str_contains($lower, 'sparepart') || str_contains($lower, 'nama')) {
-                        $colSparepart = $ci;
+                    if (str_contains($lower, 'no part') || str_contains($lower, 'no_part') || str_contains($lower, 'part number') || $lower === 'kode') {
+                        $colNoPart = $ci;
                     }
-                    if (str_contains($lower, 'qty') || str_contains($lower, 'jumlah') || str_contains($lower, 'stock')) {
-                        $colQty = $ci;
+                    if (str_contains($lower, 'nama part') || str_contains($lower, 'nama_part') || $lower === 'nama' || str_contains($lower, 'sparepart') || str_contains($lower, 'nama barang')) {
+                        $colNama = $ci;
+                        $hasNama = true;
                     }
-                    if (str_contains($lower, 'sparepart') || str_contains($lower, 'nama')) {
-                        $headerPassed = true;
+                    if ($lower === 'awal' || str_contains($lower, 'saldo awal') || $lower === 'qty' || str_contains($lower, 'jumlah') || str_contains($lower, 'stock') || str_contains($lower, 'stok')) {
+                        $colAwal = $ci;
+                    }
+                    if ($colKet === null && ($lower === 'keterangan' || str_contains($lower, 'lokasi'))) {
+                        $colKet = $ci;
                     }
                 }
-                if ($headerPassed) continue;
-                // Juga skip baris kosong atau judul
-                if ($c0 === '' && $c1 === '') continue;
-                // Jika tidak ada header ditemukan setelah 5 baris, anggap data langsung
+                if ($hasNama) { $headerPassed = true; continue; }
                 continue;
             }
 
-            $sparepart = trim((string)($row[$colSparepart] ?? ''));
-            $qty       = $this->n($row[$colQty] ?? 0);
+            $noPart = $colNoPart !== null ? trim((string)($row[$colNoPart] ?? '')) : '';
+            $nama   = $colNama   !== null ? trim((string)($row[$colNama]   ?? '')) : '';
+            $awal   = $colAwal   !== null ? $this->n($row[$colAwal] ?? 0) : $this->n($row[5] ?? 0);
+            $ket    = $colKet    !== null ? trim((string)($row[$colKet] ?? '')) : '';
 
-            if ($sparepart === '') continue;
+            if ($nama === '' && $noPart === '') continue;
+
+            $sparepart = $nama !== '' ? $nama : $noPart;
 
             $items[] = [
-                'sparepart'   => $sparepart,
-                'saldoAwal'   => $qty,
-                'fisik'       => 0,
-                'akhir'       => $qty,
-                'selisih'     => 0,
-                'keterangan'  => '',
-                'tgl'         => date('Y-m-d'),
-                'logScan'     => [],
+                'noPart'     => $noPart,
+                'sparepart'  => $sparepart,
+                'saldoAwal'  => $awal,
+                'fisik'      => 0,
+                'akhir'      => 0,
+                'selisih'    => -$awal,
+                'keterangan' => $ket,
+                'tgl'        => date('Y-m-d'),
+                'logScan'    => [],
             ];
         }
 
-        // Fallback: jika header tidak ditemukan, coba parse langsung baris non-kosong
+        // Fallback: format onhand (col[1]=noPart, col[2]=nama, col[5]=awal, col[10]=ket)
         if (empty($items)) {
             foreach ($rows as $row) {
-                $c0 = trim((string)($row[0] ?? ''));
-                $c1 = $this->n($row[1] ?? 0);
-                if ($c0 === '' || is_numeric($c0)) continue;
+                $c1 = trim((string)($row[1] ?? ''));
+                $c2 = trim((string)($row[2] ?? ''));
+                if ($c2 === '' || is_numeric($c2)) continue;
+                $awal = $this->n($row[5] ?? 0);
                 $items[] = [
-                    'sparepart'  => $c0,
-                    'saldoAwal'  => $c1,
+                    'noPart'     => $c1,
+                    'sparepart'  => $c2,
+                    'saldoAwal'  => $awal,
                     'fisik'      => 0,
-                    'akhir'      => $c1,
-                    'selisih'    => 0,
-                    'keterangan' => '',
+                    'akhir'      => 0,
+                    'selisih'    => -$awal,
+                    'keterangan' => trim((string)($row[10] ?? '')),
                     'tgl'        => date('Y-m-d'),
                     'logScan'    => [],
                 ];
