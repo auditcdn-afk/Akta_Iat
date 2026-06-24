@@ -3457,9 +3457,11 @@ function cfEmptyData() {
 
 async function loadCfTab() {
     if (!activePlanId) { cfInitForm(); return; }
-    const res = await fetchJson(`/api/audit-detail/cek-fisik?plan_audit_id=${activePlanId}`);
-    if (res.data && res.data.data && Object.keys(res.data.data).length > 0) {
-        _cfData = res.data.data;
+    const res = await fetchJson(`/api/audit-detail/cek-fisik?plan_audit_id=${activePlanId}`,
+        { headers: authHeaders() });
+    const saved = res.data?.data;
+    if (saved && typeof saved === 'object' && !Array.isArray(saved) && Object.keys(saved).length > 0) {
+        _cfData = saved;
     }
     cfInitForm();
 }
@@ -3676,12 +3678,13 @@ function cfRenderRingkasan() {
 
 async function saveCf() {
     if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
-    if (!_cfData) return;
+    if (!_cfData) _cfData = cfEmptyData();
     _cfData.company        = document.getElementById('cfCompany')?.value || '';
     _cfData.tglPemeriksaan = document.getElementById('cfTglPemeriksaan')?.value || '';
     cfSyncSaldoAwal();
     const res = await fetchJson('/api/audit-detail/cek-fisik', {
         method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ planAuditId: activePlanId, data: _cfData }),
     });
     showAlert(res.message, 'success');
