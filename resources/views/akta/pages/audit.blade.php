@@ -409,11 +409,10 @@
 
                 <div>
                     <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis Perlengkapan <span class="text-red-400">*</span></label>
-                    <div class="relative">
-                        <input id="plJenisInput" type="text" autocomplete="off" placeholder="Cari atau pilih jenis perlengkapan..."
-                            class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        <ul id="plJenisList" class="absolute left-0 right-0 top-full z-20 mt-1 hidden max-h-56 overflow-y-auto rounded-xl border border-slate-700 bg-slate-800 shadow-xl"></ul>
-                    </div>
+                    <select id="plJenisInput"
+                        class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                        <option value="">-- Pilih Jenis Perlengkapan --</option>
+                    </select>
                     <p id="plJenisSmhInfo" class="mt-1 text-xs text-blue-400 hidden"></p>
                 </div>
 
