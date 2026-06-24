@@ -680,12 +680,16 @@ async function smhScanUnit(q) {
             </div>
             <div>
                 <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Keterangan Kondisi</label>
-                <select id="smhFormKondisi" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500">
-                    <option value="ready_for_sale" ${kondisi === 'ready_for_sale' ? 'selected' : ''}>Ready for Sale</option>
-                    <option value="perlu_perbaikan" ${kondisi === 'perlu_perbaikan' ? 'selected' : ''}>Perlu Perbaikan</option>
-                    <option value="rusak" ${kondisi === 'rusak' ? 'selected' : ''}>Rusak</option>
-                    <option value="hilang" ${kondisi === 'hilang' ? 'selected' : ''}>Hilang</option>
-                </select>
+                <input id="smhFormKondisi" list="smhKondisiList"
+                    class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                    placeholder="Pilih atau ketik kondisi..."
+                    value="${escapeHtml(it.keteranganKondisi || '')}">
+                <datalist id="smhKondisiList">
+                    <option value="Ready for Sale">
+                    <option value="Perlu Perbaikan">
+                    <option value="Rusak">
+                    <option value="Hilang">
+                </datalist>
             </div>
         </div>
 
