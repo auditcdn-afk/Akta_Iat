@@ -49,16 +49,16 @@ class KwitansiController extends Controller
             ], 422);
         }
 
-        $path = $file->store('tmp-kwitansi');
-        $fullPath = storage_path('app/' . $path);
-
-        try {
-            $spreadsheet = IOFactory::load($fullPath);
-            $sheet = $spreadsheet->getActiveSheet();
-            $rows  = $sheet->toArray(null, true, true, false); // indexed from 0
-        } finally {
-            @unlink($fullPath);
-        }
+        // Read the uploaded temp file directly with an explicit reader for the
+        // extension — avoids filesystem-disk path issues and format auto-detect.
+        $reader = match ($ext) {
+            'xlsx'  => new \PhpOffice\PhpSpreadsheet\Reader\Xlsx(),
+            'xls'   => new \PhpOffice\PhpSpreadsheet\Reader\Xls(),
+            'csv'   => new \PhpOffice\PhpSpreadsheet\Reader\Csv(),
+        };
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($file->getRealPath());
+        $rows = $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
 
         $tglAuditStr = $request->input('tgl_audit');
         $tglAudit    = $tglAuditStr ? new \DateTime($tglAuditStr) : null;
