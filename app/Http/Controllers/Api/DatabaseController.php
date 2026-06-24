@@ -232,34 +232,36 @@ class DatabaseController extends Controller
                     continue;
                 }
 
-                // Special handling for perlengkapan: old XLS format is
-                // TIPE(col0) | NOSIN(col1) | Aceh_Item1..N | Riau_Item1..N | Kepri_Item1..N
-                // The 3 regions have equal number of item columns.
+                // Special handling for perlengkapan: XLS format is
+                // TIPE(col0) | NOSIN(col1) | ACEH(col2) | RIAU(col3) | KEPRI(col4) | Type(col5)
+                // Each region column contains comma-separated items in a single cell.
                 if ($type === 'perlengkapan') {
                     $tipe  = trim((string) ($row[0] ?? ''));
                     $nosin = strtoupper(trim((string) ($row[1] ?? '')));
                     if ($nosin === '') continue;
 
-                    $allItems = array_map('trim', array_slice($row, 2));
-                    $nonEmpty = array_values(array_filter($allItems, fn($v) => $v !== ''));
-                    $count    = count($nonEmpty);
+                    $regionMap = [
+                        'aceh'  => trim((string) ($row[2] ?? '')),
+                        'riau'  => trim((string) ($row[3] ?? '')),
+                        'kepri' => trim((string) ($row[4] ?? '')),
+                    ];
 
-                    // If divisible by 3, split into 3 equal wilayah groups
-                    $wilayahList = ['aceh', 'riau', 'kepri'];
-                    if ($count > 0 && $count % 3 === 0) {
-                        $perGroup = $count / 3;
-                        foreach ($wilayahList as $wi => $wilayah) {
-                            $groupItems = array_slice($nonEmpty, $wi * $perGroup, $perGroup);
+                    $hasRegions = array_filter($regionMap, fn($v) => $v !== '');
+
+                    if ($hasRegions) {
+                        foreach ($regionMap as $wilayah => $keterangan) {
+                            if ($keterangan === '') continue;
                             $model::updateOrCreate(
                                 ['kode' => $nosin, 'wilayah' => $wilayah],
-                                ['nama' => $tipe ?: null, 'keterangan' => implode(', ', $groupItems) ?: null]
+                                ['nama' => $tipe ?: null, 'keterangan' => $keterangan]
                             );
                         }
                     } else {
-                        // Fallback: store once without wilayah
+                        // Fallback: no region columns, store all remaining cols as one
+                        $allItems = array_filter(array_map('trim', array_slice($row, 2)), fn($v) => $v !== '');
                         $model::updateOrCreate(
                             ['kode' => $nosin, 'wilayah' => null],
-                            ['nama' => $tipe ?: null, 'keterangan' => implode(', ', $nonEmpty) ?: null]
+                            ['nama' => $tipe ?: null, 'keterangan' => implode(', ', $allItems) ?: null]
                         );
                     }
                     $imported++;
