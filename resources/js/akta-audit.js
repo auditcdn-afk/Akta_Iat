@@ -2597,6 +2597,7 @@ function initBpkiForm() {
 // ─── Kwitansi Gantung ────────────────────────────────────────────────────────
 
 let _kwItems = [];   // current kwitansi array in memory
+let _kwLastNilaiColIdx = -1; // debug: last auto-detected nilai column
 
 async function loadKwTab() {
     const planId = activePlanId;
@@ -2688,6 +2689,7 @@ function kwMapRows(rawRows) {
         if (cnt > bestCount) { bestCount = cnt; nilaiColIdx = parseInt(ci); }
     }
 
+    _kwLastNilaiColIdx = nilaiColIdx;
     console.log("[KW] auto-detected nilaiColIdx:", nilaiColIdx, "maxCols:", maxCols, "colNumCount:", colNumCount);
 
     const items = [];
@@ -2996,7 +2998,8 @@ async function kwHandleFile(file) {
         }
         const mapped = kwMapRows(rawRows);
         if (!mapped.length) {
-            if (msgEl) { msgEl.textContent = "Tidak ada data kwitansi ditemukan di file."; msgEl.classList.remove("hidden"); }
+            const debugInfo = `rows=${rawRows.length}, nilaiCol=${_kwLastNilaiColIdx}, sample=${JSON.stringify(rawRows.slice(0,3).map(r=>({c0:r[0],c8:r[8]})))}`;
+            if (msgEl) { msgEl.textContent = `[v2] Tidak ada data. ${debugInfo}`; msgEl.classList.remove("hidden"); }
             return;
         }
         // Merge: keep keterangan & fisik for matching noKwitansi
