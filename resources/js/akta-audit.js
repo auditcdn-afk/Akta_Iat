@@ -2984,22 +2984,24 @@ function initKwForm() {
 async function kwHandleFile(file) {
     const msgEl = document.getElementById("kwImportMsg");
     try {
-        const { rawRows, filename } = await kwParseExcel(file);
-        // Debug: log first 5 rows to console so we can inspect column structure
-        console.log("[KW] rawRows count:", rawRows.length);
-        if (rawRows.length > 0) {
-            console.log("[KW] first 10 rows:");
-            rawRows.slice(0, 10).forEach((r, i) => {
-                const col8 = r[8];
-                const nilai = typeof col8 === "number" ? col8
-                    : parseFloat((col8 ?? "").toString().replace(/[^0-9.]/g, "")) || 0;
-                console.log(`  [${i}] col0="${r[0]}" col8raw=`, col8, `(type=${typeof col8}) nilai=${nilai}`);
-            });
-        }
-        const mapped = kwMapRows(rawRows);
+        if (msgEl) { msgEl.textContent = "⏳ Memproses file..."; msgEl.classList.remove("hidden"); }
+
+        const tglAudit = document.getElementById("kwTglAudit")?.value ?? "";
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("tgl_audit", tglAudit);
+
+        const res = await fetch("/api/audit-detail/kwitansi/parse-excel", {
+            method: "POST",
+            headers: authHeaders(),
+            body: formData,
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message ?? "Gagal memproses file di server.");
+
+        const mapped = json.data ?? [];
         if (!mapped.length) {
-            const debugInfo = `rows=${rawRows.length}, nilaiCol=${_kwLastNilaiColIdx}, sample=${JSON.stringify(rawRows.slice(0,3).map(r=>({c0:r[0],c8:r[8]})))}`;
-            if (msgEl) { msgEl.textContent = `[v2] Tidak ada data. ${debugInfo}`; msgEl.classList.remove("hidden"); }
+            if (msgEl) { msgEl.textContent = "Tidak ada data kwitansi ditemukan di file."; msgEl.classList.remove("hidden"); }
             return;
         }
         // Merge: keep keterangan & fisik for matching noKwitansi
@@ -3011,7 +3013,7 @@ async function kwHandleFile(file) {
             return it;
         });
         if (msgEl) {
-            msgEl.textContent = `✅ ${mapped.length} kwitansi berhasil dimuat dari "${filename}"`;
+            msgEl.textContent = `✅ ${mapped.length} kwitansi berhasil dimuat dari "${file.name}"`;
             msgEl.classList.remove("hidden");
         }
         kwRender();

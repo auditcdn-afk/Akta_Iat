@@ -152,6 +152,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/audit-detail/kwitansi',  [KwitansiController::class, 'show']);
     Route::post('/audit-detail/kwitansi', [KwitansiController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/kwitansi/parse-excel', [KwitansiController::class, 'parseExcel'])
+        ->middleware('akta.role:admin,manajer,auditor');
 
     // ── SMH ──
     Route::get('/audit-detail/smh', [PemeriksaanSmhController::class, 'index']);
