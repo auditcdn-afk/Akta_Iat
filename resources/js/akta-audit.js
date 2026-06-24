@@ -2619,8 +2619,9 @@ function kwParseExcel(file) {
             try {
                 const wb = XLSX.read(e.target.result, { type: "array", cellDates: true });
                 const ws = wb.Sheets[wb.SheetNames[0]];
-                const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
-                resolve({ rows, filename: file.name });
+                // Read as raw array rows so we can handle grouped-leasing format
+                const rawRows = XLSX.utils.sheet_to_json(ws, { defval: "", header: 1 });
+                resolve({ rawRows, filename: file.name });
             } catch (err) {
                 reject(new Error("Gagal membaca file Excel: " + err.message));
             }
@@ -2630,79 +2631,128 @@ function kwParseExcel(file) {
     });
 }
 
-function kwNormalizeKey(key) {
-    return key.toString().toUpperCase().replace(/[.\s\-_()]/g, "");
-}
-
-function kwFindCol(row, candidates) {
-    const keys = Object.keys(row);
-    for (const cand of candidates) {
-        const found = keys.find(k => kwNormalizeKey(k) === kwNormalizeKey(cand));
-        if (found !== undefined) return found;
+function _kwToDateStr(val) {
+    if (!val && val !== 0) return "";
+    if (val instanceof Date) return val.toISOString().slice(0, 10);
+    if (typeof val === "number") {
+        // Excel serial date
+        const d = new Date(Math.round((val - 25569) * 864e5));
+        return isNaN(d) ? "" : d.toISOString().slice(0, 10);
     }
-    // fallback: partial match
-    const cNorm = candidates.map(c => kwNormalizeKey(c));
-    return keys.find(k => cNorm.some(c => kwNormalizeKey(k).includes(c) || c.includes(kwNormalizeKey(k))));
+    const s = val.toString().trim();
+    // ISO-like string from cellDates (e.g. "2025-02-16T00:00:00.000Z")
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    return s;
 }
 
-function kwMapRows(rows) {
-    if (!rows.length) return [];
-    const sample = rows[0];
-    const colMap = {
-        leasing:       kwFindCol(sample, ["LEASING", "NAMALEASING", "FINCO"]),
-        noKwitansi:    kwFindCol(sample, ["NOKWITANSI", "NOMORKWITANSI", "NOKWT"]),
-        tglKwitansi:   kwFindCol(sample, ["TGLKWITANSI", "TANGGALKWITANSI", "TGL"]),
-        namaCustomer:  kwFindCol(sample, ["NAMACUSTOMER", "CUSTOMER", "NAMA"]),
-        noAr:          kwFindCol(sample, ["NOAR", "NOMNOAR"]),
-        noFaktur:      kwFindCol(sample, ["NOFAKTUR", "NOMORFAKTUR", "FAKTUR"]),
-        nilaiKwitansi: kwFindCol(sample, ["NILAIKWITANSI", "NILAI", "NILAIKWT"]),
-    };
+function _kwCalcDiff(tglStr, tglAudit) {
+    if (!tglAudit || !tglStr) return null;
+    const d = new Date(tglStr);
+    if (isNaN(d)) return null;
+    return Math.round((tglAudit - d) / 864e5);
+}
+
+function kwMapRows(rawRows) {
+    if (!rawRows.length) return [];
 
     const tglAuditVal = document.getElementById("kwTglAudit")?.value;
     const tglAudit    = tglAuditVal ? new Date(tglAuditVal) : null;
 
-    return rows.filter(r => {
-        const no = colMap.noKwitansi ? r[colMap.noKwitansi] : "";
-        return no && no.toString().trim() !== "";
-    }).map(r => {
-        const rawTgl = colMap.tglKwitansi ? r[colMap.tglKwitansi] : null;
-        let tglStr = "";
-        if (rawTgl instanceof Date) {
-            tglStr = rawTgl.toISOString().slice(0, 10);
-        } else if (rawTgl) {
-            // Excel serial number
-            if (typeof rawTgl === "number") {
-                const d = new Date(Math.round((rawTgl - 25569) * 864e5));
-                tglStr = d.toISOString().slice(0, 10);
-            } else {
-                tglStr = rawTgl.toString().trim();
+    // ── Strategy 1: grouped-leasing format (no column header row with named columns) ──
+    // Detect: scan all rows, a "data row" has col[2] as a Date/date-string AND col[0] non-empty
+    // A "leasing name row" has col[0] non-empty but col[2] empty and only 1-2 non-empty cells
+    // A "sub total row" has text "Sub Total" / "Total" somewhere
+
+    const items = [];
+    let currentLeasing = "LAINNYA";
+    let foundByPosition = false;
+
+    for (const row of rawRows) {
+        const col0 = (row[0] ?? "").toString().trim();
+        const col2 = row[2];
+        const col7 = (row[7] ?? "").toString().trim().toLowerCase();
+
+        if (!col0) continue;                                    // empty row
+        if (col7 === "sub total" || col0.toLowerCase() === "sub total") continue; // subtotal
+
+        const tglStr = _kwToDateStr(col2);
+        const isDataRow = tglStr.length > 0 && col0 !== "";
+
+        if (isDataRow) {
+            foundByPosition = true;
+            const rawNilai = row[8];
+            const nilai = typeof rawNilai === "number" ? rawNilai
+                : parseFloat((rawNilai ?? "").toString().replace(/[^0-9.]/g, "")) || 0;
+
+            items.push({
+                leasing:       currentLeasing,
+                noKwitansi:    col0,
+                tglKwitansi:   tglStr,
+                namaCustomer:  (row[3] ?? "").toString().trim(),
+                noAr:          (row[5] ?? "").toString().trim(),
+                noFaktur:      (row[6] ?? "").toString().trim(),
+                nilaiKwitansi: nilai,
+                diff:          _kwCalcDiff(tglStr, tglAudit),
+                keterangan:    "",
+                fisik:         false,
+            });
+        } else {
+            // Potential leasing name: col[0] non-empty, col[2] empty, ≤2 non-empty cells total
+            const nonEmpty = row.filter(c => c !== "" && c !== null && c !== undefined).length;
+            if (nonEmpty <= 2) {
+                currentLeasing = col0;
             }
         }
+    }
 
-        let diff = null;
-        if (tglAudit && tglStr) {
-            const tglKwt = new Date(tglStr);
-            if (!isNaN(tglKwt)) {
-                diff = Math.round((tglAudit - tglKwt) / 864e5);
-            }
-        }
+    if (foundByPosition && items.length) return items;
 
-        const rawNilai = colMap.nilaiKwitansi ? r[colMap.nilaiKwitansi] : 0;
-        const nilai = typeof rawNilai === "number" ? rawNilai : parseFloat(rawNilai.toString().replace(/[^0-9.-]/g, "")) || 0;
+    // ── Strategy 2: first row with named headers ──
+    // Find the header row (row where col[0] looks like a kwitansi column name)
+    const normalise = s => s.toString().toUpperCase().replace(/[.\s\-_()\/]/g, "");
+    const isHeaderRow = r => {
+        const v = normalise(r[0] ?? "");
+        return v.includes("NOKWT") || v.includes("NOMORKWT") || v.includes("NOMORKWITANSI") || v === "NOKWITANSI";
+    };
 
-        return {
-            leasing:      (colMap.leasing      ? r[colMap.leasing]      : "").toString().trim() || "LAINNYA",
-            noKwitansi:   (colMap.noKwitansi   ? r[colMap.noKwitansi]   : "").toString().trim(),
-            tglKwitansi:  tglStr,
-            namaCustomer: (colMap.namaCustomer ? r[colMap.namaCustomer] : "").toString().trim(),
-            noAr:         (colMap.noAr         ? r[colMap.noAr]         : "").toString().trim(),
-            noFaktur:     (colMap.noFaktur     ? r[colMap.noFaktur]     : "").toString().trim(),
+    const hdrIdx = rawRows.findIndex(isHeaderRow);
+    if (hdrIdx < 0) return [];
+
+    const headers = rawRows[hdrIdx].map(h => normalise(h));
+    const find = (...cands) => {
+        for (const c of cands) { const i = headers.indexOf(c); if (i >= 0) return i; }
+        return headers.findIndex(h => cands.some(c => h.includes(c)));
+    };
+    const iNo    = find("NOKWITANSI","NOMORKWITANSI","NOKWT");
+    const iTgl   = find("TGLKWITANSI","TANGGALKWITANSI","TGLKWT");
+    const iNama  = find("NAMACUSTOMER","CUSTOMER","NAMA");
+    const iAr    = find("NOAR","AR");
+    const iFaktur= find("NOFAKTUR","NOMORFAKTUR","FAKTUR");
+    const iNilai = find("NILAIKWITANSI","NILAI","NILAIKWT");
+    const iLsng  = find("LEASING","NAMALEASING","FINCO","LEASINGNAME");
+
+    for (const row of rawRows.slice(hdrIdx + 1)) {
+        const noKwt = (iNo >= 0 ? row[iNo] : "").toString().trim();
+        if (!noKwt) continue;
+        const tglStr = iTgl >= 0 ? _kwToDateStr(row[iTgl]) : "";
+        const rawNilai = iNilai >= 0 ? row[iNilai] : 0;
+        const nilai = typeof rawNilai === "number" ? rawNilai
+            : parseFloat((rawNilai ?? "").toString().replace(/[^0-9.]/g, "")) || 0;
+        items.push({
+            leasing:       (iLsng >= 0 ? row[iLsng] : "LAINNYA").toString().trim() || "LAINNYA",
+            noKwitansi:    noKwt,
+            tglKwitansi:   tglStr,
+            namaCustomer:  (iNama  >= 0 ? row[iNama]  : "").toString().trim(),
+            noAr:          (iAr    >= 0 ? row[iAr]    : "").toString().trim(),
+            noFaktur:      (iFaktur>= 0 ? row[iFaktur]: "").toString().trim(),
             nilaiKwitansi: nilai,
-            diff,
-            keterangan:   "",
-            fisik:        false,
-        };
-    });
+            diff:          _kwCalcDiff(tglStr, tglAudit),
+            keterangan:    "",
+            fisik:         false,
+        });
+    }
+
+    return items;
 }
 
 // ── Render ──
@@ -2910,8 +2960,8 @@ function initKwForm() {
 async function kwHandleFile(file) {
     const msgEl = document.getElementById("kwImportMsg");
     try {
-        const { rows, filename } = await kwParseExcel(file);
-        const mapped = kwMapRows(rows);
+        const { rawRows, filename } = await kwParseExcel(file);
+        const mapped = kwMapRows(rawRows);
         if (!mapped.length) {
             if (msgEl) { msgEl.textContent = "Tidak ada data kwitansi ditemukan di file."; msgEl.classList.remove("hidden"); }
             return;
