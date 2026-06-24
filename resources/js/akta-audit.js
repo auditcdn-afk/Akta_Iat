@@ -3936,8 +3936,8 @@ function hgpSaldo(item) {
 function hgpCalcItem(item) {
     const fisik   = hgpN(item.fisik);
     const saldo   = hgpSaldo(item);
-    item.akhir    = fisik;
-    item.selisih  = fisik - saldo;
+    item.akhir    = saldo;          // Akhir = stok akhir sistem (saldo akhir)
+    item.selisih  = fisik - saldo;  // Selisih = fisik - saldo akhir
 }
 
 function hgpUpdateStats() {
@@ -4110,8 +4110,8 @@ function hgpFormRecalc() {
     const qty = hgpN(document.getElementById('hgpFormQty')?.value);
     const it  = _hgpSelIdx >= 0 ? _hgpData.items[_hgpSelIdx] : null;
     const saldo = it ? hgpSaldo(it) : 0;
-    const akhir = qty;
-    const selisih = qty - saldo;
+    const akhir = saldo;          // Akhir = saldo akhir sistem
+    const selisih = qty - saldo;  // Selisih = fisik - saldo akhir
     const elAkhir = document.getElementById('hgpFormAkhir');
     const elSel   = document.getElementById('hgpFormSelisih');
     if (elAkhir) elAkhir.value = akhir;
