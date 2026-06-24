@@ -4087,9 +4087,13 @@ function hgpPopulateDatalist() {
     const dl = document.getElementById('hgpPartList');
     if (!dl) return;
     const items = _hgpData?.items || [];
-    dl.innerHTML = items.map(it =>
-        `<option value="${(it.noPart || it.sparepart || '').replace(/"/g, '&quot;')}">${(it.sparepart || '').replace(/"/g, '&quot;')}</option>`
-    ).join('');
+    const esc = s => (s || '').replace(/"/g, '&quot;');
+    dl.innerHTML = items.map(it => {
+        const noPart = esc(it.noPart || it.sparepart || '');
+        const nama   = esc(it.sparepart || '');
+        // Tampilkan No. Part sebagai nilai utama; nama part jadi keterangan
+        return `<option value="${noPart}" label="${noPart}${nama ? ' — ' + nama : ''}">${noPart}</option>`;
+    }).join('');
 }
 
 function hgpFindIdx(code) {
