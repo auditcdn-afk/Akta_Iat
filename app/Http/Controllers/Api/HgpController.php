@@ -106,7 +106,9 @@ class HgpController extends Controller
                 continue;
             }
 
-            $awal = $this->n($row[$colAwal] ?? 0);
+            // Saldo baseline diambil dari kolom AKHIR (stok akhir sistem), bukan AWAL.
+            // Kolom AKHIR berada di colAwal + 4 (AWAL, MASUK, KELUAR, ADJUST, AKHIR).
+            $saldoAkhir = $this->n($row[$colAwal + 4] ?? 0);
 
             // Gunakan posisi relatif dari AWAL untuk menghindari masalah merged-cell di header.
             // Header merged-cell membuat posisi label ≠ posisi data aktual.
@@ -121,10 +123,10 @@ class HgpController extends Controller
             $items[] = [
                 'noPart'     => $noPartRaw,
                 'sparepart'  => $namaRaw !== '' ? $namaRaw : $noPartRaw,
-                'saldoAwal'  => $awal,
+                'saldoAkhir' => $saldoAkhir,
                 'fisik'      => 0,
                 'akhir'      => 0,
-                'selisih'    => -$awal,
+                'selisih'    => -$saldoAkhir,
                 'keterangan' => $ket,
                 'tgl'        => date('Y-m-d'),
                 'logScan'    => [],
@@ -138,14 +140,14 @@ class HgpController extends Controller
                 $c1 = trim((string)($row[1] ?? ''));
                 $c2 = trim((string)($row[2] ?? ''));
                 if ($c1 === '' && $c2 === '') continue;
-                $awal = $this->n($row[5] ?? 0);
+                $saldoAkhir = $this->n($row[9] ?? 0);
                 $items[] = [
                     'noPart'     => $c1,
                     'sparepart'  => $c2 !== '' ? $c2 : $c1,
-                    'saldoAwal'  => $awal,
+                    'saldoAkhir' => $saldoAkhir,
                     'fisik'      => 0,
                     'akhir'      => 0,
-                    'selisih'    => -$awal,
+                    'selisih'    => -$saldoAkhir,
                     'keterangan' => trim((string)($row[10] ?? '')),
                     'tgl'        => date('Y-m-d'),
                     'logScan'    => [],

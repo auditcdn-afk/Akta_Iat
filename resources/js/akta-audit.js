@@ -3919,7 +3919,7 @@ function initMtForm() {
 /* ============================================================
    HGP & AHM Oils
    ============================================================ */
-let _hgpData = null; // { items: [ { sparepart, saldoAwal, fisik, akhir, selisih, keterangan, tgl, logScan:[] } ] }
+let _hgpData = null; // { items: [ { sparepart, saldoAkhir, fisik, akhir, selisih, keterangan, tgl, logScan:[] } ] }
 
 function hgpEmptyData() { return { items: [] }; }
 
@@ -3928,9 +3928,14 @@ function hgpN(v) {
     return parseFloat(v) || 0;
 }
 
+// Saldo baseline = saldo akhir sistem (fallback ke field lama saldoAwal)
+function hgpSaldo(item) {
+    return hgpN(item?.saldoAkhir ?? item?.saldoAwal);
+}
+
 function hgpCalcItem(item) {
     const fisik   = hgpN(item.fisik);
-    const saldo   = hgpN(item.saldoAwal);
+    const saldo   = hgpSaldo(item);
     item.akhir    = fisik;
     item.selisih  = fisik - saldo;
 }
@@ -3970,7 +3975,7 @@ function hgpRenderItems() {
                     value="${it.tgl || ''}"
                     class="hgp-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
             </td>
-            <td class="px-3 py-2 text-right text-slate-300">${hgpN(it.saldoAwal)}</td>
+            <td class="px-3 py-2 text-right text-slate-300">${hgpSaldo(it)}</td>
             <td class="px-3 py-2">
                 <div class="flex items-center justify-end gap-1">
                     <button data-hgp-dec="${i}" class="rounded bg-slate-700 px-1.5 text-slate-300 hover:bg-slate-600 text-xs">−</button>
@@ -3991,7 +3996,7 @@ function hgpRenderItems() {
             <td class="px-3 py-2 text-xs">
                 <div class="flex flex-col gap-0.5 text-slate-400">
                     <span>Fisik Terscan : <span class="text-green-400 font-semibold">${scan}</span></span>
-                    <span>Saldo Awal : <span class="text-slate-300">${hgpN(it.saldoAwal)}</span></span>
+                    <span>Saldo Akhir : <span class="text-slate-300">${hgpSaldo(it)}</span></span>
                     <span>Selisih Scan : <span class="${selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300'} font-semibold">${selSign}${selisih}</span></span>
                 </div>
             </td>
@@ -4100,7 +4105,7 @@ function hgpFindIdx(code) {
 function hgpFormRecalc() {
     const qty = hgpN(document.getElementById('hgpFormQty')?.value);
     const it  = _hgpSelIdx >= 0 ? _hgpData.items[_hgpSelIdx] : null;
-    const saldo = it ? hgpN(it.saldoAwal) : 0;
+    const saldo = it ? hgpSaldo(it) : 0;
     const akhir = qty;
     const selisih = qty - saldo;
     const elAkhir = document.getElementById('hgpFormAkhir');
@@ -4114,7 +4119,7 @@ function hgpFormRecalc() {
     const log = document.getElementById('hgpFormLog');
     if (log) {
         const scan = it ? (it.logScan?.length || 0) : 0;
-        log.textContent = `Fisik Terscan : ${scan} | Saldo Awal : ${it ? saldo : '-'}`;
+        log.textContent = `Fisik Terscan : ${scan} | Saldo Akhir : ${it ? saldo : '-'}`;
     }
 }
 
@@ -4128,7 +4133,7 @@ function hgpFormSelectPart(code) {
         return;
     }
     const it = _hgpData.items[idx];
-    if (info) { info.textContent = `${it.noPart || '-'} — ${it.sparepart || ''} (Saldo Awal: ${hgpN(it.saldoAwal)})`; info.className = 'mt-0.5 text-xs text-green-400'; }
+    if (info) { info.textContent = `${it.noPart || '-'} — ${it.sparepart || ''} (Saldo Akhir: ${hgpSaldo(it)})`; info.className = 'mt-0.5 text-xs text-green-400'; }
     // Pre-fill dari record yang ada
     const qtyEl = document.getElementById('hgpFormQty');
     const ketEl = document.getElementById('hgpFormKet');

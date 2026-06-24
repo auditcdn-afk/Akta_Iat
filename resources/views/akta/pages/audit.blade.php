@@ -1583,7 +1583,7 @@
                     <div class="flex flex-col gap-1">
                         <label class="text-xs font-semibold text-slate-300">Log Scan</label>
                         <div id="hgpFormLog" class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-400">
-                            Fisik Terscan : 0 | Saldo Awal : -
+                            Fisik Terscan : 0 | Saldo Akhir : -
                         </div>
                     </div>
 
@@ -1615,7 +1615,7 @@
                                 <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400 w-28">No. Part</th>
                                 <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400">Nama Part</th>
                                 <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400 w-24">Tgl. Periksa</th>
-                                <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20">Saldo Awal</th>
+                                <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20">Saldo Akhir</th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-24">Fisik (Qty)</th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20">Akhir</th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20">Selisih</th>
