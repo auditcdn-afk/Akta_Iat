@@ -42,8 +42,7 @@ function showAlert(message, type = "success") {
     } else {
         el.classList.add("border-emerald-500/30", "bg-emerald-500/10", "text-emerald-200");
     }
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    setTimeout(() => el.classList.add("hidden"), 6000);
+    setTimeout(() => el.classList.add("hidden"), 4000);
 }
 
 async function fetchJson(url, options = {}) {

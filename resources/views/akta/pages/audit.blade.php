@@ -28,7 +28,7 @@
         </div>
     </div>
 
-    <div id="auditAlert" class="hidden rounded-xl border px-4 py-3 text-sm"></div>
+    <div id="auditAlert" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded-xl border px-5 py-3 text-sm shadow-xl min-w-72 max-w-lg text-center"></div>
 
     <div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
         <div class="overflow-x-auto">
