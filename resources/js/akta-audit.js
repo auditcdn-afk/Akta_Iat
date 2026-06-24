@@ -3002,8 +3002,9 @@ async function prHandleFile(file) {
                 if (json.debug) {
                     txt += `\nsaldoCol=${json.debug.saldoCol} headerIdx=${json.debug.headerIdx} rows=${json.debug.totalRows}`;
                     txt += `\nHEADER: ${JSON.stringify(json.debug.headerRow)}`;
-                    if (json.debug.firstDataRows?.[0]) txt += `\nDATA1: ${JSON.stringify(json.debug.firstDataRows[0])}`;
-                    if (json.debug.firstDataRows?.[1]) txt += `\nDATA2: ${JSON.stringify(json.debug.firstDataRows[1])}`;
+                    (json.debug.firstDataRows || []).forEach((r, i) => {
+                        txt += `\nROW${i}: ${JSON.stringify(r)}`;
+                    });
                 }
                 msgEl.textContent = txt;
                 msgEl.classList.remove('hidden');

@@ -141,7 +141,7 @@ class PiutangRegulerController extends Controller
                 'headerRow' => array_slice($rows[$headerIdx] ?? [], 0, 22),
                 'firstDataRows' => array_map(
                     fn($r) => array_slice($r, 0, 22),
-                    array_slice($rows, $headerIdx + 1, 5)
+                    array_slice($rows, $headerIdx + 1, 10)
                 ),
             ];
         }
