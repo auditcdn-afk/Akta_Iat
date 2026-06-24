@@ -2964,10 +2964,11 @@ function prRender() {
 
     // Keterangan input handlers
     tblBody.querySelectorAll('input[data-pr-idx]').forEach(inp => {
-        inp.addEventListener('change', (e) => {
+        inp.addEventListener('input', (e) => {
             const i = parseInt(e.target.dataset.prIdx, 10);
             if (_prItems[i]) _prItems[i].keterangan = e.target.value;
         });
+        inp.addEventListener('blur', () => savePr().catch(() => {}));
     });
 }
 
@@ -3139,8 +3140,21 @@ function pcdnRender() {
             <td class="px-3 py-2 text-right text-slate-400">${pcdnFmtNum(r.analisa3)}</td>
             <td class="px-3 py-2 text-right text-slate-400">${pcdnFmtNum(r.analisa4)}</td>
             <td class="px-3 py-2 text-right text-slate-400">${pcdnFmtNum(r.analisa5)}</td>
-            <td class="px-3 py-2 text-slate-400">${r.keterangan || ''}</td>
+            <td class="px-3 py-2">
+                <input type="text" value="${(r.keterangan || '').replace(/"/g, '&quot;')}"
+                    data-pcdn-idx="${i}" placeholder="Keterangan... (opsional)"
+                    class="w-full rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none pcdn-ket-input">
+            </td>
         </tr>`).join('');
+
+    // Sync keterangan edits back to _pcdnItems and auto-save on blur
+    tbody.querySelectorAll('.pcdn-ket-input').forEach(inp => {
+        inp.addEventListener('input', (e) => {
+            const i = parseInt(e.target.dataset.pcdnIdx, 10);
+            if (_pcdnItems[i]) _pcdnItems[i].keterangan = e.target.value;
+        });
+        inp.addEventListener('blur', () => savePcdn().catch(() => {}));
+    });
 }
 
 async function savePcdn() {
@@ -3167,7 +3181,14 @@ async function pcdnHandleFile(file) {
         if (!res.ok) throw new Error(json.message || 'Gagal memproses file.');
         const raw = json.data ?? [];
         if (raw.length === 0) throw new Error('Tidak ada data piutang ditemukan dalam file.');
-        _pcdnItems = raw;
+        // Preserve existing keterangan on re-import
+        const existingMap = {};
+        _pcdnItems.forEach(it => { existingMap[it.noKontrak + it.customer] = it; });
+        _pcdnItems = raw.map(it => {
+            const old = existingMap[it.noKontrak + it.customer];
+            if (old) it.keterangan = old.keterangan;
+            return it;
+        });
         if (msgEl) {
             msgEl.textContent = `✅ ${raw.length} debitur berhasil dimuat dari "${file.name}"`;
             msgEl.classList.remove('hidden');
