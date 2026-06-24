@@ -1484,10 +1484,16 @@
 
             <div class="flex items-center justify-between">
                 <h3 class="text-base font-bold text-slate-100">Pemeriksaan HGP &amp; AHM Oils</h3>
-                <button id="hgpSaveBtn" type="button"
-                    class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500 active:scale-95 transition">
-                    💾 Simpan
-                </button>
+                <div class="flex items-center gap-2">
+                    <button id="hgpClearBtn" type="button"
+                        class="inline-flex items-center gap-2 rounded-xl border border-red-600/50 bg-red-600/10 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-600/20 active:scale-95 transition">
+                        🗑️ Hapus Semua Data
+                    </button>
+                    <button id="hgpSaveBtn" type="button"
+                        class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500 active:scale-95 transition">
+                        💾 Simpan
+                    </button>
+                </div>
             </div>
 
             {{-- Import Excel --}}

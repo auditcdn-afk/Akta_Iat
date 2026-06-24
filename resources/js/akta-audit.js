@@ -4169,4 +4169,13 @@ function initHgpForm() {
             scanInput.focus();
         }
     });
+
+    document.getElementById('hgpClearBtn')?.addEventListener('click', () => {
+        if (!confirm('Hapus semua data HGP & AHM Oils? Data lama akan dikosongkan, lalu import ulang file Excel.')) return;
+        _hgpData = hgpEmptyData();
+        hgpRenderItems();
+        const msg = document.getElementById('hgpImportMsg');
+        if (msg) { msg.classList.remove('hidden'); msg.textContent = 'Data dikosongkan. Silakan import ulang file Excel.'; }
+        _doSaveHgp().catch(() => {});
+    });
 }
