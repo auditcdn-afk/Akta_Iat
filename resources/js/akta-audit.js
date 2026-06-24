@@ -220,6 +220,9 @@ function switchTab(tab) {
     if (tab === "smh") {
         loadSmhForm().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "perlengkapan") {
+        loadPlForm().catch((e) => showAlert(e.message, "error"));
+    }
 }
 
 // ── Form Pemeriksaan Kas (Kas Besar, Kas Kecil, Pecahan, Blanko) ───────────────
@@ -724,6 +727,226 @@ async function smhScanUnit(q) {
     if (row) { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); row.classList.add('ring-2', 'ring-blue-400'); setTimeout(() => row.classList.remove('ring-2', 'ring-blue-400'), 2000); }
 }
 
+// ── Perlengkapan di Luar SMH ──────────────────────────────────────────────────
+
+let plJenisAll  = [];   // semua jenis dari API
+let plSmhMap    = {};   // { nama: { ada, total } } dari smh-summary
+let plEditId    = null; // id record sedang diedit
+
+async function loadPlForm() {
+    if (!activePlanId) return;
+
+    // Isi no plan & nama unit dari activePlan
+    const plan = activePlan || {};
+    document.getElementById('plNoPlan').value      = plan.noSpt || plan.noPlan || '';
+    document.getElementById('plNamaUnit').value    = plan.cabang || plan.namaUnit || '';
+    document.getElementById('plTglPeriksa').value  = plan.tglPlan || plan.tglMulai || '';
+
+    // Load jenis perlengkapan dari onhand
+    try {
+        const [jenisRes, smhRes] = await Promise.all([
+            fetchJson(`/api/audit-detail/perlengkapan/jenis?plan_audit_id=${activePlanId}`, { headers: authHeaders() }),
+            fetchJson(`/api/audit-detail/perlengkapan/smh-summary?plan_audit_id=${activePlanId}`, { headers: authHeaders() }),
+        ]);
+        plJenisAll = jenisRes.data || [];
+        plSmhMap   = {};
+        (smhRes.data || []).forEach(r => { plSmhMap[r.nama] = r; });
+    } catch (e) {
+        plJenisAll = [];
+    }
+
+    // Load data yang sudah ada
+    await loadPlTable();
+}
+
+async function loadPlTable() {
+    if (!activePlanId) return;
+    const res = await fetchJson(`/api/audit-detail/perlengkapan?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    const rows = res.data || [];
+    renderPlTable(rows);
+}
+
+function renderPlTable(rows) {
+    const tbody = document.getElementById('plTableBody');
+    const wrap  = document.getElementById('plTableWrap');
+    const count = document.getElementById('plCount');
+    if (!tbody) return;
+
+    if (!rows.length) { wrap?.classList.add('hidden'); return; }
+    wrap?.classList.remove('hidden');
+    count.textContent = `${rows.length} item`;
+
+    let totSaldo = 0, totFisik = 0, totSelisih = 0;
+
+    tbody.innerHTML = rows.map(r => {
+        totSaldo   += r.saldo   || 0;
+        totFisik   += r.fisik   || 0;
+        totSelisih += r.selisih || 0;
+        const selClass = r.selisih < 0 ? 'text-red-400' : r.selisih > 0 ? 'text-emerald-400' : 'text-slate-300';
+        return `<tr class="hover:bg-slate-800/50" data-pl-id="${r.id}">
+            <td class="px-4 py-3 text-sm text-slate-100">${escapeHtml(r.jenisPerlengkapan || '-')}</td>
+            <td class="px-4 py-3 text-right text-sm text-slate-300">${r.saldo}</td>
+            <td class="px-4 py-3 text-right text-sm text-slate-300">${r.fisik}</td>
+            <td class="px-4 py-3 text-right text-sm font-bold ${selClass}">${r.selisih > 0 ? '+' : ''}${r.selisih}</td>
+            <td class="px-4 py-3 text-xs text-slate-400 max-w-xs truncate">${escapeHtml(r.penjelasan || '-')}</td>
+            <td class="px-4 py-3 text-center">
+                <button type="button" data-pl-edit="${r.id}" class="rounded px-2 py-1 text-xs text-blue-400 hover:bg-blue-900/30">Edit</button>
+                <button type="button" data-pl-del="${r.id}" class="rounded px-2 py-1 text-xs text-red-400 hover:bg-red-900/30">Hapus</button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    document.getElementById('plTotalSaldo').textContent   = totSaldo;
+    document.getElementById('plTotalFisik').textContent   = totFisik;
+    const selEl = document.getElementById('plTotalSelisih');
+    selEl.textContent = (totSelisih > 0 ? '+' : '') + totSelisih;
+    selEl.style.color = totSelisih < 0 ? '#f87171' : totSelisih > 0 ? '#34d399' : '#94a3b8';
+}
+
+function plRecalcSelisih() {
+    const saldo  = parseFloat(document.getElementById('plSaldo')?.value  || 0);
+    const fisik  = parseInt(document.getElementById('plFisik')?.value    || 0, 10);
+    const selisih = fisik - saldo;
+    const el = document.getElementById('plSelisih');
+    if (el) {
+        el.value = selisih;
+        el.style.color = selisih < 0 ? '#f87171' : selisih > 0 ? '#34d399' : '#94a3b8';
+    }
+}
+
+function plResetForm() {
+    plEditId = null;
+    document.getElementById('plJenisInput').value  = '';
+    document.getElementById('plSaldo').value       = 0;
+    document.getElementById('plFisik').value       = 0;
+    document.getElementById('plSelisih').value     = 0;
+    document.getElementById('plPenjelasan').value  = '';
+    document.getElementById('plJenisSmhInfo').classList.add('hidden');
+    document.getElementById('plSimpanBtn').textContent = 'Simpan';
+    plRecalcSelisih();
+}
+
+function plShowJenisSuggestions(q) {
+    const ul = document.getElementById('plJenisList');
+    if (!ul) return;
+    const filtered = q
+        ? plJenisAll.filter(n => n.toLowerCase().includes(q.toLowerCase()))
+        : plJenisAll;
+    if (!filtered.length) { ul.classList.add('hidden'); return; }
+    ul.innerHTML = filtered.map(n => `<li class="cursor-pointer px-4 py-2 text-sm text-slate-200 hover:bg-slate-700" data-val="${escapeHtml(n)}">${escapeHtml(n)}</li>`).join('');
+    ul.classList.remove('hidden');
+}
+
+function plSelectJenis(nama) {
+    document.getElementById('plJenisInput').value = nama;
+    document.getElementById('plJenisList')?.classList.add('hidden');
+
+    // Tunjukkan info dari SMH onhand
+    const smh  = plSmhMap[nama];
+    const info = document.getElementById('plJenisSmhInfo');
+    if (smh && info) {
+        info.textContent = `Dari SMH onhand: ${smh.ada} ada / ${smh.total} unit diperiksa`;
+        info.classList.remove('hidden');
+        // Auto-isi saldo berdasarkan total unit onhand yang punya item ini
+        document.getElementById('plSaldo').value = smh.total;
+        plRecalcSelisih();
+    } else if (info) {
+        info.classList.add('hidden');
+    }
+}
+
+function initPlForm() {
+    // Jenis perlengkapan autocomplete
+    document.getElementById('plJenisInput')?.addEventListener('input', e => plShowJenisSuggestions(e.target.value));
+    document.getElementById('plJenisInput')?.addEventListener('focus', e => plShowJenisSuggestions(e.target.value));
+    document.addEventListener('click', e => {
+        const item = e.target.closest('[data-val]');
+        if (item && e.target.closest('#plJenisList')) { plSelectJenis(item.dataset.val); return; }
+        if (!e.target.closest('#plJenisInput') && !e.target.closest('#plJenisList')) {
+            document.getElementById('plJenisList')?.classList.add('hidden');
+        }
+    });
+
+    // Fisik ± buttons
+    document.getElementById('plFisikPlus')?.addEventListener('click', () => {
+        const el = document.getElementById('plFisik');
+        el.value = parseInt(el.value || 0, 10) + 1;
+        plRecalcSelisih();
+    });
+    document.getElementById('plFisikMinus')?.addEventListener('click', () => {
+        const el = document.getElementById('plFisik');
+        el.value = Math.max(0, parseInt(el.value || 0, 10) - 1);
+        plRecalcSelisih();
+    });
+    document.getElementById('plSaldo')?.addEventListener('input', plRecalcSelisih);
+    document.getElementById('plFisik')?.addEventListener('input', plRecalcSelisih);
+
+    // Reset
+    document.getElementById('plResetBtn')?.addEventListener('click', plResetForm);
+
+    // Simpan
+    document.getElementById('plSimpanBtn')?.addEventListener('click', async () => {
+        const jenis = document.getElementById('plJenisInput')?.value.trim();
+        if (!jenis) { showAlert('Pilih jenis perlengkapan terlebih dahulu.', 'error'); return; }
+        const btn = document.getElementById('plSimpanBtn');
+        btn.disabled = true; btn.textContent = 'Menyimpan...';
+        try {
+            const body = {
+                plan_audit_id:      activePlanId,
+                no_plan:            document.getElementById('plNoPlan')?.value || null,
+                nama_unit_usaha:    document.getElementById('plNamaUnit')?.value || null,
+                nama_pemeriksa:     document.getElementById('plNamaPemeriksa')?.value || null,
+                tgl_periksa:        document.getElementById('plTglPeriksa')?.value || null,
+                jenis_perlengkapan: jenis,
+                saldo:              parseFloat(document.getElementById('plSaldo')?.value || 0),
+                fisik:              parseInt(document.getElementById('plFisik')?.value || 0, 10),
+                penjelasan:         document.getElementById('plPenjelasan')?.value || null,
+            };
+            if (plEditId) {
+                await fetchJson(`/api/audit-detail/perlengkapan/${plEditId}`, { method: 'PUT', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            } else {
+                await fetchJson('/api/audit-detail/perlengkapan', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            }
+            showAlert('Data perlengkapan berhasil disimpan.');
+            plResetForm();
+            await loadPlTable();
+        } catch (err) {
+            showAlert('Gagal: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false; btn.textContent = plEditId ? 'Update' : 'Simpan';
+        }
+    });
+
+    // Edit & Delete dari tabel
+    document.getElementById('plTableBody')?.addEventListener('click', async e => {
+        const editBtn = e.target.closest('[data-pl-edit]');
+        if (editBtn) {
+            const id = Number(editBtn.dataset.plEdit);
+            const res = await fetchJson(`/api/audit-detail/perlengkapan?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const rec = (res.data || []).find(r => r.id === id);
+            if (!rec) return;
+            plEditId = id;
+            document.getElementById('plJenisInput').value   = rec.jenisPerlengkapan || '';
+            document.getElementById('plSaldo').value        = rec.saldo  || 0;
+            document.getElementById('plFisik').value        = rec.fisik  || 0;
+            document.getElementById('plPenjelasan').value   = rec.penjelasan || '';
+            document.getElementById('plSimpanBtn').textContent = 'Update';
+            plRecalcSelisih();
+            document.getElementById('plJenisInput')?.focus();
+            return;
+        }
+        const delBtn = e.target.closest('[data-pl-del]');
+        if (delBtn) {
+            if (!confirm('Hapus data ini?')) return;
+            try {
+                await fetchJson(`/api/audit-detail/perlengkapan/${delBtn.dataset.plDel}`, { method: 'DELETE', headers: authHeaders() });
+                showAlert('Data dihapus.');
+                await loadPlTable();
+            } catch (err) { showAlert(err.message, 'error'); }
+        }
+    });
+}
+
 // ── Form Pemeriksaan Bank ──────────────────────────────────────────────────────
 
 let bankLoadedIds = [];
@@ -1117,6 +1340,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("saveKasFormBtn")?.addEventListener("click", () => {
         saveKasForm().catch((err) => showAlert(err.message || "Gagal menyimpan.", "error"));
     });
+
+    // ── Perlengkapan di luar SMH panel ──
+    initPlForm();
 
     // ── SMH panel ──
     document.getElementById('smhUploadBtn')?.addEventListener('click', async () => {

@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\ReportAuditController;
 use App\Http\Controllers\Api\PemeriksaanKasController;
 use App\Http\Controllers\Api\PemeriksaanBankController;
 use App\Http\Controllers\Api\PemeriksaanSmhController;
+use App\Http\Controllers\Api\PemeriksaanPerlengkapanController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', [DataStoreController::class, 'ping']);
@@ -99,6 +100,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,manajer,auditor');
 
     Route::delete('/audit-detail/bank/{pemeriksaanBank}', [PemeriksaanBankController::class, 'destroy'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── Perlengkapan di luar SMH ──
+    Route::get('/audit-detail/perlengkapan', [PemeriksaanPerlengkapanController::class, 'index']);
+    Route::get('/audit-detail/perlengkapan/jenis', [PemeriksaanPerlengkapanController::class, 'jenis']);
+    Route::get('/audit-detail/perlengkapan/smh-summary', [PemeriksaanPerlengkapanController::class, 'smhSummary']);
+    Route::post('/audit-detail/perlengkapan', [PemeriksaanPerlengkapanController::class, 'store'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::put('/audit-detail/perlengkapan/{pemeriksaanPerlengkapan}', [PemeriksaanPerlengkapanController::class, 'update'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::delete('/audit-detail/perlengkapan/{pemeriksaanPerlengkapan}', [PemeriksaanPerlengkapanController::class, 'destroy'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── SMH ──
