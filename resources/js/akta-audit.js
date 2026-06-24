@@ -1,3 +1,5 @@
+import * as XLSX from 'xlsx';
+
 const SESSION_KEY = "akta_session";
 
 let plans = [];
