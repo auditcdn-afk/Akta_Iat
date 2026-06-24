@@ -505,6 +505,27 @@ function renderSmhTable(filter = '') {
         </tr>`).join('');
 }
 
+let smhDropdownMode = 'mesin'; // 'mesin' | 'rangka'
+
+function populateSmhDropdown() {
+    const sel = document.getElementById('smhDropdownSelect');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— Pilih No. Mesin / No. Rangka —</option>';
+    smhItems.forEach((it) => {
+        const val  = smhDropdownMode === 'mesin' ? it.noMesin : it.noRangka;
+        const label = smhDropdownMode === 'mesin'
+            ? `${it.noMesin || '-'} | ${it.kodeModel || ''} ${it.warna || ''} | ${it.gudang || ''}`
+            : `${it.noRangka || '-'} | ${it.kodeModel || ''} ${it.warna || ''} | ${it.gudang || ''}`;
+        const badge = it.statusFisik === 'ada' ? ' ✓' : it.statusFisik === 'tidak_ada' ? ' ✗' : '';
+        const opt = document.createElement('option');
+        opt.value = val || '';
+        opt.textContent = label + badge;
+        if (it.statusFisik === 'ada')       opt.style.color = '#16a34a';
+        if (it.statusFisik === 'tidak_ada') opt.style.color = '#dc2626';
+        sel.appendChild(opt);
+    });
+}
+
 function updateSmhSummary(data) {
     document.getElementById('smhTotalUnit').textContent   = data.totalUnit ?? smhItems.length;
     document.getElementById('smhTotalAda').textContent    = data.totalDitemukan ?? smhItems.filter(i => i.statusFisik === 'ada').length;
@@ -534,6 +555,7 @@ async function loadSmhForm() {
     document.getElementById('smhTglOnhand').textContent = rec.tglOnhand ? `Tgl Onhand: ${rec.tglOnhand}` : '';
     updateSmhSummary(rec);
     renderSmhTable();
+    populateSmhDropdown();
 }
 
 async function smhCheckItem(itemId, statusFisik, keteranganFisik = '') {
@@ -1011,7 +1033,50 @@ document.addEventListener("DOMContentLoaded", async () => {
             document.getElementById('smhTglOnhand').textContent = res.data.tglOnhand ? `Tgl Onhand: ${res.data.tglOnhand}` : '';
             updateSmhSummary(res.data);
             renderSmhTable();
+            populateSmhDropdown();
         } catch (e) { showAlert(e.message, 'error'); }
+    });
+
+    // Mode toggle: Scan vs Dropdown
+    document.getElementById('smhModeScan')?.addEventListener('click', () => {
+        document.getElementById('smhPanelScan').classList.remove('hidden');
+        document.getElementById('smhPanelDropdown').classList.add('hidden');
+        document.getElementById('smhModeScan').className = 'rounded-lg border border-emerald-500 bg-emerald-600 px-3 py-1.5 text-white text-xs font-semibold';
+        document.getElementById('smhModeDropdown').className = 'rounded-lg border border-slate-300 px-3 py-1.5 text-slate-600 hover:bg-slate-100 text-xs font-semibold';
+    });
+
+    document.getElementById('smhModeDropdown')?.addEventListener('click', () => {
+        document.getElementById('smhPanelScan').classList.add('hidden');
+        document.getElementById('smhPanelDropdown').classList.remove('hidden');
+        document.getElementById('smhModeDropdown').className = 'rounded-lg border border-emerald-500 bg-emerald-600 px-3 py-1.5 text-white text-xs font-semibold';
+        document.getElementById('smhModeScan').className = 'rounded-lg border border-slate-300 px-3 py-1.5 text-slate-600 hover:bg-slate-100 text-xs font-semibold';
+        populateSmhDropdown();
+    });
+
+    // Toggle dropdown by mesin/rangka
+    document.getElementById('smhDropdownByMesin')?.addEventListener('click', () => {
+        smhDropdownMode = 'mesin';
+        document.getElementById('smhDropdownByMesin').className = 'smh-dd-toggle rounded-lg border border-blue-400 bg-blue-50 px-2.5 py-1 font-semibold text-blue-600 text-xs';
+        document.getElementById('smhDropdownByRangka').className = 'smh-dd-toggle rounded-lg border border-slate-300 px-2.5 py-1 font-semibold text-slate-500 hover:bg-slate-100 text-xs';
+        populateSmhDropdown();
+    });
+
+    document.getElementById('smhDropdownByRangka')?.addEventListener('click', () => {
+        smhDropdownMode = 'rangka';
+        document.getElementById('smhDropdownByRangka').className = 'smh-dd-toggle rounded-lg border border-blue-400 bg-blue-50 px-2.5 py-1 font-semibold text-blue-600 text-xs';
+        document.getElementById('smhDropdownByMesin').className = 'smh-dd-toggle rounded-lg border border-slate-300 px-2.5 py-1 font-semibold text-slate-500 hover:bg-slate-100 text-xs';
+        populateSmhDropdown();
+    });
+
+    // Cek dari dropdown
+    document.getElementById('smhDropdownCekBtn')?.addEventListener('click', () => {
+        const q = document.getElementById('smhDropdownSelect')?.value;
+        if (!q) { showAlert('Pilih unit terlebih dahulu.', 'error'); return; }
+        smhScanUnit(q).catch((e) => showAlert(e.message, 'error'));
+    });
+
+    document.getElementById('smhDropdownSelect')?.addEventListener('change', (e) => {
+        if (e.target.value) smhScanUnit(e.target.value).catch((err) => showAlert(err.message, 'error'));
     });
 
     document.getElementById('smhScanBtn')?.addEventListener('click', () => {
@@ -1052,6 +1117,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             await smhCheckItem(itemId, sel.value, ket);
             const row = sel.closest('tr');
             if (row) { row.className = `border-b border-slate-100 hover:bg-slate-50 ${smhStatusRowClass(sel.value)}`; }
+            populateSmhDropdown();
         } catch (err) { showAlert(err.message, 'error'); }
     });
 
