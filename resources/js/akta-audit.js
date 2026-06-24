@@ -4052,21 +4052,58 @@ async function hgpHandleFile(file) {
             return;
         }
         if (!_hgpData) _hgpData = hgpEmptyData();
-        // Merge: add new spareparts not already in list
-        const existing = new Set(_hgpData.items.map(it => it.sparepart?.toLowerCase()));
-        let added = 0;
-        res.data.forEach(it => {
-            if (!existing.has((it.sparepart || '').toLowerCase())) {
-                _hgpData.items.push(it);
-                added++;
-            }
+        // Replace: import = master data baru. Pertahankan fisik & logScan untuk noPart yang cocok.
+        const prevByPart = {};
+        (_hgpData.items || []).forEach(it => {
+            if (it.noPart) prevByPart[it.noPart.toLowerCase()] = it;
         });
-        if (msg) { msg.textContent = `${added} sparepart ditambahkan (${res.total} total di file).`; }
+        _hgpData.items = res.data.map(it => {
+            const prev = it.noPart ? prevByPart[it.noPart.toLowerCase()] : null;
+            if (prev) {
+                it.fisik   = hgpN(prev.fisik);
+                it.logScan = Array.isArray(prev.logScan) ? prev.logScan : [];
+                hgpCalcItem(it);
+            }
+            return it;
+        });
+        if (msg) { msg.textContent = `${res.data.length} item diimport (data lama diganti).`; }
         hgpRenderItems();
         _doSaveHgp().catch(() => {});
     } catch (e) {
         if (msg) msg.textContent = 'Gagal: ' + (e.message || 'Unknown error');
     }
+}
+
+function hgpScan(code) {
+    const msg = document.getElementById('hgpScanMsg');
+    const showMsg = (text, ok) => {
+        if (!msg) return;
+        msg.classList.remove('hidden');
+        msg.textContent = text;
+        msg.className = 'mt-2 text-xs font-medium ' + (ok ? 'text-green-400' : 'text-red-400');
+    };
+    const term = (code || '').trim().toLowerCase();
+    if (!term) return;
+    const items = _hgpData?.items || [];
+    // Cari berdasarkan No. Part dulu, lalu nama part
+    let idx = items.findIndex(it => (it.noPart || '').toLowerCase() === term);
+    if (idx < 0) idx = items.findIndex(it => (it.sparepart || '').toLowerCase() === term);
+    if (idx < 0) idx = items.findIndex(it => (it.noPart || '').toLowerCase().includes(term));
+    if (idx < 0) {
+        showMsg(`No. Part "${code}" tidak ditemukan.`, false);
+        return;
+    }
+    const it = items[idx];
+    it.fisik = hgpN(it.fisik) + 1;
+    if (!Array.isArray(it.logScan)) it.logScan = [];
+    it.logScan.push({ at: new Date().toISOString() });
+    hgpCalcItem(it);
+    hgpRenderItems();
+    _doSaveHgp().catch(() => {});
+    showMsg(`✓ ${it.noPart || it.sparepart} — ${it.sparepart} | Fisik: ${hgpN(it.fisik)} | Selisih: ${it.selisih >= 0 ? '+' : ''}${it.selisih}`, true);
+    // Scroll ke baris yang discan
+    const rowInput = document.querySelector(`#hgpTableBody input[data-hgp-i="${idx}"][data-hgp-f="fisik"]`);
+    rowInput?.closest('tr')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
 async function loadHgpTab() {
@@ -4114,5 +4151,22 @@ function initHgpForm() {
 
     document.getElementById('hgpSaveBtn')?.addEventListener('click', () => {
         saveHgp().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
+    });
+
+    const scanInput = document.getElementById('hgpScanInput');
+    scanInput?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            hgpScan(scanInput.value);
+            scanInput.value = '';
+            scanInput.focus();
+        }
+    });
+    document.getElementById('hgpScanBtn')?.addEventListener('click', () => {
+        if (scanInput) {
+            hgpScan(scanInput.value);
+            scanInput.value = '';
+            scanInput.focus();
+        }
     });
 }

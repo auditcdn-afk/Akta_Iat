@@ -1520,6 +1520,23 @@
                 </div>
             </div>
 
+            {{-- Scan No. Part --}}
+            <div class="rounded-2xl border border-blue-700/40 bg-blue-900/10 p-5">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                    <div class="flex flex-1 flex-col gap-1">
+                        <label class="text-xs font-semibold uppercase tracking-wide text-blue-300">🔍 Scan / Input No. Part</label>
+                        <input type="text" id="hgpScanInput" placeholder="Scan barcode atau ketik No. Part lalu Enter..."
+                            autocomplete="off"
+                            class="rounded-lg border border-blue-600/50 bg-slate-900 px-4 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
+                    </div>
+                    <button id="hgpScanBtn" type="button"
+                        class="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-blue-500 active:scale-95 transition">
+                        ➕ Tambah Fisik
+                    </button>
+                </div>
+                <p id="hgpScanMsg" class="mt-2 hidden text-xs font-medium"></p>
+            </div>
+
             {{-- Tabel item HGP --}}
             <div id="hgpTableSection" class="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
                 <div class="flex items-center justify-between border-b border-slate-700 bg-slate-800/60 px-5 py-3">
