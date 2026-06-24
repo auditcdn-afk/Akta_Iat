@@ -4149,16 +4149,26 @@ function hgpFormSelectPart(code) {
 }
 
 // Scan barcode: akumulasi fisik +1 setiap scan kode yang sama, tiap scan tercatat di log.
+// Setelah scan, form dikosongkan total agar siap scan berikutnya.
 let _hgpScanGuard = false;
 function hgpScanAccumulate(code) {
-    const info = document.getElementById('hgpFormPartInfo');
-    const idx  = hgpFindIdx(code);
+    const msg  = document.getElementById('hgpFormMsg');
+    const showMsg = (text, ok) => {
+        if (!msg) return;
+        msg.classList.remove('hidden');
+        msg.textContent = text;
+        msg.className = 'text-xs font-medium ' + (ok ? 'text-green-400' : 'text-red-400');
+    };
+    const term = (code || '').trim();
+    if (!term) return;
+
+    const idx = hgpFindIdx(term);
     if (idx < 0) {
-        _hgpSelIdx = -1;
-        if (info) { info.textContent = `No. Part "${code}" tidak ditemukan dalam data import.`; info.className = 'mt-0.5 text-xs text-red-400'; }
+        showMsg(`✗ No. Part "${term}" tidak ditemukan dalam data import.`, false);
+        hgpFormClearInputs();
         return;
     }
-    _hgpSelIdx = idx;
+
     const it = _hgpData.items[idx];
     it.fisik = hgpN(it.fisik) + 1;                       // akumulasi
     if (!Array.isArray(it.logScan)) it.logScan = [];
@@ -4166,24 +4176,35 @@ function hgpScanAccumulate(code) {
     it.tgl = document.getElementById('hgpFormTgl')?.value || it.tgl;
     hgpCalcItem(it);
 
-    // Update tampilan form
-    if (info) { info.textContent = `${it.noPart || '-'} — ${it.sparepart || ''} (Saldo Akhir: ${hgpSaldo(it)})`; info.className = 'mt-0.5 text-xs text-green-400'; }
-    const qtyEl = document.getElementById('hgpFormQty');
-    const ketEl = document.getElementById('hgpFormKet');
-    if (qtyEl) qtyEl.value = hgpN(it.fisik);
-    if (ketEl && !ketEl.value) ketEl.value = it.keterangan || '';
-    hgpFormRecalc();
-
     hgpRenderItems();
     _doSaveHgp().catch(() => {});
 
-    // Kosongkan input untuk scan berikutnya (tanpa memicu reset via change)
+    // Pesan hasil scan, lalu kosongkan form untuk scan berikutnya
+    showMsg(`✓ ${it.noPart || it.sparepart} — ${it.sparepart} | Fisik: ${hgpN(it.fisik)} | Akhir: ${it.akhir} | Selisih: ${it.selisih >= 0 ? '+' : ''}${it.selisih} (Terscan: ${it.logScan.length})`, true);
+    hgpFormClearInputs();
+}
+
+// Kosongkan input form (tanpa menyentuh pesan hasil scan)
+function hgpFormClearInputs() {
+    _hgpSelIdx = -1;
     const partInput = document.getElementById('hgpFormPart');
+    const qtyEl = document.getElementById('hgpFormQty');
+    const ketEl = document.getElementById('hgpFormKet');
+    const akhirEl = document.getElementById('hgpFormAkhir');
+    const selEl = document.getElementById('hgpFormSelisih');
+    const info  = document.getElementById('hgpFormPartInfo');
+    const log   = document.getElementById('hgpFormLog');
     if (partInput) {
         _hgpScanGuard = true;
         partInput.value = '';
-        setTimeout(() => { _hgpScanGuard = false; }, 0);
+        setTimeout(() => { _hgpScanGuard = false; partInput.focus(); }, 0);
     }
+    if (qtyEl)  qtyEl.value = 0;
+    if (ketEl)  ketEl.value = '';
+    if (akhirEl) akhirEl.value = 0;
+    if (selEl)  selEl.value = 0;
+    if (info)   info.textContent = '';
+    if (log)    log.textContent = 'Fisik Terscan : 0 | Saldo Akhir : -';
 }
 
 function hgpFormSaveEntry() {
