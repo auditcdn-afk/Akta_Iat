@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\PemeriksaanKasController;
 use App\Http\Controllers\Api\PemeriksaanBankController;
 use App\Http\Controllers\Api\PemeriksaanSmhController;
 use App\Http\Controllers\Api\PemeriksaanPerlengkapanController;
+use App\Http\Controllers\Api\PemeriksaanMateraiController;
 use App\Http\Controllers\Api\PlafonController;
 use Illuminate\Support\Facades\Route;
 
@@ -117,6 +118,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // ── Plafon ──
     Route::get('/audit-detail/plafon/analisa',   [PlafonController::class, 'analisa']);
     Route::get('/audit-detail/plafon/unit-list', [PlafonController::class, 'unitList']);
+
+    // ── Materai ──
+    Route::get('/audit-detail/materai',                                  [PemeriksaanMateraiController::class, 'index']);
+    Route::post('/audit-detail/materai/upload',                          [PemeriksaanMateraiController::class, 'upload'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::put('/audit-detail/materai/{pemeriksaanMaterai}/fisik',       [PemeriksaanMateraiController::class, 'updateFisik'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::delete('/audit-detail/materai/{pemeriksaanMaterai}',          [PemeriksaanMateraiController::class, 'destroy'])
+        ->middleware('akta.role:admin,manajer,auditor');
 
     // ── SMH ──
     Route::get('/audit-detail/smh', [PemeriksaanSmhController::class, 'index']);
