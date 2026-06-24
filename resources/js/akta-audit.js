@@ -3515,12 +3515,6 @@ function cfColorStat(id, v) {
 function cfInitForm() {
     if (!_cfData) _cfData = cfEmptyData();
 
-    // Fill header fields
-    const company = document.getElementById('cfCompany');
-    const tgl     = document.getElementById('cfTglPemeriksaan');
-    if (company) company.value = _cfData.company || '';
-    if (tgl)     tgl.value     = _cfData.tglPemeriksaan || '';
-
     // Fill saldo awal
     const saFields = {
         cfSaldoAwalTgl:   _cfData.saldoAwal?.tanggal || '',
@@ -3681,8 +3675,6 @@ function cfRenderRingkasan() {
 async function _doSaveCf() {
     if (!activePlanId) throw new Error('Pilih plan audit terlebih dahulu.');
     if (!_cfData) _cfData = cfEmptyData();
-    _cfData.company        = document.getElementById('cfCompany')?.value || '';
-    _cfData.tglPemeriksaan = document.getElementById('cfTglPemeriksaan')?.value || '';
     cfSyncSaldoAwal();
     return await fetchJson('/api/audit-detail/cek-fisik', {
         method: 'POST',
@@ -3701,11 +3693,6 @@ function initCfForm() {
     ['cfSaldoAwalCf','cfSaldoAwalStuj','cfSaldoAwalFstnk','cfSaldoAwalTgl'].forEach(id => {
         document.getElementById(id)?.addEventListener('input', () => { cfSyncSaldoAwal(); cfCalcAndRefresh(); });
         document.getElementById(id)?.addEventListener('blur',  () => _doSaveCf().catch(() => {}));
-    });
-
-    // Header info auto-save on blur
-    ['cfCompany','cfTglPemeriksaan'].forEach(id => {
-        document.getElementById(id)?.addEventListener('blur', () => _doSaveCf().catch(() => {}));
     });
 
     document.getElementById('cfAddPenerimaan')?.addEventListener('click', () => {

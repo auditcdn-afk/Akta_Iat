@@ -1223,20 +1223,6 @@
                 </button>
             </div>
 
-            {{-- Info Header --}}
-            <div class="rounded-xl border border-slate-700 bg-slate-800/60 px-5 py-4 grid grid-cols-2 gap-4 text-sm">
-                <div class="flex flex-col gap-1">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-400">Perusahaan / SO</label>
-                    <input type="text" id="cfCompany" placeholder="Nama perusahaan / SO..."
-                        class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none">
-                </div>
-                <div class="flex flex-col gap-1">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-400">Tanggal Pemeriksaan</label>
-                    <input type="date" id="cfTglPemeriksaan"
-                        class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none">
-                </div>
-            </div>
-
             {{-- Stat cards --}}
             <div class="grid grid-cols-3 gap-4">
                 <div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4">
