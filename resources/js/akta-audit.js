@@ -3988,8 +3988,12 @@ function hgpRenderItems() {
                     placeholder="Keterangan..."
                     class="hgp-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
             </td>
-            <td class="px-3 py-2 text-center text-slate-400 text-xs">
-                Terscan: ${scan} | Saldo: ${hgpN(it.saldoAwal)}
+            <td class="px-3 py-2 text-xs">
+                <div class="flex flex-col gap-0.5 text-slate-400">
+                    <span>Fisik Terscan : <span class="text-green-400 font-semibold">${scan}</span></span>
+                    <span>Saldo Awal : <span class="text-slate-300">${hgpN(it.saldoAwal)}</span></span>
+                    <span>Selisih Scan : <span class="${selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300'} font-semibold">${selSign}${selisih}</span></span>
+                </div>
             </td>
         </tr>`;
     }).join('');

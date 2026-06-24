@@ -52,48 +52,75 @@ class HgpController extends Controller
         $spreadsheet = $reader->load($file->getRealPath());
         $rows = $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
 
+        // Deteksi header: cari baris yang mengandung kolom "AWAL" (saldo awal)
+        // Format onhand: header row punya merged cells, sehingga posisi data digeser -1 dari label
+        // Header: col[2]="NO PART", col[4]="NAMA PART", col[5]="AWAL", col[10]="KETERANGAN"
+        // Data:   col[1]=noPart,    col[2]=namapart,    col[5]=awal,   col[10]=ket
+        // Rumus: colNoPart_data = colAwal - 4, colNama_data = colAwal - 3, colKet_data = colAwal + 5
         $items = [];
         $headerPassed = false;
+        $colAwal      = null;
         $colNoPart    = null;
         $colNama      = null;
-        $colAwal      = null;
         $colKet       = null;
 
         foreach ($rows as $row) {
             if (!$headerPassed) {
-                $hasNama = false;
+                $hasAwal = false;
                 foreach ($row as $ci => $cell) {
                     $lower = strtolower(trim((string)$cell));
-                    if (str_contains($lower, 'no part') || str_contains($lower, 'no_part') || str_contains($lower, 'part number') || $lower === 'kode') {
-                        $colNoPart = $ci;
+                    if ($lower === 'awal' || $lower === 'saldo awal' || $lower === 'qty' || str_contains($lower, 'jumlah')) {
+                        $colAwal  = $ci;
+                        $hasAwal  = true;
                     }
-                    if (str_contains($lower, 'nama part') || str_contains($lower, 'nama_part') || $lower === 'nama' || str_contains($lower, 'sparepart') || str_contains($lower, 'nama barang')) {
-                        $colNama = $ci;
-                        $hasNama = true;
-                    }
-                    if ($lower === 'awal' || str_contains($lower, 'saldo awal') || $lower === 'qty' || str_contains($lower, 'jumlah') || str_contains($lower, 'stock') || str_contains($lower, 'stok')) {
-                        $colAwal = $ci;
-                    }
-                    if ($colKet === null && ($lower === 'keterangan' || str_contains($lower, 'lokasi'))) {
+                    if ($lower === 'keterangan' || str_contains($lower, 'lokasi')) {
                         $colKet = $ci;
                     }
                 }
-                if ($hasNama) { $headerPassed = true; continue; }
+                if ($hasAwal) {
+                    // Tentukan kolom data berdasarkan posisi AWAL
+                    // Coba deteksi no-part & nama dari header dulu
+                    $colNoPart = null;
+                    $colNama   = null;
+                    foreach ($row as $ci => $cell) {
+                        $lower = strtolower(trim((string)$cell));
+                        if (str_contains($lower, 'no part') || str_contains($lower, 'no_part') || str_contains($lower, 'part number') || $lower === 'kode') {
+                            $colNoPart = $ci;
+                        }
+                        if (str_contains($lower, 'nama part') || str_contains($lower, 'nama_part') || $lower === 'nama' || str_contains($lower, 'sparepart') || str_contains($lower, 'nama barang')) {
+                            $colNama = $ci;
+                        }
+                    }
+                    $headerPassed = true;
+                    continue;
+                }
                 continue;
             }
 
-            $noPart = $colNoPart !== null ? trim((string)($row[$colNoPart] ?? '')) : '';
-            $nama   = $colNama   !== null ? trim((string)($row[$colNama]   ?? '')) : '';
-            $awal   = $colAwal   !== null ? $this->n($row[$colAwal] ?? 0) : $this->n($row[5] ?? 0);
-            $ket    = $colKet    !== null ? trim((string)($row[$colKet] ?? '')) : '';
+            // Skip baris kosong
+            $c0 = trim((string)($row[0] ?? ''));
+            if ($c0 === '') continue;
+            // Skip baris summary/total (col[0] bukan angka dan bukan data)
+            if (!is_numeric($c0) && $c0 !== '') {
+                // baris dengan text di col[0] biasanya bukan data part
+                continue;
+            }
 
-            if ($nama === '' && $noPart === '') continue;
+            $awal = $this->n($row[$colAwal] ?? 0);
 
-            $sparepart = $nama !== '' ? $nama : $noPart;
+            // Gunakan posisi relatif dari AWAL untuk menghindari masalah merged-cell di header.
+            // Header merged-cell membuat posisi label ≠ posisi data aktual.
+            // Posisi data: noPart = colAwal-4, nama = colAwal-3, ket = colAwal+5
+            $noPartRaw = trim((string)($row[$colAwal - 4] ?? ''));
+            $namaRaw   = trim((string)($row[$colAwal - 3] ?? ''));
+
+            if ($noPartRaw === '' && $namaRaw === '') continue;
+
+            $ket = $colKet !== null ? trim((string)($row[$colKet] ?? '')) : '';
 
             $items[] = [
-                'noPart'     => $noPart,
-                'sparepart'  => $sparepart,
+                'noPart'     => $noPartRaw,
+                'sparepart'  => $namaRaw !== '' ? $namaRaw : $noPartRaw,
                 'saldoAwal'  => $awal,
                 'fisik'      => 0,
                 'akhir'      => 0,
@@ -104,16 +131,17 @@ class HgpController extends Controller
             ];
         }
 
-        // Fallback: format onhand (col[1]=noPart, col[2]=nama, col[5]=awal, col[10]=ket)
+        // Fallback: tidak ada header AWAL — coba parse langsung (col[1]=noPart, col[2]=nama, col[5]=awal)
         if (empty($items)) {
             foreach ($rows as $row) {
+                if (!is_numeric(trim((string)($row[0] ?? '')))) continue;
                 $c1 = trim((string)($row[1] ?? ''));
                 $c2 = trim((string)($row[2] ?? ''));
-                if ($c2 === '' || is_numeric($c2)) continue;
+                if ($c1 === '' && $c2 === '') continue;
                 $awal = $this->n($row[5] ?? 0);
                 $items[] = [
                     'noPart'     => $c1,
-                    'sparepart'  => $c2,
+                    'sparepart'  => $c2 !== '' ? $c2 : $c1,
                     'saldoAwal'  => $awal,
                     'fisik'      => 0,
                     'akhir'      => 0,
