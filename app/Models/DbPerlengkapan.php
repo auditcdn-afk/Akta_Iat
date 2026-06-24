@@ -8,7 +8,7 @@ class DbPerlengkapan extends Model
 {
     protected $table = 'db_perlengkapan';
 
-    protected $fillable = ['kode', 'nama', 'satuan', 'qty', 'keterangan'];
+    protected $fillable = ['kode', 'wilayah', 'nama', 'satuan', 'qty', 'keterangan'];
 
     /** Kembalikan daftar perlengkapan sebagai array string */
     public function itemList(): array
@@ -22,6 +22,7 @@ class DbPerlengkapan extends Model
         return [
             'id'          => $this->id,
             'kode'        => $this->kode,
+            'wilayah'     => $this->wilayah,
             'nama'        => $this->nama,
             'satuan'      => $this->satuan,
             'qty'         => $this->qty,

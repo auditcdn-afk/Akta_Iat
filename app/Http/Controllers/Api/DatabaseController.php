@@ -31,7 +31,7 @@ class DatabaseController extends Controller
     private static array $colMap = [
         'harga-smh'    => ['kode_model', 'nama_smh', 'harga'],
         'plafon'       => ['kode', 'nama', 'nilai', 'keterangan'],
-        'perlengkapan' => ['kode', 'nama', 'satuan', 'qty', 'keterangan'],
+        'perlengkapan' => ['kode', 'wilayah', 'nama', 'satuan', 'qty', 'keterangan'],
         'unit-usaha'   => ['unit_usaha', 'wilayah', 'jenis'],
         'grading'      => ['id_grading', 'jenis', 'wilayah', 'nama_pemeriksaan', 'hasil_pemeriksaan', 'nilai', 'bknf', 'pknf', 'bkf', 'pkf', 'bnknf', 'pnknf', 'bnkf', 'pnkf'],
         'mt'           => ['nomor', 'nama_singkat', '_x', 'nama_peralatan', 'kode_peralatan'],
@@ -41,7 +41,7 @@ class DatabaseController extends Controller
     private static array $searchCols = [
         'harga-smh'    => ['kode_model', 'nama_smh'],
         'plafon'       => ['kode', 'nama', 'keterangan'],
-        'perlengkapan' => ['kode', 'nama', 'keterangan'],
+        'perlengkapan' => ['kode', 'wilayah', 'nama', 'keterangan'],
         'unit-usaha'   => ['unit_usaha', 'wilayah', 'jenis'],
         'grading'      => ['id_grading', 'jenis', 'wilayah', 'nama_pemeriksaan', 'hasil_pemeriksaan'],
         'mt'           => ['nama_singkat', 'nama_peralatan', 'kode_peralatan', 'jenis'],
@@ -52,7 +52,7 @@ class DatabaseController extends Controller
     private static array $uniqueKeys = [
         'harga-smh'    => ['kode_model'],
         'plafon'       => ['kode'],
-        'perlengkapan' => ['kode'],
+        'perlengkapan' => ['kode', 'wilayah'],
         'unit-usaha'   => ['unit_usaha', 'wilayah'],
         'grading'      => ['id_grading'],
         'mt'           => ['kode_peralatan', 'jenis'],
@@ -233,18 +233,35 @@ class DatabaseController extends Controller
                 }
 
                 // Special handling for perlengkapan: old XLS format is
-                // TIPE(col0) | NOSIN(col1) | Item1 | Item2 | ... (many columns)
-                // Map to: kode=NOSIN, nama=TIPE, keterangan=joined items
+                // TIPE(col0) | NOSIN(col1) | Aceh_Item1..N | Riau_Item1..N | Kepri_Item1..N
+                // The 3 regions have equal number of item columns.
                 if ($type === 'perlengkapan') {
                     $tipe  = trim((string) ($row[0] ?? ''));
-                    $nosin = trim((string) ($row[1] ?? ''));
+                    $nosin = strtoupper(trim((string) ($row[1] ?? '')));
                     if ($nosin === '') continue;
-                    // cols 2+ are perlengkapan items
-                    $items = array_filter(array_map('trim', array_slice($row, 2)), fn($v) => $v !== '');
-                    $model::updateOrCreate(
-                        ['kode' => strtoupper($nosin)],
-                        ['nama' => $tipe ?: null, 'keterangan' => implode(', ', $items) ?: null]
-                    );
+
+                    $allItems = array_map('trim', array_slice($row, 2));
+                    $nonEmpty = array_values(array_filter($allItems, fn($v) => $v !== ''));
+                    $count    = count($nonEmpty);
+
+                    // If divisible by 3, split into 3 equal wilayah groups
+                    $wilayahList = ['aceh', 'riau', 'kepri'];
+                    if ($count > 0 && $count % 3 === 0) {
+                        $perGroup = $count / 3;
+                        foreach ($wilayahList as $wi => $wilayah) {
+                            $groupItems = array_slice($nonEmpty, $wi * $perGroup, $perGroup);
+                            $model::updateOrCreate(
+                                ['kode' => $nosin, 'wilayah' => $wilayah],
+                                ['nama' => $tipe ?: null, 'keterangan' => implode(', ', $groupItems) ?: null]
+                            );
+                        }
+                    } else {
+                        // Fallback: store once without wilayah
+                        $model::updateOrCreate(
+                            ['kode' => $nosin, 'wilayah' => null],
+                            ['nama' => $tipe ?: null, 'keterangan' => implode(', ', $nonEmpty) ?: null]
+                        );
+                    }
                     $imported++;
                     continue;
                 }

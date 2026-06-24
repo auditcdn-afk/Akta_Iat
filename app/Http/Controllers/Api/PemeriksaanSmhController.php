@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\DbPerlengkapan;
+use App\Models\DbUnitUsaha;
 use App\Models\PemeriksaanSmh;
 use App\Models\PlanAudit;
 use App\Models\SmhOnhandItem;
@@ -171,10 +172,12 @@ class PemeriksaanSmhController extends Controller
 
     public function perlengkapan(Request $request): JsonResponse
     {
-        $kode = strtoupper(trim((string) $request->query('kode', '')));
+        $kode    = strtoupper(trim((string) $request->query('kode', '')));
         if (!$kode) return response()->json(['data' => null, 'items' => []]);
 
-        $row = $this->findPerlengkapan($kode);
+        $planId  = $request->query('plan_audit_id');
+        $wilayah = $this->wilayahFromPlan($planId);
+        $row     = $this->findPerlengkapan($kode, $wilayah);
 
         return response()->json([
             'data'  => $row,
@@ -205,11 +208,12 @@ class PemeriksaanSmhController extends Controller
 
         $item = $query->first();
 
-        // Ambil perlengkapan dari prefix no_mesin (5 huruf pertama tanpa spasi)
+        // Ambil perlengkapan berdasarkan prefix no_mesin + wilayah unit usaha plan
         $perlengkapan = [];
         if ($item) {
-            $prefix = strtoupper(substr(str_replace(' ', '', $item->no_mesin ?? ''), 0, 5));
-            $plRow  = $this->findPerlengkapan($prefix);
+            $prefix  = strtoupper(substr(str_replace(' ', '', $item->no_mesin ?? ''), 0, 5));
+            $wilayah = $this->wilayahFromPlan($planId);
+            $plRow   = $this->findPerlengkapan($prefix, $wilayah);
             $perlengkapan = $plRow ? $plRow->itemList() : [];
         }
 
@@ -224,13 +228,14 @@ class PemeriksaanSmhController extends Controller
 
     public function syncPerlengkapan(PemeriksaanSmh $pemeriksaanSmh): JsonResponse
     {
-        $items = $pemeriksaanSmh->items()->get();
+        $items   = $pemeriksaanSmh->items()->get();
+        $wilayah = $this->wilayahFromPlan((string) $pemeriksaanSmh->plan_audit_id);
 
         $grouped = [];
         foreach ($items as $it) {
             $prefix = strtoupper(substr(str_replace(' ', '', $it->no_mesin ?? ''), 0, 5));
             if (!isset($grouped[$prefix])) {
-                $plRow = $this->findPerlengkapan($prefix);
+                $plRow = $this->findPerlengkapan($prefix, $wilayah);
                 $grouped[$prefix] = [
                     'kode'         => $prefix,
                     'nama'         => $plRow?->nama,
@@ -297,13 +302,30 @@ class PemeriksaanSmhController extends Controller
         ];
     }
 
-    /** Find DbPerlengkapan by kode, with fallback for older DB schemas. */
-    private function findPerlengkapan(string $kode): ?DbPerlengkapan
+    /** Resolve wilayah string from plan's unit usaha. */
+    private function wilayahFromPlan(?string $planId): ?string
+    {
+        if (!$planId) return null;
+        $plan = \App\Models\PlanAudit::find($planId);
+        if (!$plan?->cabang) return null;
+        $uu = \App\Models\DbUnitUsaha::where('unit_usaha', $plan->cabang)->first();
+        return $uu ? strtolower(trim($uu->wilayah ?? '')) : null;
+    }
+
+    /** Find DbPerlengkapan by kode + wilayah, fallback to any wilayah for same kode. */
+    private function findPerlengkapan(string $kode, ?string $wilayah = null): ?DbPerlengkapan
     {
         try {
-            return DbPerlengkapan::where('kode', $kode)->first();
+            $q = DbPerlengkapan::where('kode', $kode);
+            if ($wilayah) {
+                // Try exact wilayah first, then fallback to null wilayah
+                $row = (clone $q)->where('wilayah', $wilayah)->first()
+                    ?? (clone $q)->whereNull('wilayah')->first()
+                    ?? $q->first();
+                return $row;
+            }
+            return $q->first();
         } catch (\Illuminate\Database\QueryException $e) {
-            // Column 'kode' missing – table uses legacy structure, skip gracefully
             return null;
         }
     }
