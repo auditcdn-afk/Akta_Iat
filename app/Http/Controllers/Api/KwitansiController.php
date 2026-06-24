@@ -39,9 +39,17 @@ class KwitansiController extends Controller
 
     public function parseExcel(Request $request): JsonResponse
     {
-        $request->validate(['file' => 'required|file|mimes:xls,xlsx,csv']);
+        $request->validate(['file' => 'required|file']);
 
-        $path = $request->file('file')->store('tmp-kwitansi');
+        $file = $request->file('file');
+        $ext  = strtolower($file->getClientOriginalExtension());
+        if (!in_array($ext, ['xls', 'xlsx', 'csv'], true)) {
+            return response()->json([
+                'message' => 'File harus berformat .xls, .xlsx, atau .csv.',
+            ], 422);
+        }
+
+        $path = $file->store('tmp-kwitansi');
         $fullPath = storage_path('app/' . $path);
 
         try {
