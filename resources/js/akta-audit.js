@@ -238,6 +238,9 @@ function switchTab(tab) {
     if (tab === "piutang-reguler") {
         loadPrTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "piutang-cdn") {
+        loadPcdnTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1680,6 +1683,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initBpkiForm();
     initKwForm();
     initPrForm();
+    initPcdnForm();
 
     try {
         await loadCurrentUser();
@@ -3042,5 +3046,161 @@ function initPrForm() {
 
     document.getElementById('prSaveBtn')?.addEventListener('click', () => {
         savePr().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
+    });
+}
+
+// ══════════════════════════════════════════════════════════
+// ── Piutang CDN Module ──
+// ══════════════════════════════════════════════════════════
+
+let _pcdnItems = [];
+
+async function loadPcdnTab() {
+    if (!activePlanId) return;
+    const res = await fetchJson(`/api/audit-detail/piutang-cdn?plan_audit_id=${activePlanId}`);
+    if (res.data) {
+        _pcdnItems = res.data.piutang ?? [];
+    } else {
+        _pcdnItems = [];
+    }
+    pcdnRender();
+}
+
+function pcdnFmtRp(val) {
+    const n = parseFloat(val) || 0;
+    if (n === 0) return 'Rp 0';
+    const abs = Math.abs(n);
+    if (abs >= 1_000_000_000) return (n < 0 ? '-' : '') + 'Rp ' + (abs / 1_000_000_000).toFixed(1) + ' M';
+    if (abs >= 1_000_000)     return (n < 0 ? '-' : '') + 'Rp ' + (abs / 1_000_000).toFixed(1) + ' Jt';
+    if (abs >= 1_000)         return (n < 0 ? '-' : '') + 'Rp ' + (abs / 1_000).toFixed(1) + ' Rb';
+    return 'Rp ' + n.toLocaleString('id-ID');
+}
+
+function pcdnFmtNum(val) {
+    const n = parseFloat(val) || 0;
+    return n === 0 ? '-' : n.toLocaleString('id-ID');
+}
+
+function pcdnRender() {
+    const items = _pcdnItems;
+
+    // Stat cards
+    const totSaldo    = items.reduce((s, r) => s + (r.saldoPiutang || 0), 0);
+    const totBelumJto = items.reduce((s, r) => s + (r.belumJto || 0), 0);
+    const totTung15   = items.reduce((s, r) => s + (r.tung15 || 0), 0);
+    const totTung630  = items.reduce((s, r) => s + (r.tung630 || 0), 0);
+    const totTung3160 = items.reduce((s, r) => s + (r.tung3160 || 0), 0);
+    const totTung60   = items.reduce((s, r) => s + (r.tung60 || 0), 0);
+
+    const s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    s('pcdnStatCustomer', items.length);
+    s('pcdnStatSaldo',    pcdnFmtRp(totSaldo));
+    s('pcdnStatBelumJto', pcdnFmtRp(totBelumJto));
+    s('pcdnStatTung15',   pcdnFmtRp(totTung15));
+    s('pcdnStatTung630',  pcdnFmtRp(totTung630));
+    s('pcdnStatTung3160', pcdnFmtRp(totTung3160));
+    s('pcdnStatTung60',   pcdnFmtRp(totTung60));
+
+    const section = document.getElementById('pcdnTableSection');
+    const count   = document.getElementById('pcdnTableCount');
+    const tbody   = document.getElementById('pcdnTableBody');
+    if (!tbody) return;
+
+    if (items.length === 0) {
+        if (section) section.classList.add('hidden');
+        tbody.innerHTML = '';
+        return;
+    }
+
+    if (section) section.classList.remove('hidden');
+    if (count) count.textContent = `${items.length} Debitur`;
+
+    const tung = (v) => {
+        const n = parseFloat(v) || 0;
+        if (n === 0) return `<span class="text-slate-500">-</span>`;
+        return `<span class="font-semibold text-red-400">${n.toLocaleString('id-ID')}</span>`;
+    };
+
+    tbody.innerHTML = items.map((r, i) => `
+        <tr class="hover:bg-slate-800/40 transition">
+            <td class="px-3 py-2 text-slate-400">${i + 1}</td>
+            <td class="px-3 py-2 font-mono text-blue-300">${r.noKontrak || '-'}</td>
+            <td class="px-3 py-2 text-slate-300">${r.tanggal || '-'}</td>
+            <td class="px-3 py-2 font-semibold text-slate-100">${r.customer}</td>
+            <td class="px-3 py-2 text-right text-slate-200">${pcdnFmtNum(r.saldoPiutang)}</td>
+            <td class="px-3 py-2 text-right text-green-400">${pcdnFmtNum(r.belumJto)}</td>
+            <td class="px-3 py-2 text-right">${tung(r.tung15)}</td>
+            <td class="px-3 py-2 text-right">${tung(r.tung630)}</td>
+            <td class="px-3 py-2 text-right">${tung(r.tung3160)}</td>
+            <td class="px-3 py-2 text-right">${tung(r.tung60)}</td>
+            <td class="px-3 py-2 text-right text-slate-400">${pcdnFmtNum(r.analisa0)}</td>
+            <td class="px-3 py-2 text-right text-slate-400">${pcdnFmtNum(r.analisa1)}</td>
+            <td class="px-3 py-2 text-right text-slate-400">${pcdnFmtNum(r.analisa2)}</td>
+            <td class="px-3 py-2 text-right text-slate-400">${pcdnFmtNum(r.analisa3)}</td>
+            <td class="px-3 py-2 text-right text-slate-400">${pcdnFmtNum(r.analisa4)}</td>
+            <td class="px-3 py-2 text-right text-slate-400">${pcdnFmtNum(r.analisa5)}</td>
+            <td class="px-3 py-2 text-slate-400">${r.keterangan || ''}</td>
+        </tr>`).join('');
+}
+
+async function savePcdn() {
+    if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
+    const res = await fetchJson('/api/audit-detail/piutang-cdn', {
+        method: 'POST',
+        body: JSON.stringify({ planAuditId: activePlanId, piutang: _pcdnItems }),
+    });
+    showAlert(res.message, 'success');
+}
+
+async function pcdnHandleFile(file) {
+    const msgEl = document.getElementById('pcdnImportMsg');
+    try {
+        if (msgEl) { msgEl.textContent = '⏳ Memproses file...'; msgEl.classList.remove('hidden'); }
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('/api/audit-detail/piutang-cdn/parse-excel', {
+            method: 'POST',
+            headers: authHeaders(),
+            body: fd,
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message || 'Gagal memproses file.');
+        const raw = json.data ?? [];
+        if (raw.length === 0) throw new Error('Tidak ada data piutang ditemukan dalam file.');
+        _pcdnItems = raw;
+        if (msgEl) {
+            msgEl.textContent = `✅ ${raw.length} debitur berhasil dimuat dari "${file.name}"`;
+            msgEl.classList.remove('hidden');
+        }
+        pcdnRender();
+        savePcdn().catch(() => {});
+    } catch (err) {
+        if (msgEl) { msgEl.textContent = '❌ ' + err.message; msgEl.classList.remove('hidden'); }
+    }
+}
+
+function initPcdnForm() {
+    const fileInput = document.getElementById('pcdnFileInput');
+    fileInput?.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        await pcdnHandleFile(file);
+        fileInput.value = '';
+    });
+
+    const dropzone = document.getElementById('pcdnDropzone');
+    if (dropzone) {
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('border-blue-400'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-blue-400'));
+        dropzone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-blue-400');
+            const file = e.dataTransfer.files[0];
+            if (file) await pcdnHandleFile(file);
+        });
+    }
+
+    document.getElementById('pcdnSaveBtn')?.addEventListener('click', () => {
+        savePcdn().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
     });
 }
