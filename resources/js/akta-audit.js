@@ -244,6 +244,9 @@ function switchTab(tab) {
     if (tab === "ttp-gantung") {
         loadTtpTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "cek-fisik") {
+        loadCfTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1688,6 +1691,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initPrForm();
     initPcdnForm();
     initTtpForm();
+    initCfForm();
 
     try {
         await loadCurrentUser();
@@ -3430,5 +3434,288 @@ function initTtpForm() {
 
     document.getElementById('ttpSaveBtn')?.addEventListener('click', () => {
         saveTtp().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
+    });
+}
+
+// ══════════════════════════════════════════════════════════
+// ── Cek Fisik Module ──
+// ══════════════════════════════════════════════════════════
+
+let _cfData = null; // { company, tglPemeriksaan, saldoAwal, penerimaan[], pengeluaran[], saldoAkhir, fisik, selisih }
+
+async function loadCfTab() {
+    if (!activePlanId) { cfRender(); return; }
+    const res = await fetchJson(`/api/audit-detail/cek-fisik?plan_audit_id=${activePlanId}`);
+    if (res.data && res.data.data && Object.keys(res.data.data).length > 0) {
+        _cfData = res.data.data;
+    }
+    cfRender();
+}
+
+function cfN(v) { return parseFloat(v) || 0; }
+
+function cfCalcSaldoAkhir() {
+    if (!_cfData) return;
+    const sa = _cfData.saldoAwal;
+    const totRecv = { cf: 0, stuj: 0, fstnk: 0 };
+    (_cfData.penerimaan || []).forEach(r => { totRecv.cf += cfN(r.cf); totRecv.stuj += cfN(r.stuj); totRecv.fstnk += cfN(r.fstnk); });
+    const totOut = { cf: 0, stuj: 0, fstnk: 0 };
+    (_cfData.pengeluaran || []).forEach(r => { totOut.cf += cfN(r.cf); totOut.stuj += cfN(r.stuj); totOut.fstnk += cfN(r.fstnk); });
+    _cfData.saldoAkhir = {
+        cf:    cfN(sa.cf)    + totRecv.cf    - totOut.cf,
+        stuj:  cfN(sa.stuj)  + totRecv.stuj  - totOut.stuj,
+        fstnk: cfN(sa.fstnk) + totRecv.fstnk - totOut.fstnk,
+    };
+    _cfData.selisih = {
+        cf:    _cfData.saldoAkhir.cf    - cfN(_cfData.fisik?.cf),
+        stuj:  _cfData.saldoAkhir.stuj  - cfN(_cfData.fisik?.stuj),
+        fstnk: _cfData.saldoAkhir.fstnk - cfN(_cfData.fisik?.fstnk),
+    };
+}
+
+function cfRender() {
+    const content = document.getElementById('cfContent');
+    if (!_cfData || !_cfData.saldoAwal) {
+        content?.classList.add('hidden');
+        return;
+    }
+    content?.classList.remove('hidden');
+    cfCalcSaldoAkhir();
+
+    const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setText('cfCompany', _cfData.company || '-');
+    setText('cfTglPemeriksaan', _cfData.tglPemeriksaan || '-');
+
+    // Stat cards
+    const sa = _cfData.saldoAwal;
+    const ak = _cfData.saldoAkhir;
+    const sl = _cfData.selisih;
+    setText('cfStatCfAwal',     cfN(sa.cf));
+    setText('cfStatCfAkhir',    cfN(ak?.cf));
+    setText('cfStatCfSelisih',  cfN(sl?.cf));
+    setText('cfStatStujAwal',   cfN(sa.stuj));
+    setText('cfStatStujAkhir',  cfN(ak?.stuj));
+    setText('cfStatStujSelisih',cfN(sl?.stuj));
+    setText('cfStatFstnkAwal',  cfN(sa.fstnk));
+    setText('cfStatFstnkAkhir', cfN(ak?.fstnk));
+    setText('cfStatFstnkSelisih',cfN(sl?.fstnk));
+
+    // Color selisih
+    ['cfStatCfSelisih','cfStatStujSelisih','cfStatFstnkSelisih'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const v = parseFloat(el.textContent) || 0;
+        el.className = el.className.replace(/text-\w+-\d+/g, '') + (v === 0 ? ' text-green-400' : ' text-red-400 font-bold');
+    });
+
+    // Saldo Awal table
+    const saldoAwalBody = document.getElementById('cfSaldoAwalBody');
+    if (saldoAwalBody) {
+        saldoAwalBody.innerHTML = `<tr class="border-b border-slate-800/60">
+            <td class="px-4 py-2 text-slate-300">${sa.tanggal || '-'}</td>
+            <td class="px-4 py-2 text-right font-semibold text-slate-100">${cfN(sa.cf)}</td>
+            <td class="px-4 py-2 text-right font-semibold text-slate-100">${cfN(sa.stuj)}</td>
+            <td class="px-4 py-2 text-right font-semibold text-slate-100">${cfN(sa.fstnk)}</td>
+        </tr>`;
+    }
+
+    // Penerimaan table
+    cfRenderPenerimaan();
+    cfRenderPengeluaran();
+
+    // Ringkasan table
+    const ringkasan = document.getElementById('cfRingkasanBody');
+    if (ringkasan) {
+        const fisik = _cfData.fisik || { cf: 0, stuj: 0, fstnk: 0 };
+        ringkasan.innerHTML = `
+            <tr class="border-b border-slate-800/60">
+                <td class="px-4 py-2 text-slate-300">Saldo Akhir (Sistem)</td>
+                <td class="px-4 py-2 text-right font-semibold text-blue-400">${cfN(ak?.cf)}</td>
+                <td class="px-4 py-2 text-right font-semibold text-blue-400">${cfN(ak?.stuj)}</td>
+                <td class="px-4 py-2 text-right font-semibold text-blue-400">${cfN(ak?.fstnk)}</td>
+            </tr>
+            <tr class="border-b border-slate-800/60 bg-slate-800/30">
+                <td class="px-4 py-2 text-slate-300 font-semibold">Fisik (Hasil Pemeriksaan)</td>
+                <td class="px-4 py-2 text-right"><input type="number" id="cfFisikCf" value="${cfN(fisik.cf)}"
+                    class="w-24 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-right text-sm text-slate-100 focus:border-blue-500 focus:outline-none cf-fisik-input"></td>
+                <td class="px-4 py-2 text-right"><input type="number" id="cfFisikStuj" value="${cfN(fisik.stuj)}"
+                    class="w-24 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-right text-sm text-slate-100 focus:border-blue-500 focus:outline-none cf-fisik-input"></td>
+                <td class="px-4 py-2 text-right"><input type="number" id="cfFisikFstnk" value="${cfN(fisik.fstnk)}"
+                    class="w-24 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-right text-sm text-slate-100 focus:border-blue-500 focus:outline-none cf-fisik-input"></td>
+            </tr>
+            <tr>
+                <td class="px-4 py-2 font-bold text-slate-200">Selisih</td>
+                <td class="px-4 py-2 text-right font-bold ${cfN(sl?.cf) !== 0 ? 'text-red-400' : 'text-green-400'}">${cfN(sl?.cf)}</td>
+                <td class="px-4 py-2 text-right font-bold ${cfN(sl?.stuj) !== 0 ? 'text-red-400' : 'text-green-400'}">${cfN(sl?.stuj)}</td>
+                <td class="px-4 py-2 text-right font-bold ${cfN(sl?.fstnk) !== 0 ? 'text-red-400' : 'text-green-400'}">${cfN(sl?.fstnk)}</td>
+            </tr>`;
+
+        // Fisik input listeners
+        ringkasan.querySelectorAll('.cf-fisik-input').forEach(inp => {
+            inp.addEventListener('input', () => {
+                _cfData.fisik = {
+                    cf:    parseFloat(document.getElementById('cfFisikCf')?.value) || 0,
+                    stuj:  parseFloat(document.getElementById('cfFisikStuj')?.value) || 0,
+                    fstnk: parseFloat(document.getElementById('cfFisikFstnk')?.value) || 0,
+                };
+                cfCalcSaldoAkhir();
+                // Update selisih display live
+                const sl2 = _cfData.selisih;
+                const rows = ringkasan.querySelectorAll('tr');
+                if (rows[2]) {
+                    rows[2].querySelectorAll('td').forEach((td, i) => {
+                        if (i === 0) return;
+                        const key = ['cf','stuj','fstnk'][i-1];
+                        const v = cfN(sl2?.[key]);
+                        td.textContent = v;
+                        td.className = `px-4 py-2 text-right font-bold ${v !== 0 ? 'text-red-400' : 'text-green-400'}`;
+                    });
+                }
+            });
+            inp.addEventListener('blur', () => saveCf().catch(() => {}));
+        });
+    }
+}
+
+function cfRenderPenerimaan() {
+    const tbody = document.getElementById('cfPenerimaanBody');
+    if (!tbody) return;
+    const rows = (_cfData?.penerimaan || []);
+    tbody.innerHTML = rows.map((r, i) => `
+        <tr class="border-b border-slate-800/60 hover:bg-slate-800/30" data-cf-p-idx="${i}">
+            <td class="px-4 py-2"><input type="date" value="${r.tanggal||''}" class="cf-p-tgl rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none w-36"></td>
+            <td class="px-4 py-2"><input type="text" value="${(r.noDokumen||'').replace(/"/g,'&quot;')}" placeholder="No. Dokumen" class="cf-p-nodok w-full rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none"></td>
+            <td class="px-4 py-2 text-right"><input type="number" value="${cfN(r.cf)}" class="cf-p-cf w-20 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-right text-slate-100 focus:border-blue-500 focus:outline-none"></td>
+            <td class="px-4 py-2 text-right"><input type="number" value="${cfN(r.stuj)}" class="cf-p-stuj w-20 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-right text-slate-100 focus:border-blue-500 focus:outline-none"></td>
+            <td class="px-4 py-2 text-right"><input type="number" value="${cfN(r.fstnk)}" class="cf-p-fstnk w-20 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-right text-slate-100 focus:border-blue-500 focus:outline-none"></td>
+            <td class="px-4 py-2 text-center"><button type="button" data-del-p="${i}" class="text-red-400 hover:text-red-300 text-xs">✕</button></td>
+        </tr>`).join('');
+
+    tbody.querySelectorAll('tr').forEach(tr => {
+        const idx = parseInt(tr.dataset.cfPIdx);
+        const sync = () => {
+            if (!_cfData.penerimaan[idx]) return;
+            _cfData.penerimaan[idx].tanggal   = tr.querySelector('.cf-p-tgl')?.value || '';
+            _cfData.penerimaan[idx].noDokumen = tr.querySelector('.cf-p-nodok')?.value || '';
+            _cfData.penerimaan[idx].cf        = parseFloat(tr.querySelector('.cf-p-cf')?.value) || 0;
+            _cfData.penerimaan[idx].stuj      = parseFloat(tr.querySelector('.cf-p-stuj')?.value) || 0;
+            _cfData.penerimaan[idx].fstnk     = parseFloat(tr.querySelector('.cf-p-fstnk')?.value) || 0;
+        };
+        tr.querySelectorAll('input').forEach(inp => {
+            inp.addEventListener('input', sync);
+            inp.addEventListener('blur', () => { sync(); saveCf().catch(() => {}); });
+        });
+        tr.querySelector('[data-del-p]')?.addEventListener('click', () => {
+            _cfData.penerimaan.splice(idx, 1);
+            cfRenderPenerimaan();
+            saveCf().catch(() => {});
+        });
+    });
+}
+
+function cfRenderPengeluaran() {
+    const tbody = document.getElementById('cfPengeluaranBody');
+    if (!tbody) return;
+    const rows = (_cfData?.pengeluaran || []);
+    tbody.innerHTML = rows.map((r, i) => `
+        <tr class="border-b border-slate-800/60 hover:bg-slate-800/30" data-cf-k-idx="${i}">
+            <td class="px-4 py-2"><input type="text" value="${(r.noDokumen||'').replace(/"/g,'&quot;')}" placeholder="No. Dokumen" class="cf-k-nodok w-full rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none"></td>
+            <td class="px-4 py-2 text-right"><input type="number" value="${cfN(r.cf)}" class="cf-k-cf w-20 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-right text-slate-100 focus:border-blue-500 focus:outline-none"></td>
+            <td class="px-4 py-2 text-right"><input type="number" value="${cfN(r.stuj)}" class="cf-k-stuj w-20 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-right text-slate-100 focus:border-blue-500 focus:outline-none"></td>
+            <td class="px-4 py-2 text-right"><input type="number" value="${cfN(r.fstnk)}" class="cf-k-fstnk w-20 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-right text-slate-100 focus:border-blue-500 focus:outline-none"></td>
+            <td class="px-4 py-2 text-center"><button type="button" data-del-k="${i}" class="text-red-400 hover:text-red-300 text-xs">✕</button></td>
+        </tr>`).join('');
+
+    tbody.querySelectorAll('tr').forEach(tr => {
+        const idx = parseInt(tr.dataset.cfKIdx);
+        const sync = () => {
+            if (!_cfData.pengeluaran[idx]) return;
+            _cfData.pengeluaran[idx].noDokumen = tr.querySelector('.cf-k-nodok')?.value || '';
+            _cfData.pengeluaran[idx].cf        = parseFloat(tr.querySelector('.cf-k-cf')?.value) || 0;
+            _cfData.pengeluaran[idx].stuj      = parseFloat(tr.querySelector('.cf-k-stuj')?.value) || 0;
+            _cfData.pengeluaran[idx].fstnk     = parseFloat(tr.querySelector('.cf-k-fstnk')?.value) || 0;
+        };
+        tr.querySelectorAll('input').forEach(inp => {
+            inp.addEventListener('input', sync);
+            inp.addEventListener('blur', () => { sync(); saveCf().catch(() => {}); });
+        });
+        tr.querySelector('[data-del-k]')?.addEventListener('click', () => {
+            _cfData.pengeluaran.splice(idx, 1);
+            cfRenderPengeluaran();
+            saveCf().catch(() => {});
+        });
+    });
+}
+
+async function saveCf() {
+    if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
+    const res = await fetchJson('/api/audit-detail/cek-fisik', {
+        method: 'POST',
+        body: JSON.stringify({ planAuditId: activePlanId, data: _cfData }),
+    });
+    showAlert(res.message, 'success');
+}
+
+async function cfHandleFile(file) {
+    const msgEl = document.getElementById('cfImportMsg');
+    try {
+        if (msgEl) { msgEl.textContent = '⏳ Memproses file...'; msgEl.classList.remove('hidden'); }
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('/api/audit-detail/cek-fisik/parse-excel', {
+            method: 'POST',
+            headers: authHeaders(),
+            body: fd,
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message || 'Gagal memproses file.');
+        _cfData = json.data;
+        if (msgEl) { msgEl.textContent = `✅ Data Cek Fisik berhasil dimuat dari "${file.name}"`; msgEl.classList.remove('hidden'); }
+        cfRender();
+        saveCf().catch(() => {});
+    } catch (err) {
+        if (msgEl) { msgEl.textContent = '❌ ' + err.message; msgEl.classList.remove('hidden'); }
+    }
+}
+
+function initCfForm() {
+    const fileInput = document.getElementById('cfFileInput');
+    fileInput?.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        await cfHandleFile(file);
+        fileInput.value = '';
+    });
+
+    const dropzone = document.getElementById('cfDropzone');
+    if (dropzone) {
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('border-blue-400'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-blue-400'));
+        dropzone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-blue-400');
+            const file = e.dataTransfer.files[0];
+            if (file) await cfHandleFile(file);
+        });
+    }
+
+    document.getElementById('cfAddPenerimaan')?.addEventListener('click', () => {
+        if (!_cfData) _cfData = { company:'', tglPemeriksaan:'', saldoAwal:{tanggal:'',cf:0,stuj:0,fstnk:0}, penerimaan:[], pengeluaran:[], saldoAkhir:{cf:0,stuj:0,fstnk:0}, fisik:{cf:0,stuj:0,fstnk:0}, selisih:{cf:0,stuj:0,fstnk:0} };
+        if (!_cfData.penerimaan) _cfData.penerimaan = [];
+        _cfData.penerimaan.push({ tanggal:'', noDokumen:'', cf:0, stuj:0, fstnk:0 });
+        document.getElementById('cfContent')?.classList.remove('hidden');
+        cfRenderPenerimaan();
+    });
+
+    document.getElementById('cfAddPengeluaran')?.addEventListener('click', () => {
+        if (!_cfData) _cfData = { company:'', tglPemeriksaan:'', saldoAwal:{tanggal:'',cf:0,stuj:0,fstnk:0}, penerimaan:[], pengeluaran:[], saldoAkhir:{cf:0,stuj:0,fstnk:0}, fisik:{cf:0,stuj:0,fstnk:0}, selisih:{cf:0,stuj:0,fstnk:0} };
+        if (!_cfData.pengeluaran) _cfData.pengeluaran = [];
+        _cfData.pengeluaran.push({ noDokumen:'', cf:0, stuj:0, fstnk:0 });
+        document.getElementById('cfContent')?.classList.remove('hidden');
+        cfRenderPengeluaran();
+    });
+
+    document.getElementById('cfSaveBtn')?.addEventListener('click', () => {
+        saveCf().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
     });
 }

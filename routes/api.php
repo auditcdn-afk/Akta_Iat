@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\KwitansiController;
 use App\Http\Controllers\Api\PiutangRegulerController;
 use App\Http\Controllers\Api\PiutangCdnController;
 use App\Http\Controllers\Api\TtpGantungController;
+use App\Http\Controllers\Api\CekFisikController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', [DataStoreController::class, 'ping']);
@@ -163,6 +164,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/audit-detail/piutang-reguler', [PiutangRegulerController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/piutang-reguler/parse-excel', [PiutangRegulerController::class, 'parseExcel'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── Cek Fisik ──
+    Route::get('/audit-detail/cek-fisik',  [CekFisikController::class, 'show']);
+    Route::post('/audit-detail/cek-fisik', [CekFisikController::class, 'save'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/cek-fisik/parse-excel', [CekFisikController::class, 'parseExcel'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── TTP Gantung ──

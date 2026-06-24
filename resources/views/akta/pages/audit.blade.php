@@ -117,6 +117,10 @@
                 class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
                 TTP Gantung
             </button>
+            <button type="button" data-tab="cek-fisik"
+                class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
+                Cek Fisik
+            </button>
         </div>
 
         {{-- Panel: Pemeriksaan Kas --}}
@@ -1206,6 +1210,145 @@
                 </div>
             </div>
 
+        </div>
+
+        {{-- Panel: Cek Fisik --}}
+        <div id="tabPanel-cek-fisik" class="audit-tab-panel hidden space-y-5">
+
+            <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-slate-100">Pemeriksaan Blangko Cek Fisik &amp; STUJ</h3>
+                <button id="cfSaveBtn"
+                    class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500 active:scale-95 transition">
+                    💾 Simpan
+                </button>
+            </div>
+
+            {{-- Import Excel --}}
+            <div id="cfDropzone"
+                class="relative flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-slate-600 bg-slate-800/40 p-8 text-center transition cursor-pointer hover:border-blue-500">
+                <span class="text-4xl">📊</span>
+                <p class="text-sm text-slate-300">
+                    Drag &amp; drop file <span class="font-semibold text-blue-400">.xls / .xlsx</span> Berita Acara Cek Fisik ke sini, atau
+                </p>
+                <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-yellow-500 px-4 py-2 text-sm font-semibold text-slate-900 shadow hover:bg-yellow-400 transition">
+                    📁 Pilih File Excel
+                    <input type="file" id="cfFileInput" accept=".xls,.xlsx" class="hidden">
+                </label>
+                <p id="cfImportMsg" class="hidden text-sm font-medium text-green-400"></p>
+            </div>
+
+            {{-- Info & Stat Cards --}}
+            <div id="cfContent" class="hidden space-y-5">
+
+                <div class="rounded-xl border border-slate-700 bg-slate-800/60 px-5 py-3 flex flex-wrap gap-4 text-sm">
+                    <div><span class="text-slate-400">Perusahaan: </span><span id="cfCompany" class="font-semibold text-slate-100"></span></div>
+                    <div><span class="text-slate-400">Tgl Pemeriksaan: </span><span id="cfTglPemeriksaan" class="font-semibold text-slate-100"></span></div>
+                </div>
+
+                {{-- Stat grid --}}
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4">
+                        <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400 text-center">Cek Fisik (CF)</p>
+                        <div class="grid grid-cols-3 gap-2 text-center text-xs">
+                            <div><p id="cfStatCfAwal" class="text-lg font-bold text-slate-100">0</p><p class="text-slate-500">Saldo Awal</p></div>
+                            <div><p id="cfStatCfAkhir" class="text-lg font-bold text-blue-400">0</p><p class="text-slate-500">Saldo Akhir</p></div>
+                            <div><p id="cfStatCfSelisih" class="text-lg font-bold text-green-400">0</p><p class="text-slate-500">Selisih</p></div>
+                        </div>
+                    </div>
+                    <div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4">
+                        <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400 text-center">STUJ</p>
+                        <div class="grid grid-cols-3 gap-2 text-center text-xs">
+                            <div><p id="cfStatStujAwal" class="text-lg font-bold text-slate-100">0</p><p class="text-slate-500">Saldo Awal</p></div>
+                            <div><p id="cfStatStujAkhir" class="text-lg font-bold text-blue-400">0</p><p class="text-slate-500">Saldo Akhir</p></div>
+                            <div><p id="cfStatStujSelisih" class="text-lg font-bold text-green-400">0</p><p class="text-slate-500">Selisih</p></div>
+                        </div>
+                    </div>
+                    <div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4">
+                        <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400 text-center">F. STNK</p>
+                        <div class="grid grid-cols-3 gap-2 text-center text-xs">
+                            <div><p id="cfStatFstnkAwal" class="text-lg font-bold text-slate-100">0</p><p class="text-slate-500">Saldo Awal</p></div>
+                            <div><p id="cfStatFstnkAkhir" class="text-lg font-bold text-blue-400">0</p><p class="text-slate-500">Saldo Akhir</p></div>
+                            <div><p id="cfStatFstnkSelisih" class="text-lg font-bold text-green-400">0</p><p class="text-slate-500">Selisih</p></div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Saldo Awal --}}
+                <div class="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
+                    <div class="border-b border-slate-700 bg-slate-800/60 px-5 py-2">
+                        <span class="text-xs font-bold uppercase tracking-wide text-slate-200">📅 Saldo Awal</span>
+                    </div>
+                    <table class="w-full text-sm">
+                        <thead><tr class="border-b border-slate-800 text-xs text-slate-400">
+                            <th class="px-4 py-2 text-left">Tanggal</th>
+                            <th class="px-4 py-2 text-right">Cek Fisik</th>
+                            <th class="px-4 py-2 text-right">STUJ</th>
+                            <th class="px-4 py-2 text-right">F. STNK</th>
+                        </tr></thead>
+                        <tbody id="cfSaldoAwalBody"></tbody>
+                    </table>
+                </div>
+
+                {{-- Penerimaan --}}
+                <div class="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
+                    <div class="border-b border-slate-700 bg-slate-800/60 px-5 py-2 flex items-center justify-between">
+                        <span class="text-xs font-bold uppercase tracking-wide text-slate-200">📥 Penerimaan</span>
+                        <button id="cfAddPenerimaan" type="button"
+                            class="rounded-lg border border-dashed border-slate-500 px-3 py-1 text-xs text-slate-400 hover:border-blue-400 hover:text-blue-400">
+                            + Tambah
+                        </button>
+                    </div>
+                    <table class="w-full text-sm">
+                        <thead><tr class="border-b border-slate-800 text-xs text-slate-400">
+                            <th class="px-4 py-2 text-left">Tanggal</th>
+                            <th class="px-4 py-2 text-left">No. Dokumen</th>
+                            <th class="px-4 py-2 text-right">Cek Fisik</th>
+                            <th class="px-4 py-2 text-right">STUJ</th>
+                            <th class="px-4 py-2 text-right">F. STNK</th>
+                            <th class="px-4 py-2"></th>
+                        </tr></thead>
+                        <tbody id="cfPenerimaanBody"></tbody>
+                    </table>
+                </div>
+
+                {{-- Pengeluaran --}}
+                <div class="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
+                    <div class="border-b border-slate-700 bg-slate-800/60 px-5 py-2 flex items-center justify-between">
+                        <span class="text-xs font-bold uppercase tracking-wide text-slate-200">📤 Pengeluaran</span>
+                        <button id="cfAddPengeluaran" type="button"
+                            class="rounded-lg border border-dashed border-slate-500 px-3 py-1 text-xs text-slate-400 hover:border-blue-400 hover:text-blue-400">
+                            + Tambah
+                        </button>
+                    </div>
+                    <table class="w-full text-sm">
+                        <thead><tr class="border-b border-slate-800 text-xs text-slate-400">
+                            <th class="px-4 py-2 text-left">No. Dokumen</th>
+                            <th class="px-4 py-2 text-right">Cek Fisik</th>
+                            <th class="px-4 py-2 text-right">STUJ</th>
+                            <th class="px-4 py-2 text-right">F. STNK</th>
+                            <th class="px-4 py-2"></th>
+                        </tr></thead>
+                        <tbody id="cfPengeluaranBody"></tbody>
+                    </table>
+                </div>
+
+                {{-- Saldo Akhir / Fisik / Selisih --}}
+                <div class="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
+                    <div class="border-b border-slate-700 bg-slate-800/60 px-5 py-2">
+                        <span class="text-xs font-bold uppercase tracking-wide text-slate-200">📊 Saldo Akhir, Fisik &amp; Selisih</span>
+                    </div>
+                    <table class="w-full text-sm">
+                        <thead><tr class="border-b border-slate-800 text-xs text-slate-400">
+                            <th class="px-4 py-2 text-left">Keterangan</th>
+                            <th class="px-4 py-2 text-right">Cek Fisik</th>
+                            <th class="px-4 py-2 text-right">STUJ</th>
+                            <th class="px-4 py-2 text-right">F. STNK</th>
+                        </tr></thead>
+                        <tbody id="cfRingkasanBody"></tbody>
+                    </table>
+                </div>
+
+            </div>
         </div>
 
         {{-- Panel: TTP Gantung --}}
