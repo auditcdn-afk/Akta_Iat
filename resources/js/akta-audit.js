@@ -2947,6 +2947,7 @@ function prRender() {
             <td class="px-3 py-2 text-right ${it.tung630 > 0 ? 'text-orange-400 font-semibold' : 'text-slate-500'}">${prFmtNum(it.tung630)}</td>
             <td class="px-3 py-2 text-right ${it.tung3160 > 0 ? 'text-red-400 font-semibold' : 'text-slate-500'}">${prFmtNum(it.tung3160)}</td>
             <td class="px-3 py-2 text-right ${it.tung60 > 0 ? 'text-red-500 font-bold' : 'text-slate-500'}">${prFmtNum(it.tung60)}</td>
+            <td class="px-3 py-2 text-slate-300 whitespace-nowrap">${escHtml(it.giroGantung || '-')}</td>
             <td class="px-3 py-2">
                 <input type="text" value="${escHtml(it.keterangan || '')}"
                     data-pr-idx="${idx}"

@@ -1066,7 +1066,7 @@
                     <span id="prTableCount" class="rounded-full bg-blue-600/20 px-3 py-1 text-xs font-bold text-blue-300">0 Customer</span>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-[1400px] text-xs">
+                    <table class="w-full min-w-[1550px] text-xs">
                         <thead class="border-b border-slate-700 bg-slate-800">
                             <tr>
                                 <th rowspan="2" class="px-3 py-2 text-left font-semibold uppercase text-slate-400 align-bottom">No</th>
@@ -1080,6 +1080,7 @@
                                 <th rowspan="2" class="px-3 py-2 text-right font-semibold uppercase text-slate-400 align-bottom">Saldo Akhir</th>
                                 <th rowspan="2" class="px-3 py-2 text-right font-semibold uppercase text-slate-400 align-bottom">Belum JTO</th>
                                 <th colspan="4" class="px-3 py-2 text-center font-semibold uppercase text-slate-400 border-b border-slate-700">Tunggakan (Hari)</th>
+                                <th rowspan="2" class="px-3 py-2 text-left font-semibold uppercase text-slate-400 align-bottom">Giro Gantung/SPK</th>
                                 <th rowspan="2" class="px-3 py-2 text-left font-semibold uppercase text-slate-400 align-bottom">Keterangan</th>
                             </tr>
                             <tr>

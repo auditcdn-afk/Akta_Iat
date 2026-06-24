@@ -55,71 +55,63 @@ class PiutangRegulerController extends Controller
         $spreadsheet = $reader->load($file->getRealPath());
         $rows = $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
 
-        // Find header row (contains "CUSTOMER" or "NO. FAKTUR")
+        // Anchor on the "Saldo Awal" header cell. The report uses a two-row
+        // merged header with inconsistent labels, so positional mapping
+        // relative to "Saldo Awal" is far more reliable than name matching.
+        // Layout: No | Customer | No.Faktur | TGL | Type | SALDO AWAL | Pokok |
+        //   PPN | Lain2 | No.Kwit | Tg | Pembayaran | Saldo Akhir | Belum JTO |
+        //   1-5 | 6-30 | 31-60 | >60 | Giro Gantung/SPK | Keterangan
+        $norm = fn($v) => strtoupper(preg_replace('/\s+/', '', (string)$v));
+        $saldoCol  = null;
         $headerIdx = -1;
-        $colMap    = [];
         foreach ($rows as $i => $row) {
-            $upper = array_map(fn($c) => strtoupper(trim((string)$c)), $row);
-            if (in_array('CUSTOMER', $upper) || in_array('NO. FAKTUR', $upper)) {
-                $headerIdx = $i;
-                foreach ($upper as $ci => $h) {
-                    $colMap[$h] = $ci;
+            foreach ($row as $ci => $cell) {
+                if ($norm($cell) === 'SALDOAWAL') {
+                    $saldoCol  = $ci;
+                    $headerIdx = $i;
+                    break 2;
                 }
-                break;
             }
         }
 
-        // Fallback: positional detection if no header row found
-        if ($headerIdx < 0) {
+        if ($saldoCol === null) {
+            // Fall back to positional layout assuming the standard column order.
             return $this->parsePositional($rows);
         }
 
-        $find = fn(string ...$keys) => array_reduce($keys, fn($carry, $k) => $carry !== null ? $carry : ($colMap[$k] ?? null), null);
-
-        $iNo       = $find('NO', 'NO.', '#');
-        $iCust     = $find('CUSTOMER', 'NAMA CUSTOMER', 'NAMA');
-        $iFaktur   = $find('NO. FAKTUR', 'NO FAKTUR', 'FAKTUR');
-        $iTgl      = $find('TANGGAL', 'TGL', 'TANGGAL FAKTUR');
-        $iType     = $find('TYPE', 'TIPE');
-        $iSaldoAwal = $find('SALDO AWAL', 'SALDOAWAL');
-        $iPokok    = $find('POKOK');
-        $iPpn      = $find('PPN');
-        $iLain2    = $find('LAIN2', 'LAIN-LAIN', 'LAINNYA');
-        $iNoKwit   = $find('NO. KWIT', 'NO KWIT', 'NO.KWIT', 'NOKWIT');
-        $iTglKredit = $find('TGL KREDIT', 'TGL. KREDIT', 'TANGGAL KREDIT');
-        $iPembayaran = $find('PEMBAYARAN');
-        $iSaldoAkhir = $find('SALDO AKHIR', 'SALDOAKHIR');
-        $iBelumJto  = $find('BELUM JTO', 'BELUM JATUH TEMPO', 'BELUMJTO');
-        $iTung15    = $find('1-5', 'TUNGGAKAN 1-5');
-        $iTung630   = $find('6-30', 'TUNGGAKAN 6-30');
-        $iTung3160  = $find('31-60', 'TUNGGAKAN 31-60');
-        $iTung60    = $find('>60', 'TUNGGAKAN >60', 'TUNGGAKAN>60');
-
+        $c = fn(int $offset) => $saldoCol + $offset;
         $items = [];
         foreach (array_slice($rows, $headerIdx + 1) as $row) {
-            $cust = trim((string)($iCust !== null ? $row[$iCust] : ($row[1] ?? '')));
+            $cust = trim((string)($row[$c(-4)] ?? ''));
             if ($cust === '') continue;
-            if (strtolower($cust) === 'total' || strtolower($cust) === 'grand total') continue;
+            $lc = strtolower($cust);
+            if (in_array($lc, ['customer', 'total', 'grand total'], true)) continue;
+
+            // A valid data row has a numeric saldo awal or a non-empty faktur.
+            $saldoAwal = $this->parseNum($row[$c(0)] ?? null);
+            $noFaktur  = trim((string)($row[$c(-3)] ?? ''));
+            if ($saldoAwal === 0.0 && $noFaktur === '') continue;
 
             $items[] = [
                 'customer'    => $cust,
-                'noFaktur'    => trim((string)($iFaktur !== null ? $row[$iFaktur] : ($row[2] ?? ''))),
-                'tanggal'     => $this->toDateStr($iTgl !== null ? $row[$iTgl] : ($row[3] ?? null)),
-                'type'        => trim((string)($iType !== null ? $row[$iType] : ($row[4] ?? ''))),
-                'saldoAwal'   => $this->parseNum($iSaldoAwal !== null ? $row[$iSaldoAwal] : ($row[5] ?? null)),
-                'pokok'       => $this->parseNum($iPokok !== null ? $row[$iPokok] : ($row[6] ?? null)),
-                'ppn'         => $this->parseNum($iPpn !== null ? $row[$iPpn] : ($row[7] ?? null)),
-                'lain2'       => $this->parseNum($iLain2 !== null ? $row[$iLain2] : ($row[8] ?? null)),
-                'noKwit'      => trim((string)($iNoKwit !== null ? $row[$iNoKwit] : ($row[9] ?? ''))),
-                'tglKredit'   => $this->toDateStr($iTglKredit !== null ? $row[$iTglKredit] : ($row[10] ?? null)),
-                'pembayaran'  => $this->parseNum($iPembayaran !== null ? $row[$iPembayaran] : ($row[11] ?? null)),
-                'saldoAkhir'  => $this->parseNum($iSaldoAkhir !== null ? $row[$iSaldoAkhir] : ($row[12] ?? null)),
-                'belumJto'    => $this->parseNum($iBelumJto !== null ? $row[$iBelumJto] : ($row[13] ?? null)),
-                'tung15'      => $this->parseNum($iTung15 !== null ? $row[$iTung15] : ($row[14] ?? null)),
-                'tung630'     => $this->parseNum($iTung630 !== null ? $row[$iTung630] : ($row[15] ?? null)),
-                'tung3160'    => $this->parseNum($iTung3160 !== null ? $row[$iTung3160] : ($row[16] ?? null)),
-                'tung60'      => $this->parseNum($iTung60 !== null ? $row[$iTung60] : ($row[17] ?? null)),
-                'keterangan'  => '',
+                'noFaktur'    => $noFaktur,
+                'tanggal'     => $this->toDateStr($row[$c(-2)] ?? null),
+                'type'        => trim((string)($row[$c(-1)] ?? '')),
+                'saldoAwal'   => $saldoAwal,
+                'pokok'       => $this->parseNum($row[$c(1)] ?? null),
+                'ppn'         => $this->parseNum($row[$c(2)] ?? null),
+                'lain2'       => $this->parseNum($row[$c(3)] ?? null),
+                'noKwit'      => trim((string)($row[$c(4)] ?? '')),
+                'tglKredit'   => $this->toDateStr($row[$c(5)] ?? null),
+                'pembayaran'  => $this->parseNum($row[$c(6)] ?? null),
+                'saldoAkhir'  => $this->parseNum($row[$c(7)] ?? null),
+                'belumJto'    => $this->parseNum($row[$c(8)] ?? null),
+                'tung15'      => $this->parseNum($row[$c(9)] ?? null),
+                'tung630'     => $this->parseNum($row[$c(10)] ?? null),
+                'tung3160'    => $this->parseNum($row[$c(11)] ?? null),
+                'tung60'      => $this->parseNum($row[$c(12)] ?? null),
+                'giroGantung' => trim((string)($row[$c(13)] ?? '')),
+                'keterangan'  => trim((string)($row[$c(14)] ?? '')),
             ];
         }
 
@@ -139,24 +131,25 @@ class PiutangRegulerController extends Controller
             if ($saldo <= 0) continue;
 
             $items[] = [
-                'customer'   => $cust,
-                'noFaktur'   => trim((string)($row[2] ?? '')),
-                'tanggal'    => $this->toDateStr($row[3] ?? null),
-                'type'       => trim((string)($row[4] ?? '')),
-                'saldoAwal'  => $saldo,
-                'pokok'      => $this->parseNum($row[6] ?? null),
-                'ppn'        => $this->parseNum($row[7] ?? null),
-                'lain2'      => $this->parseNum($row[8] ?? null),
-                'noKwit'     => trim((string)($row[9] ?? '')),
-                'tglKredit'  => $this->toDateStr($row[10] ?? null),
-                'pembayaran' => $this->parseNum($row[11] ?? null),
-                'saldoAkhir' => $this->parseNum($row[12] ?? null),
-                'belumJto'   => $this->parseNum($row[13] ?? null),
-                'tung15'     => $this->parseNum($row[14] ?? null),
-                'tung630'    => $this->parseNum($row[15] ?? null),
-                'tung3160'   => $this->parseNum($row[16] ?? null),
-                'tung60'     => $this->parseNum($row[17] ?? null),
-                'keterangan' => '',
+                'customer'    => $cust,
+                'noFaktur'    => trim((string)($row[2] ?? '')),
+                'tanggal'     => $this->toDateStr($row[3] ?? null),
+                'type'        => trim((string)($row[4] ?? '')),
+                'saldoAwal'   => $saldo,
+                'pokok'       => $this->parseNum($row[6] ?? null),
+                'ppn'         => $this->parseNum($row[7] ?? null),
+                'lain2'       => $this->parseNum($row[8] ?? null),
+                'noKwit'      => trim((string)($row[9] ?? '')),
+                'tglKredit'   => $this->toDateStr($row[10] ?? null),
+                'pembayaran'  => $this->parseNum($row[11] ?? null),
+                'saldoAkhir'  => $this->parseNum($row[12] ?? null),
+                'belumJto'    => $this->parseNum($row[13] ?? null),
+                'tung15'      => $this->parseNum($row[14] ?? null),
+                'tung630'     => $this->parseNum($row[15] ?? null),
+                'tung3160'    => $this->parseNum($row[16] ?? null),
+                'tung60'      => $this->parseNum($row[17] ?? null),
+                'giroGantung' => trim((string)($row[18] ?? '')),
+                'keterangan'  => trim((string)($row[19] ?? '')),
             ];
         }
         return response()->json(['data' => $items]);
