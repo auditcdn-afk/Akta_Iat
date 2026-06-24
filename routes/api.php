@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\PemeriksaanKasController;
 use App\Http\Controllers\Api\PemeriksaanBankController;
 use App\Http\Controllers\Api\PemeriksaanSmhController;
 use App\Http\Controllers\Api\PemeriksaanPerlengkapanController;
+use App\Http\Controllers\Api\PlafonController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', [DataStoreController::class, 'ping']);
@@ -112,6 +113,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,manajer,auditor');
     Route::delete('/audit-detail/perlengkapan/{pemeriksaanPerlengkapan}', [PemeriksaanPerlengkapanController::class, 'destroy'])
         ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── Plafon ──
+    Route::get('/audit-detail/plafon/units',     [PlafonController::class, 'units']);
+    Route::get('/audit-detail/plafon/analisa',   [PlafonController::class, 'analisa']);
+    Route::get('/audit-detail/plafon/ringkasan', [PlafonController::class, 'ringkasan']);
 
     // ── SMH ──
     Route::get('/audit-detail/smh', [PemeriksaanSmhController::class, 'index']);

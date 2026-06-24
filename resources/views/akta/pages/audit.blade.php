@@ -85,6 +85,10 @@
                 class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
                 Pemeriksaan Bank
             </button>
+            <button type="button" data-tab="plafon"
+                class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
+                Pemeriksaan Plafon
+            </button>
         </div>
 
         {{-- Panel: Pemeriksaan Kas --}}
@@ -491,6 +495,162 @@
                         <div class="text-xs text-slate-400 mb-1">Total Selisih</div>
                         <div id="plTotalSelisih" class="font-bold text-slate-200">0</div>
                     </div>
+                </div>
+            </div>
+
+        </div>
+
+        {{-- Panel: Plafon --}}
+        <div id="tabPanel-plafon" class="audit-tab-panel hidden space-y-5">
+
+            {{-- Unit Usaha Terpilih --}}
+            <div class="rounded-2xl border border-slate-700 bg-slate-900 p-5">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-600 text-xs font-bold text-white">●</div>
+                    <span class="text-sm font-semibold text-slate-200">Unit Usaha Terpilih</span>
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Kode Unit Usaha</div>
+                        <div id="pfKodeUnit" class="text-sm font-bold text-slate-100">—</div>
+                    </div>
+                    <div class="rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Plafon Cover</div>
+                        <div id="pfPlafonCover" class="text-sm font-bold text-blue-300">—</div>
+                    </div>
+                    <div class="rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Daerah</div>
+                        <div id="pfDaerah" class="text-sm font-bold text-slate-100">—</div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Pilih Unit Usaha --}}
+            <div class="rounded-2xl border border-slate-700 bg-slate-900 p-5 space-y-3">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">1</div>
+                    <div>
+                        <div class="text-sm font-semibold text-slate-200">Pilih Unit Usaha</div>
+                        <div id="pfUnitCount" class="text-xs text-blue-400">Memuat...</div>
+                    </div>
+                </div>
+                <div class="relative">
+                    <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </span>
+                    <input id="pfUnitSearch" type="search" placeholder="Ketik untuk cari & pilih unit usaha..."
+                        class="w-full rounded-xl border border-slate-700 bg-slate-800 pl-9 pr-4 py-2.5 text-sm text-slate-100 outline-none focus:border-blue-500">
+                </div>
+                <div id="pfUnitList" class="hidden max-h-56 overflow-y-auto rounded-xl border border-slate-700 bg-slate-800 divide-y divide-slate-700/50"></div>
+            </div>
+
+            {{-- Hasil Analisa --}}
+            <div id="pfAnalisaWrap" class="hidden rounded-2xl border border-slate-700 bg-slate-900 p-5 space-y-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">3</div>
+                    <div>
+                        <div class="text-sm font-semibold text-slate-200">Hasil Analisa</div>
+                        <div id="pfAnalisaSubtitle" class="text-xs text-slate-400"></div>
+                    </div>
+                </div>
+
+                {{-- Kartu Statistik --}}
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                    <div class="rounded-xl bg-slate-800 px-4 py-3 text-center">
+                        <div class="text-xs text-slate-400 mb-1">Total Unit</div>
+                        <div id="pfStatTotal" class="text-2xl font-bold text-slate-100">0</div>
+                        <div class="text-xs text-slate-500">unit di onhand</div>
+                    </div>
+                    <div class="rounded-xl bg-slate-800 px-4 py-3 text-center">
+                        <div class="text-xs text-slate-400 mb-1">Ditemukan</div>
+                        <div id="pfStatDitemukan" class="text-2xl font-bold text-emerald-400">0</div>
+                        <div class="text-xs text-slate-500">ada di database</div>
+                    </div>
+                    <div class="rounded-xl bg-slate-800 px-4 py-3 text-center">
+                        <div class="text-xs text-slate-400 mb-1">Tidak Ditemukan</div>
+                        <div id="pfStatTidak" class="text-2xl font-bold text-orange-400">0</div>
+                        <div class="text-xs text-slate-500">kode tidak ada</div>
+                    </div>
+                    <div class="rounded-xl bg-slate-800 px-4 py-3 text-center">
+                        <div class="text-xs text-slate-400 mb-1">Plafon Cover</div>
+                        <div id="pfStatPlafon" class="text-sm font-bold text-blue-300">—</div>
+                        <div class="text-xs text-slate-500">batas nilai SMH</div>
+                    </div>
+                    <div class="rounded-xl bg-slate-800 px-4 py-3 text-center">
+                        <div class="text-xs text-slate-400 mb-1">Total Nilai SMH</div>
+                        <div id="pfStatNilai" class="text-sm font-bold text-blue-400">Rp 0</div>
+                        <div class="text-xs text-slate-500">yang ditemukan</div>
+                    </div>
+                </div>
+
+                {{-- Progress bar plafon --}}
+                <div id="pfProgressWrap" class="hidden rounded-xl bg-slate-800 p-4 space-y-2">
+                    <div class="flex items-center justify-between text-sm">
+                        <span id="pfProgressLabel" class="text-slate-300"></span>
+                        <span id="pfSisaCoverLabel" class="font-bold text-emerald-400"></span>
+                    </div>
+                    <div class="h-3 w-full overflow-hidden rounded-full bg-slate-700">
+                        <div id="pfProgressBar" class="h-3 rounded-full bg-emerald-500 transition-all duration-500" style="width:0%"></div>
+                    </div>
+                    <div id="pfProgressPct" class="text-xs text-slate-400"></div>
+                </div>
+
+                {{-- Detail tabel --}}
+                <div class="overflow-x-auto rounded-xl border border-slate-700">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-slate-800/80">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">No Mesin / Rangka</th>
+                                <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Kode Model</th>
+                                <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Nama SMH</th>
+                                <th class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Harga SMH</th>
+                                <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Gudang</th>
+                                <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pfDetailBody" class="divide-y divide-slate-800"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            {{-- Ringkasan semua gudang --}}
+            <div id="pfRingkasanWrap" class="hidden rounded-2xl border border-slate-700 bg-slate-900 p-5 space-y-3">
+                <div class="text-sm font-semibold text-slate-200 mb-2">Ringkasan Semua Unit dalam Plan</div>
+                <div class="overflow-x-auto rounded-xl border border-slate-700">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-slate-800/80">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Gudang / Unit</th>
+                                <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Total Unit</th>
+                                <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Ditemukan</th>
+                                <th class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Total Nilai SMH</th>
+                                <th class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Plafon Cover</th>
+                                <th class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Sisa Cover</th>
+                                <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">% Terpakai</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pfRingkasanBody" class="divide-y divide-slate-800"></tbody>
+                        <tfoot class="bg-slate-800/60">
+                            <tr>
+                                <td colspan="3" class="px-3 py-2 text-xs font-bold text-slate-300">TOTAL</td>
+                                <td id="pfRingkasanTotalNilai" class="px-3 py-2 text-right text-xs font-bold text-blue-300"></td>
+                                <td id="pfRingkasanTotalPlafon" class="px-3 py-2 text-right text-xs font-bold text-slate-300"></td>
+                                <td id="pfRingkasanTotalSisa" class="px-3 py-2 text-right text-xs font-bold text-emerald-400"></td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {{-- Progress total --}}
+                <div id="pfRingkasanProgressWrap" class="hidden rounded-xl bg-slate-800 p-4 space-y-2">
+                    <div class="flex items-center justify-between text-sm">
+                        <span id="pfRingkasanProgressLabel" class="text-slate-300"></span>
+                        <span id="pfRingkasanSisaLabel" class="font-bold text-emerald-400">Sisa Cover</span>
+                    </div>
+                    <div class="h-3 w-full overflow-hidden rounded-full bg-slate-700">
+                        <div id="pfRingkasanBar" class="h-3 rounded-full bg-blue-500 transition-all duration-500" style="width:0%"></div>
+                    </div>
+                    <div id="pfRingkasanPct" class="text-xs text-slate-400"></div>
                 </div>
             </div>
 
