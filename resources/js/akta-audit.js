@@ -249,6 +249,9 @@ function switchTab(tab) {
     if (tab === "mt") {
         loadMtTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "hgp") {
+        loadHgpTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1695,6 +1698,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initTtpForm();
     initCfForm();
     initMtForm();
+    initHgpForm();
 
     try {
         await loadCurrentUser();
@@ -3909,5 +3913,199 @@ function initMtForm() {
 
     document.getElementById('mtSaveBtn')?.addEventListener('click', () => {
         saveMt().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
+    });
+}
+
+/* ============================================================
+   HGP & AHM Oils
+   ============================================================ */
+let _hgpData = null; // { items: [ { sparepart, saldoAwal, fisik, akhir, selisih, keterangan, tgl, logScan:[] } ] }
+
+function hgpEmptyData() { return { items: [] }; }
+
+function hgpN(v) {
+    if (v === null || v === undefined || v === '') return 0;
+    return parseFloat(v) || 0;
+}
+
+function hgpCalcItem(item) {
+    const fisik   = hgpN(item.fisik);
+    const saldo   = hgpN(item.saldoAwal);
+    item.akhir    = fisik;
+    item.selisih  = fisik - saldo;
+}
+
+function hgpUpdateStats() {
+    const items   = _hgpData?.items || [];
+    const total   = items.length;
+    const selisih = items.filter(it => it.selisih !== 0).length;
+    const scan    = items.reduce((s, it) => s + (it.logScan?.length || 0), 0);
+    const el = id => document.getElementById(id);
+    if (el('hgpStatTotal'))   el('hgpStatTotal').textContent   = total;
+    if (el('hgpStatSelisih')) el('hgpStatSelisih').textContent = selisih;
+    if (el('hgpStatScan'))    el('hgpStatScan').textContent    = scan;
+    if (el('hgpTableCount'))  el('hgpTableCount').textContent  = `${total} Item`;
+}
+
+function hgpRenderItems() {
+    const tbody = document.getElementById('hgpTableBody');
+    if (!tbody) return;
+    const items = _hgpData?.items || [];
+    if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
+        hgpUpdateStats();
+        return;
+    }
+    tbody.innerHTML = items.map((it, i) => {
+        const selClass = it.selisih < 0 ? 'text-red-400 font-bold' : it.selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
+        const scan = it.logScan?.length || 0;
+        return `<tr class="hover:bg-slate-800/40">
+            <td class="px-3 py-2 text-slate-400">${i + 1}</td>
+            <td class="px-3 py-2 text-slate-100 font-medium">${it.sparepart || ''}</td>
+            <td class="px-3 py-2">
+                <input type="date" data-hgp-i="${i}" data-hgp-f="tgl"
+                    value="${it.tgl || ''}"
+                    class="hgp-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
+            </td>
+            <td class="px-3 py-2 text-right text-slate-300">${hgpN(it.saldoAwal)}</td>
+            <td class="px-3 py-2">
+                <div class="flex items-center justify-end gap-1">
+                    <button data-hgp-dec="${i}" class="rounded bg-slate-700 px-1.5 text-slate-300 hover:bg-slate-600 text-xs">−</button>
+                    <input type="number" data-hgp-i="${i}" data-hgp-f="fisik"
+                        value="${hgpN(it.fisik)}" min="0"
+                        class="hgp-inp w-16 rounded border border-slate-600 bg-slate-800 px-1.5 py-1 text-right text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
+                    <button data-hgp-inc="${i}" class="rounded bg-slate-700 px-1.5 text-slate-300 hover:bg-slate-600 text-xs">+</button>
+                </div>
+            </td>
+            <td class="px-3 py-2 text-right text-slate-300">${hgpN(it.akhir)}</td>
+            <td class="px-3 py-2 text-right ${selClass}">${it.selisih >= 0 ? '+' : ''}${it.selisih}</td>
+            <td class="px-3 py-2">
+                <input type="text" data-hgp-i="${i}" data-hgp-f="keterangan"
+                    value="${it.keterangan || ''}"
+                    placeholder="Keterangan..."
+                    class="hgp-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
+            </td>
+            <td class="px-3 py-2 text-center text-slate-400 text-xs">
+                Terscan: ${scan} | Saldo: ${hgpN(it.saldoAwal)}
+            </td>
+        </tr>`;
+    }).join('');
+
+    // Input change
+    tbody.querySelectorAll('.hgp-inp').forEach(inp => {
+        inp.addEventListener('input', () => {
+            const i = parseInt(inp.dataset.hgpI);
+            const f = inp.dataset.hgpF;
+            _hgpData.items[i][f] = f === 'fisik' ? hgpN(inp.value) : inp.value;
+            if (f === 'fisik') {
+                hgpCalcItem(_hgpData.items[i]);
+                hgpRenderItems(); // re-render for updated akhir/selisih
+            }
+        });
+        inp.addEventListener('blur', () => { _doSaveHgp().catch(() => {}); });
+    });
+
+    // +/- buttons
+    tbody.querySelectorAll('[data-hgp-inc]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const i = parseInt(btn.dataset.hgpInc);
+            _hgpData.items[i].fisik = hgpN(_hgpData.items[i].fisik) + 1;
+            hgpCalcItem(_hgpData.items[i]);
+            hgpRenderItems();
+            _doSaveHgp().catch(() => {});
+        });
+    });
+    tbody.querySelectorAll('[data-hgp-dec]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const i = parseInt(btn.dataset.hgpDec);
+            const cur = hgpN(_hgpData.items[i].fisik);
+            if (cur > 0) _hgpData.items[i].fisik = cur - 1;
+            hgpCalcItem(_hgpData.items[i]);
+            hgpRenderItems();
+            _doSaveHgp().catch(() => {});
+        });
+    });
+
+    hgpUpdateStats();
+}
+
+async function hgpHandleFile(file) {
+    const msg = document.getElementById('hgpImportMsg');
+    if (msg) { msg.classList.remove('hidden'); msg.textContent = 'Mengupload...'; }
+    try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetchJson('/api/audit-detail/hgp/parse-excel', {
+            method: 'POST',
+            headers: authHeaders(),
+            body: fd,
+        });
+        if (!res.data || !res.data.length) {
+            if (msg) msg.textContent = 'Tidak ada data ditemukan dalam file.';
+            return;
+        }
+        if (!_hgpData) _hgpData = hgpEmptyData();
+        // Merge: add new spareparts not already in list
+        const existing = new Set(_hgpData.items.map(it => it.sparepart?.toLowerCase()));
+        let added = 0;
+        res.data.forEach(it => {
+            if (!existing.has((it.sparepart || '').toLowerCase())) {
+                _hgpData.items.push(it);
+                added++;
+            }
+        });
+        if (msg) { msg.textContent = `${added} sparepart ditambahkan (${res.total} total di file).`; }
+        hgpRenderItems();
+        _doSaveHgp().catch(() => {});
+    } catch (e) {
+        if (msg) msg.textContent = 'Gagal: ' + (e.message || 'Unknown error');
+    }
+}
+
+async function loadHgpTab() {
+    if (!activePlanId) { hgpRenderItems(); return; }
+    const res = await fetchJson(`/api/audit-detail/hgp?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    if (res.data && Array.isArray(res.data.items) && res.data.items.length > 0) {
+        _hgpData = { items: res.data.items };
+    }
+    if (!_hgpData) _hgpData = hgpEmptyData();
+    hgpRenderItems();
+}
+
+async function _doSaveHgp() {
+    if (!activePlanId) throw new Error('Pilih plan audit terlebih dahulu.');
+    if (!_hgpData) _hgpData = hgpEmptyData();
+    return await fetchJson('/api/audit-detail/hgp', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ planAuditId: activePlanId, items: _hgpData.items }),
+    });
+}
+
+async function saveHgp() {
+    const res = await _doSaveHgp();
+    showAlert(res.message, 'success');
+}
+
+function initHgpForm() {
+    const fileInput = document.getElementById('hgpFileInput');
+    const dropzone  = document.getElementById('hgpDropzone');
+
+    fileInput?.addEventListener('change', () => {
+        if (fileInput.files[0]) hgpHandleFile(fileInput.files[0]);
+        fileInput.value = '';
+    });
+
+    dropzone?.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-blue-400'); });
+    dropzone?.addEventListener('dragleave', () => { dropzone.classList.remove('border-blue-400'); });
+    dropzone?.addEventListener('drop', e => {
+        e.preventDefault();
+        dropzone.classList.remove('border-blue-400');
+        const f = e.dataTransfer.files[0];
+        if (f) hgpHandleFile(f);
+    });
+
+    document.getElementById('hgpSaveBtn')?.addEventListener('click', () => {
+        saveHgp().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
     });
 }
