@@ -1311,15 +1311,9 @@ async function loadPlafonTab() {
 }
 
 function pfRenderHeader(data) {
-    // Isi kartu Unit Usaha Terpilih dari cabang plan
-    const cabang = activePlan?.cabang || '—';
-    document.getElementById('pfKodeUnit').textContent = cabang;
-
-    // Ambil info dari unit pertama yang punya data (atau total)
-    const totalPlafon = data.totalPlafon;
-    const wilayah = data.perUnit?.[0]?.wilayah || '—';
-    document.getElementById('pfPlafonCover').textContent = totalPlafon ? fmtRupiah(totalPlafon) : '—';
-    document.getElementById('pfDaerah').textContent      = wilayah;
+    document.getElementById('pfKodeUnit').textContent    = data.namaUnit || data.cabang || activePlan?.cabang || '—';
+    document.getElementById('pfPlafonCover').textContent = data.plafonNilai != null ? fmtRupiah(data.plafonNilai) : '—';
+    document.getElementById('pfDaerah').textContent      = data.wilayah || '—';
 }
 
 function pfRenderAnalisa(data) {

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DbHargaSmh;
 use App\Models\DbPlafon;
 use App\Models\DbUnitUsaha;
+use App\Models\PlanAudit;
 use App\Models\SmhOnhandItem;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,6 +24,11 @@ class PlafonController extends Controller
     {
         $planId = $request->query('plan_audit_id');
 
+        // Cabang dari plan → dipakai untuk lookup plafon & unit usaha
+        $plan   = PlanAudit::find($planId);
+        $cabang = $plan?->cabang ?? '';
+        $cabangSfx = $this->suffix3($cabang); // "SO ALB" → "ALB"
+
         // Semua onhand items untuk plan ini
         $items = SmhOnhandItem::query()
             ->whereHas('pemeriksaan', fn($q) => $q->where('plan_audit_id', $planId))
@@ -32,43 +38,45 @@ class PlafonController extends Controller
         $hargaMap = DbHargaSmh::all()
             ->keyBy(fn($r) => strtoupper(trim($r->kode_model ?? '')));
 
-        // Map unit usaha: suffix3(nama) → row (juga daftarkan suffix3(kode) sebagai fallback)
-        $unitBySuffix = [];
-        foreach (DbUnitUsaha::all() as $u) {
-            foreach ([$u->nama, $u->kode] as $key) {
-                $s = $this->suffix3($key);
-                if ($s && !isset($unitBySuffix[$s])) $unitBySuffix[$s] = $u;
+        // Cari plafon berdasarkan suffix cabang plan (CDN-ALB matches SO ALB via "ALB")
+        $plafonRow = null;
+        if ($cabangSfx) {
+            foreach (DbPlafon::all() as $p) {
+                foreach ([$p->nama, $p->kode] as $key) {
+                    if ($this->suffix3($key) === $cabangSfx) {
+                        $plafonRow = $p;
+                        break 2;
+                    }
+                }
+            }
+        }
+        $plafonNilai = $plafonRow ? (float) $plafonRow->nilai : null;
+
+        // Cari info unit usaha (wilayah) berdasarkan suffix cabang
+        $unitRow = null;
+        if ($cabangSfx) {
+            foreach (DbUnitUsaha::all() as $u) {
+                foreach ([$u->nama, $u->kode] as $key) {
+                    if ($this->suffix3($key) === $cabangSfx) {
+                        $unitRow = $u;
+                        break 2;
+                    }
+                }
             }
         }
 
-        // Map plafon: suffix3(nama) dan suffix3(kode) → row
-        $plafonBySuffix = [];
-        foreach (DbPlafon::all() as $p) {
-            foreach ([$p->nama, $p->kode] as $key) {
-                $s = $this->suffix3($key);
-                if ($s && !isset($plafonBySuffix[$s])) $plafonBySuffix[$s] = $p;
-            }
-        }
-
-        // Kelompokkan onhand per gudang, cocokkan via suffix3
+        // Kelompokkan onhand per gudang (sub-unit), hitung nilai SMH
         $grouped = [];
         foreach ($items as $item) {
-            $gudang    = strtoupper(trim($item->gudang ?? '-'));
-            $sfx       = $this->suffix3($gudang) ?: $gudang;
+            $gudang    = trim($item->gudang ?? '-');
             $kodeModel = strtoupper(trim($item->kode_model ?? ''));
             $hargaRow  = $hargaMap[$kodeModel] ?? null;
             $harga     = $hargaRow ? (float) $hargaRow->harga : null;
 
-            if (!isset($grouped[$sfx])) {
-                $unitRow   = $unitBySuffix[$sfx]   ?? null;
-                $plafonRow = $plafonBySuffix[$sfx]  ?? null;
-                $grouped[$sfx] = [
+            if (!isset($grouped[$gudang])) {
+                $grouped[$gudang] = [
                     'gudang'         => $gudang,
-                    'suffix'         => $sfx,
-                    'namaUnit'       => $unitRow?->nama ?? $gudang,
-                    'wilayah'        => $unitRow?->alamat ?? '—',
-                    'plafonNilai'    => $plafonRow ? (float) $plafonRow->nilai : null,
-                    'plafonNama'     => $plafonRow?->nama ?? null,
+                    'namaUnit'       => $gudang,
                     'totalUnit'      => 0,
                     'ditemukan'      => 0,
                     'tidakDitemukan' => 0,
@@ -77,15 +85,15 @@ class PlafonController extends Controller
                 ];
             }
 
-            $grouped[$sfx]['totalUnit']++;
+            $grouped[$gudang]['totalUnit']++;
             if ($harga !== null) {
-                $grouped[$sfx]['ditemukan']++;
-                $grouped[$sfx]['totalNilai'] += $harga;
+                $grouped[$gudang]['ditemukan']++;
+                $grouped[$gudang]['totalNilai'] += $harga;
             } else {
-                $grouped[$sfx]['tidakDitemukan']++;
+                $grouped[$gudang]['tidakDitemukan']++;
             }
 
-            $grouped[$sfx]['detail'][] = [
+            $grouped[$gudang]['detail'][] = [
                 'noMesin'   => $item->no_mesin,
                 'noRangka'  => $item->no_rangka,
                 'kodeModel' => $item->kode_model,
@@ -96,31 +104,37 @@ class PlafonController extends Controller
             ];
         }
 
-        // Sisa cover & persentase per unit
-        foreach ($grouped as &$row) {
-            $row['sisaCover']  = $row['plafonNilai'] !== null
-                ? max(0, $row['plafonNilai'] - $row['totalNilai']) : null;
-            $row['persentase'] = ($row['plafonNilai'] && $row['plafonNilai'] > 0)
-                ? round($row['totalNilai'] / $row['plafonNilai'] * 100, 1) : null;
-        }
-        unset($row);
-
         $units          = array_values($grouped);
         $totalUnit      = array_sum(array_column($units, 'totalUnit'));
         $ditemukan      = array_sum(array_column($units, 'ditemukan'));
         $tidakDitemukan = array_sum(array_column($units, 'tidakDitemukan'));
         $totalNilai     = array_sum(array_column($units, 'totalNilai'));
-        $totalPlafon    = array_sum(array_filter(array_column($units, 'plafonNilai'), fn($v) => $v !== null));
+
+        // Plafon berlaku untuk keseluruhan plan (bukan per gudang sub-unit)
+        // Sisa cover & persentase per gudang dihitung proporsional dari plafon total
+        foreach ($grouped as &$row) {
+            $row['plafonNilai'] = $plafonNilai; // sama untuk semua sub-unit
+            $row['sisaCover']   = $plafonNilai !== null ? max(0, $plafonNilai - $totalNilai) : null;
+            $row['persentase']  = ($plafonNilai && $plafonNilai > 0)
+                ? round($totalNilai / $plafonNilai * 100, 1) : null;
+        }
+        unset($row);
 
         return response()->json([
+            'cabang'          => $cabang,
+            'namaUnit'        => $unitRow?->nama ?? $cabang,
+            'wilayah'         => $unitRow?->alamat ?? '—',
+            'plafonNilai'     => $plafonNilai,
+            'plafonNama'      => $plafonRow?->nama ?? null,
             'totalUnit'       => $totalUnit,
             'ditemukan'       => $ditemukan,
             'tidakDitemukan'  => $tidakDitemukan,
             'totalNilaiSmh'   => $totalNilai,
-            'totalPlafon'     => $totalPlafon ?: null,
-            'sisaTotal'       => $totalPlafon > 0 ? max(0, $totalPlafon - $totalNilai) : null,
-            'persentaseTotal' => $totalPlafon > 0 ? round($totalNilai / $totalPlafon * 100, 1) : null,
-            'perUnit'         => $units,
+            'totalPlafon'     => $plafonNilai,
+            'sisaTotal'       => $plafonNilai !== null ? max(0, $plafonNilai - $totalNilai) : null,
+            'persentaseTotal' => ($plafonNilai && $plafonNilai > 0)
+                ? round($totalNilai / $plafonNilai * 100, 1) : null,
+            'perUnit'         => array_values($grouped),
         ]);
     }
 
