@@ -62,14 +62,30 @@ class PiutangRegulerController extends Controller
         //   PPN | Lain2 | No.Kwit | Tg | Pembayaran | Saldo Akhir | Belum JTO |
         //   1-5 | 6-30 | 31-60 | >60 | Giro Gantung/SPK | Keterangan
         $norm = fn($v) => strtoupper(preg_replace('/\s+/', '', (string)$v));
+
+        // Locate the header by finding the "Saldo Awal" cell. If that exact
+        // label isn't present, anchor on the "Customer" cell instead (the
+        // Saldo Awal column sits 4 cells to its right in this report layout).
         $saldoCol  = null;
         $headerIdx = -1;
         foreach ($rows as $i => $row) {
             foreach ($row as $ci => $cell) {
-                if ($norm($cell) === 'SALDOAWAL') {
+                $n = $norm($cell);
+                if (str_contains($n, 'SALDOAWAL')) {
                     $saldoCol  = $ci;
                     $headerIdx = $i;
                     break 2;
+                }
+            }
+        }
+        if ($saldoCol === null) {
+            foreach ($rows as $i => $row) {
+                foreach ($row as $ci => $cell) {
+                    if ($norm($cell) === 'CUSTOMER') {
+                        $saldoCol  = $ci + 4;
+                        $headerIdx = $i;
+                        break 2;
+                    }
                 }
             }
         }
@@ -115,7 +131,21 @@ class PiutangRegulerController extends Controller
             ];
         }
 
-        return response()->json(['data' => $items]);
+        $resp = ['data' => $items];
+        if (empty($items)) {
+            // Diagnostics so we can see exactly what the parser detected.
+            $resp['debug'] = [
+                'saldoCol'  => $saldoCol,
+                'headerIdx' => $headerIdx,
+                'totalRows' => count($rows),
+                'headerRow' => array_slice($rows[$headerIdx] ?? [], 0, 22),
+                'firstDataRows' => array_map(
+                    fn($r) => array_slice($r, 0, 22),
+                    array_slice($rows, $headerIdx + 1, 5)
+                ),
+            ];
+        }
+        return response()->json($resp);
     }
 
     private function parsePositional(array $rows): JsonResponse

@@ -2996,7 +2996,9 @@ async function prHandleFile(file) {
 
         const mapped = json.data ?? [];
         if (!mapped.length) {
-            if (msgEl) { msgEl.textContent = 'Tidak ada data piutang ditemukan di file.'; msgEl.classList.remove('hidden'); }
+            console.log('[PR] debug:', json.debug);
+            const dbg = json.debug ? ` (saldoCol=${json.debug.saldoCol}, headerIdx=${json.debug.headerIdx}, rows=${json.debug.totalRows})` : '';
+            if (msgEl) { msgEl.textContent = 'Tidak ada data piutang ditemukan di file.' + dbg; msgEl.classList.remove('hidden'); }
             return;
         }
         // Preserve existing keterangan
