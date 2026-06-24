@@ -505,26 +505,44 @@ function renderSmhTable(filter = '') {
         </tr>`).join('');
 }
 
-let smhDropdownMode = 'mesin'; // 'mesin' | 'rangka'
+function showSmhSuggestions(q) {
+    const ul = document.getElementById('smhSuggestions');
+    if (!ul) return;
+    if (!q || q.length < 2) { ul.classList.add('hidden'); ul.innerHTML = ''; return; }
 
-function populateSmhDropdown() {
-    const sel = document.getElementById('smhDropdownSelect');
-    if (!sel) return;
-    sel.innerHTML = '<option value="">— Pilih No. Mesin / No. Rangka —</option>';
-    smhItems.forEach((it) => {
-        const val  = smhDropdownMode === 'mesin' ? it.noMesin : it.noRangka;
-        const label = smhDropdownMode === 'mesin'
-            ? `${it.noMesin || '-'} | ${it.kodeModel || ''} ${it.warna || ''} | ${it.gudang || ''}`
-            : `${it.noRangka || '-'} | ${it.kodeModel || ''} ${it.warna || ''} | ${it.gudang || ''}`;
-        const badge = it.statusFisik === 'ada' ? ' ✓' : it.statusFisik === 'tidak_ada' ? ' ✗' : '';
-        const opt = document.createElement('option');
-        opt.value = val || '';
-        opt.textContent = label + badge;
-        if (it.statusFisik === 'ada')       opt.style.color = '#16a34a';
-        if (it.statusFisik === 'tidak_ada') opt.style.color = '#dc2626';
-        sel.appendChild(opt);
-    });
+    const lower = q.toLowerCase();
+    const matches = smhItems.filter(it =>
+        (it.noMesin || '').toLowerCase().includes(lower) ||
+        (it.noRangka || '').toLowerCase().includes(lower)
+    ).slice(0, 20);
+
+    if (!matches.length) { ul.classList.add('hidden'); ul.innerHTML = ''; return; }
+
+    ul.innerHTML = matches.map(it => {
+        const statusDot = it.statusFisik === 'ada'
+            ? '<span class="text-emerald-500 font-bold">✓</span>'
+            : it.statusFisik === 'tidak_ada'
+            ? '<span class="text-red-500 font-bold">✗</span>'
+            : '<span class="text-slate-300">○</span>';
+        const bg = it.statusFisik === 'ada' ? 'hover:bg-emerald-50' : it.statusFisik === 'tidak_ada' ? 'hover:bg-red-50' : 'hover:bg-slate-50';
+        return `<li class="smh-suggestion cursor-pointer px-3 py-2 text-xs border-b border-slate-100 ${bg} flex items-center gap-2"
+                    data-mesin="${escapeHtml(it.noMesin || '')}" data-rangka="${escapeHtml(it.noRangka || '')}">
+                    ${statusDot}
+                    <div>
+                        <div class="font-semibold text-slate-800">${escapeHtml(it.noMesin || '-')}</div>
+                        <div class="text-slate-500">${escapeHtml(it.noRangka || '-')} &nbsp;|&nbsp; ${escapeHtml(it.kodeModel || '')} ${escapeHtml(it.warna || '')} &nbsp;|&nbsp; ${escapeHtml(it.gudang || '')}</div>
+                    </div>
+                </li>`;
+    }).join('');
+    ul.classList.remove('hidden');
 }
+
+function hideSmhSuggestions() {
+    const ul = document.getElementById('smhSuggestions');
+    if (ul) { ul.classList.add('hidden'); }
+}
+
+function populateSmhDropdown() { /* no-op — diganti autocomplete */ }
 
 function updateSmhSummary(data) {
     document.getElementById('smhTotalUnit').textContent   = data.totalUnit ?? smhItems.length;
@@ -1037,46 +1055,27 @@ document.addEventListener("DOMContentLoaded", async () => {
         } catch (e) { showAlert(e.message, 'error'); }
     });
 
-    // Mode toggle: Scan vs Dropdown
-    document.getElementById('smhModeScan')?.addEventListener('click', () => {
-        document.getElementById('smhPanelScan').classList.remove('hidden');
-        document.getElementById('smhPanelDropdown').classList.add('hidden');
-        document.getElementById('smhModeScan').className = 'rounded-lg border border-emerald-500 bg-emerald-600 px-3 py-1.5 text-white text-xs font-semibold';
-        document.getElementById('smhModeDropdown').className = 'rounded-lg border border-slate-300 px-3 py-1.5 text-slate-600 hover:bg-slate-100 text-xs font-semibold';
+    // Autocomplete suggestions
+    document.getElementById('smhScanInput')?.addEventListener('input', (e) => {
+        showSmhSuggestions(e.target.value.trim());
     });
 
-    document.getElementById('smhModeDropdown')?.addEventListener('click', () => {
-        document.getElementById('smhPanelScan').classList.add('hidden');
-        document.getElementById('smhPanelDropdown').classList.remove('hidden');
-        document.getElementById('smhModeDropdown').className = 'rounded-lg border border-emerald-500 bg-emerald-600 px-3 py-1.5 text-white text-xs font-semibold';
-        document.getElementById('smhModeScan').className = 'rounded-lg border border-slate-300 px-3 py-1.5 text-slate-600 hover:bg-slate-100 text-xs font-semibold';
-        populateSmhDropdown();
+    document.getElementById('smhScanInput')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') hideSmhSuggestions();
     });
 
-    // Toggle dropdown by mesin/rangka
-    document.getElementById('smhDropdownByMesin')?.addEventListener('click', () => {
-        smhDropdownMode = 'mesin';
-        document.getElementById('smhDropdownByMesin').className = 'smh-dd-toggle rounded-lg border border-blue-400 bg-blue-50 px-2.5 py-1 font-semibold text-blue-600 text-xs';
-        document.getElementById('smhDropdownByRangka').className = 'smh-dd-toggle rounded-lg border border-slate-300 px-2.5 py-1 font-semibold text-slate-500 hover:bg-slate-100 text-xs';
-        populateSmhDropdown();
+    document.getElementById('smhSuggestions')?.addEventListener('mousedown', (e) => {
+        const li = e.target.closest('.smh-suggestion');
+        if (!li) return;
+        e.preventDefault();
+        const q = li.dataset.mesin || li.dataset.rangka;
+        document.getElementById('smhScanInput').value = q;
+        hideSmhSuggestions();
+        smhScanUnit(q).catch((err) => showAlert(err.message, 'error'));
     });
 
-    document.getElementById('smhDropdownByRangka')?.addEventListener('click', () => {
-        smhDropdownMode = 'rangka';
-        document.getElementById('smhDropdownByRangka').className = 'smh-dd-toggle rounded-lg border border-blue-400 bg-blue-50 px-2.5 py-1 font-semibold text-blue-600 text-xs';
-        document.getElementById('smhDropdownByMesin').className = 'smh-dd-toggle rounded-lg border border-slate-300 px-2.5 py-1 font-semibold text-slate-500 hover:bg-slate-100 text-xs';
-        populateSmhDropdown();
-    });
-
-    // Cek dari dropdown
-    document.getElementById('smhDropdownCekBtn')?.addEventListener('click', () => {
-        const q = document.getElementById('smhDropdownSelect')?.value;
-        if (!q) { showAlert('Pilih unit terlebih dahulu.', 'error'); return; }
-        smhScanUnit(q).catch((e) => showAlert(e.message, 'error'));
-    });
-
-    document.getElementById('smhDropdownSelect')?.addEventListener('change', (e) => {
-        if (e.target.value) smhScanUnit(e.target.value).catch((err) => showAlert(err.message, 'error'));
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#smhScanInput') && !e.target.closest('#smhSuggestions')) hideSmhSuggestions();
     });
 
     document.getElementById('smhScanBtn')?.addEventListener('click', () => {

@@ -308,53 +308,23 @@
             {{-- Scan / Cari unit --}}
             <div id="smhScanBox" class="hidden overflow-hidden rounded-2xl border border-slate-800 bg-white text-slate-800 shadow">
                 <div class="bg-[#2d8a4e] px-5 py-3 text-sm font-bold uppercase tracking-wide text-white">🔍 Pemeriksaan Fisik — Scan / Cari Unit</div>
-                <div class="p-5 space-y-4">
-                    {{-- Mode toggle --}}
-                    <div class="flex gap-2 text-xs font-semibold">
-                        <button type="button" id="smhModeScan"
-                            class="rounded-lg border border-emerald-500 bg-emerald-600 px-3 py-1.5 text-white">
-                            📷 Scan / Ketik
-                        </button>
-                        <button type="button" id="smhModeDropdown"
-                            class="rounded-lg border border-slate-300 px-3 py-1.5 text-slate-600 hover:bg-slate-100">
-                            📋 Pilih dari Daftar
-                        </button>
-                    </div>
-
-                    {{-- Mode 1: Scan / Ketik --}}
-                    <div id="smhPanelScan" class="flex gap-3">
-                        <input id="smhScanInput" type="text" placeholder="Scan atau ketik No. Mesin / No. Rangka..."
-                            class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500">
+                <div class="p-5 space-y-3">
+                    <div class="relative flex gap-3">
+                        <div class="relative flex-1">
+                            <input id="smhScanInput" type="text" autocomplete="off"
+                                placeholder="Scan atau ketik No. Mesin / No. Rangka..."
+                                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500">
+                            {{-- Suggestions list --}}
+                            <ul id="smhSuggestions"
+                                class="absolute left-0 right-0 top-full z-50 hidden max-h-60 overflow-y-auto rounded-b-lg border border-t-0 border-slate-300 bg-white shadow-lg">
+                            </ul>
+                        </div>
                         <button type="button" id="smhScanBtn"
                             class="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-500 whitespace-nowrap">
                             Cek
                         </button>
                     </div>
-
-                    {{-- Mode 2: Dropdown pilih unit --}}
-                    <div id="smhPanelDropdown" class="hidden space-y-3">
-                        <div class="flex gap-3">
-                            <select id="smhDropdownSelect"
-                                class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500">
-                                <option value="">— Pilih No. Mesin / No. Rangka —</option>
-                            </select>
-                            <button type="button" id="smhDropdownCekBtn"
-                                class="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-500 whitespace-nowrap">
-                                Cek
-                            </button>
-                        </div>
-                        <div class="flex gap-2 text-xs">
-                            <button type="button" id="smhDropdownByMesin"
-                                class="smh-dd-toggle rounded-lg border border-blue-400 bg-blue-50 px-2.5 py-1 font-semibold text-blue-600 active-dd">
-                                No. Mesin
-                            </button>
-                            <button type="button" id="smhDropdownByRangka"
-                                class="smh-dd-toggle rounded-lg border border-slate-300 px-2.5 py-1 font-semibold text-slate-500 hover:bg-slate-100">
-                                No. Rangka
-                            </button>
-                        </div>
-                    </div>
-
+                    <p class="text-xs text-slate-400">Ketik minimal 2 karakter untuk melihat saran unit, atau scan barcode langsung.</p>
                     <div id="smhScanResult" class="hidden rounded-xl border p-4 text-sm"></div>
                 </div>
             </div>
