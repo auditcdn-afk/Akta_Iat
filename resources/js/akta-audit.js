@@ -235,6 +235,9 @@ function switchTab(tab) {
     if (tab === "kwitansi") {
         loadKwTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "piutang-reguler") {
+        loadPrTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1676,6 +1679,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initBpkbForm();
     initBpkiForm();
     initKwForm();
+    initPrForm();
 
     try {
         await loadCurrentUser();
@@ -2851,4 +2855,189 @@ async function kwHandleFile(file) {
     } catch (err) {
         if (msgEl) { msgEl.textContent = "❌ " + err.message; msgEl.classList.remove("hidden"); }
     }
+}
+
+// ══════════════════════════════════════════════════════════
+// ── Piutang Reguler Module ──
+// ══════════════════════════════════════════════════════════
+
+let _prItems = [];   // current piutang array in memory
+
+async function loadPrTab() {
+    const planId = activePlanId;
+    if (!planId) return;
+    const res = await fetchJson(`/api/audit-detail/piutang-reguler?plan_audit_id=${planId}`, { headers: authHeaders() });
+    if (res.data) {
+        _prItems = res.data.piutang ?? [];
+    } else {
+        _prItems = [];
+    }
+    prRender();
+}
+
+function prFmtRp(val) {
+    if (!val && val !== 0) return '-';
+    const n = Number(val);
+    if (n === 0) return '-';
+    if (Math.abs(n) >= 1e9) return `Rp ${(n / 1e9).toFixed(1)} M`;
+    if (Math.abs(n) >= 1e6) return `Rp ${(n / 1e6).toFixed(1)} Jt`;
+    return `Rp ${n.toLocaleString('id-ID')}`;
+}
+
+function prFmtNum(val) {
+    const n = Number(val) || 0;
+    if (n === 0) return '-';
+    return n.toLocaleString('id-ID');
+}
+
+function prRender() {
+    const items = _prItems;
+
+    // Stat cards
+    const totalCustomer  = items.length;
+    const totalBelumJto  = items.reduce((s, it) => s + (it.belumJto || 0), 0);
+    const totalTung15    = items.reduce((s, it) => s + (it.tung15 || 0), 0);
+    const totalTung630   = items.reduce((s, it) => s + (it.tung630 || 0), 0);
+    const totalTung3160  = items.reduce((s, it) => s + (it.tung3160 || 0), 0);
+    const totalTung60    = items.reduce((s, it) => s + (it.tung60 || 0), 0);
+    const totalSaldoAkhir = items.reduce((s, it) => s + (it.saldoAkhir || 0), 0);
+
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    set('prStatCustomer',   totalCustomer);
+    set('prStatBelumJto',   prFmtRp(totalBelumJto));
+    set('prStatTung15',     prFmtRp(totalTung15));
+    set('prStatTung630',    prFmtRp(totalTung630));
+    set('prStatTung3160',   prFmtRp(totalTung3160));
+    set('prStatTung60',     prFmtRp(totalTung60));
+    set('prStatSaldoAkhir', prFmtRp(totalSaldoAkhir));
+
+    const tblSec  = document.getElementById('prTableSection');
+    const tblBody = document.getElementById('prTableBody');
+    const tblCount = document.getElementById('prTableCount');
+    if (!tblBody) return;
+
+    if (!items.length) {
+        if (tblSec) tblSec.classList.add('hidden');
+        return;
+    }
+    if (tblSec) tblSec.classList.remove('hidden');
+    if (tblCount) tblCount.textContent = `${items.length} Customer`;
+
+    const escHtml = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+    tblBody.innerHTML = items.map((it, idx) => {
+        const hasTung  = (it.tung15 || 0) + (it.tung630 || 0) + (it.tung3160 || 0) + (it.tung60 || 0) > 0;
+        const saldoCls = it.saldoAkhir > 0 ? 'line-through text-slate-500' : 'font-bold text-slate-100';
+        return `<tr class="hover:bg-slate-800/30 transition-colors">
+            <td class="px-3 py-2 text-slate-400 text-center">${idx + 1}</td>
+            <td class="px-3 py-2 font-medium text-blue-300 whitespace-nowrap">${escHtml(it.customer)}</td>
+            <td class="px-3 py-2 text-slate-300 font-mono">${escHtml(it.noFaktur)}</td>
+            <td class="px-3 py-2 text-slate-300 whitespace-nowrap">${escHtml(it.tanggal || '-')}</td>
+            <td class="px-3 py-2"><span class="rounded px-1.5 py-0.5 text-xs font-bold bg-indigo-600/20 text-indigo-300">${escHtml(it.type)}</span></td>
+            <td class="px-3 py-2 text-right text-slate-300">${prFmtNum(it.saldoAwal)}</td>
+            <td class="px-3 py-2 text-right text-slate-400">${prFmtNum(it.pokok)}</td>
+            <td class="px-3 py-2 text-right text-slate-400">${prFmtNum(it.ppn)}</td>
+            <td class="px-3 py-2 text-right text-slate-400">${prFmtNum(it.lain2)}</td>
+            <td class="px-3 py-2 text-slate-300 font-mono">${escHtml(it.noKwit || '-')}</td>
+            <td class="px-3 py-2 text-slate-300 whitespace-nowrap">${escHtml(it.tglKredit || '-')}</td>
+            <td class="px-3 py-2 text-right text-green-400">${prFmtNum(it.pembayaran)}</td>
+            <td class="px-3 py-2 text-right ${saldoCls}">${prFmtNum(it.saldoAkhir)}</td>
+            <td class="px-3 py-2 text-right text-slate-300">${prFmtNum(it.belumJto)}</td>
+            <td class="px-3 py-2 text-right ${it.tung15 > 0 ? 'text-orange-300 font-semibold' : 'text-slate-500'}">${prFmtNum(it.tung15)}</td>
+            <td class="px-3 py-2 text-right ${it.tung630 > 0 ? 'text-orange-400 font-semibold' : 'text-slate-500'}">${prFmtNum(it.tung630)}</td>
+            <td class="px-3 py-2 text-right ${it.tung3160 > 0 ? 'text-red-400 font-semibold' : 'text-slate-500'}">${prFmtNum(it.tung3160)}</td>
+            <td class="px-3 py-2 text-right ${it.tung60 > 0 ? 'text-red-500 font-bold' : 'text-slate-500'}">${prFmtNum(it.tung60)}</td>
+            <td class="px-3 py-2">
+                <input type="text" value="${escHtml(it.keterangan || '')}"
+                    data-pr-idx="${idx}"
+                    placeholder="Keterangan... (ops)"
+                    class="w-36 rounded-lg bg-slate-700/60 px-2 py-1 text-xs text-slate-200 placeholder-slate-500 border border-slate-600 focus:border-blue-500 focus:outline-none">
+            </td>
+        </tr>`;
+    }).join('');
+
+    // Keterangan input handlers
+    tblBody.querySelectorAll('input[data-pr-idx]').forEach(inp => {
+        inp.addEventListener('change', (e) => {
+            const i = parseInt(e.target.dataset.prIdx, 10);
+            if (_prItems[i]) _prItems[i].keterangan = e.target.value;
+        });
+    });
+}
+
+async function savePr() {
+    const planId = activePlanId;
+    if (!planId) throw new Error('Pilih plan audit terlebih dahulu.');
+    const res = await fetchJson('/api/audit-detail/piutang-reguler', {
+        method:  'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body:    JSON.stringify({ planAuditId: planId, piutang: _prItems }),
+    });
+    if (!res.message) throw new Error('Gagal menyimpan.');
+    showAlert(res.message, 'success');
+}
+
+async function prHandleFile(file) {
+    const msgEl = document.getElementById('prImportMsg');
+    try {
+        if (msgEl) { msgEl.textContent = '⏳ Memproses file...'; msgEl.classList.remove('hidden'); }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch('/api/audit-detail/piutang-reguler/parse-excel', {
+            method:  'POST',
+            headers: authHeaders(),
+            body:    formData,
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message ?? 'Gagal memproses file di server.');
+
+        const mapped = json.data ?? [];
+        if (!mapped.length) {
+            if (msgEl) { msgEl.textContent = 'Tidak ada data piutang ditemukan di file.'; msgEl.classList.remove('hidden'); }
+            return;
+        }
+        // Preserve existing keterangan
+        const existingMap = {};
+        _prItems.forEach(it => { existingMap[it.noFaktur + it.customer] = it; });
+        _prItems = mapped.map(it => {
+            const old = existingMap[it.noFaktur + it.customer];
+            if (old) it.keterangan = old.keterangan;
+            return it;
+        });
+        if (msgEl) {
+            msgEl.textContent = `✅ ${mapped.length} customer berhasil dimuat dari "${file.name}"`;
+            msgEl.classList.remove('hidden');
+        }
+        prRender();
+    } catch (err) {
+        if (msgEl) { msgEl.textContent = '❌ ' + err.message; msgEl.classList.remove('hidden'); }
+    }
+}
+
+function initPrForm() {
+    const fileInput = document.getElementById('prFileInput');
+    fileInput?.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        await prHandleFile(file);
+        fileInput.value = '';
+    });
+
+    const dropzone = document.getElementById('prDropzone');
+    if (dropzone) {
+        dropzone.addEventListener('dragover',  (e) => { e.preventDefault(); dropzone.classList.add('border-blue-400'); });
+        dropzone.addEventListener('dragleave', ()  => dropzone.classList.remove('border-blue-400'));
+        dropzone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-blue-400');
+            const file = e.dataTransfer.files[0];
+            if (file) await prHandleFile(file);
+        });
+    }
+
+    document.getElementById('prSaveBtn')?.addEventListener('click', () => {
+        savePr().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
+    });
 }

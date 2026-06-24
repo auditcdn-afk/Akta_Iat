@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\PlafonController;
 use App\Http\Controllers\Api\BpkbOnhandController;
 use App\Http\Controllers\Api\BpkbInprosesController;
 use App\Http\Controllers\Api\KwitansiController;
+use App\Http\Controllers\Api\PiutangRegulerController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', [DataStoreController::class, 'ping']);
@@ -153,6 +154,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/audit-detail/kwitansi', [KwitansiController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/kwitansi/parse-excel', [KwitansiController::class, 'parseExcel'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── Piutang Reguler ──
+    Route::get('/audit-detail/piutang-reguler',  [PiutangRegulerController::class, 'show']);
+    Route::post('/audit-detail/piutang-reguler', [PiutangRegulerController::class, 'save'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/piutang-reguler/parse-excel', [PiutangRegulerController::class, 'parseExcel'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── SMH ──
