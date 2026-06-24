@@ -2644,7 +2644,7 @@ function _kwToDateStr(val) {
     const s = val.toString().trim();
     // ISO-like string from cellDates (e.g. "2025-02-16T00:00:00.000Z")
     if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-    return s;
+    return ""; // non-date string → treat as empty so header rows aren't detected as data
 }
 
 function _kwCalcDiff(tglStr, tglAudit) {
@@ -2676,6 +2676,7 @@ function kwMapRows(rawRows) {
 
         if (!col0) continue;                                    // empty row
         if (col7 === "sub total" || col0.toLowerCase() === "sub total") continue; // subtotal
+        if (col0.startsWith("*") || col0.toLowerCase().startsWith("diketahui") || col0.toLowerCase().startsWith("dibuat")) continue; // footer notes
 
         const tglStr = _kwToDateStr(col2);
         const isDataRow = tglStr.length > 0 && col0 !== "";
