@@ -174,7 +174,7 @@ class PemeriksaanSmhController extends Controller
         $kode = strtoupper(trim((string) $request->query('kode', '')));
         if (!$kode) return response()->json(['data' => null, 'items' => []]);
 
-        $row = DbPerlengkapan::where('kode', $kode)->first();
+        $row = $this->findPerlengkapan($kode);
 
         return response()->json([
             'data'  => $row,
@@ -209,7 +209,7 @@ class PemeriksaanSmhController extends Controller
         $perlengkapan = [];
         if ($item) {
             $prefix = strtoupper(substr(str_replace(' ', '', $item->no_mesin ?? ''), 0, 5));
-            $plRow  = DbPerlengkapan::where('kode', $prefix)->first();
+            $plRow  = $this->findPerlengkapan($prefix);
             $perlengkapan = $plRow ? $plRow->itemList() : [];
         }
 
@@ -230,7 +230,7 @@ class PemeriksaanSmhController extends Controller
         foreach ($items as $it) {
             $prefix = strtoupper(substr(str_replace(' ', '', $it->no_mesin ?? ''), 0, 5));
             if (!isset($grouped[$prefix])) {
-                $plRow = DbPerlengkapan::where('kode', $prefix)->first();
+                $plRow = $this->findPerlengkapan($prefix);
                 $grouped[$prefix] = [
                     'kode'         => $prefix,
                     'nama'         => $plRow?->nama,
@@ -295,6 +295,17 @@ class PemeriksaanSmhController extends Controller
             'keteranganKondisi'  => $i->keterangan_kondisi,
             'perlengkapanJson'   => $i->perlengkapan_json ?? [],
         ];
+    }
+
+    /** Find DbPerlengkapan by kode, with fallback for older DB schemas. */
+    private function findPerlengkapan(string $kode): ?DbPerlengkapan
+    {
+        try {
+            return DbPerlengkapan::where('kode', $kode)->first();
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Column 'kode' missing – table uses legacy structure, skip gracefully
+            return null;
+        }
     }
 
     private function ensureCanWrite(Request $request): void
