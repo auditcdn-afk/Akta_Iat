@@ -2956,8 +2956,8 @@ function prRender() {
             <td class="px-3 py-2">
                 <input type="text" value="${escHtml(it.keterangan || '')}"
                     data-pr-idx="${idx}"
-                    placeholder="Keterangan... (ops)"
-                    class="w-36 rounded-lg bg-slate-700/60 px-2 py-1 text-xs text-slate-200 placeholder-slate-500 border border-slate-600 focus:border-blue-500 focus:outline-none">
+                    placeholder="Keterangan... (opsional)"
+                    class="w-36 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none">
             </td>
         </tr>`;
     }).join('');
