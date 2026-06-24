@@ -2606,15 +2606,21 @@ let _kwItems = [];   // current kwitansi array in memory
 
 async function loadKwTab() {
     const planId = activePlanId;
-    if (!planId) return;
+    if (!planId) { kwRender(); return; }
     const res = await fetchJson(`/api/audit-detail/kwitansi?plan_audit_id=${planId}`, { headers: authHeaders() });
-    if (res.data) {
+    if (res.data && (res.data.kwitansi ?? []).length > 0) {
         const el = document.getElementById("kwTglAudit");
         if (el) el.value = res.data.tglAudit ?? "";
-        _kwItems = res.data.kwitansi ?? [];
-    } else {
-        _kwItems = [];
+        _kwItems = res.data.kwitansi;
+    } else if (res.data) {
+        // DB has a record but empty kwitansi — only overwrite if we have nothing in memory
+        if (_kwItems.length === 0) {
+            const el = document.getElementById("kwTglAudit");
+            if (el) el.value = res.data.tglAudit ?? "";
+            _kwItems = [];
+        }
     }
+    // If DB returns nothing and _kwItems already has data, keep existing in-memory data
     kwRender();
 }
 
@@ -2870,13 +2876,12 @@ let _prItems = [];   // current piutang array in memory
 
 async function loadPrTab() {
     const planId = activePlanId;
-    if (!planId) return;
+    if (!planId) { prRender(); return; }
     const res = await fetchJson(`/api/audit-detail/piutang-reguler?plan_audit_id=${planId}`, { headers: authHeaders() });
-    if (res.data) {
-        _prItems = res.data.piutang ?? [];
-    } else {
-        _prItems = [];
+    if (res.data && (res.data.piutang ?? []).length > 0) {
+        _prItems = res.data.piutang;
     }
+    // If DB has no data but memory has data, keep memory (handles failed saves)
     prRender();
 }
 
@@ -3057,13 +3062,12 @@ function initPrForm() {
 let _pcdnItems = [];
 
 async function loadPcdnTab() {
-    if (!activePlanId) return;
+    if (!activePlanId) { pcdnRender(); return; }
     const res = await fetchJson(`/api/audit-detail/piutang-cdn?plan_audit_id=${activePlanId}`);
-    if (res.data) {
-        _pcdnItems = res.data.piutang ?? [];
-    } else {
-        _pcdnItems = [];
+    if (res.data && (res.data.piutang ?? []).length > 0) {
+        _pcdnItems = res.data.piutang;
     }
+    // If DB has no data but memory has data, keep memory (handles failed saves)
     pcdnRender();
 }
 
