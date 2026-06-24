@@ -1444,107 +1444,34 @@
                 </button>
             </div>
 
-            {{-- MT Lama --}}
-            <div class="rounded-2xl border border-slate-700 bg-slate-900 p-5 space-y-3">
-                <div class="flex items-center justify-between">
-                    <h4 class="text-sm font-bold text-amber-400 uppercase tracking-wide">MT Lama</h4>
-                    <button type="button" id="mtLamaAddBtn"
-                        class="rounded-lg border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800">
-                        + Tambah Baris
-                    </button>
+            {{-- Input Mekanik + Jenis --}}
+            <div class="rounded-2xl border border-slate-700 bg-slate-900 p-5 space-y-4">
+                <div class="flex flex-col gap-1">
+                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-400">Mekanik <span class="text-red-400">*</span></label>
+                    <input type="text" id="mtMekanik" placeholder="Nama mekanik..."
+                        class="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none">
                 </div>
-                <div class="overflow-x-auto rounded-xl border border-slate-800">
-                    <table class="min-w-full text-xs">
-                        <thead class="bg-slate-800/80">
-                            <tr>
-                                <th class="px-4 py-2 text-left text-slate-400">No</th>
-                                <th class="px-4 py-2 text-center text-slate-400">Bagus</th>
-                                <th class="px-4 py-2 text-center text-slate-400">SK Audit</th>
-                                <th class="px-4 py-2 text-center text-slate-400">Rusak</th>
-                                <th class="px-4 py-2 text-center text-slate-400">Hilang</th>
-                                <th class="px-4 py-2 text-right text-slate-400">Harga</th>
-                                <th class="px-4 py-2 text-center text-slate-400">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="mtLamaBody"></tbody>
-                        <tfoot>
-                            <tr class="border-t border-slate-700 bg-slate-800/40">
-                                <td colspan="5" class="px-4 py-2 text-right text-xs font-semibold text-slate-300">Total Harga:</td>
-                                <td id="mtLamaTotal" class="px-4 py-2 text-right font-bold text-blue-400">0</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                <div class="flex flex-col gap-2">
+                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis <span class="text-red-400">*</span></label>
+                    <div class="flex gap-2">
+                        <button type="button" data-mt-jenis="baru"
+                            class="mt-jenis-btn flex-1 rounded-lg border border-slate-600 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 transition">
+                            Baru
+                        </button>
+                        <button type="button" data-mt-jenis="lama"
+                            class="mt-jenis-btn flex-1 rounded-lg border border-slate-600 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 transition">
+                            Lama
+                        </button>
+                        <button type="button" data-mt-jenis="fi"
+                            class="mt-jenis-btn flex-1 rounded-lg border border-slate-600 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 transition">
+                            FI
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {{-- MT FI --}}
-            <div class="rounded-2xl border border-slate-700 bg-slate-900 p-5 space-y-3">
-                <div class="flex items-center justify-between">
-                    <h4 class="text-sm font-bold text-blue-400 uppercase tracking-wide">MT FI</h4>
-                    <button type="button" id="mtFiAddBtn"
-                        class="rounded-lg border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800">
-                        + Tambah Baris
-                    </button>
-                </div>
-                <div class="overflow-x-auto rounded-xl border border-slate-800">
-                    <table class="min-w-full text-xs">
-                        <thead class="bg-slate-800/80">
-                            <tr>
-                                <th class="px-4 py-2 text-left text-slate-400">No</th>
-                                <th class="px-4 py-2 text-center text-slate-400">Bagus</th>
-                                <th class="px-4 py-2 text-center text-slate-400">SK Audit</th>
-                                <th class="px-4 py-2 text-center text-slate-400">Rusak</th>
-                                <th class="px-4 py-2 text-center text-slate-400">Hilang</th>
-                                <th class="px-4 py-2 text-right text-slate-400">Harga</th>
-                                <th class="px-4 py-2 text-center text-slate-400">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="mtFiBody"></tbody>
-                        <tfoot>
-                            <tr class="border-t border-slate-700 bg-slate-800/40">
-                                <td colspan="5" class="px-4 py-2 text-right text-xs font-semibold text-slate-300">Total Harga:</td>
-                                <td id="mtFiTotal" class="px-4 py-2 text-right font-bold text-blue-400">0</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </div>
-
-            {{-- MT Baru --}}
-            <div class="rounded-2xl border border-slate-700 bg-slate-900 p-5 space-y-3">
-                <div class="flex items-center justify-between">
-                    <h4 class="text-sm font-bold text-emerald-400 uppercase tracking-wide">MT Baru</h4>
-                    <button type="button" id="mtBaruAddBtn"
-                        class="rounded-lg border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800">
-                        + Tambah Baris
-                    </button>
-                </div>
-                <div class="overflow-x-auto rounded-xl border border-slate-800">
-                    <table class="min-w-full text-xs">
-                        <thead class="bg-slate-800/80">
-                            <tr>
-                                <th class="px-4 py-2 text-left text-slate-400">No</th>
-                                <th class="px-4 py-2 text-center text-slate-400">Bagus</th>
-                                <th class="px-4 py-2 text-center text-slate-400">SK Audit</th>
-                                <th class="px-4 py-2 text-center text-slate-400">Rusak</th>
-                                <th class="px-4 py-2 text-center text-slate-400">Hilang</th>
-                                <th class="px-4 py-2 text-right text-slate-400">Harga</th>
-                                <th class="px-4 py-2 text-center text-slate-400">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="mtBaruBody"></tbody>
-                        <tfoot>
-                            <tr class="border-t border-slate-700 bg-slate-800/40">
-                                <td colspan="5" class="px-4 py-2 text-right text-xs font-semibold text-slate-300">Total Harga:</td>
-                                <td id="mtBaruTotal" class="px-4 py-2 text-right font-bold text-blue-400">0</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </div>
+            {{-- Kategori tools --}}
+            <div id="mtKategoriWrap" class="space-y-4"></div>
 
         </div>
 

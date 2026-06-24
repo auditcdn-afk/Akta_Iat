@@ -189,8 +189,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── MT ──
-    Route::get('/audit-detail/mt',  [MtController::class, 'show']);
-    Route::post('/audit-detail/mt', [MtController::class, 'save'])
+    Route::get('/audit-detail/mt',       [MtController::class, 'show']);
+    Route::get('/audit-detail/mt/tools', [MtController::class, 'tools']);
+    Route::post('/audit-detail/mt',      [MtController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── SMH ──
