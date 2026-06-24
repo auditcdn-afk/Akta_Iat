@@ -1286,9 +1286,6 @@ function setupFilters() {
 
 // ── Pemeriksaan Plafon ────────────────────────────────────────────────────────
 
-let pfAllUnits    = [];   // semua unit dari API
-let pfSelectedUnit = null; // { unitUsaha, wilayah, plafonNilai, ... }
-
 function fmtRupiah(val) {
     if (val === null || val === undefined) return '—';
     return 'Rp ' + Math.round(val).toLocaleString('id-ID');
@@ -1297,75 +1294,33 @@ function fmtRupiah(val) {
 async function loadPlafonTab() {
     if (!activePlanId) return;
 
-    // Reset unit info
-    pfSelectedUnit = null;
-    pfSetUnitInfo(null);
     document.getElementById('pfAnalisaWrap')?.classList.add('hidden');
 
-    // Load daftar unit usaha
+    // Ambil cabang dari plan aktif sebagai unit usaha
+    const cabang = activePlan?.cabang || '';
+    document.getElementById('pfKodeUnit').textContent = cabang || '—';
+
+    // Cari info unit usaha (wilayah, plafon) dari API
     try {
         const res = await fetchJson(`/api/audit-detail/plafon/units?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
-        pfAllUnits = res.data || [];
-        const onhandSet = new Set((res.gudangOnhand || []).map(g => g.toUpperCase()));
-        document.getElementById('pfUnitCount').textContent = `${pfAllUnits.length} unit usaha tersedia`;
-        pfRenderUnitList('', onhandSet);
-    } catch (e) {
-        pfAllUnits = [];
-    }
+        const unitInfo = (res.data || []).find(u => u.unitUsaha?.toUpperCase() === cabang?.toUpperCase());
+        document.getElementById('pfPlafonCover').textContent = unitInfo?.plafonNilai != null ? fmtRupiah(unitInfo.plafonNilai) : '—';
+        document.getElementById('pfDaerah').textContent      = unitInfo?.wilayah || '—';
+    } catch (e) { /* silent */ }
 
-    // Load ringkasan semua gudang
-    pfLoadRingkasan();
-}
-
-function pfRenderUnitList(q, onhandSet) {
-    const ul = document.getElementById('pfUnitList');
-    if (!ul) return;
-    const filtered = q
-        ? pfAllUnits.filter(u => u.unitUsaha?.toLowerCase().includes(q.toLowerCase()) || u.wilayah?.toLowerCase().includes(q.toLowerCase()))
-        : pfAllUnits;
-
-    if (!filtered.length) { ul.classList.add('hidden'); return; }
-
-    ul.innerHTML = filtered.map(u => {
-        const hasData = u.hasOnhand;
-        const badge   = hasData
-            ? `<span class="ml-auto text-xs rounded-full bg-emerald-900/50 text-emerald-400 px-2 py-0.5">Ada Onhand</span>`
-            : '';
-        const plafon  = u.plafonNilai !== null ? `<span class="text-xs text-blue-400">${fmtRupiah(u.plafonNilai)}</span>` : `<span class="text-xs text-slate-500">—</span>`;
-        return `<div class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-700/60" data-unit="${escapeHtml(u.unitUsaha)}">
-            <div class="flex-1 min-w-0">
-                <div class="text-sm font-semibold text-slate-100">${escapeHtml(u.unitUsaha)}</div>
-                <div class="flex items-center gap-2 text-xs text-slate-400">${escapeHtml(u.wilayah || '—')} · ${plafon}</div>
-            </div>
-            ${badge}
-        </div>`;
-    }).join('');
-    ul.classList.remove('hidden');
-}
-
-function pfSetUnitInfo(unit) {
-    document.getElementById('pfKodeUnit').textContent   = unit?.unitUsaha  || '—';
-    document.getElementById('pfPlafonCover').textContent = unit?.plafonNilai != null ? fmtRupiah(unit.plafonNilai) : '—';
-    document.getElementById('pfDaerah').textContent     = unit?.wilayah    || '—';
-}
-
-async function pfSelectUnit(unitUsaha) {
-    document.getElementById('pfUnitSearch').value = unitUsaha;
-    document.getElementById('pfUnitList')?.classList.add('hidden');
-
-    pfSelectedUnit = pfAllUnits.find(u => u.unitUsaha === unitUsaha) || { unitUsaha };
-    pfSetUnitInfo(pfSelectedUnit);
-
-    // Muat analisa untuk unit ini
+    // Muat analisa berdasarkan cabang plan
     try {
         const res = await fetchJson(
-            `/api/audit-detail/plafon/analisa?plan_audit_id=${activePlanId}&gudang=${encodeURIComponent(unitUsaha)}`,
+            `/api/audit-detail/plafon/analisa?plan_audit_id=${activePlanId}${cabang ? '&gudang=' + encodeURIComponent(cabang) : ''}`,
             { headers: authHeaders() }
         );
         pfRenderAnalisa(res);
     } catch (e) {
         showAlert('Gagal memuat analisa: ' + e.message, 'error');
     }
+
+    // Ringkasan semua gudang dalam plan
+    pfLoadRingkasan();
 }
 
 function pfRenderAnalisa(data) {
@@ -1464,34 +1419,20 @@ function pfRenderRingkasan(res) {
 }
 
 function initPlafonForm() {
-    // Search unit usaha
-    const searchEl = document.getElementById('pfUnitSearch');
-    searchEl?.addEventListener('input', e => {
-        const q = e.target.value;
-        if (q.length === 0) { document.getElementById('pfUnitList')?.classList.add('hidden'); return; }
-        pfRenderUnitList(q, new Set());
-    });
-    searchEl?.addEventListener('focus', e => {
-        if (e.target.value.length > 0) pfRenderUnitList(e.target.value, new Set());
-    });
-
-    // Klik item list
-    document.getElementById('pfUnitList')?.addEventListener('click', e => {
-        const item = e.target.closest('[data-unit]');
-        if (item) pfSelectUnit(item.dataset.unit);
-    });
-
-    // Klik baris ringkasan → tampilkan analisa unit
-    document.getElementById('pfRingkasanBody')?.addEventListener('click', e => {
+    // Klik baris ringkasan → tampilkan analisa unit tersebut
+    document.getElementById('pfRingkasanBody')?.addEventListener('click', async e => {
         const row = e.target.closest('[data-pfunit]');
-        if (row) pfSelectUnit(row.dataset.pfunit);
-    });
-
-    // Tutup dropdown saat klik luar
-    document.addEventListener('click', e => {
-        if (!e.target.closest('#pfUnitSearch') && !e.target.closest('#pfUnitList')) {
-            document.getElementById('pfUnitList')?.classList.add('hidden');
-        }
+        if (!row) return;
+        const gudang = row.dataset.pfunit;
+        document.getElementById('pfKodeUnit').textContent = gudang;
+        try {
+            const res = await fetchJson(
+                `/api/audit-detail/plafon/analisa?plan_audit_id=${activePlanId}&gudang=${encodeURIComponent(gudang)}`,
+                { headers: authHeaders() }
+            );
+            pfRenderAnalisa(res);
+            document.getElementById('pfAnalisaWrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (e) { showAlert(e.message, 'error'); }
     });
 }
 

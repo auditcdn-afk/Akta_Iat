@@ -525,25 +525,6 @@
                 </div>
             </div>
 
-            {{-- Pilih Unit Usaha --}}
-            <div class="rounded-2xl border border-slate-700 bg-slate-900 p-5 space-y-3">
-                <div class="flex items-center gap-3">
-                    <div class="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">1</div>
-                    <div>
-                        <div class="text-sm font-semibold text-slate-200">Pilih Unit Usaha</div>
-                        <div id="pfUnitCount" class="text-xs text-blue-400">Memuat...</div>
-                    </div>
-                </div>
-                <div class="relative">
-                    <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                    </span>
-                    <input id="pfUnitSearch" type="search" placeholder="Ketik untuk cari & pilih unit usaha..."
-                        class="w-full rounded-xl border border-slate-700 bg-slate-800 pl-9 pr-4 py-2.5 text-sm text-slate-100 outline-none focus:border-blue-500">
-                </div>
-                <div id="pfUnitList" class="hidden max-h-56 overflow-y-auto rounded-xl border border-slate-700 bg-slate-800 divide-y divide-slate-700/50"></div>
-            </div>
-
             {{-- Hasil Analisa --}}
             <div id="pfAnalisaWrap" class="hidden rounded-2xl border border-slate-700 bg-slate-900 p-5 space-y-4">
                 <div class="flex items-center gap-3">
