@@ -55,11 +55,12 @@ class KwitansiController extends Controller
         $tglAuditStr = $request->input('tgl_audit');
         $tglAudit    = $tglAuditStr ? new \DateTime($tglAuditStr) : null;
 
-        // Auto-detect the nilai column: column with most cells having value >= 1000
+        // Auto-detect the nilai column: column with most cells having value >= 1000.
+        // Values may be numeric strings with thousands separators e.g. "15,834,000".
         $colCounts = [];
         foreach ($rows as $row) {
             foreach ($row as $ci => $cell) {
-                $n = is_numeric($cell) ? (float)$cell : 0;
+                $n = $this->parseNum($cell);
                 if ($n >= 1000) $colCounts[$ci] = ($colCounts[$ci] ?? 0) + 1;
             }
         }
@@ -78,10 +79,11 @@ class KwitansiController extends Controller
             if (str_starts_with(strtolower($col0), 'total')) continue;
             if (str_starts_with($col0, '*')) continue;
 
-            $rawNilai = $row[$nilaiCol] ?? null;
-            $nilai    = is_numeric($rawNilai) ? (float)$rawNilai : 0;
+            $nilai = $this->parseNum($row[$nilaiCol] ?? null);
 
-            if ($nilai > 0) {
+            // Real kwitansi values are in the millions; small numbers like a page
+            // number ("Halaman : 1") are not data rows.
+            if ($nilai >= 1000) {
                 $tglRaw = $row[2] ?? null;
                 $tglStr = $this->toDateStr($tglRaw);
                 $diff   = null;
@@ -110,6 +112,15 @@ class KwitansiController extends Controller
         return response()->json(['data' => $items, 'nilaiCol' => $nilaiCol]);
     }
 
+    private function parseNum(mixed $val): float
+    {
+        if ($val === null || $val === '') return 0;
+        if (is_int($val) || is_float($val)) return (float)$val;
+        // Strip everything except digits and decimal point (removes thousands separators)
+        $clean = preg_replace('/[^0-9.]/', '', (string)$val);
+        return $clean === '' ? 0 : (float)$clean;
+    }
+
     private function toDateStr(mixed $val): string
     {
         if ($val === null || $val === '') return '';
@@ -121,7 +132,10 @@ class KwitansiController extends Controller
         }
         $s = trim((string)$val);
         if (preg_match('/^\d{4}-\d{2}-\d{2}/', $s)) return substr($s, 0, 10);
-        // Try strtotime for various date string formats
+        // DD-MM-YYYY or DD/MM/YYYY
+        if (preg_match('#^(\d{1,2})[-/](\d{1,2})[-/](\d{4})#', $s, $m)) {
+            return sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]);
+        }
         $ts = strtotime($s);
         return $ts ? date('Y-m-d', $ts) : '';
     }
