@@ -3486,8 +3486,20 @@ function cfCalcAndRefresh() {
     s('cfStatStujAwal',  cfN(sa.stuj)); s('cfStatStujAkhir', totStuj); cfColorStat('cfStatStujSelisih',  _cfData.selisih.stuj);
     s('cfStatFstnkAwal', cfN(sa.fstnk));s('cfStatFstnkAkhir',totFstnk);cfColorStat('cfStatFstnkSelisih',_cfData.selisih.fstnk);
 
-    // Update ringkasan table
-    cfRenderRingkasan();
+    // Update ringkasan cells without re-rendering DOM (prevents scroll jump)
+    const cls = v => v === 0 ? 'text-green-400 font-bold' : 'text-red-400 font-bold';
+    const updateTd = (id, v) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = cfN(v);
+        el.className = `px-4 py-2 text-right ${cls(v)}`;
+    };
+    s('cfRingkasanAkhirCf',    cfN(totCf));
+    s('cfRingkasanAkhirStuj',  cfN(totStuj));
+    s('cfRingkasanAkhirFstnk', cfN(totFstnk));
+    updateTd('cfSelisihCf',    _cfData.selisih.cf);
+    updateTd('cfSelisihStuj',  _cfData.selisih.stuj);
+    updateTd('cfSelisihFstnk', _cfData.selisih.fstnk);
 }
 
 function cfColorStat(id, v) {
@@ -3629,9 +3641,9 @@ function cfRenderRingkasan() {
     tbody.innerHTML = `
         <tr class="border-b border-slate-800/60">
             <td class="px-4 py-2 text-slate-300">Saldo Akhir (Sistem)</td>
-            <td class="px-4 py-2 text-right font-semibold text-blue-400">${cfN(ak.cf)}</td>
-            <td class="px-4 py-2 text-right font-semibold text-blue-400">${cfN(ak.stuj)}</td>
-            <td class="px-4 py-2 text-right font-semibold text-blue-400">${cfN(ak.fstnk)}</td>
+            <td id="cfRingkasanAkhirCf"    class="px-4 py-2 text-right font-semibold text-blue-400">${cfN(ak.cf)}</td>
+            <td id="cfRingkasanAkhirStuj"  class="px-4 py-2 text-right font-semibold text-blue-400">${cfN(ak.stuj)}</td>
+            <td id="cfRingkasanAkhirFstnk" class="px-4 py-2 text-right font-semibold text-blue-400">${cfN(ak.fstnk)}</td>
         </tr>
         <tr class="border-b border-slate-800/60 bg-slate-800/30">
             <td class="px-4 py-2 font-semibold text-slate-200">Fisik (Hasil Pemeriksaan)</td>
