@@ -1692,7 +1692,7 @@ function renderMateraiAll(rows) {
         return;
     }
     wrap.innerHTML = rows.map(renderMateraiBlock).join("");
-    wrap.querySelectorAll(".mt-fisik-input").forEach((inp) => {
+    wrap.querySelectorAll(".mt-fisik-input, .mt-uang-input").forEach((inp) => {
         inp.addEventListener("change", onMateraiFisikChange);
     });
     wrap.querySelectorAll(".mt-delete-btn").forEach((btn) => {
@@ -1757,7 +1757,11 @@ function renderMateraiBlock(rec) {
             <input type="number" min="0"
                 class="mt-fisik-input w-28 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-100 focus:border-blue-500 focus:outline-none"
                 data-id="${rec.id}" value="${rec.fisik ?? ""}">
-            <span class="text-sm text-slate-400">Selisih: ${selisihHtml}</span>
+            <label class="text-sm font-semibold text-slate-300">Uang Rp.10.000 (pcs):</label>
+            <input type="number" min="0"
+                class="mt-uang-input w-28 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-100 focus:border-blue-500 focus:outline-none"
+                data-id="${rec.id}" value="${rec.uang10000 ?? ""}">
+            <span class="mt-selisih-span text-sm text-slate-400">Selisih: ${selisihHtml}</span>
             <span class="ml-auto text-xs text-slate-500">Saldo buku: ${fmtNum(rec.saldoAkhir)}</span>
         </div>
     </div>`;
@@ -1774,25 +1778,28 @@ function escHtml(str) {
 }
 
 async function onMateraiFisikChange(e) {
-    const inp = e.target;
-    const id = inp.dataset.id;
-    const fisik = parseInt(inp.value, 10);
+    const inp  = e.target;
+    const id   = inp.dataset.id;
+    const card = document.querySelector(`[data-mt-id="${id}"]`);
+    if (!card) return;
+
+    const fisikInp = card.querySelector(".mt-fisik-input");
+    const uangInp  = card.querySelector(".mt-uang-input");
+    const fisik    = parseInt(fisikInp?.value ?? 0, 10);
+    const uang     = parseInt(uangInp?.value  ?? 0, 10);
     if (isNaN(fisik) || fisik < 0) return;
+
     try {
         const res = await fetchJson(`/api/audit-detail/materai/${id}/fisik`, {
             method: "PUT",
             headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({ fisik }),
+            body: JSON.stringify({ fisik, uang_10000: isNaN(uang) ? 0 : uang }),
         });
-        const rec = res.data;
-        const card = document.querySelector(`[data-mt-id="${id}"]`);
-        if (card) {
-            const selisih = rec.selisih ?? null;
-            const footer = card.querySelector(".mt-fisik-input")?.closest("div");
-            const span = footer?.querySelector("span");
-            if (span) {
-                span.innerHTML = `Selisih: <span class="font-bold ${selisih === 0 ? "text-emerald-400" : "text-red-400"}">${selisih > 0 ? "+" : ""}${fmtNum(selisih)}</span>`;
-            }
+        const rec     = res.data;
+        const selisih = rec.selisih ?? null;
+        const span    = card.querySelector(".mt-selisih-span");
+        if (span) {
+            span.innerHTML = `Selisih: <span class="font-bold ${selisih === 0 ? "text-emerald-400" : "text-red-400"}">${selisih > 0 ? "+" : ""}${fmtNum(selisih)}</span>`;
         }
     } catch (err) {
         showAlert(err.message || "Gagal menyimpan fisik.", "error");

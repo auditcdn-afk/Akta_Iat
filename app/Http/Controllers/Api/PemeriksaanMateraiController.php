@@ -67,11 +67,16 @@ class PemeriksaanMateraiController extends Controller
 
     public function updateFisik(Request $request, PemeriksaanMaterai $pemeriksaanMaterai): JsonResponse
     {
-        $data = $request->validate(['fisik' => 'required|integer|min:0']);
-        $fisik   = (int) $data['fisik'];
-        $selisih = $fisik - $pemeriksaanMaterai->saldo_akhir;
+        $data     = $request->validate([
+            'fisik'      => 'required|integer|min:0',
+            'uang_10000' => 'nullable|integer|min:0',
+        ]);
+        $fisik      = (int) $data['fisik'];
+        $uang10000  = isset($data['uang_10000']) ? (int) $data['uang_10000'] : ($pemeriksaanMaterai->uang_10000 ?? 0);
+        $selisih    = $fisik + $uang10000 - $pemeriksaanMaterai->saldo_akhir;
         $pemeriksaanMaterai->update([
             'fisik'      => $fisik,
+            'uang_10000' => $uang10000,
             'selisih'    => $selisih,
             'updated_by' => $request->user()?->username ?? $request->user()?->email,
         ]);

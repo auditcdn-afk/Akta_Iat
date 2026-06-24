@@ -12,7 +12,7 @@ class PemeriksaanMaterai extends Model
     protected $fillable = [
         'plan_audit_id', 'jenis_materai',
         'saldo_awal', 'total_debet', 'total_kredit', 'saldo_akhir',
-        'fisik', 'selisih', 'transaksi_json',
+        'fisik', 'uang_10000', 'selisih', 'transaksi_json',
         'created_by', 'updated_by',
     ];
 
@@ -23,6 +23,7 @@ class PemeriksaanMaterai extends Model
         'total_kredit'   => 'integer',
         'saldo_akhir'    => 'integer',
         'fisik'          => 'integer',
+        'uang_10000'     => 'integer',
         'selisih'        => 'integer',
     ];
 
@@ -42,6 +43,7 @@ class PemeriksaanMaterai extends Model
             'totalKredit'   => $this->total_kredit,
             'saldoAkhir'    => $this->saldo_akhir,
             'fisik'         => $this->fisik,
+            'uang10000'     => $this->uang_10000,
             'selisih'       => $this->selisih,
             'transaksi'     => $this->transaksi_json ?? [],
             'updatedAt'     => $this->updated_at?->toDateTimeString(),
