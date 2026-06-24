@@ -394,9 +394,11 @@
                             class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 outline-none">
                     </div>
                     <div>
-                        <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Nama Pemeriksa <span class="text-red-400">*</span></label>
-                        <input id="plNamaPemeriksa" type="text" placeholder="Nama pemeriksa"
-                            class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Pemeriksa</label>
+                        <div class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300">
+                            <span id="plNamaPemeriksaDisplay">-</span>
+                        </div>
+                        <input id="plNamaPemeriksaHidden" type="hidden">
                     </div>
                     <div>
                         <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Tgl Pemeriksaan</label>
@@ -417,9 +419,10 @@
 
                 <div class="grid gap-4 sm:grid-cols-3">
                     <div>
-                        <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Saldo (Buku) <span class="text-red-400">*</span></label>
-                        <input id="plSaldo" type="number" min="0" value="0"
-                            class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Saldo (dari Onhand SMH)</label>
+                        <input id="plSaldo" type="number" readonly value="0"
+                            class="w-full rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm text-slate-300 outline-none cursor-not-allowed">
+                        <p class="mt-0.5 text-xs text-slate-500">Otomatis dari data onhand</p>
                     </div>
                     <div>
                         <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Fisik <span class="text-red-400">*</span></label>

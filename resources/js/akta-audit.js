@@ -736,11 +736,15 @@ let plEditId    = null; // id record sedang diedit
 async function loadPlForm() {
     if (!activePlanId) return;
 
-    // Isi no plan & nama unit dari activePlan
+    // Isi no plan, nama unit, pemeriksa dari activePlan & currentUser
     const plan = activePlan || {};
-    document.getElementById('plNoPlan').value      = plan.noSpt || plan.noPlan || '';
-    document.getElementById('plNamaUnit').value    = plan.cabang || plan.namaUnit || '';
-    document.getElementById('plTglPeriksa').value  = plan.tglPlan || plan.tglMulai || '';
+    document.getElementById('plNoPlan').value     = plan.noSpt || plan.noPlan || '';
+    document.getElementById('plNamaUnit').value   = plan.cabang || plan.namaUnit || '';
+    document.getElementById('plTglPeriksa').value = plan.tglPlan || plan.tglMulai || '';
+    // Auto-fill pemeriksa dari user login (hidden field)
+    const pemeriksa = currentUser?.name || currentUser?.username || currentUser?.email || '';
+    document.getElementById('plNamaPemeriksaHidden').value = pemeriksa;
+    document.getElementById('plNamaPemeriksaDisplay').textContent = pemeriksa || '-';
 
     // Load jenis perlengkapan dari onhand
     try {
@@ -821,7 +825,7 @@ function plResetForm() {
     document.getElementById('plFisik').value       = 0;
     document.getElementById('plSelisih').value     = 0;
     document.getElementById('plPenjelasan').value  = '';
-    document.getElementById('plJenisSmhInfo').classList.add('hidden');
+    document.getElementById('plJenisSmhInfo')?.classList.add('hidden');
     document.getElementById('plSimpanBtn').textContent = 'Simpan';
     plRecalcSelisih();
 }
@@ -841,18 +845,21 @@ function plSelectJenis(nama) {
     document.getElementById('plJenisInput').value = nama;
     document.getElementById('plJenisList')?.classList.add('hidden');
 
-    // Tunjukkan info dari SMH onhand
+    // Auto-isi saldo dari jumlah unit SMH onhand yang perlengkapan ini ADA (ada=true)
     const smh  = plSmhMap[nama];
     const info = document.getElementById('plJenisSmhInfo');
-    if (smh && info) {
-        info.textContent = `Dari SMH onhand: ${smh.ada} ada / ${smh.total} unit diperiksa`;
-        info.classList.remove('hidden');
-        // Auto-isi saldo berdasarkan total unit onhand yang punya item ini
-        document.getElementById('plSaldo').value = smh.total;
-        plRecalcSelisih();
-    } else if (info) {
-        info.classList.add('hidden');
+    if (smh) {
+        const saldoVal = smh.ada; // jumlah unit yang perlengkapannya ada
+        document.getElementById('plSaldo').value = saldoVal;
+        if (info) {
+            info.textContent = `Onhand SMH: ${smh.ada} unit ada / ${smh.total} unit diperiksa → saldo = ${saldoVal}`;
+            info.classList.remove('hidden');
+        }
+    } else {
+        document.getElementById('plSaldo').value = 0;
+        if (info) info.classList.add('hidden');
     }
+    plRecalcSelisih();
 }
 
 function initPlForm() {
@@ -895,7 +902,7 @@ function initPlForm() {
                 plan_audit_id:      activePlanId,
                 no_plan:            document.getElementById('plNoPlan')?.value || null,
                 nama_unit_usaha:    document.getElementById('plNamaUnit')?.value || null,
-                nama_pemeriksa:     document.getElementById('plNamaPemeriksa')?.value || null,
+                nama_pemeriksa:     document.getElementById('plNamaPemeriksaHidden')?.value || null,
                 tgl_periksa:        document.getElementById('plTglPeriksa')?.value || null,
                 jenis_perlengkapan: jenis,
                 saldo:              parseFloat(document.getElementById('plSaldo')?.value || 0),
