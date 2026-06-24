@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\PemeriksaanPerlengkapanController;
 use App\Http\Controllers\Api\PemeriksaanMateraiController;
 use App\Http\Controllers\Api\PlafonController;
 use App\Http\Controllers\Api\BpkbOnhandController;
+use App\Http\Controllers\Api\BpkbInprosesController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', [DataStoreController::class, 'ping']);
@@ -139,6 +140,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/audit-detail/bpkb/scan/{bpkbOnhandItem}',    [BpkbOnhandController::class, 'unscan'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::delete('/audit-detail/bpkb/reset',                     [BpkbOnhandController::class, 'reset'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── BPKB Inproses ──
+    Route::get('/audit-detail/bpkb-inproses',  [BpkbInprosesController::class, 'show']);
+    Route::post('/audit-detail/bpkb-inproses', [BpkbInprosesController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── SMH ──

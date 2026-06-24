@@ -229,6 +229,9 @@ function switchTab(tab) {
     if (tab === "bpkb") {
         loadBpkbTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "bpkb-inproses") {
+        loadBpkiTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1668,6 +1671,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupFilters();
     initMateraiForm();
     initBpkbForm();
+    initBpkiForm();
 
     try {
         await loadCurrentUser();
@@ -2178,5 +2182,205 @@ function initBpkbForm() {
         });
         btn.className = "bpkb-result-tab rounded-lg px-4 py-1.5 text-xs font-semibold bg-blue-600 text-white";
         bpkbRenderResult(bpkbData.items ?? []);
+    });
+}
+
+// ─── BPKB Inproses ───────────────────────────────────────────────────────────
+
+const BPKI_SECTIONS = {
+    penerimaanFisik:      { container: "bpkiPenerimaanFisikRows",    labelPlaceholder: "Keterangan", qtyLabel: "QTY" },
+    pengeluaranBpkb:      { container: "bpkiPengeluaranBpkbRows",    labelPlaceholder: "Keterangan", qtyLabel: "QTY" },
+    pendaftaranBpkb:      { container: "bpkiPendaftaranBpkbRows",    labelPlaceholder: "Keterangan", qtyLabel: "QTY" },
+    penyelesaianInproses: { container: "bpkiPenyelesaianInprosesRows", labelPlaceholder: "Keterangan", qtyLabel: "QTY" },
+    ketSelisihInproses:   { container: "bpkiKetSelisihInprosesRows", labelPlaceholder: "Keterangan", qtyLabel: "QTY (Buku)" },
+    rincianInproses:      { container: "bpkiRincianInprosesRows",    labelPlaceholder: "Contoh: Maret 2025", qtyLabel: "QTY (Buku)" },
+};
+
+async function loadBpkiTab() {
+    const planId = activePlanId;
+    if (!planId) return;
+    const res = await fetchJson(`/api/audit-detail/bpkb-inproses?plan_audit_id=${planId}`, { headers: authHeaders() });
+    bpkiPopulate(res.data);
+}
+
+function bpkiPopulate(data) {
+    const d = data ?? {};
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ""; };
+    setVal("bpkiTglAwal",                d.tglAwal ?? "");
+    setVal("bpkiSaldoAwalFisik",         d.saldoAwalFisik ?? 0);
+    setVal("bpkiFilterInproses",         d.filterInproses ?? "");
+    setVal("bpkiSaldoAwalInproses",      d.saldoAwalInproses ?? 0);
+    setVal("bpkiFisikBpkbHitung",        d.fisikBpkbHitung ?? "");
+    setVal("bpkiKeteranganSelisih",      d.keteranganSelisih ?? "");
+    setVal("bpkiFisikInprosesHitung",    d.fisikInprosesHitung ?? "");
+    setVal("bpkiOnhandBpkb",             d.onhandBpkb ?? 0);
+    setVal("bpkiKeteranganSelisihOnhand",d.keteranganSelisihOnhand ?? "");
+
+    bpkiRenderRows("penerimaanFisik",      d.penerimaanFisik ?? [{}]);
+    bpkiRenderRows("pengeluaranBpkb",      d.pengeluaranBpkb ?? [{}]);
+    bpkiRenderRows("pendaftaranBpkb",      d.pendaftaranBpkb ?? [{}]);
+    bpkiRenderRows("penyelesaianInproses", d.penyelesaianInproses ?? [{}]);
+    bpkiRenderRows("ketSelisihInproses",   d.ketSelisihInproses ?? [{}]);
+    bpkiRenderRows("rincianInproses",      d.rincianInproses ?? [{}]);
+    bpkiRecalc();
+}
+
+function bpkiRenderRows(section, rows) {
+    const cfg = BPKI_SECTIONS[section];
+    if (!cfg) return;
+    const wrap = document.getElementById(cfg.container);
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    (rows.length ? rows : [{}]).forEach(row => bpkiAddRow(section, row));
+}
+
+function bpkiAddRow(section, data = {}) {
+    const cfg = BPKI_SECTIONS[section];
+    if (!cfg) return;
+    const wrap = document.getElementById(cfg.container);
+    if (!wrap) return;
+    const isRincian = section === "rincianInproses";
+    const div = document.createElement("div");
+    div.className = "flex items-center gap-2";
+    div.dataset.bpkiRow = section;
+    div.innerHTML = `
+        <input type="text" placeholder="${cfg.labelPlaceholder}" value="${escHtml(data.keterangan ?? data.bulan ?? "")}"
+            class="bpki-label flex-1 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-100 focus:border-blue-500 focus:outline-none bpki-recalc-input">
+        <input type="number" min="0" value="${data.qty ?? 0}"
+            class="bpki-qty w-24 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-100 focus:border-blue-500 focus:outline-none bpki-recalc-input"
+            placeholder="${cfg.qtyLabel}">
+        <button type="button" class="bpki-remove-row text-red-400 hover:text-red-300 px-1">✕</button>`;
+    wrap.appendChild(div);
+    div.querySelector(".bpki-recalc-input")?.addEventListener("input", bpkiRecalc);
+    div.querySelector(".bpki-qty")?.addEventListener("input", bpkiRecalc);
+    div.querySelector(".bpki-remove-row")?.addEventListener("click", () => { div.remove(); bpkiRecalc(); });
+}
+
+function bpkiGetRows(section) {
+    const cfg = BPKI_SECTIONS[section];
+    if (!cfg) return [];
+    const wrap = document.getElementById(cfg.container);
+    if (!wrap) return [];
+    const isRincian = section === "rincianInproses";
+    return [...wrap.querySelectorAll("[data-bpki-row]")].map(row => {
+        const label = row.querySelector(".bpki-label")?.value?.trim() ?? "";
+        const qty   = parseInt(row.querySelector(".bpki-qty")?.value ?? 0, 10) || 0;
+        return isRincian ? { bulan: label, qty } : { keterangan: label, qty };
+    }).filter(r => (r.keterangan ?? r.bulan) || r.qty);
+}
+
+function bpkiSumRows(section) {
+    return bpkiGetRows(section).reduce((s, r) => s + (r.qty || 0), 0);
+}
+
+function bpkiRecalc() {
+    const g = (id) => parseInt(document.getElementById(id)?.value ?? 0, 10) || 0;
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    const selisihLabel = (diff) => diff === 0 ? '<span class="text-emerald-400">Nihil</span>' : `<span class="text-red-400">${diff > 0 ? "+" : ""}${diff}</span>`;
+
+    // Fisik
+    const saldoAwalFisik   = g("bpkiSaldoAwalFisik");
+    const penerimaanFisik  = bpkiSumRows("penerimaanFisik");
+    const pengeluaranFisik = bpkiSumRows("pengeluaranBpkb");
+    const saldoBukuFisik   = saldoAwalFisik + penerimaanFisik - pengeluaranFisik;
+    const fisikHitung      = g("bpkiFisikBpkbHitung");
+    const selisihFisik     = fisikHitung - saldoBukuFisik;
+
+    set("bpkiRFisikSaldoAwal",   saldoAwalFisik);
+    set("bpkiRFisikPenerimaan",  penerimaanFisik);
+    set("bpkiRFisikPengeluaran", pengeluaranFisik);
+    set("bpkiRFisikBuku",        saldoBukuFisik);
+    set("bpkiRFisikHitung",      fisikHitung);
+    const selElF = document.getElementById("bpkiRFisikSelisih");
+    if (selElF) selElF.innerHTML = selisihLabel(selisihFisik);
+
+    // Inproses
+    const saldoAwalInp   = g("bpkiSaldoAwalInproses");
+    const pendaftaran    = bpkiSumRows("pendaftaranBpkb");
+    const penyelesaian   = bpkiSumRows("penyelesaianInproses");
+    const saldoBukuInp   = saldoAwalInp + pendaftaran - penyelesaian;
+    const inpHitung      = g("bpkiFisikInprosesHitung");
+    const selisihInp     = inpHitung - saldoBukuInp;
+
+    set("bpkiRInpSaldoAwal",    saldoAwalInp);
+    set("bpkiRInpPendaftaran",  pendaftaran);
+    set("bpkiRInpPenyelesaian", penyelesaian);
+    set("bpkiRInpBuku",         saldoBukuInp);
+    set("bpkiRInpHitung",       inpHitung);
+    const selElI = document.getElementById("bpkiRInpSelisih");
+    if (selElI) selElI.innerHTML = selisihLabel(selisihInp);
+
+    // Totals keterangan & rincian
+    set("bpkiTotalKetSelisih", bpkiSumRows("ketSelisihInproses"));
+    set("bpkiTotalRincian",    bpkiSumRows("rincianInproses"));
+
+    // On Hand vs Fisik
+    const onhand        = g("bpkiOnhandBpkb");
+    const selisihOnhand = onhand - fisikHitung;
+    set("bpkiOhFisik",   fisikHitung);
+    set("bpkiOhOnhand",  onhand);
+    const selElO = document.getElementById("bpkiOhSelisih");
+    if (selElO) selElO.innerHTML = selisihLabel(selisihOnhand);
+}
+
+async function saveBpki() {
+    const planId = activePlanId;
+    if (!planId) { showAlert("Pilih plan audit terlebih dahulu.", "warning"); return; }
+    const g = (id) => document.getElementById(id)?.value?.trim() ?? "";
+    const gi = (id) => { const v = parseInt(document.getElementById(id)?.value, 10); return isNaN(v) ? null : v; };
+
+    const payload = {
+        planAuditId:             planId,
+        tglAwal:                 g("bpkiTglAwal") || null,
+        saldoAwalFisik:          gi("bpkiSaldoAwalFisik") ?? 0,
+        penerimaanFisik:         bpkiGetRows("penerimaanFisik"),
+        pengeluaranBpkb:         bpkiGetRows("pengeluaranBpkb"),
+        fisikBpkbHitung:         gi("bpkiFisikBpkbHitung"),
+        keteranganSelisih:       g("bpkiKeteranganSelisih") || null,
+        filterInproses:          g("bpkiFilterInproses") || null,
+        saldoAwalInproses:       gi("bpkiSaldoAwalInproses") ?? 0,
+        pendaftaranBpkb:         bpkiGetRows("pendaftaranBpkb"),
+        penyelesaianInproses:    bpkiGetRows("penyelesaianInproses"),
+        fisikInprosesHitung:     gi("bpkiFisikInprosesHitung"),
+        ketSelisihInproses:      bpkiGetRows("ketSelisihInproses"),
+        rincianInproses:         bpkiGetRows("rincianInproses"),
+        onhandBpkb:              gi("bpkiOnhandBpkb") ?? 0,
+        keteranganSelisihOnhand: g("bpkiKeteranganSelisihOnhand") || null,
+    };
+
+    const msg = document.getElementById("bpkiSaveMsg");
+    const showMsg = (text, cls) => { if (msg) { msg.textContent = text; msg.className = `text-xs ${cls}`; msg.classList.remove("hidden"); } };
+    showMsg("Menyimpan…", "text-blue-400");
+    try {
+        await fetchJson("/api/audit-detail/bpkb-inproses", {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+        showMsg("Tersimpan.", "text-emerald-400");
+        setTimeout(() => msg?.classList.add("hidden"), 2000);
+    } catch (err) {
+        showMsg(err.message || "Gagal menyimpan.", "text-red-400");
+    }
+}
+
+function initBpkiForm() {
+    const panel = document.getElementById("tabPanel-bpkb-inproses");
+    if (!panel) return;
+
+    // Add row buttons
+    panel.addEventListener("click", (e) => {
+        const addBtn = e.target.closest("[data-bpki-add]");
+        if (addBtn) { bpkiAddRow(addBtn.dataset.bpkiAdd); bpkiRecalc(); }
+    });
+
+    // Recalc on numeric inputs
+    panel.addEventListener("input", (e) => {
+        if (e.target.classList.contains("bpki-recalc")) bpkiRecalc();
+    });
+
+    // Save
+    document.getElementById("bpkiSaveBtn")?.addEventListener("click", () => {
+        saveBpki().catch(err => showAlert(err.message || "Gagal menyimpan.", "error"));
     });
 }
