@@ -204,7 +204,8 @@ class DatabaseController extends Controller
         $sampleLen = !empty($rows) ? max(array_map('count', array_slice($rows, 0, 5))) : 0;
         $groups    = 1;
 
-        if ($sampleLen > $colCount && $sampleLen % $colCount === 0) {
+        // Perlengkapan uses variable-width rows (item per column), skip group expansion
+        if ($type !== 'perlengkapan' && $sampleLen > $colCount && $sampleLen % $colCount === 0) {
             $groups = intdiv($sampleLen, $colCount);
         }
 
@@ -230,6 +231,24 @@ class DatabaseController extends Controller
                 if (empty(array_filter(array_map('trim', $row)))) {
                     continue;
                 }
+
+                // Special handling for perlengkapan: old XLS format is
+                // TIPE(col0) | NOSIN(col1) | Item1 | Item2 | ... (many columns)
+                // Map to: kode=NOSIN, nama=TIPE, keterangan=joined items
+                if ($type === 'perlengkapan') {
+                    $tipe  = trim((string) ($row[0] ?? ''));
+                    $nosin = trim((string) ($row[1] ?? ''));
+                    if ($nosin === '') continue;
+                    // cols 2+ are perlengkapan items
+                    $items = array_filter(array_map('trim', array_slice($row, 2)), fn($v) => $v !== '');
+                    $model::updateOrCreate(
+                        ['kode' => strtoupper($nosin)],
+                        ['nama' => $tipe ?: null, 'keterangan' => implode(', ', $items) ?: null]
+                    );
+                    $imported++;
+                    continue;
+                }
+
                 $data = [];
                 $instance = new $model();
                 $casts = $instance->getCasts();

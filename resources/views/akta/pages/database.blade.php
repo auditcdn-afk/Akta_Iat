@@ -40,7 +40,7 @@
     @foreach([
         ['harga-smh', 'HARGA SMH', 'Kode Model', 'Nama SMH', 'Harga (Rp)', 'Kode Model | Nama SMH | Harga (Rp)'],
         ['plafon', 'PLAFON', 'Kode', 'Nama', 'Nilai', 'Kode | Nama | Nilai | Keterangan'],
-        ['perlengkapan', 'PERLENGKAPAN', 'Tipe', 'NOSIN', 'ACEH', 'TIPE | NOSIN | ACEH | RIAU | KEPRI | Type'],
+        ['perlengkapan', 'PERLENGKAPAN', 'Kode', 'Nama Unit', 'Perlengkapan', 'TIPE | NOSIN | Item1 | Item2 | ... (format lama tetap didukung)'],
         ['unit-usaha', 'UNIT USAHA', 'Unit Usaha', 'Wilayah', 'Jenis', 'Unit Usaha | Wilayah | Jenis'],
         ['grading', 'GRADING', 'ID Grading', 'Jenis / Wilayah', 'Nama Pemeriksaan', 'IDGrading | Jenis | Wilayah | Nama Pemeriksaan | Hasil Pemeriksaan | Nilai | BKNF | PKNF | BKF | PKF | BNKNF | PNKNF | BNKF | PNKF'],
         ['mt', 'MANAGEMENT TRAINEE (MT)', 'Nama Singkat', 'Nama Peralatan (IND)', 'Kode Peralatan', 'No. | Nama Singkat | Nama Peralatan (IND) | Kode Peralatan'],
