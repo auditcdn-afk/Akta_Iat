@@ -3828,15 +3828,11 @@ function mtRenderKategori() {
             <span class="text-sm font-semibold text-${color}-400">${MT_LABEL[kat]}
                 <span class="text-slate-400 font-normal text-xs">: ${items.length}</span>
             </span>
-            <div class="flex gap-2">
-                <select id="mtSel-${kat}"
-                    class="flex-1 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-${color}-500 focus:outline-none">
-                    <option value="">-- Pilih tool --</option>
-                    ${opts}
-                </select>
-                <button type="button" data-mt-add-kat="${kat}"
-                    class="rounded-lg bg-${color}-600 px-4 py-2 text-sm font-semibold text-white hover:bg-${color}-500 transition">+</button>
-            </div>
+            <select id="mtSel-${kat}"
+                class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-${color}-500 focus:outline-none">
+                <option value="">-- Pilih tool --</option>
+                ${opts}
+            </select>
             <div class="flex flex-wrap gap-2 min-h-6">
                 ${chips || `<span class="text-xs text-slate-500 italic">Belum ada item.</span>`}
             </div>
@@ -3845,13 +3841,10 @@ function mtRenderKategori() {
 
     // Wire events
     MT_KATEGORI.forEach(kat => {
-        const addBtn = wrap.querySelector(`[data-mt-add-kat="${kat}"]`);
-        addBtn?.addEventListener('click', () => {
-            const sel = document.getElementById(`mtSel-${kat}`);
-            const val = sel?.value;
+        document.getElementById(`mtSel-${kat}`)?.addEventListener('change', function() {
+            const val = this.value;
             if (!val) return;
             const e2 = mtGetEntry(mekanik, jenis);
-            // Remove from other categories first (no duplicate across categories)
             MT_KATEGORI.forEach(k => {
                 if (k !== kat) e2[k] = (e2[k] || []).filter(t => t !== val);
             });
