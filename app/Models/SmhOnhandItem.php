@@ -14,11 +14,14 @@ class SmhOnhandItem extends Model
         'tgl_spb', 'status_spb', 'umur', 'no_do', 'kode_model',
         'kode_model_intern', 'warna', 'kode_warna_intern', 'gudang', 'book',
         'status_fisik', 'keterangan_fisik', 'checked_at',
+        'tgl_periksa', 'keterangan_kondisi', 'perlengkapan_json',
     ];
 
     protected $casts = [
-        'tgl_spb'    => 'date',
-        'checked_at' => 'datetime',
+        'tgl_spb'           => 'date',
+        'tgl_periksa'       => 'date',
+        'checked_at'        => 'datetime',
+        'perlengkapan_json' => 'array',
     ];
 
     public function pemeriksaan(): BelongsTo

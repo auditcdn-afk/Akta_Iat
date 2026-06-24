@@ -576,18 +576,21 @@ async function loadSmhForm() {
     populateSmhDropdown();
 }
 
-async function smhCheckItem(itemId, statusFisik, keteranganFisik = '') {
+async function smhCheckItem(itemId, body) {
     const payload = await fetchJson(`/api/audit-detail/smh/items/${itemId}`, {
         method: 'PUT',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status_fisik: statusFisik, keterangan_fisik: keteranganFisik }),
+        body: JSON.stringify(body),
     });
-    // Update local data
+    const updated = payload.data;
     const idx = smhItems.findIndex(i => i.id === itemId);
-    if (idx >= 0) {
-        smhItems[idx].statusFisik = statusFisik;
-        smhItems[idx].keteranganFisik = keteranganFisik;
-    }
+    if (idx >= 0 && updated) Object.assign(smhItems[idx], {
+        statusFisik: updated.statusFisik,
+        keteranganFisik: updated.keteranganFisik,
+        tglPeriksa: updated.tglPeriksa,
+        keteranganKondisi: updated.keteranganKondisi,
+        perlengkapanJson: updated.perlengkapanJson,
+    });
     updateSmhSummary({
         totalUnit: smhItems.length,
         totalDitemukan: smhItems.filter(i => i.statusFisik === 'ada').length,
@@ -597,40 +600,120 @@ async function smhCheckItem(itemId, statusFisik, keteranganFisik = '') {
     return payload;
 }
 
+function smhPerlengkapanChecklist(perlengkapan, saved = []) {
+    if (!perlengkapan || !perlengkapan.length) return '<p class="text-xs text-slate-400 italic">Tidak ada data perlengkapan untuk kode motor ini.</p>';
+    const savedMap = {};
+    (saved || []).forEach(p => { savedMap[p.nama] = p.ada; });
+    const total = perlengkapan.length;
+    const ada   = (saved || []).filter(p => p.ada).length;
+    return `
+        <div class="mb-2 flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-600">Perlengkapan SMH</span>
+            <span class="text-xs font-bold" id="smhPlProgress">${ada}/${total} lengkap</span>
+        </div>
+        <div class="space-y-1" id="smhPlList">
+            ${perlengkapan.map(nama => `
+            <label class="flex items-center gap-2 cursor-pointer rounded px-2 py-1 hover:bg-slate-50">
+                <input type="checkbox" class="smh-pl-cb h-4 w-4 rounded border-slate-300 text-emerald-600"
+                    data-nama="${escapeHtml(nama)}" ${savedMap[nama] ? 'checked' : ''}>
+                <span class="text-sm text-slate-700">${escapeHtml(nama)}</span>
+            </label>`).join('')}
+        </div>`;
+}
+
 async function smhScanUnit(q) {
     const res = document.getElementById('smhScanResult');
-    if (!q || q.length < 3) { res.classList.add('hidden'); return; }
+    if (!q || q.length < 2) { res.classList.add('hidden'); return; }
     const payload = await fetchJson(`/api/audit-detail/smh/scan?q=${encodeURIComponent(q)}&plan_audit_id=${activePlanId}`, { headers: authHeaders() });
     const it = payload.data;
+    const perlengkapan = payload.perlengkapan || [];
+
     if (!it) {
         res.className = 'rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700';
-        res.innerHTML = `<strong>Tidak ditemukan</strong> — unit dengan No. Mesin / Rangka "<em>${escapeHtml(q)}</em>" tidak ada dalam daftar onhand.`;
+        res.innerHTML = `<strong>Tidak ditemukan</strong> — unit "<em>${escapeHtml(q)}</em>" tidak ada dalam daftar onhand.`;
         res.classList.remove('hidden');
         return;
     }
-    res.className = 'rounded-xl border border-emerald-400 bg-emerald-50 p-4 text-sm space-y-3';
+
+    const today = new Date().toISOString().slice(0, 10);
+    const tglVal  = it.tglPeriksa || today;
+    const kondisi = it.keteranganKondisi || 'ready_for_sale';
+    const isAda   = it.statusFisik === 'ada';
+
+    res.className = 'rounded-xl border border-emerald-400 bg-white p-5 text-sm space-y-4';
     res.innerHTML = `
-        <div class="font-bold text-emerald-700">Unit ditemukan dalam daftar onhand</div>
-        <div class="grid gap-2 sm:grid-cols-3 text-slate-700">
-            <div><span class="text-xs text-slate-500 block">No. Mesin</span><strong>${escapeHtml(it.noMesin || '-')}</strong></div>
-            <div><span class="text-xs text-slate-500 block">No. Rangka</span><strong>${escapeHtml(it.noRangka || '-')}</strong></div>
-            <div><span class="text-xs text-slate-500 block">Model</span>${escapeHtml(it.kodeModel || '-')} / ${escapeHtml(it.warna || '-')}</div>
-            <div><span class="text-xs text-slate-500 block">No. SPB</span>${escapeHtml(it.noSpb || '-')}</div>
-            <div><span class="text-xs text-slate-500 block">Gudang</span>${escapeHtml(it.gudang || '-')}</div>
-            <div><span class="text-xs text-slate-500 block">Umur</span>${it.umur ?? '-'} hari</div>
+        <div class="flex items-center gap-2">
+            <span class="inline-flex rounded-full border border-emerald-400 bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">✓ Unit Ditemukan dalam Daftar Onhand</span>
         </div>
-        <div class="flex gap-3 items-center pt-1">
-            <span class="text-xs text-slate-600 font-semibold">Status fisik:</span>
-            <button type="button" data-scan-check="${it.id}" data-val="ada"
-                class="rounded-lg border border-emerald-400 bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-200">
-                ✓ Ada / Ditemukan
-            </button>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Tgl Pemeriksaan</label>
+                <input type="date" id="smhFormTgl" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500" value="${tglVal}">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Fisik Scan</label>
+                <div class="rounded-lg bg-blue-500 px-3 py-2 text-center text-sm font-bold text-white">${escapeHtml(it.noMesin || it.noRangka || q)}</div>
+            </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-3">
+            <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">No. Rangka</label>
+                <div class="text-sm font-semibold text-slate-700">${escapeHtml(it.noRangka || '-')}</div>
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Jenis Motor</label>
+                <div class="text-sm font-semibold text-slate-700">${escapeHtml(it.kodeModel || '-')} / ${escapeHtml(it.warna || '-')}</div>
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Lokasi</label>
+                <div class="text-sm font-semibold text-slate-700">${escapeHtml(it.gudang || '-')} &nbsp;|&nbsp; Umur ${it.umur ?? '-'} hr</div>
+            </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Keterangan Fisik</label>
+                <input type="text" id="smhFormKetFisik" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                    value="${escapeHtml(it.keteranganFisik || 'Fisik Ada')}">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Keterangan Kondisi</label>
+                <select id="smhFormKondisi" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500">
+                    <option value="ready_for_sale" ${kondisi === 'ready_for_sale' ? 'selected' : ''}>Ready for Sale</option>
+                    <option value="perlu_perbaikan" ${kondisi === 'perlu_perbaikan' ? 'selected' : ''}>Perlu Perbaikan</option>
+                    <option value="rusak" ${kondisi === 'rusak' ? 'selected' : ''}>Rusak</option>
+                    <option value="hilang" ${kondisi === 'hilang' ? 'selected' : ''}>Hilang</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            ${smhPerlengkapanChecklist(perlengkapan, it.perlengkapanJson)}
+        </div>
+
+        <div class="flex justify-between items-center gap-3 pt-1 border-t border-slate-200">
             <button type="button" data-scan-check="${it.id}" data-val="tidak_ada"
-                class="rounded-lg border border-red-400 bg-red-100 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-200">
-                ✗ Tidak Ditemukan
+                class="rounded-xl border border-red-400 px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50">
+                ✗ Tandai Tidak Ditemukan
+            </button>
+            <button type="button" id="smhFormSimpanBtn" data-id="${it.id}"
+                class="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-bold text-white hover:bg-emerald-500">
+                Simpan Pemeriksaan
             </button>
         </div>`;
     res.classList.remove('hidden');
+
+    // Update progress saat checkbox berubah
+    res.querySelectorAll('.smh-pl-cb').forEach(cb => {
+        cb.addEventListener('change', () => {
+            const total2 = res.querySelectorAll('.smh-pl-cb').length;
+            const ada2   = res.querySelectorAll('.smh-pl-cb:checked').length;
+            const prog = res.querySelector('#smhPlProgress');
+            if (prog) prog.textContent = `${ada2}/${total2} lengkap`;
+        });
+    });
 
     // Scroll ke baris di tabel
     const row = document.querySelector(`#smhTableBody tr[data-item-id="${it.id}"]`);
@@ -1091,13 +1174,37 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     document.getElementById('smhScanResult')?.addEventListener('click', async (e) => {
+        // Tombol Simpan Pemeriksaan
+        const simpanBtn = e.target.closest('#smhFormSimpanBtn');
+        if (simpanBtn) {
+            const itemId = Number(simpanBtn.dataset.id);
+            const res    = document.getElementById('smhScanResult');
+            const plItems = [...res.querySelectorAll('.smh-pl-cb')].map(cb => ({ nama: cb.dataset.nama, ada: cb.checked }));
+            try {
+                await smhCheckItem(itemId, {
+                    status_fisik:       'ada',
+                    keterangan_fisik:   res.querySelector('#smhFormKetFisik')?.value || 'Fisik Ada',
+                    tgl_periksa:        res.querySelector('#smhFormTgl')?.value || null,
+                    keterangan_kondisi: res.querySelector('#smhFormKondisi')?.value || null,
+                    perlengkapan_json:  plItems,
+                });
+                renderSmhTable(document.getElementById('smhFilterStatus')?.value || '');
+                populateSmhDropdown();
+                showAlert('Pemeriksaan SMH berhasil disimpan.');
+                const q = document.getElementById('smhScanInput').value.trim();
+                await smhScanUnit(q);
+            } catch (err) { showAlert(err.message, 'error'); }
+            return;
+        }
+        // Tombol Tidak Ditemukan
         const btn = e.target.closest('[data-scan-check]');
         if (!btn) return;
         const itemId = Number(btn.dataset.scanCheck);
         const val    = btn.dataset.val;
         try {
-            await smhCheckItem(itemId, val);
+            await smhCheckItem(itemId, { status_fisik: val, keterangan_fisik: 'Fisik Tidak Ada' });
             renderSmhTable(document.getElementById('smhFilterStatus')?.value || '');
+            populateSmhDropdown();
             const q = document.getElementById('smhScanInput').value.trim();
             await smhScanUnit(q);
         } catch (err) { showAlert(err.message, 'error'); }
@@ -1113,7 +1220,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const itemId = Number(sel.dataset.id);
         const ket    = document.querySelector(`.smh-ket-input[data-id="${itemId}"]`)?.value || '';
         try {
-            await smhCheckItem(itemId, sel.value, ket);
+            await smhCheckItem(itemId, { status_fisik: sel.value, keterangan_fisik: ket });
             const row = sel.closest('tr');
             if (row) { row.className = `border-b border-slate-100 hover:bg-slate-50 ${smhStatusRowClass(sel.value)}`; }
             populateSmhDropdown();
@@ -1126,7 +1233,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const itemId = Number(inp.dataset.id);
         const item   = smhItems.find(i => i.id === itemId);
         if (!item?.statusFisik) return;
-        try { await smhCheckItem(itemId, item.statusFisik, inp.value); } catch (_) {}
+        try { await smhCheckItem(itemId, { status_fisik: item.statusFisik, keterangan_fisik: inp.value }); } catch (_) {}
     }, true);
 
     document.getElementById('smhSyncBtn')?.addEventListener('click', async () => {

@@ -8,19 +8,12 @@ class DbPerlengkapan extends Model
 {
     protected $table = 'db_perlengkapan';
 
-    protected $fillable = ['tipe', 'nosin', 'aceh', 'riau', 'kepri', 'type'];
+    protected $fillable = ['kode', 'nama', 'satuan', 'qty', 'keterangan'];
 
-    public function toAktaArray(): array
+    /** Kembalikan daftar perlengkapan sebagai array string */
+    public function itemList(): array
     {
-        return [
-            'id'        => $this->id,
-            'tipe'      => $this->tipe,
-            'nosin'     => $this->nosin,
-            'aceh'      => $this->aceh,
-            'riau'      => $this->riau,
-            'kepri'     => $this->kepri,
-            'type'      => $this->type,
-            'createdAt' => optional($this->created_at)->toDateTimeString(),
-        ];
+        if (empty($this->keterangan)) return [];
+        return array_values(array_filter(array_map('trim', explode(',', $this->keterangan))));
     }
 }
