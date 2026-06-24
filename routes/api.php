@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\PiutangRegulerController;
 use App\Http\Controllers\Api\PiutangCdnController;
 use App\Http\Controllers\Api\TtpGantungController;
 use App\Http\Controllers\Api\CekFisikController;
+use App\Http\Controllers\Api\MtController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', [DataStoreController::class, 'ping']);
@@ -185,6 +186,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/audit-detail/piutang-cdn', [PiutangCdnController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/piutang-cdn/parse-excel', [PiutangCdnController::class, 'parseExcel'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── MT ──
+    Route::get('/audit-detail/mt',  [MtController::class, 'show']);
+    Route::post('/audit-detail/mt', [MtController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── SMH ──

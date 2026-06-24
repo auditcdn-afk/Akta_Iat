@@ -246,6 +246,9 @@ function switchTab(tab) {
     if (tab === "cek-fisik") {
         loadCfTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "mt") {
+        loadMtTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1691,6 +1694,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initPcdnForm();
     initTtpForm();
     initCfForm();
+    initMtForm();
 
     try {
         await loadCurrentUser();
@@ -3709,5 +3713,141 @@ function initCfForm() {
 
     document.getElementById('cfSaveBtn')?.addEventListener('click', () => {
         saveCf().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
+    });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// MT (Meterai) — MT Lama / MT FI / MT Baru
+// ══════════════════════════════════════════════════════════════════
+
+let _mtData = null;
+
+function mtEmptyData() {
+    return { lama: [], fi: [], baru: [] };
+}
+
+function mtN(v) { return parseFloat(v) || 0; }
+
+function mtFmt(v) {
+    return Number(v).toLocaleString('id-ID');
+}
+
+async function loadMtTab() {
+    if (!activePlanId) { mtInitForm(); return; }
+    const res = await fetchJson(`/api/audit-detail/mt?plan_audit_id=${activePlanId}`,
+        { headers: authHeaders() });
+    if (res.data && res.data.data && !Array.isArray(res.data.data)) {
+        _mtData = { ...mtEmptyData(), ...res.data.data };
+    }
+    mtInitForm();
+}
+
+function mtInitForm() {
+    if (!_mtData) _mtData = mtEmptyData();
+    mtRenderGroup('lama');
+    mtRenderGroup('fi');
+    mtRenderGroup('baru');
+}
+
+function mtRenderGroup(group) {
+    const idMap = { lama: 'mtLama', fi: 'mtFi', baru: 'mtBaru' };
+    const prefix = idMap[group];
+    const tbody = document.getElementById(`${prefix}Body`);
+    if (!tbody) return;
+    const rows = _mtData[group] || [];
+
+    if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-4 text-center text-xs text-slate-500">Belum ada data. Klik "+ Tambah Baris".</td></tr>`;
+        mtUpdateTotal(group);
+        return;
+    }
+
+    tbody.innerHTML = rows.map((r, i) => `
+        <tr class="border-b border-slate-800/60 hover:bg-slate-800/20" data-mt-group="${group}" data-mt-idx="${i}">
+            <td class="px-4 py-2 text-slate-400 text-center">${i + 1}</td>
+            <td class="px-3 py-2 text-center">
+                <input type="checkbox" class="mt-bagus h-4 w-4 rounded accent-emerald-500 cursor-pointer" ${r.bagus ? 'checked' : ''}>
+            </td>
+            <td class="px-3 py-2 text-center">
+                <input type="checkbox" class="mt-sk h-4 w-4 rounded accent-blue-500 cursor-pointer" ${r.skAudit ? 'checked' : ''}>
+            </td>
+            <td class="px-3 py-2 text-center">
+                <input type="checkbox" class="mt-rusak h-4 w-4 rounded accent-red-500 cursor-pointer" ${r.rusak ? 'checked' : ''}>
+            </td>
+            <td class="px-3 py-2 text-center">
+                <input type="checkbox" class="mt-hilang h-4 w-4 rounded accent-orange-500 cursor-pointer" ${r.hilang ? 'checked' : ''}>
+            </td>
+            <td class="px-3 py-2 text-right">
+                <input type="number" class="mt-harga w-28 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-right text-slate-100 focus:border-blue-500 focus:outline-none" value="${mtN(r.harga)}" min="0" placeholder="0">
+            </td>
+            <td class="px-3 py-2 text-center">
+                <button type="button" data-mt-del="${i}" data-mt-del-group="${group}" class="text-red-400 hover:text-red-300 text-base leading-none">✕</button>
+            </td>
+        </tr>`).join('');
+
+    tbody.querySelectorAll('tr[data-mt-idx]').forEach(tr => {
+        const idx   = parseInt(tr.dataset.mtIdx);
+        const grp   = tr.dataset.mtGroup;
+
+        const syncRow = () => {
+            if (!_mtData[grp]?.[idx]) return;
+            _mtData[grp][idx].bagus   = tr.querySelector('.mt-bagus')?.checked  || false;
+            _mtData[grp][idx].skAudit = tr.querySelector('.mt-sk')?.checked     || false;
+            _mtData[grp][idx].rusak   = tr.querySelector('.mt-rusak')?.checked  || false;
+            _mtData[grp][idx].hilang  = tr.querySelector('.mt-hilang')?.checked || false;
+            _mtData[grp][idx].harga   = mtN(tr.querySelector('.mt-harga')?.value);
+        };
+
+        tr.querySelectorAll('input[type=checkbox]').forEach(cb => {
+            cb.addEventListener('change', () => { syncRow(); mtUpdateTotal(grp); _doSaveMt().catch(() => {}); });
+        });
+        tr.querySelector('.mt-harga')?.addEventListener('input', () => { syncRow(); mtUpdateTotal(grp); });
+        tr.querySelector('.mt-harga')?.addEventListener('blur',  () => _doSaveMt().catch(() => {}));
+
+        tr.querySelector('[data-mt-del]')?.addEventListener('click', () => {
+            _mtData[grp].splice(idx, 1);
+            mtRenderGroup(grp);
+            _doSaveMt().catch(() => {});
+        });
+    });
+
+    mtUpdateTotal(group);
+}
+
+function mtUpdateTotal(group) {
+    const idMap = { lama: 'mtLamaTotal', fi: 'mtFiTotal', baru: 'mtBaruTotal' };
+    const el = document.getElementById(idMap[group]);
+    if (!el) return;
+    const total = (_mtData[group] || []).reduce((s, r) => s + mtN(r.harga), 0);
+    el.textContent = mtFmt(total);
+}
+
+async function _doSaveMt() {
+    if (!activePlanId) throw new Error('Pilih plan audit terlebih dahulu.');
+    if (!_mtData) _mtData = mtEmptyData();
+    return await fetchJson('/api/audit-detail/mt', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ planAuditId: activePlanId, data: _mtData }),
+    });
+}
+
+async function saveMt() {
+    const res = await _doSaveMt();
+    showAlert(res.message, 'success');
+}
+
+function initMtForm() {
+    ['lama', 'fi', 'baru'].forEach(grp => {
+        const idMap = { lama: 'mtLamaAddBtn', fi: 'mtFiAddBtn', baru: 'mtBaruAddBtn' };
+        document.getElementById(idMap[grp])?.addEventListener('click', () => {
+            if (!_mtData) _mtData = mtEmptyData();
+            _mtData[grp].push({ bagus: false, skAudit: false, rusak: false, hilang: false, harga: 0 });
+            mtRenderGroup(grp);
+        });
+    });
+
+    document.getElementById('mtSaveBtn')?.addEventListener('click', () => {
+        saveMt().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
     });
 }
