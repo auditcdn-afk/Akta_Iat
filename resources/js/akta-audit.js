@@ -2996,20 +2996,7 @@ async function prHandleFile(file) {
 
         const mapped = json.data ?? [];
         if (!mapped.length) {
-            console.log('[PR] debug:', JSON.stringify(json.debug, null, 2));
-            if (msgEl) {
-                let txt = 'Tidak ada data piutang ditemukan di file.';
-                if (json.debug) {
-                    txt += `\nsaldoCol=${json.debug.saldoCol} headerIdx=${json.debug.headerIdx} rows=${json.debug.totalRows}`;
-                    txt += `\nHEADER: ${JSON.stringify(json.debug.headerRow)}`;
-                    (json.debug.firstDataRows || []).forEach((r, i) => {
-                        txt += `\nROW${i}: ${JSON.stringify(r)}`;
-                    });
-                }
-                msgEl.textContent = txt;
-                msgEl.classList.remove('hidden');
-                msgEl.classList.add('whitespace-pre-wrap', 'text-left', 'break-all');
-            }
+            if (msgEl) { msgEl.textContent = 'Tidak ada data piutang ditemukan di file.'; msgEl.classList.remove('hidden'); }
             return;
         }
         // Preserve existing keterangan

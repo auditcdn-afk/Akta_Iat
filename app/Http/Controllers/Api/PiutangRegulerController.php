@@ -95,18 +95,38 @@ class PiutangRegulerController extends Controller
             return $this->parsePositional($rows);
         }
 
+        // Column layout relative to "Saldo Awal" (verified against the report):
+        //   No. | Customer | (pad) | No.Faktur | TGL | Type | SALDO AWAL | Pokok |
+        //   PPN | Lain2 | No.Kwit | Tg | Pembayaran | Saldo Akhir | Belum JTO |
+        //   1-5 | 6-30 | 31-60 | >60 | ... Giro Gantung/SPK
+        // Customer sits at saldoCol-5 but a stray empty pad column can shift it,
+        // so pick the longest non-numeric text in the columns left of No.Faktur.
         $c = fn(int $offset) => $saldoCol + $offset;
         $items = [];
         foreach (array_slice($rows, $headerIdx + 1) as $row) {
-            $cust = trim((string)($row[$c(-4)] ?? ''));
+            $cust = '';
+            for ($k = 0; $k <= $saldoCol - 3; $k++) {
+                $v = trim((string)($row[$k] ?? ''));
+                if ($v !== '' && !is_numeric($v) && mb_strlen($v) > mb_strlen($cust)) {
+                    $cust = $v;
+                }
+            }
             if ($cust === '') continue;
-            $lc = strtolower($cust);
-            if (in_array($lc, ['customer', 'total', 'grand total'], true)) continue;
+            // Ignore header/total rows (handles spaced-out "G r a n d  T o t a l").
+            $flat = strtolower(preg_replace('/\s+/', '', $cust));
+            if (in_array($flat, ['customer', 'total', 'grandtotal', 'subtotal'], true)) continue;
 
-            // A valid data row has a numeric saldo awal or a non-empty faktur.
             $saldoAwal = $this->parseNum($row[$c(0)] ?? null);
             $noFaktur  = trim((string)($row[$c(-3)] ?? ''));
             if ($saldoAwal === 0.0 && $noFaktur === '') continue;
+
+            // Giro Gantung / SPK number lives in a trailing column that may shift;
+            // grab the first SPK-looking token after the tunggakan columns.
+            $giro = '';
+            for ($g = $c(12) + 1; $g <= $c(12) + 3; $g++) {
+                $v = trim((string)($row[$g] ?? ''));
+                if ($v !== '' && $v !== '-' && preg_match('#[A-Za-z/]#', $v)) { $giro = $v; break; }
+            }
 
             $items[] = [
                 'customer'    => $cust,
@@ -126,26 +146,12 @@ class PiutangRegulerController extends Controller
                 'tung630'     => $this->parseNum($row[$c(10)] ?? null),
                 'tung3160'    => $this->parseNum($row[$c(11)] ?? null),
                 'tung60'      => $this->parseNum($row[$c(12)] ?? null),
-                'giroGantung' => trim((string)($row[$c(13)] ?? '')),
-                'keterangan'  => trim((string)($row[$c(14)] ?? '')),
+                'giroGantung' => $giro,
+                'keterangan'  => '',
             ];
         }
 
-        $resp = ['data' => $items];
-        if (empty($items)) {
-            // Diagnostics so we can see exactly what the parser detected.
-            $resp['debug'] = [
-                'saldoCol'  => $saldoCol,
-                'headerIdx' => $headerIdx,
-                'totalRows' => count($rows),
-                'headerRow' => array_slice($rows[$headerIdx] ?? [], 0, 22),
-                'firstDataRows' => array_map(
-                    fn($r) => array_slice($r, 0, 22),
-                    array_slice($rows, $headerIdx + 1, 10)
-                ),
-            ];
-        }
-        return response()->json($resp);
+        return response()->json(['data' => $items]);
     }
 
     private function parsePositional(array $rows): JsonResponse
@@ -189,8 +195,8 @@ class PiutangRegulerController extends Controller
     {
         if ($val === null || $val === '') return 0;
         if (is_int($val) || is_float($val)) return (float)$val;
-        $clean = preg_replace('/[^0-9.]/', '', (string)$val);
-        return $clean === '' ? 0 : (float)$clean;
+        $clean = preg_replace('/[^0-9.\-]/', '', (string)$val);
+        return ($clean === '' || $clean === '-') ? 0 : (float)$clean;
     }
 
     private function toDateStr(mixed $val): string
@@ -202,8 +208,10 @@ class PiutangRegulerController extends Controller
         }
         $s = trim((string)$val);
         if (preg_match('/^\d{4}-\d{2}-\d{2}/', $s)) return substr($s, 0, 10);
-        if (preg_match('#^(\d{1,2})[-/](\d{1,2})[-/](\d{4})#', $s, $m)) {
-            return sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]);
+        // DD-MM-YYYY or DD-MM-YY (2-digit year → 20xx)
+        if (preg_match('#^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})#', $s, $m)) {
+            $y = strlen($m[3]) === 2 ? '20' . $m[3] : $m[3];
+            return sprintf('%04d-%02d-%02d', $y, $m[2], $m[1]);
         }
         $ts = strtotime($s);
         return $ts ? date('Y-m-d', $ts) : '';
