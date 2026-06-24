@@ -2996,9 +2996,19 @@ async function prHandleFile(file) {
 
         const mapped = json.data ?? [];
         if (!mapped.length) {
-            console.log('[PR] debug:', json.debug);
-            const dbg = json.debug ? ` (saldoCol=${json.debug.saldoCol}, headerIdx=${json.debug.headerIdx}, rows=${json.debug.totalRows})` : '';
-            if (msgEl) { msgEl.textContent = 'Tidak ada data piutang ditemukan di file.' + dbg; msgEl.classList.remove('hidden'); }
+            console.log('[PR] debug:', JSON.stringify(json.debug, null, 2));
+            if (msgEl) {
+                let txt = 'Tidak ada data piutang ditemukan di file.';
+                if (json.debug) {
+                    txt += `\nsaldoCol=${json.debug.saldoCol} headerIdx=${json.debug.headerIdx} rows=${json.debug.totalRows}`;
+                    txt += `\nHEADER: ${JSON.stringify(json.debug.headerRow)}`;
+                    if (json.debug.firstDataRows?.[0]) txt += `\nDATA1: ${JSON.stringify(json.debug.firstDataRows[0])}`;
+                    if (json.debug.firstDataRows?.[1]) txt += `\nDATA2: ${JSON.stringify(json.debug.firstDataRows[1])}`;
+                }
+                msgEl.textContent = txt;
+                msgEl.classList.remove('hidden');
+                msgEl.classList.add('whitespace-pre-wrap', 'text-left', 'break-all');
+            }
             return;
         }
         // Preserve existing keterangan
