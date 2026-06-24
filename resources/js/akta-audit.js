@@ -232,6 +232,9 @@ function switchTab(tab) {
     if (tab === "bpkb-inproses") {
         loadBpkiTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "kwitansi") {
+        loadKwTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1672,6 +1675,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initMateraiForm();
     initBpkbForm();
     initBpkiForm();
+    initKwForm();
 
     try {
         await loadCurrentUser();
@@ -2586,4 +2590,346 @@ function initBpkiForm() {
     document.getElementById("bpkiSaveBtn")?.addEventListener("click", () => {
         saveBpki().catch(err => showAlert(err.message || "Gagal menyimpan.", "error"));
     });
+}
+
+// ─── Kwitansi Gantung ────────────────────────────────────────────────────────
+
+let _kwItems = [];   // current kwitansi array in memory
+
+async function loadKwTab() {
+    const planId = activePlanId;
+    if (!planId) return;
+    const res = await fetchJson(`/api/audit-detail/kwitansi?plan_audit_id=${planId}`, { headers: authHeaders() });
+    if (res.data) {
+        const el = document.getElementById("kwTglAudit");
+        if (el) el.value = res.data.tglAudit ?? "";
+        _kwItems = res.data.kwitansi ?? [];
+    } else {
+        _kwItems = [];
+    }
+    kwRender();
+}
+
+// ── Excel parsing ──
+
+function kwParseExcel(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const wb = XLSX.read(e.target.result, { type: "array", cellDates: true });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+                resolve({ rows, filename: file.name });
+            } catch (err) {
+                reject(new Error("Gagal membaca file Excel: " + err.message));
+            }
+        };
+        reader.onerror = () => reject(new Error("Gagal membaca file."));
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+function kwNormalizeKey(key) {
+    return key.toString().toUpperCase().replace(/[.\s\-_()]/g, "");
+}
+
+function kwFindCol(row, candidates) {
+    const keys = Object.keys(row);
+    for (const cand of candidates) {
+        const found = keys.find(k => kwNormalizeKey(k) === kwNormalizeKey(cand));
+        if (found !== undefined) return found;
+    }
+    // fallback: partial match
+    const cNorm = candidates.map(c => kwNormalizeKey(c));
+    return keys.find(k => cNorm.some(c => kwNormalizeKey(k).includes(c) || c.includes(kwNormalizeKey(k))));
+}
+
+function kwMapRows(rows) {
+    if (!rows.length) return [];
+    const sample = rows[0];
+    const colMap = {
+        leasing:       kwFindCol(sample, ["LEASING", "NAMALEASING", "FINCO"]),
+        noKwitansi:    kwFindCol(sample, ["NOKWITANSI", "NOMORKWITANSI", "NOKWT"]),
+        tglKwitansi:   kwFindCol(sample, ["TGLKWITANSI", "TANGGALKWITANSI", "TGL"]),
+        namaCustomer:  kwFindCol(sample, ["NAMACUSTOMER", "CUSTOMER", "NAMA"]),
+        noAr:          kwFindCol(sample, ["NOAR", "NOMNOAR"]),
+        noFaktur:      kwFindCol(sample, ["NOFAKTUR", "NOMORFAKTUR", "FAKTUR"]),
+        nilaiKwitansi: kwFindCol(sample, ["NILAIKWITANSI", "NILAI", "NILAIKWT"]),
+    };
+
+    const tglAuditVal = document.getElementById("kwTglAudit")?.value;
+    const tglAudit    = tglAuditVal ? new Date(tglAuditVal) : null;
+
+    return rows.filter(r => {
+        const no = colMap.noKwitansi ? r[colMap.noKwitansi] : "";
+        return no && no.toString().trim() !== "";
+    }).map(r => {
+        const rawTgl = colMap.tglKwitansi ? r[colMap.tglKwitansi] : null;
+        let tglStr = "";
+        if (rawTgl instanceof Date) {
+            tglStr = rawTgl.toISOString().slice(0, 10);
+        } else if (rawTgl) {
+            // Excel serial number
+            if (typeof rawTgl === "number") {
+                const d = new Date(Math.round((rawTgl - 25569) * 864e5));
+                tglStr = d.toISOString().slice(0, 10);
+            } else {
+                tglStr = rawTgl.toString().trim();
+            }
+        }
+
+        let diff = null;
+        if (tglAudit && tglStr) {
+            const tglKwt = new Date(tglStr);
+            if (!isNaN(tglKwt)) {
+                diff = Math.round((tglAudit - tglKwt) / 864e5);
+            }
+        }
+
+        const rawNilai = colMap.nilaiKwitansi ? r[colMap.nilaiKwitansi] : 0;
+        const nilai = typeof rawNilai === "number" ? rawNilai : parseFloat(rawNilai.toString().replace(/[^0-9.-]/g, "")) || 0;
+
+        return {
+            leasing:      (colMap.leasing      ? r[colMap.leasing]      : "").toString().trim() || "LAINNYA",
+            noKwitansi:   (colMap.noKwitansi   ? r[colMap.noKwitansi]   : "").toString().trim(),
+            tglKwitansi:  tglStr,
+            namaCustomer: (colMap.namaCustomer ? r[colMap.namaCustomer] : "").toString().trim(),
+            noAr:         (colMap.noAr         ? r[colMap.noAr]         : "").toString().trim(),
+            noFaktur:     (colMap.noFaktur     ? r[colMap.noFaktur]     : "").toString().trim(),
+            nilaiKwitansi: nilai,
+            diff,
+            keterangan:   "",
+            fisik:        false,
+        };
+    });
+}
+
+// ── Render ──
+
+function kwRender() {
+    const items = _kwItems;
+    const tglAuditVal = document.getElementById("kwTglAudit")?.value;
+    const tglAudit    = tglAuditVal ? new Date(tglAuditVal) : null;
+
+    // Recalc diff when tgl changes
+    if (tglAudit) {
+        items.forEach(it => {
+            if (it.tglKwitansi) {
+                const d = new Date(it.tglKwitansi);
+                if (!isNaN(d)) it.diff = Math.round((tglAudit - d) / 864e5);
+            }
+        });
+    }
+
+    // Stats
+    const totalNilai    = items.reduce((s, it) => s + (it.nilaiKwitansi || 0), 0);
+    const uniqueCustomer = new Set(items.map(it => it.namaCustomer).filter(Boolean)).size;
+    const uniqueLeasing  = new Set(items.map(it => it.leasing).filter(Boolean)).size;
+    document.getElementById("kwStatTransaksi").textContent = items.length;
+    document.getElementById("kwStatCustomer").textContent  = uniqueCustomer;
+    document.getElementById("kwStatLeasing").textContent   = uniqueLeasing;
+    document.getElementById("kwStatNilai").textContent     = kwFmtNilai(totalNilai);
+
+    const avgSec  = document.getElementById("kwAvgSection");
+    const tblSec  = document.getElementById("kwTableSection");
+    const tblBody = document.getElementById("kwTableBody");
+    const tblCount= document.getElementById("kwTableCount");
+
+    if (!items.length) {
+        if (avgSec) avgSec.classList.add("hidden");
+        if (tblSec) tblSec.classList.add("hidden");
+        return;
+    }
+
+    // Rata-rata hari
+    const withDiff = items.filter(it => it.diff !== null);
+    const totalDiff = withDiff.reduce((s, it) => s + it.diff, 0);
+    const avgAll    = withDiff.length ? (totalDiff / withDiff.length).toFixed(1) : "0.0";
+    if (document.getElementById("kwAvgAll"))      document.getElementById("kwAvgAll").textContent = avgAll;
+    if (document.getElementById("kwAvgSubtitle")) document.getElementById("kwAvgSubtitle").textContent =
+        `Total diff: ${totalDiff} hari + ${withDiff.length} kwitansi`;
+
+    // Per leasing avg
+    const byLeasing = {};
+    items.forEach(it => {
+        if (!byLeasing[it.leasing]) byLeasing[it.leasing] = [];
+        byLeasing[it.leasing].push(it);
+    });
+    const perLeasingEl = document.getElementById("kwAvgPerLeasing");
+    if (perLeasingEl) {
+        perLeasingEl.innerHTML = Object.entries(byLeasing).map(([ls, arr]) => {
+            const dArr = arr.filter(i => i.diff !== null);
+            const avg  = dArr.length ? (dArr.reduce((s, i) => s + i.diff, 0) / dArr.length).toFixed(1) : "-";
+            return `<div class="text-center bg-slate-700 rounded-lg px-3 py-2">
+                <div class="text-lg font-bold text-slate-100">${avg}</div>
+                <div class="text-xs text-slate-400 font-semibold">${escHtml(ls)}</div>
+                <div class="text-xs text-slate-500">(${arr.length} kwt)</div>
+            </div>`;
+        }).join("");
+    }
+
+    if (avgSec) avgSec.classList.remove("hidden");
+
+    // Table grouped by leasing
+    if (tblCount) tblCount.textContent = `${items.length} KWITANSI`;
+    if (tblBody) {
+        tblBody.innerHTML = "";
+        Object.entries(byLeasing).forEach(([ls, arr]) => {
+            // Group header
+            const hdr = document.createElement("tr");
+            hdr.className = "bg-slate-800/80";
+            hdr.innerHTML = `<td colspan="10" class="px-3 py-2 text-xs font-bold text-blue-300 uppercase">
+                🏦 ${escHtml(ls)} <span class="text-slate-400 font-normal">(${arr.length} kwitansi)</span>
+            </td>`;
+            tblBody.appendChild(hdr);
+
+            let subTotal = 0;
+            let subDiff  = 0;
+            let subDiffN = 0;
+
+            arr.forEach((it, i) => {
+                subTotal += it.nilaiKwitansi || 0;
+                if (it.diff !== null) { subDiff += it.diff; subDiffN++; }
+
+                const tr = document.createElement("tr");
+                tr.className = "hover:bg-slate-800/40";
+                tr.dataset.kwIdx = items.indexOf(it);
+                const diffHtml = it.diff !== null
+                    ? `<span class="inline-flex items-center justify-center rounded-full w-8 h-5 text-xs font-bold ${it.diff <= 3 ? 'bg-emerald-900 text-emerald-300' : it.diff <= 7 ? 'bg-amber-900 text-amber-300' : 'bg-red-900 text-red-300'}">${it.diff}</span>`
+                    : `<span class="text-slate-500">-</span>`;
+                tr.innerHTML = `
+                    <td class="px-3 py-2 text-slate-500">${i + 1}</td>
+                    <td class="px-3 py-2 font-mono text-slate-200">${escHtml(it.noKwitansi)}</td>
+                    <td class="px-3 py-2 text-slate-300">${escHtml(it.tglKwitansi)}</td>
+                    <td class="px-3 py-2 text-slate-200">${escHtml(it.namaCustomer)}</td>
+                    <td class="px-3 py-2 text-slate-400 font-mono">${escHtml(it.noAr)}</td>
+                    <td class="px-3 py-2 text-slate-400 font-mono">${escHtml(it.noFaktur)}</td>
+                    <td class="px-3 py-2 text-right font-mono text-slate-200">${it.nilaiKwitansi.toLocaleString("id-ID")}</td>
+                    <td class="px-3 py-2 text-center">${diffHtml}</td>
+                    <td class="px-3 py-2">
+                        <input type="text" value="${escHtml(it.keterangan ?? "")}" placeholder="Keterangan... (opsional)"
+                            class="w-full rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none kw-ket-input">
+                    </td>
+                    <td class="px-3 py-2 text-center">
+                        <input type="checkbox" ${it.fisik ? "checked" : ""} class="w-4 h-4 rounded accent-blue-500 kw-fisik-input">
+                    </td>`;
+                // Sync keterangan & fisik back to _kwItems
+                tr.querySelector(".kw-ket-input")?.addEventListener("input", (e) => {
+                    it.keterangan = e.target.value;
+                });
+                tr.querySelector(".kw-fisik-input")?.addEventListener("change", (e) => {
+                    it.fisik = e.target.checked;
+                });
+                tblBody.appendChild(tr);
+            });
+
+            // Sub-total
+            const subAvg = subDiffN ? (subDiff / subDiffN).toFixed(1) : "-";
+            const sftr = document.createElement("tr");
+            sftr.className = "bg-slate-800/50 border-t border-slate-700";
+            sftr.innerHTML = `
+                <td colspan="6" class="px-3 py-2 text-xs font-bold text-slate-300 text-right">Sub Total ${escHtml(ls)}</td>
+                <td class="px-3 py-2 text-right text-xs font-bold text-slate-100">${subTotal.toLocaleString("id-ID")}</td>
+                <td class="px-3 py-2 text-center text-xs font-bold text-amber-300">${subAvg}</td>
+                <td colspan="2"></td>`;
+            tblBody.appendChild(sftr);
+        });
+    }
+
+    if (tblSec) tblSec.classList.remove("hidden");
+}
+
+function kwFmtNilai(val) {
+    if (!val) return "0";
+    if (val >= 1e9)  return (val / 1e9).toFixed(1) + " M";
+    if (val >= 1e6)  return (val / 1e6).toFixed(1) + " Jt";
+    return val.toLocaleString("id-ID");
+}
+
+// ── Save ──
+
+async function saveKw() {
+    const planId = activePlanId;
+    if (!planId) { showAlert("Pilih plan audit terlebih dahulu.", "warning"); return; }
+    const tglAudit = document.getElementById("kwTglAudit")?.value?.trim() || null;
+
+    const msg = document.getElementById("kwSaveMsg");
+    const showMsg = (text, cls) => { if (msg) { msg.textContent = text; msg.className = `text-xs ${cls}`; msg.classList.remove("hidden"); } };
+    showMsg("Menyimpan…", "text-blue-400");
+    try {
+        await fetchJson("/api/audit-detail/kwitansi", {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ planAuditId: planId, tglAudit, kwitansi: _kwItems }),
+        });
+        showMsg("Tersimpan.", "text-emerald-400");
+        setTimeout(() => msg?.classList.add("hidden"), 2000);
+    } catch (err) {
+        showMsg(err.message || "Gagal menyimpan.", "text-red-400");
+    }
+}
+
+// ── Init ──
+
+function initKwForm() {
+    const panel = document.getElementById("tabPanel-kwitansi");
+    if (!panel) return;
+
+    // Tgl audit change → recalc diff
+    document.getElementById("kwTglAudit")?.addEventListener("change", kwRender);
+
+    // File input
+    const fileInput = document.getElementById("kwFileInput");
+    fileInput?.addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        await kwHandleFile(file);
+        fileInput.value = "";
+    });
+
+    // Drag & drop
+    const dropzone = document.getElementById("kwDropzone");
+    if (dropzone) {
+        dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("border-blue-400"); });
+        dropzone.addEventListener("dragleave", ()  => dropzone.classList.remove("border-blue-400"));
+        dropzone.addEventListener("drop", async (e) => {
+            e.preventDefault();
+            dropzone.classList.remove("border-blue-400");
+            const file = e.dataTransfer.files[0];
+            if (file) await kwHandleFile(file);
+        });
+    }
+
+    // Save button
+    document.getElementById("kwSaveBtn")?.addEventListener("click", () => {
+        saveKw().catch(err => showAlert(err.message || "Gagal menyimpan.", "error"));
+    });
+}
+
+async function kwHandleFile(file) {
+    const msgEl = document.getElementById("kwImportMsg");
+    try {
+        const { rows, filename } = await kwParseExcel(file);
+        const mapped = kwMapRows(rows);
+        if (!mapped.length) {
+            if (msgEl) { msgEl.textContent = "Tidak ada data kwitansi ditemukan di file."; msgEl.classList.remove("hidden"); }
+            return;
+        }
+        // Merge: keep keterangan & fisik for matching noKwitansi
+        const existingMap = {};
+        _kwItems.forEach(it => { existingMap[it.noKwitansi] = it; });
+        _kwItems = mapped.map(it => {
+            const old = existingMap[it.noKwitansi];
+            if (old) { it.keterangan = old.keterangan; it.fisik = old.fisik; }
+            return it;
+        });
+        if (msgEl) {
+            msgEl.textContent = `✅ ${mapped.length} kwitansi berhasil dimuat dari "${filename}"`;
+            msgEl.classList.remove("hidden");
+        }
+        kwRender();
+    } catch (err) {
+        if (msgEl) { msgEl.textContent = "❌ " + err.message; msgEl.classList.remove("hidden"); }
+    }
 }

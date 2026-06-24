@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\PemeriksaanMateraiController;
 use App\Http\Controllers\Api\PlafonController;
 use App\Http\Controllers\Api\BpkbOnhandController;
 use App\Http\Controllers\Api\BpkbInprosesController;
+use App\Http\Controllers\Api\KwitansiController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', [DataStoreController::class, 'ping']);
@@ -145,6 +146,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // ── BPKB Inproses ──
     Route::get('/audit-detail/bpkb-inproses',  [BpkbInprosesController::class, 'show']);
     Route::post('/audit-detail/bpkb-inproses', [BpkbInprosesController::class, 'save'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── Kwitansi Gantung ──
+    Route::get('/audit-detail/kwitansi',  [KwitansiController::class, 'show']);
+    Route::post('/audit-detail/kwitansi', [KwitansiController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── SMH ──
