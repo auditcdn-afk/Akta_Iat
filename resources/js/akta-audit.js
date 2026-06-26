@@ -5103,7 +5103,6 @@ function lampiranUpdateStats() {
     const mergedInfo = el('lampiranMergedInfo');
     if (hasMerged) {
         dlBtn?.classList.remove('hidden');
-        if (dlBtn) dlBtn.href = `/api/audit-detail/lampiran/download?plan_audit_id=${activePlanId}&token=${localStorage.getItem('akta_token') || ''}`;
         mergedInfo?.classList.remove('hidden');
     } else {
         dlBtn?.classList.add('hidden');
@@ -5227,6 +5226,31 @@ function initLampiranForm() {
             showAlert(e.message || 'Gagal menggabungkan PDF.', 'error');
         } finally {
             if (btn) { btn.textContent = '🔗 Gabung jadi 1 PDF'; btn.disabled = false; }
+        }
+    });
+
+    document.getElementById('lampiranDownloadBtn')?.addEventListener('click', async () => {
+        if (!activePlanId) return;
+        const btn = document.getElementById('lampiranDownloadBtn');
+        if (btn) { btn.textContent = '⏳ Menyiapkan...'; btn.disabled = true; }
+        try {
+            const resp = await fetch(`/api/audit-detail/lampiran/download?plan_audit_id=${activePlanId}`, {
+                headers: authHeaders(),
+            });
+            if (!resp.ok) throw new Error('Gagal mengunduh file.');
+            const blob = await resp.blob();
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = `Lampiran_Audit_${activePlanId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            showAlert(e.message || 'Gagal download.', 'error');
+        } finally {
+            if (btn) { btn.textContent = '⬇️ Download PDF Gabungan'; btn.disabled = false; }
         }
     });
 }

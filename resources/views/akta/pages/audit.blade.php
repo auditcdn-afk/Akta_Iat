@@ -2034,10 +2034,10 @@
                         class="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition">
                         🔗 Gabung jadi 1 PDF
                     </button>
-                    <a id="lampiranDownloadBtn" href="#" target="_blank"
+                    <button id="lampiranDownloadBtn" type="button"
                         class="hidden flex items-center gap-1.5 rounded-xl bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-500 transition">
                         ⬇️ Download PDF Gabungan
-                    </a>
+                    </button>
                 </div>
             </div>
 
