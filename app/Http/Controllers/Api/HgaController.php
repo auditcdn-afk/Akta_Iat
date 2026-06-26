@@ -109,6 +109,67 @@ class HgaController extends Controller
         return response()->json(['data' => $items, 'total' => count($items)]);
     }
 
+    public function parsePts(Request $request): JsonResponse
+    {
+        $request->validate(['file' => 'required|file']);
+
+        $file = $request->file('file');
+        $ext  = strtolower($file->getClientOriginalExtension());
+        if (!in_array($ext, ['xls', 'xlsx', 'csv'], true)) {
+            return response()->json(['message' => 'File harus berformat .xls, .xlsx, atau .csv.'], 422);
+        }
+
+        $reader = match ($ext) {
+            'xlsx' => new Xlsx(),
+            'xls'  => new Xls(),
+            'csv'  => new Csv(),
+        };
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($file->getRealPath());
+        $rows = $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
+
+        // Format PTS: [No, No HGA, Nama HGA, Qty] — header di baris pertama
+        $items        = [];
+        $headerPassed = false;
+        $colNoPart    = 1;
+        $colNama      = 2;
+        $colQty       = 3;
+
+        foreach ($rows as $row) {
+            if (!$headerPassed) {
+                foreach ($row as $ci => $cell) {
+                    $lower = strtolower(trim((string)$cell));
+                    if (str_contains($lower, 'no hga') || str_contains($lower, 'kode') || str_contains($lower, 'no. part')) {
+                        $colNoPart = $ci;
+                    }
+                    if (str_contains($lower, 'nama')) {
+                        $colNama = $ci;
+                    }
+                    if (str_contains($lower, 'qty') || str_contains($lower, 'jumlah') || str_contains($lower, 'saldo')) {
+                        $colQty = $ci;
+                    }
+                }
+                $headerPassed = true;
+                continue;
+            }
+
+            $no = trim((string)($row[0] ?? ''));
+            if (!is_numeric($no)) continue;
+
+            $noPartRaw = trim((string)($row[$colNoPart] ?? ''));
+            $namaRaw   = trim((string)($row[$colNama]   ?? ''));
+            if ($noPartRaw === '') continue;
+
+            $items[] = [
+                'noPart'     => $noPartRaw,
+                'sparepart'  => $namaRaw !== '' ? $namaRaw : $noPartRaw,
+                'saldoAkhir' => $this->n($row[$colQty] ?? 0),
+            ];
+        }
+
+        return response()->json(['data' => $items, 'total' => count($items)]);
+    }
+
     private function n(mixed $val): float
     {
         if ($val === null || $val === '') return 0.0;

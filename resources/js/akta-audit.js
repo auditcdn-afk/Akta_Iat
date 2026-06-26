@@ -4644,25 +4644,28 @@ function hgaRenderItems() {
     if (!tbody) return;
     const items = _hgaData?.items || [];
     if (items.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="13" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
         hgaUpdateStats();
         return;
     }
     tbody.innerHTML = items.map((it, i) => {
-        const selisih   = hgaN(it.selisih);
-        const selClass  = selisih < 0 ? 'text-red-400 font-bold' : selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
-        const scan      = it.logScan?.length || 0;
-        const selSign   = selisih >= 0 ? '+' : '';
-        const harga     = hgaN(it.hargaHet);
-        const jumlah    = harga * selisih;
-        const jumlahFmt = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
+        const selisih     = hgaN(it.selisih);
+        const selClass    = selisih < 0 ? 'text-red-400 font-bold' : selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
+        const scan        = it.logScan?.length || 0;
+        const selSign     = selisih >= 0 ? '+' : '';
+        const harga       = hgaN(it.hargaHet);
+        const jumlah      = harga * selisih;
+        const jumlahFmt   = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
         const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
+        const saldoPts    = it.saldoPts !== undefined ? hgaN(it.saldoPts) : null;
+        const saldoPtsFmt = saldoPts === null ? '<span class="text-slate-600">—</span>' : `<span class="text-purple-300">${saldoPts}</span>`;
         return `<tr class="hover:bg-slate-800/40">
             <td class="px-3 py-2 text-slate-400">${i + 1}</td>
             <td class="px-3 py-2 text-slate-400 text-xs">${it.noPart || ''}</td>
             <td class="px-3 py-2 text-slate-100 font-medium">${it.sparepart || ''}</td>
             <td class="px-3 py-2 text-center text-slate-300">${it.tgl || '<span class="text-slate-600">—</span>'}</td>
             <td class="px-3 py-2 text-right text-slate-300">${hgaSaldo(it)}</td>
+            <td class="px-3 py-2 text-right">${saldoPtsFmt}</td>
             <td class="px-3 py-2 text-right text-slate-100 font-semibold">${hgaN(it.fisik)}</td>
             <td class="px-3 py-2 text-right text-slate-300">${hgaN(it.akhir)}</td>
             <td class="px-3 py-2 text-right ${selClass}">${selSign}${selisih}</td>
@@ -4855,6 +4858,60 @@ async function hgaHandleFile(file) {
     } catch (e) { if (msg) msg.textContent = 'Gagal: ' + (e.message || 'Unknown error'); }
 }
 
+async function hgaHandlePtsFile(file) {
+    const msg = document.getElementById('hgaPtsImportMsg');
+    if (msg) { msg.classList.remove('hidden'); msg.textContent = 'Mengupload PTS...'; }
+    try {
+        const fd = new FormData();
+        fd.append('file', file);
+        // Reuse same parse-excel endpoint — format PTS lebih sederhana tapi hasilnya sama strukturnya
+        const res = await fetchJson('/api/audit-detail/hga/parse-excel-pts', {
+            method: 'POST', headers: authHeaders(), body: fd,
+        });
+        if (!res.data) { if (msg) msg.textContent = 'Tidak ada data ditemukan dalam file PTS.'; return; }
+        const ptsItems = res.data; // [{noPart, sparepart, saldoAkhir}]
+        if (!_hgaData) _hgaData = hgaEmptyData();
+
+        // Build map dari data HGA existing
+        const mainMap = {};
+        (_hgaData.items || []).forEach((it, i) => { if (it.noPart) mainMap[it.noPart.toLowerCase()] = i; });
+
+        // Merge: set saldoPts ke existing items, atau tambah item baru dengan saldoAkhir=0
+        ptsItems.forEach(pts => {
+            const key = (pts.noPart || '').toLowerCase();
+            if (!key) return;
+            const idx = mainMap[key];
+            if (idx !== undefined) {
+                _hgaData.items[idx].saldoPts = hgaN(pts.saldoAkhir);
+            } else {
+                // Tidak ada di stok HGA → tambah dengan saldoAkhir=0
+                const newItem = {
+                    noPart: pts.noPart,
+                    sparepart: pts.sparepart || pts.noPart,
+                    saldoAkhir: 0,
+                    saldoPts: hgaN(pts.saldoAkhir),
+                    fisik: 0, akhir: 0, selisih: 0,
+                    keterangan: '', tgl: '', logScan: [],
+                };
+                hgaCalcItem(newItem);
+                _hgaData.items.push(newItem);
+                mainMap[key] = _hgaData.items.length - 1;
+            }
+        });
+
+        // Semua item HGA yang tidak ada di PTS → saldoPts = 0
+        (_hgaData.items || []).forEach(it => {
+            if (it.saldoPts === undefined) it.saldoPts = 0;
+        });
+
+        const added = ptsItems.filter(p => mainMap[(p.noPart || '').toLowerCase()] !== undefined).length;
+        if (msg) msg.textContent = `PTS: ${ptsItems.length} item diproses, data tersinkronisasi.`;
+        hgaRenderItems();
+        hgaPopulateDatalist();
+        _doSaveHga().catch(() => {});
+    } catch (e) { if (msg) msg.textContent = 'Gagal: ' + (e.message || 'Unknown error'); }
+}
+
 async function loadHgaTab() {
     if (!activePlanId) { hgaRenderItems(); return; }
     const res = await fetchJson(`/api/audit-detail/hga?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
@@ -4885,6 +4942,14 @@ function initHgaForm() {
     dropzone?.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-blue-400'); });
     dropzone?.addEventListener('dragleave', () => dropzone.classList.remove('border-blue-400'));
     dropzone?.addEventListener('drop', e => { e.preventDefault(); dropzone.classList.remove('border-blue-400'); const f = e.dataTransfer.files[0]; if (f) hgaHandleFile(f); });
+
+    // PTS / Part Dept dropzone
+    const ptsFileInput = document.getElementById('hgaPtsFileInput');
+    const ptsDropzone  = document.getElementById('hgaPtsDropzone');
+    ptsFileInput?.addEventListener('change', () => { if (ptsFileInput.files[0]) hgaHandlePtsFile(ptsFileInput.files[0]); ptsFileInput.value = ''; });
+    ptsDropzone?.addEventListener('dragover', e => { e.preventDefault(); ptsDropzone.classList.add('border-purple-400'); });
+    ptsDropzone?.addEventListener('dragleave', () => ptsDropzone.classList.remove('border-purple-400'));
+    ptsDropzone?.addEventListener('drop', e => { e.preventDefault(); ptsDropzone.classList.remove('border-purple-400'); const f = e.dataTransfer.files[0]; if (f) hgaHandlePtsFile(f); });
 
     document.getElementById('hgaSaveBtn')?.addEventListener('click', () => {
         _doSaveHga().then(r => showAlert(r.message || 'Tersimpan.', 'success')).catch(e => showAlert(e.message || 'Gagal.', 'error'));

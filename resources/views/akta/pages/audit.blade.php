@@ -1692,14 +1692,30 @@
             </div>
 
             {{-- Import Excel --}}
-            <div id="hgaDropzone" class="cursor-pointer rounded-2xl border-2 border-dashed border-blue-600/40 bg-blue-900/10 p-6 text-center transition hover:border-blue-400">
-                <div class="mb-2 text-3xl">📊</div>
-                <p class="text-sm text-slate-400">Drag &amp; drop file <span class="text-blue-400 font-semibold">.xls / .xlsx / .csv</span> data HGA Accessories ke sini, atau</p>
-                <label class="mt-3 inline-block cursor-pointer rounded-xl bg-yellow-500 px-5 py-2 text-sm font-bold text-slate-900 hover:bg-yellow-400 transition">
-                    📁 Pilih File Excel
-                    <input id="hgaFileInput" type="file" accept=".xls,.xlsx,.csv" class="hidden">
-                </label>
-                <p id="hgaImportMsg" class="hidden mt-2 text-xs text-slate-400"></p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {{-- Upload Stok HGA --}}
+                <div id="hgaDropzone" class="cursor-pointer rounded-2xl border-2 border-dashed border-blue-600/40 bg-blue-900/10 p-5 text-center transition hover:border-blue-400">
+                    <div class="mb-1 text-2xl">📊</div>
+                    <p class="text-xs font-semibold text-blue-300 mb-1">Stok HGA (Gudang)</p>
+                    <p class="text-xs text-slate-400">Drag &amp; drop atau pilih file <span class="text-blue-400 font-semibold">.xls / .xlsx / .csv</span></p>
+                    <label class="mt-3 inline-block cursor-pointer rounded-xl bg-yellow-500 px-4 py-1.5 text-xs font-bold text-slate-900 hover:bg-yellow-400 transition">
+                        📁 Pilih File Stok HGA
+                        <input id="hgaFileInput" type="file" accept=".xls,.xlsx,.csv" class="hidden">
+                    </label>
+                    <p id="hgaImportMsg" class="hidden mt-2 text-xs text-slate-400"></p>
+                </div>
+
+                {{-- Upload PTS / Part Dept --}}
+                <div id="hgaPtsDropzone" class="cursor-pointer rounded-2xl border-2 border-dashed border-purple-600/40 bg-purple-900/10 p-5 text-center transition hover:border-purple-400">
+                    <div class="mb-1 text-2xl">📋</div>
+                    <p class="text-xs font-semibold text-purple-300 mb-1">Saldo PTS / Part Dept</p>
+                    <p class="text-xs text-slate-400">Drag &amp; drop atau pilih file <span class="text-purple-400 font-semibold">.xls / .xlsx / .csv</span></p>
+                    <label class="mt-3 inline-block cursor-pointer rounded-xl bg-purple-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-purple-500 transition">
+                        📁 Pilih File PTS / Part Dept
+                        <input id="hgaPtsFileInput" type="file" accept=".xls,.xlsx,.csv" class="hidden">
+                    </label>
+                    <p id="hgaPtsImportMsg" class="hidden mt-2 text-xs text-slate-400"></p>
+                </div>
             </div>
 
             {{-- Stat cards --}}
@@ -1820,6 +1836,7 @@
                             <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400">Nama HGA</th>
                             <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400 w-24">Tgl. Periksa</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20">Saldo Akhir</th>
+                            <th class="px-3 py-2 text-right font-semibold uppercase text-purple-400 w-20">Saldo PTS</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Fisik (Qty)</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Akhir</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Selisih</th>
