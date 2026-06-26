@@ -5315,18 +5315,12 @@ async function gradingLoadMaster() {
         );
         _gradingMaster = res.data || [];
 
-        // Jika hasil kosong dan ada wilayah, coba tanpa filter wilayah
+        // Jika hasil kosong dan ada wilayah, fallback ke filter jenis saja
         if (_gradingMaster.length === 0 && wilayah) {
             res = await fetchJson(
                 `/api/audit-detail/grading/master?jenis=${encodeURIComponent(jenis)}`,
                 { headers: authHeaders() }
             );
-            _gradingMaster = res.data || [];
-        }
-
-        // Jika masih kosong, coba tanpa filter jenis sama sekali (semua data)
-        if (_gradingMaster.length === 0) {
-            res = await fetchJson(`/api/audit-detail/grading/master`, { headers: authHeaders() });
             _gradingMaster = res.data || [];
         }
     } catch (e) {

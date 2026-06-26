@@ -64,7 +64,7 @@ class GradingController extends Controller
 
         $rows = $query->orderBy('nama_pemeriksaan')->get();
 
-        // Kelompokkan per nama_pemeriksaan → array hasil yang mungkin
+        // Kelompokkan per nama_pemeriksaan → array hasil yang mungkin (deduplikasi by label)
         $grouped = [];
         foreach ($rows as $r) {
             $key = $r->nama_pemeriksaan;
@@ -75,9 +75,11 @@ class GradingController extends Controller
                     'jenis'           => $r->jenis,
                     'wilayah'         => $r->wilayah,
                     'hasilOptions'    => [],
+                    '_hasilLabels'    => [],   // tracking deduplikasi, dihapus sebelum return
                 ];
             }
-            if ($r->hasil_pemeriksaan) {
+            if ($r->hasil_pemeriksaan && !in_array($r->hasil_pemeriksaan, $grouped[$key]['_hasilLabels'])) {
+                $grouped[$key]['_hasilLabels'][] = $r->hasil_pemeriksaan;
                 $grouped[$key]['hasilOptions'][] = [
                     'label' => $r->hasil_pemeriksaan,
                     'nilai' => (float)$r->nilai,
@@ -88,6 +90,9 @@ class GradingController extends Controller
                 ];
             }
         }
+
+        // Hapus field tracking sebelum di-return
+        foreach ($grouped as &$g) unset($g['_hasilLabels']);
 
         return response()->json([
             'data'  => array_values($grouped),
