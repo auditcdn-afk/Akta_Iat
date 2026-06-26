@@ -5336,18 +5336,25 @@ function gradingPopulateNamaSelect(currentVal = '') {
     if (currentVal) sel.value = currentVal;
 }
 
+function gradingNilaiFromOption(o) {
+    const bbnkb = _gradingData?.bbnkb || 'N';
+    const fraud  = _gradingData?.fraud  || 'N';
+    // Kombinasi BBNKB + Fraud → kolom nilai
+    if (bbnkb === 'Y' && fraud === 'N') return gradingN(o.pnknf); // BBNKB=Y, Fraud=N
+    if (bbnkb === 'Y' && fraud === 'Y') return gradingN(o.pnkf);  // BBNKB=Y, Fraud=Y
+    if (bbnkb === 'N' && fraud === 'Y') return gradingN(o.pkf);   // BBNKB=N, Fraud=Y
+    return gradingN(o.pknf);                                        // BBNKB=N, Fraud=N (default)
+}
+
 function gradingPopulateHasilSelect(namaPemeriksaan, currentVal = '') {
     const sel     = document.getElementById('gradingDetailHasil');
     const elNilai = document.getElementById('gradingDetailNilai');
     if (!sel) return;
     const master = _gradingMaster.find(m => m.namaPemeriksaan === namaPemeriksaan);
     const opts   = master?.hasilOptions || [];
-    const fraud  = _gradingData?.fraud === 'Y';
     sel.innerHTML = '<option value="">-- Pilih Hasil --</option>' +
         opts.map(o => {
-            const nilai = fraud
-                ? gradingN(o.pkf !== undefined ? o.pkf : o.bkf)
-                : gradingN(o.pknf !== undefined ? o.pknf : o.bknf);
+            const nilai = gradingNilaiFromOption(o);
             return `<option value="${escapeHtml(o.label)}" data-nilai="${nilai}">${escapeHtml(o.label)}</option>`;
         }).join('');
     if (currentVal) sel.value = currentVal;
@@ -5432,6 +5439,13 @@ function gradingSetFlag(field, val) {
     if (field === 'fraud') {
         const sec = document.getElementById('gradingFraudDetail');
         if (sec) sec.classList.toggle('hidden', val !== 'Y');
+    }
+    // Refresh nilai di modal jika sedang terbuka
+    const modal = document.getElementById('gradingDetailModal');
+    if (modal && !modal.classList.contains('hidden')) {
+        const nama = document.getElementById('gradingDetailNama')?.value || '';
+        const hasil = document.getElementById('gradingDetailHasil')?.value || '';
+        gradingPopulateHasilSelect(nama, hasil);
     }
 }
 

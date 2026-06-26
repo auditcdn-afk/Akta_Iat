@@ -84,9 +84,13 @@ class GradingController extends Controller
                     'label' => $r->hasil_pemeriksaan,
                     'nilai' => (float)$r->nilai,
                     'bknf'  => $r->bknf,
-                    'pknf'  => (float)$r->pknf,
+                    'pknf'  => (float)$r->pknf,   // BBNKB=N, Fraud=N
                     'bkf'   => $r->bkf,
-                    'pkf'   => (float)$r->pkf,
+                    'pkf'   => (float)$r->pkf,    // BBNKB=N, Fraud=Y
+                    'bnknf' => $r->bnknf,
+                    'pnknf' => (float)$r->pnknf,  // BBNKB=Y, Fraud=N
+                    'bnkf'  => $r->bnkf,
+                    'pnkf'  => (float)$r->pnkf,   // BBNKB=Y, Fraud=Y
                 ];
             }
         }
