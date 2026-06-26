@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\HgpController;
 use App\Http\Controllers\Api\HgaController;
 use App\Http\Controllers\Api\SmhTarikanController;
 use App\Http\Controllers\Api\LampiranController;
+use App\Http\Controllers\Api\GradingController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', [DataStoreController::class, 'ping']);
@@ -208,6 +209,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/audit-detail/hga/parse-excel',     [HgaController::class, 'parseExcel'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hga/parse-excel-pts', [HgaController::class, 'parsePts'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── Grading ──
+    Route::get('/audit-detail/grading',              [GradingController::class, 'show']);
+    Route::get('/audit-detail/grading/plan-info',    [GradingController::class, 'planInfo']);
+    Route::get('/audit-detail/grading/master',       [GradingController::class, 'master']);
+    Route::get('/audit-detail/grading/jenis',        [GradingController::class, 'jenisOptions']);
+    Route::get('/audit-detail/grading/wilayah',      [GradingController::class, 'wilayahOptions']);
+    Route::post('/audit-detail/grading',             [GradingController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── Lampiran ──

@@ -261,6 +261,9 @@ function switchTab(tab) {
     if (tab === "lampiran") {
         loadLampiranTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "grading") {
+        loadGradingTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1711,6 +1714,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initHgaForm();
     initSmhTarikanForm();
     initLampiranForm();
+    initGradingForm();
 
     try {
         await loadCurrentUser();
@@ -5253,4 +5257,387 @@ function initLampiranForm() {
             if (btn) { btn.textContent = '⬇️ Download PDF Gabungan'; btn.disabled = false; }
         }
     });
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GRADING MODULE
+// ══════════════════════════════════════════════════════════════════════════════
+
+let _gradingData    = null;
+let _gradingMaster  = [];
+let _gradingEditIdx = -1;
+
+function gradingN(v) { return parseFloat(v) || 0; }
+
+function gradingUpdateStats() {
+    const details = _gradingData?.details || [];
+    const total   = details.reduce((s, d) => s + gradingN(d.nilai), 0);
+    const elCount = document.getElementById('gradingStatItem');
+    const elTotal = document.getElementById('gradingStatNilai');
+    if (elCount) elCount.textContent = details.length;
+    if (elTotal) elTotal.textContent = total.toFixed(2);
+}
+
+function gradingRenderDetails() {
+    const tbody = document.getElementById('gradingDetailBody');
+    if (!tbody) return;
+    const details = _gradingData?.details || [];
+    if (details.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="px-3 py-6 text-center text-slate-400 text-sm">Belum ada item pemeriksaan.</td></tr>`;
+        gradingUpdateStats();
+        return;
+    }
+    tbody.innerHTML = details.map((d, i) => `
+        <tr class="hover:bg-slate-800/40 border-b border-slate-800">
+            <td class="px-3 py-2 text-center text-slate-500">${i + 1}</td>
+            <td class="px-3 py-2 text-slate-200">${escapeHtml(d.namaPemeriksaan || '')}</td>
+            <td class="px-3 py-2 text-slate-300">${escapeHtml(d.hasilPemeriksaan || '')}</td>
+            <td class="px-3 py-2 text-right font-mono text-yellow-300">${gradingN(d.nilai).toFixed(2)}</td>
+            <td class="px-3 py-2 text-center">
+                <button onclick="gradingOpenDetailModal(${i})" class="text-blue-400 hover:text-blue-200 mr-2 text-xs">✏️</button>
+                <button onclick="gradingDeleteDetail(${i})" class="text-red-400 hover:text-red-200 text-xs">🗑️</button>
+            </td>
+        </tr>
+    `).join('');
+    gradingUpdateStats();
+}
+
+async function gradingLoadMaster() {
+    const jenis   = _gradingData?.jenis  || '';
+    const wilayah = _gradingData?.area   || '';
+    if (!jenis) { _gradingMaster = []; return; }
+    try {
+        const res = await fetchJson(
+            `/api/audit-detail/grading/master?jenis=${encodeURIComponent(jenis)}&wilayah=${encodeURIComponent(wilayah)}`,
+            { headers: authHeaders() }
+        );
+        _gradingMaster = res.data || [];
+    } catch (e) {
+        _gradingMaster = [];
+    }
+}
+
+function gradingPopulateNamaSelect(currentVal = '') {
+    const sel = document.getElementById('gradingDetailNama');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">-- Pilih Pemeriksaan --</option>' +
+        _gradingMaster.map(m => `<option value="${escapeHtml(m.namaPemeriksaan)}">${escapeHtml(m.namaPemeriksaan)}</option>`).join('');
+    if (currentVal) sel.value = currentVal;
+}
+
+function gradingPopulateHasilSelect(namaPemeriksaan, currentVal = '') {
+    const sel     = document.getElementById('gradingDetailHasil');
+    const elNilai = document.getElementById('gradingDetailNilai');
+    if (!sel) return;
+    const master = _gradingMaster.find(m => m.namaPemeriksaan === namaPemeriksaan);
+    const opts   = master?.hasilOptions || [];
+    const fraud  = _gradingData?.fraud === 'Y';
+    sel.innerHTML = '<option value="">-- Pilih Hasil --</option>' +
+        opts.map(o => {
+            const nilai = fraud
+                ? gradingN(o.pkf !== undefined ? o.pkf : o.bkf)
+                : gradingN(o.pknf !== undefined ? o.pknf : o.bknf);
+            return `<option value="${escapeHtml(o.label)}" data-nilai="${nilai}">${escapeHtml(o.label)}</option>`;
+        }).join('');
+    if (currentVal) sel.value = currentVal;
+    // Auto-fill nilai for current selection
+    const opt = sel.options[sel.selectedIndex];
+    if (elNilai) elNilai.value = opt?.dataset?.nilai ?? '';
+}
+
+function gradingOpenDetailModal(idx = -1) {
+    _gradingEditIdx = idx;
+    const modal = document.getElementById('gradingDetailModal');
+    if (!modal) return;
+    const title = document.getElementById('gradingDetailModalTitle');
+
+    if (idx >= 0) {
+        const d = (_gradingData?.details || [])[idx];
+        if (title) title.textContent = 'Edit Item Pemeriksaan';
+        gradingPopulateNamaSelect(d?.namaPemeriksaan || '');
+        gradingPopulateHasilSelect(d?.namaPemeriksaan || '', d?.hasilPemeriksaan || '');
+        const elNilai = document.getElementById('gradingDetailNilai');
+        if (elNilai) elNilai.value = d?.nilai != null ? d.nilai : '';
+    } else {
+        if (title) title.textContent = 'Tambah Item Pemeriksaan';
+        gradingPopulateNamaSelect('');
+        gradingPopulateHasilSelect('', '');
+        const elNilai = document.getElementById('gradingDetailNilai');
+        if (elNilai) elNilai.value = '';
+    }
+
+    const msg = document.getElementById('gradingDetailMsg');
+    if (msg) msg.classList.add('hidden');
+    modal.classList.remove('hidden');
+}
+
+function gradingCloseDetailModal() {
+    const modal = document.getElementById('gradingDetailModal');
+    if (modal) modal.classList.add('hidden');
+    _gradingEditIdx = -1;
+}
+
+function gradingDeleteDetail(idx) {
+    if (!_gradingData) return;
+    _gradingData.details = (_gradingData.details || []).filter((_, i) => i !== idx);
+    gradingRenderDetails();
+}
+
+function gradingSetJenis(jenis) {
+    if (!_gradingData) _gradingData = {};
+    _gradingData.jenis = jenis;
+    document.querySelectorAll('.grading-jenis-btn').forEach(btn => {
+        const active = btn.dataset.gradingJenis === jenis;
+        btn.className = btn.className
+            .replace(/\bbg-indigo-\S+|\btext-white\b|\btext-slate-300\b|\bborder-slate-600\b|\bborder-indigo-600\b/g, '')
+            .trim();
+        if (active) {
+            btn.classList.add('bg-indigo-600', 'text-white', 'border-indigo-600');
+        } else {
+            btn.classList.add('text-slate-300', 'border-slate-600');
+        }
+    });
+    gradingLoadMaster().then(() => gradingRenderDetails());
+}
+
+function gradingSetFlag(field, val) {
+    if (!_gradingData) _gradingData = {};
+    _gradingData[field] = val;
+    const dataAttr = `grading${field.charAt(0).toUpperCase() + field.slice(1)}`;
+    document.querySelectorAll(`.grading-${field}-btn`).forEach(btn => {
+        const btnVal = btn.dataset[dataAttr] || btn.dataset.gradingBbnkb || btn.dataset.gradingFraud;
+        const active = btnVal === val;
+        btn.className = btn.className
+            .replace(/\bbg-blue-600\b|\bbg-red-600\b|\btext-white\b|\btext-slate-300\b|\btext-red-400\b|\bborder-blue-600\b|\bborder-red-600\b|\bborder-slate-600\b/g, '')
+            .trim();
+        if (active) {
+            const color = field === 'fraud' ? 'red' : 'blue';
+            btn.classList.add(`bg-${color}-600`, 'text-white', `border-${color}-600`);
+        } else {
+            const isRedBtn = btn.classList.contains('hover:border-red-400');
+            btn.classList.add(isRedBtn ? 'text-red-400' : 'text-slate-300', 'border-slate-600');
+        }
+    });
+    if (field === 'fraud') {
+        const sec = document.getElementById('gradingFraudDetail');
+        if (sec) sec.classList.toggle('hidden', val !== 'Y');
+    }
+}
+
+function gradingRenderFraudTags() {
+    const container = document.getElementById('gradingJenisFraudTags');
+    if (!container) return;
+    const tags = _gradingData?.jenisFraud || [];
+    container.innerHTML = tags.map((t, i) => `
+        <span class="inline-flex items-center gap-1 bg-red-900/40 text-red-300 text-xs rounded-full px-3 py-1">
+            ${escapeHtml(t)}
+            <button onclick="gradingRemoveFraudTag(${i})" class="hover:text-red-100 font-bold">×</button>
+        </span>
+    `).join('');
+}
+
+function gradingRemoveFraudTag(idx) {
+    if (!_gradingData) return;
+    _gradingData.jenisFraud = (_gradingData.jenisFraud || []).filter((_, i) => i !== idx);
+    gradingRenderFraudTags();
+}
+
+async function loadGradingTab() {
+    if (!activePlanId) return;
+
+    // Reset
+    _gradingData = null;
+    _gradingMaster = [];
+
+    // Load plan info for auto-fill area & jenis
+    let autoJenis = '', autoArea = '';
+    try {
+        const pi = await fetchJson(`/api/audit-detail/grading/plan-info?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+        if (pi.data) {
+            autoArea  = pi.data.area         || '';
+            autoJenis = pi.data.jenisGrading || '';
+        }
+    } catch (e) { /* ignore */ }
+
+    // Load existing grading record
+    try {
+        const res = await fetchJson(`/api/audit-detail/grading?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+        if (res.data) {
+            _gradingData = {
+                id:              res.data.id,
+                idGrading:       res.data.idGrading       || '',
+                jenis:           res.data.jenis            || autoJenis,
+                area:            res.data.area             || autoArea,
+                bbnkb:           res.data.bbnkb            || 'N',
+                fraud:           res.data.fraud            || 'N',
+                jenisFraud:      res.data.jenisFraud       || [],
+                keteranganFraud: res.data.keteranganFraud  || '',
+                details:         res.data.details          || [],
+                totalNilai:      res.data.totalNilai,
+            };
+        }
+    } catch (e) { /* ignore */ }
+
+    if (!_gradingData) {
+        _gradingData = { bbnkb: 'N', fraud: 'N', jenis: autoJenis, area: autoArea, details: [], jenisFraud: [] };
+    }
+
+    // Populate fields
+    const elIdGrading = document.getElementById('gradingIdGrading');
+    const elArea      = document.getElementById('gradingArea');
+    const elKetFraud  = document.getElementById('gradingKeteranganFraud');
+    if (elIdGrading) elIdGrading.value = _gradingData.idGrading || '';
+    if (elArea)      elArea.value      = _gradingData.area       || '';
+    if (elKetFraud)  elKetFraud.value  = _gradingData.keteranganFraud || '';
+
+    if (_gradingData.jenis) gradingSetJenis(_gradingData.jenis);
+    gradingSetFlag('bbnkb', _gradingData.bbnkb || 'N');
+    gradingSetFlag('fraud', _gradingData.fraud  || 'N');
+    gradingRenderFraudTags();
+
+    await gradingLoadMaster();
+    gradingRenderDetails();
+}
+
+async function _doSaveGrading() {
+    if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
+
+    const elIdGrading = document.getElementById('gradingIdGrading');
+    const elArea      = document.getElementById('gradingArea');
+    const elKetFraud  = document.getElementById('gradingKeteranganFraud');
+
+    const details   = _gradingData?.details || [];
+    const totalNilai = details.reduce((s, d) => s + gradingN(d.nilai), 0);
+
+    const payload = {
+        planAuditId:     activePlanId,
+        idGrading:       elIdGrading?.value || '',
+        jenis:           _gradingData?.jenis || '',
+        area:            elArea?.value || '',
+        bbnkb:           _gradingData?.bbnkb || 'N',
+        fraud:           _gradingData?.fraud || 'N',
+        jenisFraud:      _gradingData?.jenisFraud || [],
+        keteranganFraud: elKetFraud?.value || '',
+        details,
+        totalNilai,
+    };
+
+    const btn = document.getElementById('gradingSaveBtn');
+    if (btn) { btn.textContent = '⏳ Menyimpan...'; btn.disabled = true; }
+    try {
+        const res = await fetchJson('/api/audit-detail/grading', {
+            method:  'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body:    JSON.stringify(payload),
+        });
+        if (res.data) {
+            _gradingData = {
+                id:              res.data.id,
+                idGrading:       res.data.idGrading       || '',
+                jenis:           res.data.jenis            || '',
+                area:            res.data.area             || '',
+                bbnkb:           res.data.bbnkb            || 'N',
+                fraud:           res.data.fraud            || 'N',
+                jenisFraud:      res.data.jenisFraud       || [],
+                keteranganFraud: res.data.keteranganFraud  || '',
+                details:         res.data.details          || [],
+                totalNilai:      res.data.totalNilai,
+            };
+        }
+        gradingRenderDetails();
+        showAlert(res.message || 'Grading tersimpan.', 'success');
+    } catch (e) {
+        showAlert(e.message || 'Gagal menyimpan grading.', 'error');
+    } finally {
+        if (btn) { btn.textContent = '💾 Simpan Grading'; btn.disabled = false; }
+    }
+}
+
+function initGradingForm() {
+    // Jenis toggle
+    document.querySelectorAll('.grading-jenis-btn').forEach(btn => {
+        btn.addEventListener('click', () => gradingSetJenis(btn.dataset.gradingJenis));
+    });
+
+    // BBNKB toggle — data-grading-bbnkb attribute
+    document.querySelectorAll('.grading-bbnkb-btn').forEach(btn => {
+        btn.addEventListener('click', () => gradingSetFlag('bbnkb', btn.dataset.gradingBbnkb));
+    });
+
+    // Fraud toggle — data-grading-fraud attribute
+    document.querySelectorAll('.grading-fraud-btn').forEach(btn => {
+        btn.addEventListener('click', () => gradingSetFlag('fraud', btn.dataset.gradingFraud));
+    });
+
+    // Add fraud tag
+    document.getElementById('gradingJenisFraudAdd')?.addEventListener('click', () => {
+        const inp = document.getElementById('gradingJenisFraudInput');
+        const val = inp?.value?.trim();
+        if (!val) return;
+        if (!_gradingData) _gradingData = {};
+        if (!_gradingData.jenisFraud) _gradingData.jenisFraud = [];
+        if (!_gradingData.jenisFraud.includes(val)) {
+            _gradingData.jenisFraud.push(val);
+            gradingRenderFraudTags();
+        }
+        if (inp) inp.value = '';
+    });
+    document.getElementById('gradingJenisFraudInput')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); document.getElementById('gradingJenisFraudAdd')?.click(); }
+    });
+
+    // Add detail button
+    document.getElementById('gradingAddDetailBtn')?.addEventListener('click', () => {
+        if (!_gradingData?.jenis) { showAlert('Pilih Jenis terlebih dahulu.', 'error'); return; }
+        gradingOpenDetailModal(-1);
+    });
+
+    // Modal: nama change → repopulate hasil
+    document.getElementById('gradingDetailNama')?.addEventListener('change', function () {
+        gradingPopulateHasilSelect(this.value, '');
+    });
+
+    // Modal: hasil change → auto-fill nilai
+    document.getElementById('gradingDetailHasil')?.addEventListener('change', function () {
+        const opt   = this.options[this.selectedIndex];
+        const elNilai = document.getElementById('gradingDetailNilai');
+        if (elNilai && opt?.dataset?.nilai != null) elNilai.value = opt.dataset.nilai;
+    });
+
+    // Modal save
+    document.getElementById('gradingDetailSave')?.addEventListener('click', () => {
+        const nama  = document.getElementById('gradingDetailNama')?.value?.trim();
+        const hasil = document.getElementById('gradingDetailHasil')?.value?.trim();
+        const nilai = gradingN(document.getElementById('gradingDetailNilai')?.value);
+        const msg   = document.getElementById('gradingDetailMsg');
+
+        if (!nama) {
+            if (msg) { msg.textContent = 'Pilih nama pemeriksaan.'; msg.classList.remove('hidden'); }
+            return;
+        }
+        if (msg) msg.classList.add('hidden');
+
+        if (!_gradingData) _gradingData = {};
+        if (!_gradingData.details) _gradingData.details = [];
+
+        const item = { namaPemeriksaan: nama, hasilPemeriksaan: hasil || '', nilai };
+        if (_gradingEditIdx >= 0) {
+            _gradingData.details[_gradingEditIdx] = item;
+        } else {
+            _gradingData.details.push(item);
+        }
+        gradingCloseDetailModal();
+        gradingRenderDetails();
+    });
+
+    // Modal cancel & close
+    document.getElementById('gradingDetailCancel')?.addEventListener('click', gradingCloseDetailModal);
+    document.getElementById('gradingDetailModalClose')?.addEventListener('click', gradingCloseDetailModal);
+    document.getElementById('gradingDetailModal')?.addEventListener('click', e => {
+        if (e.target === e.currentTarget) gradingCloseDetailModal();
+    });
+
+    // Save grading
+    document.getElementById('gradingSaveBtn')?.addEventListener('click', () => _doSaveGrading());
 }
