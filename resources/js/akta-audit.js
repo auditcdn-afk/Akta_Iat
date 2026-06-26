@@ -5451,12 +5451,13 @@ async function loadGradingTab() {
     _gradingMaster = [];
 
     // Load plan info for auto-fill area & jenis
-    let autoJenis = '', autoArea = '';
+    let autoJenis = '', autoArea = '', autoCabang = '';
     try {
         const pi = await fetchJson(`/api/audit-detail/grading/plan-info?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
         if (pi.data) {
-            autoArea  = pi.data.area         || '';
-            autoJenis = pi.data.jenisGrading || '';
+            autoArea   = pi.data.area         || '';
+            autoJenis  = pi.data.jenisGrading || '';
+            autoCabang = pi.data.cabang       || '';
         }
     } catch (e) { /* ignore */ }
 
@@ -5489,6 +5490,8 @@ async function loadGradingTab() {
     const elKetFraud  = document.getElementById('gradingKeteranganFraud');
     if (elIdGrading) elIdGrading.value = _gradingData.idGrading || '';
     if (elArea)      elArea.value      = _gradingData.area       || '';
+    const elAreaInfo = document.getElementById('gradingAreaInfo');
+    if (elAreaInfo && autoCabang) elAreaInfo.textContent = `Unit Usaha: ${autoCabang}`;
     if (elKetFraud)  elKetFraud.value  = _gradingData.keteranganFraud || '';
 
     if (_gradingData.jenis) gradingSetJenis(_gradingData.jenis);

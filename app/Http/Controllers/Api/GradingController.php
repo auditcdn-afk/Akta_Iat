@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AuditGrading;
 use App\Models\DbGrading;
+use App\Models\DbUnitUsaha;
 use App\Models\PlanAudit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -121,9 +122,13 @@ class GradingController extends Controller
         $jenisAudit   = strtoupper(trim($plan->jenis_audit ?? ''));
         $jenisGrading = self::JENIS_MAP[$jenisAudit] ?? null;
 
+        // Ambil wilayah dari db_unit_usaha berdasarkan cabang
+        $unitUsaha = DbUnitUsaha::where('unit_usaha', $plan->cabang)->first();
+        $wilayah   = $unitUsaha?->wilayah ?? $plan->cabang_area ?? '';
+
         return response()->json(['data' => [
             'cabang'       => $plan->cabang,
-            'area'         => $plan->cabang_area,
+            'area'         => $wilayah,
             'jenisAudit'   => $plan->jenis_audit,
             'jenisGrading' => $jenisGrading,
         ]]);

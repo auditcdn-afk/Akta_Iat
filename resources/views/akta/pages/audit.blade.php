@@ -2051,11 +2051,13 @@
                             class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
                     </div>
 
-                    {{-- Area (auto dari plan audit) --}}
+                    {{-- Area (auto dari db_unit_usaha) --}}
                     <div class="flex flex-col gap-1">
-                        <label class="text-xs font-semibold text-slate-300">Area / Wilayah</label>
+                        <label class="text-xs font-semibold text-slate-300">Area / Wilayah
+                            <span class="ml-1 font-normal text-slate-500">(otomatis dari unit usaha)</span>
+                        </label>
                         <input type="text" id="gradingArea" readonly
-                            class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-300">
+                            class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-200 cursor-default select-all">
                         <p id="gradingAreaInfo" class="text-xs text-slate-500"></p>
                     </div>
                 </div>
