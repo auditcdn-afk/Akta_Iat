@@ -4110,8 +4110,10 @@ function hgpFormRecalc() {
     const qty = hgpN(document.getElementById('hgpFormQty')?.value);
     const it  = _hgpSelIdx >= 0 ? _hgpData.items[_hgpSelIdx] : null;
     const saldo = it ? hgpSaldo(it) : 0;
-    const akhir = saldo - qty;    // Akhir = sisa stok = saldo akhir - fisik
-    const selisih = qty - saldo;  // Selisih = fisik - saldo akhir
+    // Preview: akhir setelah tambah qty baru ini (akumulasi ke fisik yang sudah ada)
+    const fisikTotal = hgpN(it?.fisik) + qty;
+    const akhir = saldo - fisikTotal;
+    const selisih = fisikTotal - saldo;
     const elAkhir = document.getElementById('hgpFormAkhir');
     const elSel   = document.getElementById('hgpFormSelisih');
     if (elAkhir) elAkhir.value = akhir;
@@ -4137,12 +4139,12 @@ function hgpFormSelectPart(code) {
         return;
     }
     const it = _hgpData.items[idx];
-    if (info) { info.textContent = `${it.noPart || '-'} — ${it.sparepart || ''} (Saldo Akhir: ${hgpSaldo(it)})`; info.className = 'mt-0.5 text-xs text-green-400'; }
+    if (info) { info.textContent = `${it.noPart || '-'} — ${it.sparepart || ''} | Saldo Akhir: ${hgpSaldo(it)} | Fisik Terscan: ${hgpN(it.fisik)} | Sisa: ${hgpN(it.akhir)}`; info.className = 'mt-0.5 text-xs text-green-400'; }
     // Pre-fill dari record yang ada
     const qtyEl = document.getElementById('hgpFormQty');
     const ketEl = document.getElementById('hgpFormKet');
     const tglEl = document.getElementById('hgpFormTgl');
-    if (qtyEl) qtyEl.value = hgpN(it.fisik);
+    if (qtyEl) qtyEl.value = 0;  // qty ini untuk scan baru, bukan total
     if (ketEl) ketEl.value = it.keterangan || '';
     if (tglEl && it.tgl) tglEl.value = it.tgl;
     hgpFormRecalc();
@@ -4218,7 +4220,8 @@ function hgpFormSaveEntry() {
     if (_hgpSelIdx < 0) { showMsg('Pilih / scan No. Part terlebih dahulu.', false); return; }
     const it = _hgpData.items[_hgpSelIdx];
     const qty = hgpN(document.getElementById('hgpFormQty')?.value);
-    it.fisik = qty;
+    if (qty <= 0) { showMsg('Qty harus lebih dari 0.', false); return; }
+    it.fisik = hgpN(it.fisik) + qty;  // akumulasi, bukan replace
     it.keterangan = document.getElementById('hgpFormKet')?.value || '';
     it.tgl = document.getElementById('hgpFormTgl')?.value || it.tgl;
     if (!Array.isArray(it.logScan)) it.logScan = [];
