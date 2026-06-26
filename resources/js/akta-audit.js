@@ -5309,19 +5309,30 @@ async function gradingLoadMaster() {
     const wilayah = _gradingData?.area  || '';
     if (!jenis) { _gradingMaster = []; return; }
     try {
-        // Coba dengan filter jenis + wilayah dulu
+        // 1. Coba filter jenis + wilayah
         let res = await fetchJson(
             `/api/audit-detail/grading/master?jenis=${encodeURIComponent(jenis)}&wilayah=${encodeURIComponent(wilayah)}`,
             { headers: authHeaders() }
         );
         _gradingMaster = res.data || [];
 
-        // Jika hasil kosong dan ada wilayah, fallback ke filter jenis saja
+        // 2. Jika kosong, coba filter jenis saja (tanpa wilayah)
         if (_gradingMaster.length === 0 && wilayah) {
             res = await fetchJson(
                 `/api/audit-detail/grading/master?jenis=${encodeURIComponent(jenis)}`,
                 { headers: authHeaders() }
             );
+            _gradingMaster = res.data || [];
+        }
+
+        // 3. Jika masih kosong (jenis tidak cocok di db), ambil semua data
+        //    (controller sudah deduplikasi by label, tidak akan ada duplikat)
+        if (_gradingMaster.length === 0) {
+            res = await fetchJson(`/api/audit-detail/grading/master?wilayah=${encodeURIComponent(wilayah)}`, { headers: authHeaders() });
+            _gradingMaster = res.data || [];
+        }
+        if (_gradingMaster.length === 0) {
+            res = await fetchJson(`/api/audit-detail/grading/master`, { headers: authHeaders() });
             _gradingMaster = res.data || [];
         }
     } catch (e) {
