@@ -119,6 +119,7 @@ class LampiranController extends Controller
             } elseif (in_array($f['ext'], ['jpg', 'jpeg', 'png'])) {
                 // Konversi gambar ke halaman PDF menggunakan GD
                 $img = $f['ext'] === 'png' ? @imagecreatefrompng($absPath) : @imagecreatefromjpeg($absPath);
+                if (!$img) $img = @imagecreatefromstring(file_get_contents($absPath));
                 if (!$img) continue;
 
                 $w = imagesx($img);
@@ -137,12 +138,15 @@ class LampiranController extends Controller
                 $pdf->AddPage($orientation, [$mmW, $mmH]);
 
                 // Simpan gambar ke temp untuk FPDF
-                $tmpImg = tempnam(sys_get_temp_dir(), 'lmp_') . '.' . ($f['ext'] === 'png' ? 'png' : 'jpg');
-                if ($f['ext'] === 'png') imagepng($img, $tmpImg);
-                else imagejpeg($img, $tmpImg, 90);
+                $isJpeg  = in_array($f['ext'], ['jpg', 'jpeg']);
+                $tmpBase = tempnam(sys_get_temp_dir(), 'lmp_');
+                $tmpImg  = $tmpBase . ($isJpeg ? '.jpg' : '.png');
+                if ($isJpeg) imagejpeg($img, $tmpImg, 90);
+                else         imagepng($img, $tmpImg);
                 imagedestroy($img);
+                @unlink($tmpBase); // hapus file base tanpa ekstensi
 
-                $type = strtoupper($f['ext'] === 'jpg' ? 'JPEG' : 'PNG');
+                $type = $isJpeg ? 'JPEG' : 'PNG';
                 $pdf->Image($tmpImg, 0, 0, $mmW, $mmH, $type);
                 @unlink($tmpImg);
             }
