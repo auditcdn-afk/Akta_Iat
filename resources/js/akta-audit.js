@@ -5304,15 +5304,31 @@ function gradingRenderDetails() {
 }
 
 async function gradingLoadMaster() {
-    const jenis   = _gradingData?.jenis  || '';
-    const wilayah = _gradingData?.area   || '';
+    const jenis   = _gradingData?.jenis || '';
+    const wilayah = _gradingData?.area  || '';
     if (!jenis) { _gradingMaster = []; return; }
     try {
-        const res = await fetchJson(
+        // Coba dengan filter jenis + wilayah dulu
+        let res = await fetchJson(
             `/api/audit-detail/grading/master?jenis=${encodeURIComponent(jenis)}&wilayah=${encodeURIComponent(wilayah)}`,
             { headers: authHeaders() }
         );
         _gradingMaster = res.data || [];
+
+        // Jika hasil kosong dan ada wilayah, coba tanpa filter wilayah
+        if (_gradingMaster.length === 0 && wilayah) {
+            res = await fetchJson(
+                `/api/audit-detail/grading/master?jenis=${encodeURIComponent(jenis)}`,
+                { headers: authHeaders() }
+            );
+            _gradingMaster = res.data || [];
+        }
+
+        // Jika masih kosong, coba tanpa filter jenis sama sekali (semua data)
+        if (_gradingMaster.length === 0) {
+            res = await fetchJson(`/api/audit-detail/grading/master`, { headers: authHeaders() });
+            _gradingMaster = res.data || [];
+        }
     } catch (e) {
         _gradingMaster = [];
     }
@@ -5488,7 +5504,9 @@ async function loadGradingTab() {
     const elIdGrading = document.getElementById('gradingIdGrading');
     const elArea      = document.getElementById('gradingArea');
     const elKetFraud  = document.getElementById('gradingKeteranganFraud');
-    if (elIdGrading) elIdGrading.value = _gradingData.idGrading || '';
+    // Auto-fill tanggal hari ini jika belum ada
+    const today = new Date().toISOString().split('T')[0];
+    if (elIdGrading) elIdGrading.value = _gradingData.idGrading || today;
     if (elArea)      elArea.value      = _gradingData.area       || '';
     const elAreaInfo = document.getElementById('gradingAreaInfo');
     if (elAreaInfo && autoCabang) elAreaInfo.textContent = `Unit Usaha: ${autoCabang}`;
