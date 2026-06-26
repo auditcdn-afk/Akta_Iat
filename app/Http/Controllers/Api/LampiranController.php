@@ -152,7 +152,7 @@ class LampiranController extends Controller
             }
         }
 
-        if ($pdf->getNumPages() === 0) {
+        if ($pdf->PageNo() === 0) {
             return response()->json(['message' => 'Tidak ada halaman yang berhasil diproses.'], 422);
         }
 
