@@ -1642,7 +1642,7 @@
                     <span id="hgpTableCount" class="rounded-full bg-blue-600/20 px-3 py-1 text-xs font-bold text-blue-300">0 Item</span>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-[1200px] text-xs">
+                    <table class="w-full min-w-[1400px] text-xs">
                         <thead class="border-b border-slate-700 bg-slate-800">
                             <tr>
                                 <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400 w-8">No.</th>
@@ -1650,11 +1650,13 @@
                                 <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400">Nama Part</th>
                                 <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400 w-24">Tgl. Periksa</th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20">Saldo Akhir</th>
-                                <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-24">Fisik (Qty)</th>
-                                <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20">Akhir</th>
-                                <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20">Selisih</th>
-                                <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400 w-36">Keterangan</th>
-                                <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400 w-48">Log Scan</th>
+                                <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Fisik (Qty)</th>
+                                <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Akhir</th>
+                                <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Selisih</th>
+                                <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-24">Harga HET</th>
+                                <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-28">Jumlah</th>
+                                <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400 w-32">Keterangan</th>
+                                <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400 w-44">Log Scan</th>
                             </tr>
                         </thead>
                         <tbody id="hgpTableBody" class="divide-y divide-slate-800/60"></tbody>

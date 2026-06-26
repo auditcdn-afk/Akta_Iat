@@ -164,7 +164,19 @@ class HgpController extends Controller
         $kode = trim($request->query('kode', ''));
         if ($kode === '') return response()->json(['data' => null]);
         $row = DbHet::where('kode', $kode)->first();
-        return response()->json(['data' => $row ? ['kode' => $row->kode, 'nama' => $row->nama] : null]);
+        return response()->json(['data' => $row ? ['kode' => $row->kode, 'nama' => $row->nama, 'hargaHet' => $row->harga_het] : null]);
+    }
+
+    public function batchHet(Request $request): JsonResponse
+    {
+        $kodes = array_filter(array_map('trim', (array)$request->input('kodes', [])));
+        if (empty($kodes)) return response()->json(['data' => []]);
+        $rows = DbHet::whereIn('kode', $kodes)->get(['kode', 'nama', 'harga_het']);
+        $map  = [];
+        foreach ($rows as $r) {
+            $map[$r->kode] = ['nama' => $r->nama, 'hargaHet' => $r->harga_het];
+        }
+        return response()->json(['data' => $map]);
     }
 
     private function n(mixed $val): float

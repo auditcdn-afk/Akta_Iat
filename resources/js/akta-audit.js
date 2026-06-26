@@ -3957,36 +3957,30 @@ function hgpRenderItems() {
     if (!tbody) return;
     const items = _hgpData?.items || [];
     if (items.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
         hgpUpdateStats();
         return;
     }
     tbody.innerHTML = items.map((it, i) => {
         const selisih  = hgpN(it.selisih);
         const selClass = selisih < 0 ? 'text-red-400 font-bold' : selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
-        const scan = it.logScan?.length || 0;
-        const selSign = selisih >= 0 ? '+' : '';
+        const scan     = it.logScan?.length || 0;
+        const selSign  = selisih >= 0 ? '+' : '';
+        const harga    = hgpN(it.hargaHet);
+        const jumlah   = harga * selisih;   // negatif = kekurangan, positif = kelebihan
+        const jumlahFmt = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
+        const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
         return `<tr class="hover:bg-slate-800/40">
             <td class="px-3 py-2 text-slate-400">${i + 1}</td>
             <td class="px-3 py-2 text-slate-400 text-xs">${it.noPart || ''}</td>
             <td class="px-3 py-2 text-slate-100 font-medium">${it.sparepart || ''}</td>
-            <td class="px-3 py-2">
-                <input type="date" data-hgp-i="${i}" data-hgp-f="tgl"
-                    value="${it.tgl || ''}"
-                    class="hgp-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
-            </td>
+            <td class="px-3 py-2 text-center text-slate-300">${it.tgl || '<span class="text-slate-600">—</span>'}</td>
             <td class="px-3 py-2 text-right text-slate-300">${hgpSaldo(it)}</td>
-            <td class="px-3 py-2">
-                <div class="flex items-center justify-end gap-1">
-                    <button data-hgp-dec="${i}" class="rounded bg-slate-700 px-1.5 text-slate-300 hover:bg-slate-600 text-xs">−</button>
-                    <input type="number" data-hgp-i="${i}" data-hgp-f="fisik"
-                        value="${hgpN(it.fisik)}" min="0"
-                        class="hgp-inp w-16 rounded border border-slate-600 bg-slate-800 px-1.5 py-1 text-right text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
-                    <button data-hgp-inc="${i}" class="rounded bg-slate-700 px-1.5 text-slate-300 hover:bg-slate-600 text-xs">+</button>
-                </div>
-            </td>
+            <td class="px-3 py-2 text-right text-slate-100 font-semibold">${hgpN(it.fisik)}</td>
             <td class="px-3 py-2 text-right text-slate-300">${hgpN(it.akhir)}</td>
             <td class="px-3 py-2 text-right ${selClass}">${selSign}${selisih}</td>
+            <td class="px-3 py-2 text-right text-slate-300">${harga > 0 ? harga.toLocaleString('id-ID') : '<span class="text-slate-600">—</span>'}</td>
+            <td class="px-3 py-2 text-right ${jumlahClass}">${jumlahFmt}</td>
             <td class="px-3 py-2">
                 <input type="text" data-hgp-i="${i}" data-hgp-f="keterangan"
                     value="${it.keterangan || ''}"
@@ -4003,42 +3997,38 @@ function hgpRenderItems() {
         </tr>`;
     }).join('');
 
-    // Input change
+    // Input change — hanya keterangan (fisik hanya bisa via scan)
     tbody.querySelectorAll('.hgp-inp').forEach(inp => {
         inp.addEventListener('input', () => {
             const i = parseInt(inp.dataset.hgpI);
             const f = inp.dataset.hgpF;
-            _hgpData.items[i][f] = f === 'fisik' ? hgpN(inp.value) : inp.value;
-            if (f === 'fisik') {
-                hgpCalcItem(_hgpData.items[i]);
-                hgpRenderItems(); // re-render for updated akhir/selisih
-            }
+            _hgpData.items[i][f] = inp.value;
         });
         inp.addEventListener('blur', () => { _doSaveHgp().catch(() => {}); });
     });
 
-    // +/- buttons
-    tbody.querySelectorAll('[data-hgp-inc]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const i = parseInt(btn.dataset.hgpInc);
-            _hgpData.items[i].fisik = hgpN(_hgpData.items[i].fisik) + 1;
-            hgpCalcItem(_hgpData.items[i]);
-            hgpRenderItems();
-            _doSaveHgp().catch(() => {});
-        });
-    });
-    tbody.querySelectorAll('[data-hgp-dec]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const i = parseInt(btn.dataset.hgpDec);
-            const cur = hgpN(_hgpData.items[i].fisik);
-            if (cur > 0) _hgpData.items[i].fisik = cur - 1;
-            hgpCalcItem(_hgpData.items[i]);
-            hgpRenderItems();
-            _doSaveHgp().catch(() => {});
-        });
-    });
-
     hgpUpdateStats();
+}
+
+async function hgpEnrichWithHet(items) {
+    if (!items || !items.length) return;
+    const kodes = [...new Set(items.map(it => it.noPart).filter(Boolean))];
+    if (!kodes.length) return;
+    try {
+        const res = await fetchJson('/api/audit-detail/hgp/batch-het', {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ kodes }),
+        });
+        const map = res.data || {};
+        items.forEach(it => {
+            const hit = it.noPart ? map[it.noPart] : null;
+            if (hit) {
+                if (!it.sparepart || it.sparepart === it.noPart) it.sparepart = hit.nama || it.sparepart;
+                it.hargaHet = hgpN(hit.hargaHet);
+            }
+        });
+    } catch (_) {}
 }
 
 async function hgpHandleFile(file) {
@@ -4071,6 +4061,8 @@ async function hgpHandleFile(file) {
             }
             return it;
         });
+        if (msg) { msg.textContent = `${res.data.length} item diimport — memuat harga HET...`; }
+        await hgpEnrichWithHet(_hgpData.items);
         if (msg) { msg.textContent = `${res.data.length} item diimport (data lama diganti).`; }
         hgpRenderItems();
         hgpPopulateDatalist();
@@ -4252,8 +4244,8 @@ async function loadHgpTab() {
         _hgpData = { items: res.data.items };
     }
     if (!_hgpData) _hgpData = hgpEmptyData();
-    // Normalisasi akhir/selisih sesuai rumus terbaru (akhir = saldo - fisik)
     (_hgpData.items || []).forEach(it => hgpCalcItem(it));
+    await hgpEnrichWithHet(_hgpData.items);
     hgpRenderItems();
     hgpPopulateDatalist();
 }
