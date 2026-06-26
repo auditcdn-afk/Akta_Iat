@@ -5378,7 +5378,9 @@ function gradingFillNilaiFromHasil(hasilLabel) {
     if (!elNilai) return;
     if (!hasilLabel) { elNilai.value = ''; return; }
     const opt = _gradingCurrentOpts.find(o => o.label === hasilLabel);
-    elNilai.value = opt ? gradingNilaiFromOption(opt) : '';
+    const nilai = opt ? gradingNilaiFromOption(opt) : '';
+    console.log('[Grading] hasilLabel:', hasilLabel, '| opt:', opt, '| bbnkb:', _gradingData?.bbnkb, '| fraud:', _gradingData?.fraud, '| nilai:', nilai);
+    elNilai.value = nilai;
 }
 
 function gradingOpenDetailModal(idx = -1) {

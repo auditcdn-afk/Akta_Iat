@@ -78,20 +78,32 @@ class GradingController extends Controller
                     '_hasilLabels'    => [],   // tracking deduplikasi, dihapus sebelum return
                 ];
             }
-            if ($r->hasil_pemeriksaan && !in_array($r->hasil_pemeriksaan, $grouped[$key]['_hasilLabels'])) {
-                $grouped[$key]['_hasilLabels'][] = $r->hasil_pemeriksaan;
-                $grouped[$key]['hasilOptions'][] = [
-                    'label' => $r->hasil_pemeriksaan,
-                    'nilai' => (float)$r->nilai,
-                    'bknf'  => $r->bknf,
-                    'pknf'  => (float)$r->pknf,   // BBNKB=N, Fraud=N
-                    'bkf'   => $r->bkf,
-                    'pkf'   => (float)$r->pkf,    // BBNKB=N, Fraud=Y
-                    'bnknf' => $r->bnknf,
-                    'pnknf' => (float)$r->pnknf,  // BBNKB=Y, Fraud=N
-                    'bnkf'  => $r->bnkf,
-                    'pnkf'  => (float)$r->pnkf,   // BBNKB=Y, Fraud=Y
-                ];
+            if ($r->hasil_pemeriksaan) {
+                $labelIdx = array_search($r->hasil_pemeriksaan, $grouped[$key]['_hasilLabels']);
+                if ($labelIdx === false) {
+                    // Belum ada — tambahkan
+                    $grouped[$key]['_hasilLabels'][] = $r->hasil_pemeriksaan;
+                    $grouped[$key]['hasilOptions'][] = [
+                        'label' => $r->hasil_pemeriksaan,
+                        'nilai' => (float)$r->nilai,
+                        'bknf'  => $r->bknf,
+                        'pknf'  => (float)$r->pknf,
+                        'bkf'   => $r->bkf,
+                        'pkf'   => (float)$r->pkf,
+                        'bnknf' => $r->bnknf,
+                        'pnknf' => (float)$r->pnknf,
+                        'bnkf'  => $r->bnkf,
+                        'pnkf'  => (float)$r->pnkf,
+                    ];
+                } else {
+                    // Sudah ada — update hanya kolom yang masih 0 dengan nilai non-zero dari baris ini
+                    $existing = &$grouped[$key]['hasilOptions'][$labelIdx];
+                    foreach (['nilai','pknf','pkf','pnknf','pnkf'] as $col) {
+                        if (($existing[$col] ?? 0) == 0 && (float)$r->$col != 0) {
+                            $existing[$col] = (float)$r->$col;
+                        }
+                    }
+                }
             }
         }
 
