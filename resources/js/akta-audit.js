@@ -4322,6 +4322,56 @@ function initHgpForm() {
     const tglEl = document.getElementById('hgpFormTgl');
     if (tglEl && !tglEl.value) tglEl.value = new Date().toISOString().slice(0, 10);
 
+    // Tambah Part Manual
+    const addPartBtn    = document.getElementById('hgpAddPartBtn');
+    const addPartForm   = document.getElementById('hgpAddPartForm');
+    const addPartNo     = document.getElementById('hgpAddPartNo');
+    const addPartNama   = document.getElementById('hgpAddPartNama');
+    const addPartSave   = document.getElementById('hgpAddPartSave');
+    const addPartCancel = document.getElementById('hgpAddPartCancel');
+    const addPartMsg    = document.getElementById('hgpAddPartMsg');
+
+    addPartBtn?.addEventListener('click', () => {
+        addPartForm?.classList.toggle('hidden');
+        if (!addPartForm?.classList.contains('hidden')) addPartNo?.focus();
+    });
+    addPartCancel?.addEventListener('click', () => {
+        addPartForm?.classList.add('hidden');
+        if (addPartNo)  addPartNo.value  = '';
+        if (addPartNama) addPartNama.value = '';
+        if (addPartMsg) addPartMsg.classList.add('hidden');
+    });
+    addPartSave?.addEventListener('click', () => {
+        const noPart = (addPartNo?.value || '').trim();
+        const nama   = (addPartNama?.value || '').trim();
+        const showAddMsg = (text, ok) => {
+            if (!addPartMsg) return;
+            addPartMsg.classList.remove('hidden');
+            addPartMsg.textContent = text;
+            addPartMsg.className = 'text-xs ' + (ok ? 'text-emerald-400' : 'text-red-400');
+        };
+        if (!noPart) { showAddMsg('No. Part wajib diisi.', false); return; }
+        if (!_hgpData) _hgpData = hgpEmptyData();
+        const exists = _hgpData.items.some(it => (it.noPart || '').toLowerCase() === noPart.toLowerCase());
+        if (exists) { showAddMsg(`No. Part "${noPart}" sudah ada dalam daftar.`, false); return; }
+        const newItem = {
+            noPart, sparepart: nama || noPart,
+            saldoAkhir: 0, fisik: 0, akhir: 0, selisih: 0,
+            keterangan: '', tgl: new Date().toISOString().slice(0, 10), logScan: [],
+            _manual: true,
+        };
+        _hgpData.items.push(newItem);
+        hgpRenderItems();
+        hgpPopulateDatalist();
+        _doSaveHgp().catch(() => {});
+        showAddMsg(`✓ "${noPart}" ditambahkan ke daftar scan.`, true);
+        if (addPartNo)  addPartNo.value  = '';
+        if (addPartNama) addPartNama.value = '';
+        setTimeout(() => addPartForm?.classList.add('hidden'), 1500);
+    });
+    addPartNo?.addEventListener('keydown', e => { if (e.key === 'Enter') addPartSave?.click(); });
+    addPartNama?.addEventListener('keydown', e => { if (e.key === 'Enter') addPartSave?.click(); });
+
     document.getElementById('hgpClearBtn')?.addEventListener('click', () => {
         if (!confirm('Hapus semua data HGP & AHM Oils? Data lama akan dikosongkan, lalu import ulang file Excel.')) return;
         _hgpData = hgpEmptyData();

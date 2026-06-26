@@ -1528,7 +1528,36 @@
 
             {{-- Form Pemeriksaan (scan / dropdown No. Part) --}}
             <div class="rounded-2xl border border-blue-700/40 bg-blue-900/10 p-5">
-                <h4 class="mb-4 text-sm font-bold uppercase tracking-wide text-blue-300">🔍 Input Pemeriksaan Fisik</h4>
+                <div class="mb-4 flex items-center justify-between">
+                    <h4 class="text-sm font-bold uppercase tracking-wide text-blue-300">🔍 Input Pemeriksaan Fisik</h4>
+                    <button id="hgpAddPartBtn" type="button"
+                        class="flex items-center gap-1.5 rounded-lg border border-emerald-600/50 bg-emerald-700/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-700/40 transition">
+                        + Tambah Part Manual
+                    </button>
+                </div>
+
+                {{-- Form tambah part manual (tersembunyi) --}}
+                <div id="hgpAddPartForm" class="hidden mb-4 rounded-xl border border-emerald-700/40 bg-emerald-900/10 p-4 space-y-3">
+                    <p class="text-xs font-semibold text-emerald-300">Tambah No. Part di luar data import</p>
+                    <div class="flex gap-2">
+                        <input type="text" id="hgpAddPartNo" placeholder="No. Part (wajib)"
+                            class="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-emerald-400 focus:outline-none">
+                        <input type="text" id="hgpAddPartNama" placeholder="Nama Part (opsional)"
+                            class="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-emerald-400 focus:outline-none">
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="hgpAddPartSave" type="button"
+                            class="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 transition">
+                            Tambahkan
+                        </button>
+                        <button id="hgpAddPartCancel" type="button"
+                            class="rounded-lg border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition">
+                            Batal
+                        </button>
+                    </div>
+                    <p id="hgpAddPartMsg" class="hidden text-xs"></p>
+                </div>
+
                 <div class="space-y-4">
                     {{-- Tanggal --}}
                     <div class="flex flex-col gap-1">
