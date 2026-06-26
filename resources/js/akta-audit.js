@@ -5351,11 +5351,14 @@ function gradingPopulateNamaSelect(currentVal = '') {
 function gradingNilaiFromOption(o) {
     const bbnkb = _gradingData?.bbnkb || 'N';
     const fraud  = _gradingData?.fraud  || 'N';
-    // Kombinasi BBNKB + Fraud → kolom nilai
-    if (bbnkb === 'Y' && fraud === 'N') return gradingN(o.pnknf); // BBNKB=Y, Fraud=N
-    if (bbnkb === 'Y' && fraud === 'Y') return gradingN(o.pnkf);  // BBNKB=Y, Fraud=Y
-    if (bbnkb === 'N' && fraud === 'Y') return gradingN(o.pkf);   // BBNKB=N, Fraud=Y
-    return gradingN(o.pknf);                                        // BBNKB=N, Fraud=N (default)
+    // Kombinasi BBNKB + Fraud → kolom nilai, fallback ke nilai jika 0
+    let v = 0;
+    if (bbnkb === 'Y' && fraud === 'N') v = gradingN(o.pnknf);
+    else if (bbnkb === 'Y' && fraud === 'Y') v = gradingN(o.pnkf);
+    else if (bbnkb === 'N' && fraud === 'Y') v = gradingN(o.pkf);
+    else v = gradingN(o.pknf);
+    // Jika kolom spesifik kosong/0, gunakan kolom nilai
+    return v !== 0 ? v : gradingN(o.nilai);
 }
 
 function gradingPopulateHasilSelect(namaPemeriksaan, currentVal = '') {
