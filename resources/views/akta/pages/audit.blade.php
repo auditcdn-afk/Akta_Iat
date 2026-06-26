@@ -1731,9 +1731,9 @@
                 <div id="hgaAddPartForm" class="hidden mb-4 rounded-xl border border-emerald-700/40 bg-emerald-900/10 p-4 space-y-3">
                     <p class="text-xs font-semibold text-emerald-300">Tambah No. Part di luar data import</p>
                     <div class="flex gap-2">
-                        <input type="text" id="hgaAddPartNo" placeholder="No. Part (wajib)"
+                        <input type="text" id="hgaAddPartNo" placeholder="No. HGA (wajib)"
                             class="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-emerald-400 focus:outline-none">
-                        <input type="text" id="hgaAddPartNama" placeholder="Nama Part (opsional)"
+                        <input type="text" id="hgaAddPartNama" placeholder="Nama HGA (opsional)"
                             class="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-emerald-400 focus:outline-none">
                     </div>
                     <div class="flex gap-2">
@@ -1752,9 +1752,9 @@
                             class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
                     </div>
                     <div class="flex flex-col gap-1">
-                        <label class="text-xs font-semibold text-slate-300">Sparepart / No. Part <span class="text-red-400">*</span></label>
+                        <label class="text-xs font-semibold text-slate-300">HGA / No. Part <span class="text-red-400">*</span></label>
                         <input type="text" id="hgaFormPart" list="hgaPartList" autocomplete="off"
-                            placeholder="Scan barcode atau pilih No. Part..."
+                            placeholder="Scan barcode atau pilih No. HGA..."
                             class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
                         <datalist id="hgaPartList"></datalist>
                         <p id="hgaFormPartInfo" class="mt-0.5 text-xs text-slate-400"></p>
@@ -1816,8 +1816,8 @@
                     <thead class="border-b border-slate-700 bg-slate-800">
                         <tr>
                             <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400 w-8">No.</th>
-                            <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400 w-28">No. Part</th>
-                            <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400">Nama Part</th>
+                            <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400 w-28">No. HGA</th>
+                            <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400">Nama HGA</th>
                             <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400 w-24">Tgl. Periksa</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20">Saldo Akhir</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Fisik (Qty)</th>
