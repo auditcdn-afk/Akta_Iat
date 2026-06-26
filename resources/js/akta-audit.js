@@ -4229,8 +4229,8 @@ function hgpFormSaveEntry() {
     hgpCalcItem(it);
     hgpRenderItems();
     _doSaveHgp().catch(() => {});
-    showMsg(`✓ Tersimpan: ${it.noPart || it.sparepart} — Fisik ${qty}, Selisih ${it.selisih >= 0 ? '+' : ''}${it.selisih}`, true);
-    hgpFormRecalc();
+    showMsg(`✓ Tersimpan: ${it.noPart || it.sparepart} — Fisik ${hgpN(it.fisik)}, Akhir ${it.akhir}, Selisih ${it.selisih >= 0 ? '+' : ''}${it.selisih}`, true);
+    hgpFormClearInputs();
 }
 
 function hgpFormReset() {
