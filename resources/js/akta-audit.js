@@ -258,6 +258,9 @@ function switchTab(tab) {
     if (tab === "smh-tarikan") {
         loadSmhTarikanTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "lampiran") {
+        loadLampiranTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1707,6 +1710,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initHgpForm();
     initHgaForm();
     initSmhTarikanForm();
+    initLampiranForm();
 
     try {
         await loadCurrentUser();
@@ -5063,5 +5067,166 @@ function initHgaForm() {
         const msg = document.getElementById('hgaImportMsg');
         if (msg) { msg.classList.remove('hidden'); msg.textContent = 'Data dikosongkan. Silakan import ulang file Excel.'; }
         _doSaveHga().catch(() => {});
+    });
+}
+
+/* ============================================================
+   LAMPIRAN MODULE
+   ============================================================ */
+let _lampiranData = null;
+
+function lampiranFmtSize(bytes) {
+    if (!bytes) return '0 KB';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function lampiranIcon(ext) {
+    const icons = { pdf: '📄', jpg: '🖼️', jpeg: '🖼️', png: '🖼️', doc: '📝', docx: '📝' };
+    return icons[ext] || '📎';
+}
+
+function lampiranUpdateStats() {
+    const files = _lampiranData?.files || [];
+    const total = files.length;
+    const size  = files.reduce((s, f) => s + (f.size || 0), 0);
+    const hasMerged = !!_lampiranData?.mergedPdf;
+
+    const el = id => document.getElementById(id);
+    if (el('lampiranStatTotal'))  el('lampiranStatTotal').textContent  = total;
+    if (el('lampiranStatMerged')) el('lampiranStatMerged').textContent = hasMerged ? '✅ Siap' : '—';
+    if (el('lampiranStatSize'))   el('lampiranStatSize').textContent   = lampiranFmtSize(size);
+    if (el('lampiranTableCount')) el('lampiranTableCount').textContent = `${total} File`;
+
+    const dlBtn      = el('lampiranDownloadBtn');
+    const mergedInfo = el('lampiranMergedInfo');
+    if (hasMerged) {
+        dlBtn?.classList.remove('hidden');
+        if (dlBtn) dlBtn.href = `/api/audit-detail/lampiran/download?plan_audit_id=${activePlanId}&token=${localStorage.getItem('akta_token') || ''}`;
+        mergedInfo?.classList.remove('hidden');
+    } else {
+        dlBtn?.classList.add('hidden');
+        mergedInfo?.classList.add('hidden');
+    }
+}
+
+function lampiranRenderFiles() {
+    const container = document.getElementById('lampiranFileList');
+    if (!container) return;
+    const files = _lampiranData?.files || [];
+    if (files.length === 0) {
+        container.innerHTML = '<p class="px-4 py-6 text-center text-xs text-slate-500">Belum ada file — upload file di atas.</p>';
+        lampiranUpdateStats();
+        return;
+    }
+    container.innerHTML = files.map((f, i) => `
+        <div class="flex items-center gap-3 px-4 py-3 hover:bg-slate-800/30 rounded-xl">
+            <span class="text-2xl">${lampiranIcon(f.ext)}</span>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-slate-100 truncate">${f.name}</p>
+                <p class="text-xs text-slate-400">${f.ext?.toUpperCase()} · ${lampiranFmtSize(f.size)} · ${f.uploadedAt || ''}</p>
+            </div>
+            <span class="rounded-full px-2 py-0.5 text-xs font-bold uppercase ${
+                f.ext === 'pdf' ? 'bg-red-900/40 text-red-300' :
+                ['jpg','jpeg','png'].includes(f.ext) ? 'bg-blue-900/40 text-blue-300' :
+                'bg-slate-700 text-slate-300'
+            }">${f.ext}</span>
+            <button type="button" data-lmp-del="${i}"
+                class="rounded-lg border border-red-700/40 bg-red-900/20 px-2 py-1 text-xs text-red-400 hover:bg-red-900/40 transition">
+                🗑️
+            </button>
+        </div>
+    `).join('');
+
+    container.querySelectorAll('[data-lmp-del]').forEach(btn => {
+        btn.addEventListener('click', () => lampiranDeleteFile(parseInt(btn.dataset.lmpDel)));
+    });
+    lampiranUpdateStats();
+}
+
+async function lampiranUploadFile(file) {
+    const msg = document.getElementById('lampiranUploadMsg');
+    if (msg) { msg.classList.remove('hidden'); msg.textContent = `Mengupload "${file.name}"...`; }
+
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('plan_audit_id', activePlanId);
+
+    try {
+        const res = await fetchJson('/api/audit-detail/lampiran/upload', {
+            method: 'POST', headers: authHeaders(), body: fd,
+        });
+        _lampiranData = res.data;
+        lampiranRenderFiles();
+        if (msg) msg.textContent = `✓ "${file.name}" berhasil diupload.`;
+    } catch (e) {
+        if (msg) msg.textContent = `✗ Gagal: ${e.message}`;
+    }
+}
+
+async function lampiranDeleteFile(idx) {
+    if (!confirm('Hapus file ini?')) return;
+    try {
+        const res = await fetchJson('/api/audit-detail/lampiran/delete-file', {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ plan_audit_id: activePlanId, index: idx }),
+        });
+        _lampiranData = res.data;
+        lampiranRenderFiles();
+    } catch (e) { showAlert(e.message || 'Gagal menghapus.', 'error'); }
+}
+
+async function loadLampiranTab() {
+    if (!activePlanId) { lampiranRenderFiles(); return; }
+    try {
+        const res = await fetchJson(`/api/audit-detail/lampiran?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+        _lampiranData = res.data || { files: [], mergedPdf: null };
+    } catch (_) { _lampiranData = { files: [], mergedPdf: null }; }
+    lampiranRenderFiles();
+}
+
+function initLampiranForm() {
+    const fileInput = document.getElementById('lampiranFileInput');
+    const dropzone  = document.getElementById('lampiranDropzone');
+
+    fileInput?.addEventListener('change', async () => {
+        if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
+        const files = Array.from(fileInput.files);
+        for (const f of files) await lampiranUploadFile(f);
+        fileInput.value = '';
+    });
+
+    dropzone?.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-blue-400', 'bg-blue-900/10'); });
+    dropzone?.addEventListener('dragleave', () => dropzone.classList.remove('border-blue-400', 'bg-blue-900/10'));
+    dropzone?.addEventListener('drop', async e => {
+        e.preventDefault();
+        dropzone.classList.remove('border-blue-400', 'bg-blue-900/10');
+        if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
+        const files = Array.from(e.dataTransfer.files);
+        for (const f of files) await lampiranUploadFile(f);
+    });
+
+    document.getElementById('lampiranMergeBtn')?.addEventListener('click', async () => {
+        if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
+        const files = _lampiranData?.files || [];
+        if (files.length === 0) { showAlert('Tidak ada file yang diupload.', 'error'); return; }
+        const btn = document.getElementById('lampiranMergeBtn');
+        if (btn) { btn.textContent = '⏳ Memproses...'; btn.disabled = true; }
+        try {
+            const res = await fetchJson('/api/audit-detail/lampiran/merge-pdf', {
+                method: 'POST',
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({ plan_audit_id: activePlanId }),
+            });
+            if (_lampiranData) _lampiranData.mergedPdf = res.mergedPdf;
+            lampiranUpdateStats();
+            showAlert(res.message || 'PDF berhasil digabung!', 'success');
+        } catch (e) {
+            showAlert(e.message || 'Gagal menggabungkan PDF.', 'error');
+        } finally {
+            if (btn) { btn.textContent = '🔗 Gabung jadi 1 PDF'; btn.disabled = false; }
+        }
     });
 }

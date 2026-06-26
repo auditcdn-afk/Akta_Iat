@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\MtController;
 use App\Http\Controllers\Api\HgpController;
 use App\Http\Controllers\Api\HgaController;
 use App\Http\Controllers\Api\SmhTarikanController;
+use App\Http\Controllers\Api\LampiranController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', [DataStoreController::class, 'ping']);
@@ -207,6 +208,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/audit-detail/hga/parse-excel',     [HgaController::class, 'parseExcel'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hga/parse-excel-pts', [HgaController::class, 'parsePts'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── Lampiran ──
+    Route::get('/audit-detail/lampiran',             [LampiranController::class, 'show']);
+    Route::get('/audit-detail/lampiran/download',    [LampiranController::class, 'download']);
+    Route::post('/audit-detail/lampiran/upload',     [LampiranController::class, 'upload'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/lampiran/delete-file',[LampiranController::class, 'deleteFile'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/lampiran/merge-pdf',  [LampiranController::class, 'mergePdf'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── SMH Tarikan ──
