@@ -276,7 +276,10 @@ class DatabaseController extends Controller
                     if ($val === '') {
                         $val = null;
                     } elseif (isset($casts[$col]) && in_array($casts[$col], ['float', 'double', 'decimal', 'integer', 'int'])) {
-                        $val = is_numeric($val) ? $val : null;
+                        // Tangani format angka Indonesia: koma sebagai desimal, hapus karakter non-numerik
+                        $numVal = str_replace(',', '.', $val);
+                        $numVal = preg_replace('/[^0-9.\-]/', '', $numVal);
+                        $val = is_numeric($numVal) ? $numVal : null;
                     }
                     $data[$col] = $val;
                 }
