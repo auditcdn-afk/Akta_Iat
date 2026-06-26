@@ -4647,7 +4647,7 @@ function hgaRenderItems() {
     if (!tbody) return;
     const items = _hgaData?.items || [];
     if (items.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="15" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="14" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
         hgaUpdateStats();
         return;
     }
@@ -4683,14 +4683,14 @@ function hgaRenderItems() {
             <td class="px-3 py-2 text-right text-slate-300">${harga > 0 ? harga.toLocaleString('id-ID') : '<span class="text-slate-600">—</span>'}</td>
             <td class="px-3 py-2 text-right ${jumlahClass}">${jumlahFmt}</td>
             <td class="px-3 py-2">
-                <input type="text" data-hga-i="${i}" data-hga-f="keterangan"
-                    value="${it.keterangan || ''}" placeholder="Keterangan..."
-                    class="hga-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
-            </td>
-            <td class="px-3 py-2">
-                <input type="text" data-hga-i="${i}" data-hga-f="keteranganTtp"
-                    value="${it.keteranganTtp || ''}" placeholder="Ket. TTP..."
-                    class="hga-inp w-full rounded border border-yellow-600/30 bg-slate-800 px-2 py-1 text-xs text-yellow-200 focus:border-yellow-400 focus:outline-none">
+                <div class="flex flex-col gap-1">
+                    <input type="text" data-hga-i="${i}" data-hga-f="keterangan"
+                        value="${it.keterangan || ''}" placeholder="Ket. Scan..."
+                        class="hga-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
+                    <input type="text" data-hga-i="${i}" data-hga-f="keteranganTtp"
+                        value="${it.keteranganTtp || ''}" placeholder="Ket. TTP..."
+                        class="hga-inp w-full rounded border border-yellow-600/40 bg-slate-800/60 px-2 py-1 text-xs text-yellow-300 focus:border-yellow-400 focus:outline-none">
+                </div>
             </td>
             <td class="px-3 py-2 text-xs">
                 <div class="flex flex-col gap-0.5 text-slate-400">
@@ -4719,16 +4719,16 @@ function hgaRenderItems() {
                     const selClass = selisih < 0 ? 'text-red-400 font-bold' : selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
                     if (cells[8])  cells[8].textContent  = akhir;
                     if (cells[9])  { cells[9].textContent = selSign + selisih; cells[9].className = `px-3 py-2 text-right ${selClass}`; }
-                    // Update jumlah
+                    // Update jumlah (cell index 11 → now 10 after merging keterangan)
                     const harga   = hgaN(_hgaData.items[idx].hargaHet);
                     const jumlah  = harga * selisih;
                     const jumlahFmt = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
                     const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
-                    if (cells[11]) { cells[11].textContent = jumlahFmt; cells[11].className = `px-3 py-2 text-right ${jumlahClass}`; }
-                    // Update log scan cell
+                    if (cells[10]) { cells[10].textContent = jumlahFmt; cells[10].className = `px-3 py-2 text-right ${jumlahClass}`; }
+                    // Update log scan cell (index 13 → now 12)
                     const saldoPts = _hgaData.items[idx].saldoPts !== undefined ? hgaN(_hgaData.items[idx].saldoPts) : null;
                     const refSaldo = saldoPts !== null ? saldoPts : hgaSaldo(_hgaData.items[idx]);
-                    if (cells[14]) cells[14].innerHTML = `<div class="flex flex-col gap-0.5 text-slate-400"><span>Scan : <span class="text-green-400 font-semibold">${hgaN(_hgaData.items[idx].fisik)}</span> | TTP : <span class="text-yellow-400 font-semibold">${hgaN(inp.value)}</span></span><span>Ref Saldo : <span class="text-slate-300">${refSaldo}</span></span><span>Selisih : <span class="${selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300'} font-semibold">${selSign}${selisih}</span></span></div>`;
+                    if (cells[13]) cells[13].innerHTML = `<div class="flex flex-col gap-0.5 text-slate-400"><span>Scan : <span class="text-green-400 font-semibold">${hgaN(_hgaData.items[idx].fisik)}</span> | TTP : <span class="text-yellow-400 font-semibold">${hgaN(inp.value)}</span></span><span>Ref Saldo : <span class="text-slate-300">${refSaldo}</span></span><span>Selisih : <span class="${selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300'} font-semibold">${selSign}${selisih}</span></span></div>`;
                     hgaUpdateStats();
                 }
             }
