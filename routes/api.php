@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\TtpGantungController;
 use App\Http\Controllers\Api\CekFisikController;
 use App\Http\Controllers\Api\MtController;
 use App\Http\Controllers\Api\HgpController;
+use App\Http\Controllers\Api\SmhTarikanController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', [DataStoreController::class, 'ping']);
@@ -196,6 +197,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/audit-detail/hgp',             [HgpController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hgp/parse-excel', [HgpController::class, 'parseExcel'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── SMH Tarikan ──
+    Route::get('/audit-detail/smh-tarikan',  [SmhTarikanController::class, 'show']);
+    Route::post('/audit-detail/smh-tarikan', [SmhTarikanController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── MT ──

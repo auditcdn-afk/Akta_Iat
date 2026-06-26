@@ -252,6 +252,9 @@ function switchTab(tab) {
     if (tab === "hgp") {
         loadHgpTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "smh-tarikan") {
+        loadSmhTarikanTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1699,6 +1702,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initCfForm();
     initMtForm();
     initHgpForm();
+    initSmhTarikanForm();
 
     try {
         await loadCurrentUser();
@@ -4388,5 +4392,188 @@ function initHgpForm() {
         const msg = document.getElementById('hgpImportMsg');
         if (msg) { msg.classList.remove('hidden'); msg.textContent = 'Data dikosongkan. Silakan import ulang file Excel.'; }
         _doSaveHgp().catch(() => {});
+    });
+}
+
+/* ============================================================
+   SMH TARIKAN MODULE
+   ============================================================ */
+let _smhTarikanData = null;
+
+function smhTarikanEmpty() { return { items: [] }; }
+
+function smhTarikanN(v) { return parseFloat(v) || 0; }
+
+function smhTarikanIsLengkap(it) {
+    return !!(it.nama && it.noBast);
+}
+
+function smhTarikanUpdateStats() {
+    const items   = _smhTarikanData?.items || [];
+    const total   = items.length;
+    const lengkap = items.filter(smhTarikanIsLengkap).length;
+    const draft   = total - lengkap;
+    const el = id => document.getElementById(id);
+    if (el('smhTarikanStatTotal'))   el('smhTarikanStatTotal').textContent   = total;
+    if (el('smhTarikanStatLengkap')) el('smhTarikanStatLengkap').textContent = lengkap;
+    if (el('smhTarikanStatDraft'))   el('smhTarikanStatDraft').textContent   = draft;
+    if (el('smhTarikanCount'))       el('smhTarikanCount').textContent       = `${total} Unit`;
+}
+
+function smhTarikanRender() {
+    const tbody = document.getElementById('smhTarikanTableBody');
+    if (!tbody) return;
+    const items = _smhTarikanData?.items || [];
+    if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — klik "+ Tambah Unit" untuk mulai.</td></tr>`;
+        smhTarikanUpdateStats();
+        return;
+    }
+    const esc = v => escapeHtml(v ?? '');
+    tbody.innerHTML = items.map((it, i) => {
+        const piutang = smhTarikanN(it.sisaPiutang);
+        const piutangFmt = piutang > 0 ? piutang.toLocaleString('id-ID') : '—';
+        const badge = smhTarikanIsLengkap(it)
+            ? `<span class="rounded-full bg-emerald-600/20 px-2 py-0.5 text-emerald-400 text-xs">Lengkap</span>`
+            : `<span class="rounded-full bg-yellow-600/20 px-2 py-0.5 text-yellow-400 text-xs">Draft</span>`;
+        return `<tr class="hover:bg-slate-800/40">
+            <td class="px-3 py-2 text-slate-400">${i + 1}</td>
+            <td class="px-3 py-2 text-slate-100 font-medium">${esc(it.nama)}</td>
+            <td class="px-3 py-2 text-slate-300">${esc(it.noBast)}</td>
+            <td class="px-3 py-2 text-slate-300">${esc(it.merk)}</td>
+            <td class="px-3 py-2 text-center text-slate-300">${it.tahun || '—'}</td>
+            <td class="px-3 py-2 text-slate-400 font-mono text-xs">${esc(it.noMesin)}</td>
+            <td class="px-3 py-2 text-slate-400 font-mono text-xs">${esc(it.noRangka)}</td>
+            <td class="px-3 py-2 text-slate-300">${esc(it.nopol)}</td>
+            <td class="px-3 py-2 text-slate-300">${esc(it.noKontrak)}</td>
+            <td class="px-3 py-2 text-right text-slate-100 font-semibold">${piutangFmt}</td>
+            <td class="px-3 py-2 text-slate-400 max-w-[180px] truncate" title="${esc(it.kondisi)}">${esc(it.kondisi) || '—'}</td>
+            <td class="px-3 py-2 text-center">
+                <div class="flex items-center justify-center gap-1">
+                    ${badge}
+                    <button data-st-edit="${i}" class="rounded bg-blue-700/40 px-2 py-0.5 text-blue-300 hover:bg-blue-700/70 text-xs">Edit</button>
+                    <button data-st-del="${i}" class="rounded bg-red-700/30 px-2 py-0.5 text-red-400 hover:bg-red-700/60 text-xs">✕</button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+
+    tbody.querySelectorAll('[data-st-edit]').forEach(btn => {
+        btn.addEventListener('click', () => smhTarikanOpenForm(parseInt(btn.dataset.stEdit)));
+    });
+    tbody.querySelectorAll('[data-st-del]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const i = parseInt(btn.dataset.stDel);
+            const it = _smhTarikanData.items[i];
+            if (!confirm(`Hapus data "${it.nama || 'unit ini'}"?`)) return;
+            _smhTarikanData.items.splice(i, 1);
+            smhTarikanRender();
+            _doSaveSmhTarikan().catch(() => {});
+        });
+    });
+
+    smhTarikanUpdateStats();
+}
+
+function smhTarikanOpenForm(idx = -1) {
+    const form = document.getElementById('smhTarikanForm');
+    if (!form) return;
+    form.classList.remove('hidden');
+    document.getElementById('smhTarikanFormIdx').value = idx;
+    document.getElementById('smhTarikanFormTitle').textContent = idx < 0 ? 'Tambah Unit SMH Tarikan' : 'Edit Unit SMH Tarikan';
+
+    const it = idx >= 0 ? (_smhTarikanData?.items[idx] || {}) : {};
+    document.getElementById('smhTarikanNama').value       = it.nama       || '';
+    document.getElementById('smhTarikanNoBast').value     = it.noBast     || '';
+    document.getElementById('smhTarikanMerk').value       = it.merk       || '';
+    document.getElementById('smhTarikanTahun').value      = it.tahun      || '';
+    document.getElementById('smhTarikanNoMesin').value    = it.noMesin    || '';
+    document.getElementById('smhTarikanNoRangka').value   = it.noRangka   || '';
+    document.getElementById('smhTarikanNopol').value      = it.nopol      || '';
+    document.getElementById('smhTarikanNoKontrak').value  = it.noKontrak  || '';
+    document.getElementById('smhTarikanSisaPiutang').value = it.sisaPiutang ?? '';
+    document.getElementById('smhTarikanKondisi').value    = it.kondisi    || '';
+
+    const msg = document.getElementById('smhTarikanFormMsg');
+    if (msg) msg.textContent = '';
+    document.getElementById('smhTarikanNama')?.focus();
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function smhTarikanCloseForm() {
+    document.getElementById('smhTarikanForm')?.classList.add('hidden');
+}
+
+function smhTarikanFormSave() {
+    const msg = document.getElementById('smhTarikanFormMsg');
+    const showMsg = (text, ok) => {
+        if (!msg) return;
+        msg.textContent = text;
+        msg.className = 'text-xs font-medium ' + (ok ? 'text-emerald-400' : 'text-red-400');
+    };
+
+    const nama = document.getElementById('smhTarikanNama')?.value.trim();
+    if (!nama) { showMsg('Nama Konsumen wajib diisi.', false); return; }
+
+    const item = {
+        nama,
+        noBast:      document.getElementById('smhTarikanNoBast')?.value.trim()    || '',
+        merk:        document.getElementById('smhTarikanMerk')?.value.trim()       || '',
+        tahun:       document.getElementById('smhTarikanTahun')?.value             || '',
+        noMesin:     (document.getElementById('smhTarikanNoMesin')?.value.trim()   || '').toUpperCase(),
+        noRangka:    (document.getElementById('smhTarikanNoRangka')?.value.trim()  || '').toUpperCase(),
+        nopol:       (document.getElementById('smhTarikanNopol')?.value.trim()     || '').toUpperCase(),
+        noKontrak:   document.getElementById('smhTarikanNoKontrak')?.value.trim()  || '',
+        sisaPiutang: smhTarikanN(document.getElementById('smhTarikanSisaPiutang')?.value),
+        kondisi:     document.getElementById('smhTarikanKondisi')?.value.trim()    || '',
+        createdAt:   new Date().toISOString(),
+    };
+
+    if (!_smhTarikanData) _smhTarikanData = smhTarikanEmpty();
+    const idx = parseInt(document.getElementById('smhTarikanFormIdx')?.value ?? '-1');
+    if (idx >= 0) {
+        item.createdAt = _smhTarikanData.items[idx].createdAt;
+        _smhTarikanData.items[idx] = item;
+    } else {
+        _smhTarikanData.items.push(item);
+    }
+
+    smhTarikanRender();
+    _doSaveSmhTarikan()
+        .then(() => { showMsg('✓ Tersimpan.', true); setTimeout(smhTarikanCloseForm, 800); })
+        .catch(() => showMsg('Gagal menyimpan ke server.', false));
+}
+
+async function _doSaveSmhTarikan() {
+    if (!activePlanId) throw new Error('Pilih plan audit terlebih dahulu.');
+    if (!_smhTarikanData) _smhTarikanData = smhTarikanEmpty();
+    return await fetchJson('/api/audit-detail/smh-tarikan', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ planAuditId: activePlanId, items: _smhTarikanData.items }),
+    });
+}
+
+async function loadSmhTarikanTab() {
+    if (!activePlanId) { smhTarikanRender(); return; }
+    const res = await fetchJson(`/api/audit-detail/smh-tarikan?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    if (res.data && Array.isArray(res.data.items)) {
+        _smhTarikanData = { items: res.data.items };
+    }
+    if (!_smhTarikanData) _smhTarikanData = smhTarikanEmpty();
+    smhTarikanRender();
+}
+
+function initSmhTarikanForm() {
+    document.getElementById('smhTarikanAddBtn')?.addEventListener('click', () => smhTarikanOpenForm(-1));
+    document.getElementById('smhTarikanFormClose')?.addEventListener('click', smhTarikanCloseForm);
+    document.getElementById('smhTarikanFormSave')?.addEventListener('click', smhTarikanFormSave);
+    document.getElementById('smhTarikanFormReset')?.addEventListener('click', () => smhTarikanOpenForm(
+        parseInt(document.getElementById('smhTarikanFormIdx')?.value ?? '-1')
+    ));
+    document.getElementById('smhTarikanSaveBtn')?.addEventListener('click', () => {
+        _doSaveSmhTarikan()
+            .then(r => showAlert(r.message || 'Data SMH Tarikan tersimpan.', 'success'))
+            .catch(e => showAlert(e.message || 'Gagal menyimpan.', 'error'));
     });
 }
