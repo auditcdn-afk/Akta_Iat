@@ -4369,6 +4369,21 @@ function initHgpForm() {
         if (addPartNama) addPartNama.value = '';
         setTimeout(() => addPartForm?.classList.add('hidden'), 1500);
     });
+    // Auto-fill nama dari db_het saat No. Part diketik
+    let _hetLookupTimer = null;
+    addPartNo?.addEventListener('input', () => {
+        clearTimeout(_hetLookupTimer);
+        const kode = (addPartNo.value || '').trim();
+        if (!kode || kode.length < 3) return;
+        _hetLookupTimer = setTimeout(async () => {
+            try {
+                const res = await fetchJson(`/api/audit-detail/hgp/lookup-het?kode=${encodeURIComponent(kode)}`, { headers: authHeaders() });
+                if (res.data?.nama && addPartNama && !addPartNama.value.trim()) {
+                    addPartNama.value = res.data.nama;
+                }
+            } catch (_) {}
+        }, 400);
+    });
     addPartNo?.addEventListener('keydown', e => { if (e.key === 'Enter') addPartSave?.click(); });
     addPartNama?.addEventListener('keydown', e => { if (e.key === 'Enter') addPartSave?.click(); });
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\DbHet;
 use App\Models\PemeriksaanHgp;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -156,6 +157,14 @@ class HgpController extends Controller
         }
 
         return response()->json(['data' => $items, 'total' => count($items)]);
+    }
+
+    public function lookupHet(Request $request): JsonResponse
+    {
+        $kode = trim($request->query('kode', ''));
+        if ($kode === '') return response()->json(['data' => null]);
+        $row = DbHet::where('kode', $kode)->first();
+        return response()->json(['data' => $row ? ['kode' => $row->kode, 'nama' => $row->nama] : null]);
     }
 
     private function n(mixed $val): float
