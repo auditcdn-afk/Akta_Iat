@@ -1547,57 +1547,62 @@
                         <p id="hgpFormPartInfo" class="mt-0.5 text-xs text-slate-400"></p>
                     </div>
 
-                    {{-- Qty --}}
-                    <div class="flex flex-col gap-1">
-                        <label class="text-xs font-semibold text-slate-300">Qty (Fisik Scan) <span class="text-red-400">*</span></label>
-                        <div class="flex items-center gap-2">
-                            <button id="hgpFormQtyDec" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-slate-200 hover:bg-slate-600">−</button>
-                            <input type="number" id="hgpFormQty" value="0" min="0"
-                                class="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
-                            <button id="hgpFormQtyInc" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-slate-200 hover:bg-slate-600">+</button>
+                    {{-- Fields berikut hanya muncul setelah No. Part dipilih --}}
+                    <div id="hgpFormFields" class="hidden space-y-4">
+
+                        {{-- Qty --}}
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-semibold text-slate-300">Qty (Fisik Scan) <span class="text-red-400">*</span></label>
+                            <div class="flex items-center gap-2">
+                                <button id="hgpFormQtyDec" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-slate-200 hover:bg-slate-600">−</button>
+                                <input type="number" id="hgpFormQty" value="0" min="0"
+                                    class="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
+                                <button id="hgpFormQtyInc" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-slate-200 hover:bg-slate-600">+</button>
+                            </div>
                         </div>
-                    </div>
 
-                    {{-- Akhir --}}
-                    <div class="flex flex-col gap-1">
-                        <label class="text-xs font-semibold text-slate-300">Akhir</label>
-                        <input type="text" id="hgpFormAkhir" readonly value="0"
-                            class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-300">
-                    </div>
-
-                    {{-- Selisih --}}
-                    <div class="flex flex-col gap-1">
-                        <label class="text-xs font-semibold text-slate-300">Selisih</label>
-                        <input type="text" id="hgpFormSelisih" readonly value="0"
-                            class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-300">
-                    </div>
-
-                    {{-- Keterangan --}}
-                    <div class="flex flex-col gap-1">
-                        <label class="text-xs font-semibold text-slate-300">Keterangan</label>
-                        <input type="text" id="hgpFormKet" placeholder="Keterangan..."
-                            class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
-                    </div>
-
-                    {{-- Log Scan --}}
-                    <div class="flex flex-col gap-1">
-                        <label class="text-xs font-semibold text-slate-300">Log Scan</label>
-                        <div id="hgpFormLog" class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-400">
-                            Fisik Terscan : 0 | Saldo Akhir : -
+                        {{-- Akhir --}}
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-semibold text-slate-300">Akhir</label>
+                            <input type="text" id="hgpFormAkhir" readonly value="0"
+                                class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-300">
                         </div>
-                    </div>
 
-                    <div class="flex items-center gap-2 pt-1">
-                        <button id="hgpFormSaveBtn" type="button"
-                            class="flex-1 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-blue-500 active:scale-95 transition">
-                            ✓ Simpan Pemeriksaan
-                        </button>
-                        <button id="hgpFormResetBtn" type="button"
-                            class="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800 transition">
-                            Reset
-                        </button>
+                        {{-- Selisih --}}
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-semibold text-slate-300">Selisih</label>
+                            <input type="text" id="hgpFormSelisih" readonly value="0"
+                                class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-300">
+                        </div>
+
+                        {{-- Keterangan --}}
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-semibold text-slate-300">Keterangan</label>
+                            <input type="text" id="hgpFormKet" placeholder="Keterangan..."
+                                class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
+                        </div>
+
+                        {{-- Log Scan --}}
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-semibold text-slate-300">Log Scan</label>
+                            <div id="hgpFormLog" class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-400">
+                                Fisik Terscan : 0 | Saldo Akhir : -
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 pt-1">
+                            <button id="hgpFormSaveBtn" type="button"
+                                class="flex-1 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-blue-500 active:scale-95 transition">
+                                ✓ Simpan Pemeriksaan
+                            </button>
+                            <button id="hgpFormResetBtn" type="button"
+                                class="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800 transition">
+                                Reset
+                            </button>
+                        </div>
+
                     </div>
-                    <p id="hgpFormMsg" class="hidden text-xs font-medium"></p>
+                    <p id="hgpFormMsg" class="text-xs font-medium"></p>
                 </div>
             </div>
 

@@ -4140,6 +4140,7 @@ function hgpFormSelectPart(code) {
     }
     const it = _hgpData.items[idx];
     if (info) { info.textContent = `${it.noPart || '-'} — ${it.sparepart || ''} | Saldo Akhir: ${hgpSaldo(it)} | Fisik Terscan: ${hgpN(it.fisik)} | Sisa: ${hgpN(it.akhir)}`; info.className = 'mt-0.5 text-xs text-green-400'; }
+    document.getElementById('hgpFormFields')?.classList.remove('hidden');
     // Pre-fill dari record yang ada
     const qtyEl = document.getElementById('hgpFormQty');
     const ketEl = document.getElementById('hgpFormKet');
@@ -4196,6 +4197,7 @@ function hgpFormClearInputs() {
     const selEl = document.getElementById('hgpFormSelisih');
     const info  = document.getElementById('hgpFormPartInfo');
     const log   = document.getElementById('hgpFormLog');
+    document.getElementById('hgpFormFields')?.classList.add('hidden');
     if (partInput) {
         _hgpScanGuard = true;
         partInput.value = '';
