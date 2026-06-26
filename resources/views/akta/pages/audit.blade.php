@@ -1706,7 +1706,7 @@
             <div class="grid grid-cols-3 gap-3">
                 <div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4 text-center">
                     <div class="text-2xl font-bold text-slate-100" id="hgaStatTotal">0</div>
-                    <div class="mt-1 text-xs font-semibold uppercase text-slate-400">Total Sparepart</div>
+                    <div class="mt-1 text-xs font-semibold uppercase text-slate-400">Total HGA</div>
                 </div>
                 <div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4 text-center">
                     <div class="text-2xl font-bold text-red-400" id="hgaStatSelisih">0</div>
@@ -1724,7 +1724,7 @@
                     <h4 class="text-sm font-bold uppercase tracking-wide text-blue-300">🔍 Input Pemeriksaan Fisik</h4>
                     <button id="hgaAddPartBtn" type="button"
                         class="flex items-center gap-1.5 rounded-lg border border-emerald-600/50 bg-emerald-700/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-700/40 transition">
-                        + Tambah Part Manual
+                        + Tambah HGA Manual
                     </button>
                 </div>
 
