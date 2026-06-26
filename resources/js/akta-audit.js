@@ -5264,9 +5264,10 @@ function initLampiranForm() {
 // GRADING MODULE
 // ══════════════════════════════════════════════════════════════════════════════
 
-let _gradingData    = null;
-let _gradingMaster  = [];
-let _gradingEditIdx = -1;
+let _gradingData        = null;
+let _gradingMaster      = [];
+let _gradingEditIdx     = -1;
+let _gradingCurrentOpts = [];  // hasilOptions untuk pemeriksaan yang sedang dipilih di modal
 
 function gradingN(v) { return parseFloat(v) || 0; }
 
@@ -5351,16 +5352,22 @@ function gradingPopulateHasilSelect(namaPemeriksaan, currentVal = '') {
     const elNilai = document.getElementById('gradingDetailNilai');
     if (!sel) return;
     const master = _gradingMaster.find(m => m.namaPemeriksaan === namaPemeriksaan);
-    const opts   = master?.hasilOptions || [];
+    _gradingCurrentOpts = master?.hasilOptions || [];
     sel.innerHTML = '<option value="">-- Pilih Hasil --</option>' +
-        opts.map(o => {
-            const nilai = gradingNilaiFromOption(o);
-            return `<option value="${escapeHtml(o.label)}" data-nilai="${nilai}">${escapeHtml(o.label)}</option>`;
-        }).join('');
+        _gradingCurrentOpts.map(o =>
+            `<option value="${escapeHtml(o.label)}">${escapeHtml(o.label)}</option>`
+        ).join('');
     if (currentVal) sel.value = currentVal;
-    // Auto-fill nilai for current selection
-    const opt = sel.options[sel.selectedIndex];
-    if (elNilai) elNilai.value = opt?.dataset?.nilai ?? '';
+    // Auto-fill nilai berdasarkan pilihan sekarang
+    gradingFillNilaiFromHasil(sel.value);
+}
+
+function gradingFillNilaiFromHasil(hasilLabel) {
+    const elNilai = document.getElementById('gradingDetailNilai');
+    if (!elNilai) return;
+    if (!hasilLabel) { elNilai.value = ''; return; }
+    const opt = _gradingCurrentOpts.find(o => o.label === hasilLabel);
+    elNilai.value = opt ? gradingNilaiFromOption(opt) : '';
 }
 
 function gradingOpenDetailModal(idx = -1) {
@@ -5440,12 +5447,11 @@ function gradingSetFlag(field, val) {
         const sec = document.getElementById('gradingFraudDetail');
         if (sec) sec.classList.toggle('hidden', val !== 'Y');
     }
-    // Refresh nilai di modal jika sedang terbuka
+    // Refresh nilai di modal jika sedang terbuka (BBNKB/Fraud berubah → recalc nilai)
     const modal = document.getElementById('gradingDetailModal');
     if (modal && !modal.classList.contains('hidden')) {
-        const nama = document.getElementById('gradingDetailNama')?.value || '';
         const hasil = document.getElementById('gradingDetailHasil')?.value || '';
-        gradingPopulateHasilSelect(nama, hasil);
+        if (hasil) gradingFillNilaiFromHasil(hasil);
     }
 }
 
@@ -5627,11 +5633,9 @@ function initGradingForm() {
         gradingPopulateHasilSelect(this.value, '');
     });
 
-    // Modal: hasil change → auto-fill nilai
+    // Modal: hasil change → auto-fill nilai dari _gradingCurrentOpts
     document.getElementById('gradingDetailHasil')?.addEventListener('change', function () {
-        const opt   = this.options[this.selectedIndex];
-        const elNilai = document.getElementById('gradingDetailNilai');
-        if (elNilai && opt?.dataset?.nilai != null) elNilai.value = opt.dataset.nilai;
+        gradingFillNilaiFromHasil(this.value);
     });
 
     // Modal save
