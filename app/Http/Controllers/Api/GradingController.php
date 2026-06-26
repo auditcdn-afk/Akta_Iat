@@ -12,6 +12,16 @@ use Illuminate\Http\Request;
 
 class GradingController extends Controller
 {
+    // Konversi nilai dengan format koma Indonesia ke float
+    private static function toFloat($val): float
+    {
+        if ($val === null || $val === '') return 0.0;
+        // Ganti koma desimal → titik, hapus karakter non-numerik kecuali titik & minus
+        $clean = str_replace(',', '.', (string)$val);
+        $clean = preg_replace('/[^0-9.\-]/', '', $clean);
+        return (float)$clean;
+    }
+
     // Map jenis audit → jenis grading
     private const JENIS_MAP = [
         'H1' => 'Cabang',
@@ -85,22 +95,22 @@ class GradingController extends Controller
                     $grouped[$key]['_hasilLabels'][] = $r->hasil_pemeriksaan;
                     $grouped[$key]['hasilOptions'][] = [
                         'label' => $r->hasil_pemeriksaan,
-                        'nilai' => (float)$r->nilai,
+                        'nilai' => self::toFloat($r->nilai),
                         'bknf'  => $r->bknf,
-                        'pknf'  => (float)$r->pknf,
+                        'pknf'  => self::toFloat($r->pknf),
                         'bkf'   => $r->bkf,
-                        'pkf'   => (float)$r->pkf,
+                        'pkf'   => self::toFloat($r->pkf),
                         'bnknf' => $r->bnknf,
-                        'pnknf' => (float)$r->pnknf,
+                        'pnknf' => self::toFloat($r->pnknf),
                         'bnkf'  => $r->bnkf,
-                        'pnkf'  => (float)$r->pnkf,
+                        'pnkf'  => self::toFloat($r->pnkf),
                     ];
                 } else {
                     // Sudah ada — update hanya kolom yang masih 0 dengan nilai non-zero dari baris ini
                     $existing = &$grouped[$key]['hasilOptions'][$labelIdx];
                     foreach (['nilai','pknf','pkf','pnknf','pnkf'] as $col) {
-                        if (($existing[$col] ?? 0) == 0 && (float)$r->$col != 0) {
-                            $existing[$col] = (float)$r->$col;
+                        if (($existing[$col] ?? 0) == 0 && self::toFloat($r->$col) != 0) {
+                            $existing[$col] = self::toFloat($r->$col);
                         }
                     }
                 }
