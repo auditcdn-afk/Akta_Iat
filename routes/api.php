@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\TtpGantungController;
 use App\Http\Controllers\Api\CekFisikController;
 use App\Http\Controllers\Api\MtController;
 use App\Http\Controllers\Api\HgpController;
+use App\Http\Controllers\Api\HgaController;
 use App\Http\Controllers\Api\SmhTarikanController;
 use Illuminate\Support\Facades\Route;
 
@@ -197,6 +198,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/audit-detail/hgp',             [HgpController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hgp/parse-excel', [HgpController::class, 'parseExcel'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── HGA (Accessories) ──
+    Route::get('/audit-detail/hga',              [HgaController::class, 'show']);
+    Route::post('/audit-detail/hga',             [HgaController::class, 'save'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/hga/parse-excel', [HgaController::class, 'parseExcel'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── SMH Tarikan ──
