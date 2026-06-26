@@ -4425,7 +4425,7 @@ function smhTarikanRender() {
     if (!tbody) return;
     const items = _smhTarikanData?.items || [];
     if (items.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — klik "+ Tambah Unit" untuk mulai.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="14" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — klik "+ Tambah Unit" untuk mulai.</td></tr>`;
         smhTarikanUpdateStats();
         return;
     }
@@ -4433,6 +4433,9 @@ function smhTarikanRender() {
     tbody.innerHTML = items.map((it, i) => {
         const piutang = smhTarikanN(it.sisaPiutang);
         const piutangFmt = piutang > 0 ? piutang.toLocaleString('id-ID') : '—';
+        const tglPengajuan = it.sudahAjukan
+            ? `<span class="text-slate-300">${it.tglPengajuan || '—'}</span>`
+            : `<span class="text-yellow-400 font-medium">Belum Ajukan</span>`;
         const badge = smhTarikanIsLengkap(it)
             ? `<span class="rounded-full bg-emerald-600/20 px-2 py-0.5 text-emerald-400 text-xs">Lengkap</span>`
             : `<span class="rounded-full bg-yellow-600/20 px-2 py-0.5 text-yellow-400 text-xs">Draft</span>`;
@@ -4447,7 +4450,9 @@ function smhTarikanRender() {
             <td class="px-3 py-2 text-slate-300">${esc(it.nopol)}</td>
             <td class="px-3 py-2 text-slate-300">${esc(it.noKontrak)}</td>
             <td class="px-3 py-2 text-right text-slate-100 font-semibold">${piutangFmt}</td>
-            <td class="px-3 py-2 text-slate-400 max-w-[180px] truncate" title="${esc(it.kondisi)}">${esc(it.kondisi) || '—'}</td>
+            <td class="px-3 py-2 text-slate-400 max-w-[160px] truncate" title="${esc(it.kondisi)}">${esc(it.kondisi) || '—'}</td>
+            <td class="px-3 py-2 text-slate-400 max-w-[160px] truncate" title="${esc(it.perlengkapan)}">${esc(it.perlengkapan) || '—'}</td>
+            <td class="px-3 py-2 text-center text-xs">${tglPengajuan}</td>
             <td class="px-3 py-2 text-center">
                 <div class="flex items-center justify-center gap-1">
                     ${badge}
@@ -4483,16 +4488,24 @@ function smhTarikanOpenForm(idx = -1) {
     document.getElementById('smhTarikanFormTitle').textContent = idx < 0 ? 'Tambah Unit SMH Tarikan' : 'Edit Unit SMH Tarikan';
 
     const it = idx >= 0 ? (_smhTarikanData?.items[idx] || {}) : {};
-    document.getElementById('smhTarikanNama').value       = it.nama       || '';
-    document.getElementById('smhTarikanNoBast').value     = it.noBast     || '';
-    document.getElementById('smhTarikanMerk').value       = it.merk       || '';
-    document.getElementById('smhTarikanTahun').value      = it.tahun      || '';
-    document.getElementById('smhTarikanNoMesin').value    = it.noMesin    || '';
-    document.getElementById('smhTarikanNoRangka').value   = it.noRangka   || '';
-    document.getElementById('smhTarikanNopol').value      = it.nopol      || '';
-    document.getElementById('smhTarikanNoKontrak').value  = it.noKontrak  || '';
-    document.getElementById('smhTarikanSisaPiutang').value = it.sisaPiutang ?? '';
-    document.getElementById('smhTarikanKondisi').value    = it.kondisi    || '';
+    document.getElementById('smhTarikanNama').value         = it.nama         || '';
+    document.getElementById('smhTarikanNoBast').value       = it.noBast       || '';
+    document.getElementById('smhTarikanMerk').value         = it.merk         || '';
+    document.getElementById('smhTarikanTahun').value        = it.tahun        || '';
+    document.getElementById('smhTarikanNoMesin').value      = it.noMesin      || '';
+    document.getElementById('smhTarikanNoRangka').value     = it.noRangka     || '';
+    document.getElementById('smhTarikanNopol').value        = it.nopol        || '';
+    document.getElementById('smhTarikanNoKontrak').value    = it.noKontrak    || '';
+    document.getElementById('smhTarikanSisaPiutang').value  = it.sisaPiutang  ?? '';
+    document.getElementById('smhTarikanKondisi').value      = it.kondisi      || '';
+    document.getElementById('smhTarikanPerlengkapan').value = it.perlengkapan || '';
+    const sudah = !!it.sudahAjukan;
+    const cbSudah = document.getElementById('smhTarikanSudahAjukan');
+    const tglEl   = document.getElementById('smhTarikanTglPengajuan');
+    const belumEl = document.getElementById('smhTarikanBelumAjukan');
+    if (cbSudah) cbSudah.checked = sudah;
+    if (tglEl)   { tglEl.value = it.tglPengajuan || ''; tglEl.classList.toggle('hidden', !sudah); }
+    if (belumEl) belumEl.classList.toggle('hidden', sudah);
 
     const msg = document.getElementById('smhTarikanFormMsg');
     if (msg) msg.textContent = '';
@@ -4524,9 +4537,14 @@ function smhTarikanFormSave() {
         noRangka:    (document.getElementById('smhTarikanNoRangka')?.value.trim()  || '').toUpperCase(),
         nopol:       (document.getElementById('smhTarikanNopol')?.value.trim()     || '').toUpperCase(),
         noKontrak:   document.getElementById('smhTarikanNoKontrak')?.value.trim()  || '',
-        sisaPiutang: smhTarikanN(document.getElementById('smhTarikanSisaPiutang')?.value),
-        kondisi:     document.getElementById('smhTarikanKondisi')?.value.trim()    || '',
-        createdAt:   new Date().toISOString(),
+        sisaPiutang:  smhTarikanN(document.getElementById('smhTarikanSisaPiutang')?.value),
+        kondisi:      document.getElementById('smhTarikanKondisi')?.value.trim()      || '',
+        perlengkapan: document.getElementById('smhTarikanPerlengkapan')?.value.trim() || '',
+        sudahAjukan:  document.getElementById('smhTarikanSudahAjukan')?.checked ?? false,
+        tglPengajuan: document.getElementById('smhTarikanSudahAjukan')?.checked
+            ? (document.getElementById('smhTarikanTglPengajuan')?.value || '')
+            : '',
+        createdAt:    new Date().toISOString(),
     };
 
     if (!_smhTarikanData) _smhTarikanData = smhTarikanEmpty();
@@ -4565,6 +4583,15 @@ async function loadSmhTarikanTab() {
 }
 
 function initSmhTarikanForm() {
+    // Toggle tgl pengajuan
+    document.getElementById('smhTarikanSudahAjukan')?.addEventListener('change', function () {
+        document.getElementById('smhTarikanTglPengajuan')?.classList.toggle('hidden', !this.checked);
+        document.getElementById('smhTarikanBelumAjukan')?.classList.toggle('hidden', this.checked);
+        if (this.checked && !document.getElementById('smhTarikanTglPengajuan').value) {
+            document.getElementById('smhTarikanTglPengajuan').value = new Date().toISOString().slice(0, 10);
+        }
+    });
+
     document.getElementById('smhTarikanAddBtn')?.addEventListener('click', () => smhTarikanOpenForm(-1));
     document.getElementById('smhTarikanFormClose')?.addEventListener('click', smhTarikanCloseForm);
     document.getElementById('smhTarikanFormSave')?.addEventListener('click', smhTarikanFormSave);

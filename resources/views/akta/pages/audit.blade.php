@@ -1772,6 +1772,26 @@
                         <textarea id="smhTarikanKondisi" rows="3" placeholder="Deskripsikan kondisi kendaraan saat tarikan..."
                             class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none resize-none"></textarea>
                     </div>
+
+                    <div class="flex flex-col gap-1 sm:col-span-2">
+                        <label class="text-xs font-semibold text-slate-300">Perlengkapan <span class="text-slate-500">(opsional)</span></label>
+                        <input type="text" id="smhTarikanPerlengkapan" placeholder="Contoh: STNK, BPKB, Kunci..."
+                            class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
+                    </div>
+
+                    <div class="flex flex-col gap-1 sm:col-span-2">
+                        <label class="text-xs font-semibold text-slate-300">Tanggal Pengajuan</label>
+                        <div class="flex items-center gap-3">
+                            <label class="flex items-center gap-2 cursor-pointer select-none">
+                                <input type="checkbox" id="smhTarikanSudahAjukan"
+                                    class="rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-blue-500">
+                                <span class="text-sm text-slate-300">Sudah diajukan</span>
+                            </label>
+                            <input type="date" id="smhTarikanTglPengajuan"
+                                class="hidden rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
+                            <span id="smhTarikanBelumAjukan" class="text-sm text-yellow-400 font-medium">Belum Ajukan</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="mt-4 flex items-center gap-3">
@@ -1807,6 +1827,8 @@
                             <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400 w-24">No. Kontrak</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-28">Sisa Piutang</th>
                             <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400">Kondisi SMH</th>
+                            <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400">Perlengkapan</th>
+                            <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400 w-28">Tgl Pengajuan</th>
                             <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400 w-20">Aksi</th>
                         </tr>
                     </thead>
