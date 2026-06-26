@@ -4659,12 +4659,14 @@ function hgaRenderItems() {
         const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
         const saldoPts    = it.saldoPts !== undefined ? hgaN(it.saldoPts) : null;
         const saldoPtsFmt = saldoPts === null ? '<span class="text-slate-600">—</span>' : `<span class="text-purple-300">${saldoPts}</span>`;
+        // Item dari PTS saja (_ptsOnly) → saldo HGA gudang tampil kosong
+        const saldoHgaFmt = it._ptsOnly ? '<span class="text-slate-600">—</span>' : hgaSaldo(it);
         return `<tr class="hover:bg-slate-800/40">
             <td class="px-3 py-2 text-slate-400">${i + 1}</td>
             <td class="px-3 py-2 text-slate-400 text-xs">${it.noPart || ''}</td>
             <td class="px-3 py-2 text-slate-100 font-medium">${it.sparepart || ''}</td>
             <td class="px-3 py-2 text-center text-slate-300">${it.tgl || '<span class="text-slate-600">—</span>'}</td>
-            <td class="px-3 py-2 text-right text-slate-300">${hgaSaldo(it)}</td>
+            <td class="px-3 py-2 text-right text-slate-300">${saldoHgaFmt}</td>
             <td class="px-3 py-2 text-right">${saldoPtsFmt}</td>
             <td class="px-3 py-2 text-right text-slate-100 font-semibold">${hgaN(it.fisik)}</td>
             <td class="px-3 py-2 text-right text-slate-300">${hgaN(it.akhir)}</td>
@@ -4884,7 +4886,7 @@ async function hgaHandlePtsFile(file) {
             if (idx !== undefined) {
                 _hgaData.items[idx].saldoPts = hgaN(pts.saldoAkhir);
             } else {
-                // Tidak ada di stok HGA → tambah dengan saldoAkhir=0
+                // Tidak ada di stok HGA → tambah sebagai item PTS-only, saldoAkhir=0 untuk kalkulasi
                 const newItem = {
                     noPart: pts.noPart,
                     sparepart: pts.sparepart || pts.noPart,
@@ -4892,6 +4894,7 @@ async function hgaHandlePtsFile(file) {
                     saldoPts: hgaN(pts.saldoAkhir),
                     fisik: 0, akhir: 0, selisih: 0,
                     keterangan: '', tgl: '', logScan: [],
+                    _ptsOnly: true,
                 };
                 hgaCalcItem(newItem);
                 _hgaData.items.push(newItem);

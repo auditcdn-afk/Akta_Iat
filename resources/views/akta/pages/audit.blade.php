@@ -1836,7 +1836,7 @@
                             <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400">Nama HGA</th>
                             <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400 w-24">Tgl. Periksa</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20">Saldo Akhir</th>
-                            <th class="px-3 py-2 text-right font-semibold uppercase text-purple-400 w-20">Saldo PTS</th>
+                            <th class="px-3 py-2 text-right font-semibold uppercase text-purple-400 w-20">Akhir PTS</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Fisik (Qty)</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Akhir</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Selisih</th>
