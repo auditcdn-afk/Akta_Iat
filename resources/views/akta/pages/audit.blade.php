@@ -1837,12 +1837,14 @@
                             <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400 w-24">Tgl. Periksa</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20">Saldo Akhir</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-purple-400 w-20">Akhir PTS</th>
-                            <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Fisik (Qty)</th>
+                            <th class="px-3 py-2 text-right font-semibold uppercase text-green-400 w-16">Fisik Scan</th>
+                            <th class="px-3 py-2 text-right font-semibold uppercase text-yellow-400 w-20">Fisik TTP</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Akhir</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Selisih</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-24">Harga HET</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-28">Jumlah</th>
                             <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400 w-32">Keterangan</th>
+                            <th class="px-3 py-2 text-left font-semibold uppercase text-yellow-400 w-32">Ket. TTP</th>
                             <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400 w-44">Log Scan</th>
                         </tr>
                     </thead>
