@@ -4684,12 +4684,12 @@ function hgaRenderItems() {
             <td class="px-3 py-2 text-right ${jumlahClass}">${jumlahFmt}</td>
             <td class="px-3 py-2">
                 <div class="flex flex-col gap-1">
-                    <input type="text" data-hga-i="${i}" data-hga-f="keterangan"
-                        value="${it.keterangan || ''}" placeholder="Ket. Scan..."
-                        class="hga-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
-                    <input type="text" data-hga-i="${i}" data-hga-f="keteranganTtp"
-                        value="${it.keteranganTtp || ''}" placeholder="Ket. TTP..."
-                        class="hga-inp w-full rounded border border-yellow-600/40 bg-slate-800/60 px-2 py-1 text-xs text-yellow-300 focus:border-yellow-400 focus:outline-none">
+                    <textarea data-hga-i="${i}" data-hga-f="keterangan" rows="2"
+                        placeholder="Ket. Scan..."
+                        class="hga-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none resize-none">${it.keterangan || ''}</textarea>
+                    <textarea data-hga-i="${i}" data-hga-f="keteranganTtp" rows="2"
+                        placeholder="Ket. TTP..."
+                        class="hga-inp w-full rounded border border-yellow-600/40 bg-slate-800/60 px-2 py-1 text-xs text-yellow-300 focus:border-yellow-400 focus:outline-none resize-none">${it.keteranganTtp || ''}</textarea>
                 </div>
             </td>
             <td class="px-3 py-2 text-xs">
