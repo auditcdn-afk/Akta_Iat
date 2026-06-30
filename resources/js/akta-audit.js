@@ -269,6 +269,9 @@ function switchTab(tab) {
     if (tab === "pica") {
         loadPicaTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "rekomendasi") {
+        loadRekomendasiTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1721,6 +1724,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initLampiranForm();
     initGradingForm();
     initPicaForm();
+    initRekomendasiForm();
 
     try {
         await loadCurrentUser();
@@ -5938,6 +5942,167 @@ function initPicaForm() {
 }
 
 
+// ── Rekomendasi Tab ───────────────────────────────────────────────────────────
+let _rekomendasiEditId = null;
+
+async function loadRekomendasiTab() {
+    if (!activePlanId) return;
+    // Auto-fill read-only fields dari activePlan
+    const plan = activePlan || {};
+    const noSptEl  = document.getElementById('rekomendasiNoSpt');
+    const cabangEl = document.getElementById('rekomendasiCabang');
+    const tglEl    = document.getElementById('rekomendasiTglAudit');
+    if (noSptEl)  noSptEl.value  = plan.noSpt   || plan.no_spt   || '';
+    if (cabangEl) cabangEl.value = plan.cabang   || '';
+    if (tglEl && !tglEl.value) tglEl.value = plan.tglMulai || plan.tgl_mulai || '';
+
+    await rekomendasiLoadList();
+}
+
+async function rekomendasiLoadList() {
+    const list = document.getElementById('rekomendasiList');
+    if (!list || !activePlanId) return;
+    try {
+        const res = await fetchJson('/api/recommendations?plan_audit_id=' + activePlanId, { headers: authHeaders() });
+        const rows = res.data ?? [];
+        if (!rows.length) {
+            list.innerHTML = '<p class="py-8 text-center text-sm text-slate-500">Belum ada rekomendasi untuk pemeriksaan ini.</p>';
+            return;
+        }
+        list.innerHTML = rows.map(r => {
+            const prioBadge = { rendah: 'bg-slate-700 text-slate-300', sedang: 'bg-amber-900/60 text-amber-300', tinggi: 'bg-orange-900/60 text-orange-300', urgent: 'bg-red-900/60 text-red-300' }[r.prioritas] || 'bg-slate-700 text-slate-300';
+            const statusBadge = { draft: 'text-slate-400', open: 'text-blue-400', in_progress: 'text-amber-400', done: 'text-emerald-400', cancelled: 'text-red-400' }[r.status] || 'text-slate-400';
+            return `<div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4 space-y-2">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1">
+                        <p class="text-sm font-semibold text-slate-200">${escapeHtml(r.judul)}</p>
+                        ${r.deskripsi ? `<p class="mt-1 text-xs text-slate-400">${escapeHtml(r.deskripsi)}</p>` : ''}
+                    </div>
+                    <div class="flex gap-2 shrink-0">
+                        <span class="rounded-full px-2 py-0.5 text-xs font-semibold ${prioBadge}">${r.prioritas}</span>
+                        <span class="text-xs font-semibold ${statusBadge}">${r.status}</span>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-4 text-xs text-slate-500">
+                    ${r.pic ? `<span>PIC: <span class="text-slate-300">${escapeHtml(r.pic)}</span></span>` : ''}
+                    ${r.deadline ? `<span>Deadline: <span class="text-slate-300">${r.deadline}</span></span>` : ''}
+                </div>
+                <div class="flex gap-2 justify-end">
+                    <button onclick="rekomendasiEdit(${r.id})" class="rounded-lg bg-slate-700 px-3 py-1 text-xs text-slate-200 hover:bg-slate-600 transition">Edit</button>
+                    <button onclick="rekomendasiDelete(${r.id})" class="rounded-lg bg-red-900/40 px-3 py-1 text-xs text-red-300 hover:bg-red-800 transition">Hapus</button>
+                </div>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        if (document.getElementById('rekomendasiList'))
+            document.getElementById('rekomendasiList').innerHTML = `<p class="py-6 text-center text-sm text-red-400">${escapeHtml(e.message)}</p>`;
+    }
+}
+
+function rekomendasiShowForm(id = null) {
+    _rekomendasiEditId = id;
+    document.getElementById('rekomendasiForm')?.classList.remove('hidden');
+    if (!id) {
+        document.getElementById('rekomendasiIsi').value      = '';
+        document.getElementById('rekomendasiPic').value      = '';
+        document.getElementById('rekomendasiDeadline').value = '';
+        document.getElementById('rekomendasiPrioritas').value = 'sedang';
+    }
+    document.getElementById('rekomendasiIsi')?.focus();
+}
+
+function rekomendasiHideForm() {
+    _rekomendasiEditId = null;
+    document.getElementById('rekomendasiForm')?.classList.add('hidden');
+}
+
+async function rekomendasiEdit(id) {
+    try {
+        const res = await fetchJson('/api/recommendations/' + id, { headers: authHeaders() });
+        const r   = res.data ?? res;
+        rekomendasiShowForm(id);
+        document.getElementById('rekomendasiIsi').value       = r.judul       || '';
+        document.getElementById('rekomendasiPic').value       = r.pic         || '';
+        document.getElementById('rekomendasiDeadline').value  = r.deadline    || '';
+        document.getElementById('rekomendasiPrioritas').value = r.prioritas   || 'sedang';
+        document.getElementById('rekomendasiTglAudit').value  = r.tglAudit    || document.getElementById('rekomendasiTglAudit').value;
+    } catch (e) {
+        rekomendasiAlert(e.message, 'error');
+    }
+}
+
+async function rekomendasiDelete(id) {
+    if (!confirm('Hapus rekomendasi ini?')) return;
+    try {
+        await fetchJson('/api/recommendations/' + id, { method: 'DELETE', headers: authHeaders() });
+        await rekomendasiLoadList();
+    } catch (e) {
+        rekomendasiAlert(e.message, 'error');
+    }
+}
+
+async function rekomendasiSave() {
+    const judul    = (document.getElementById('rekomendasiIsi')?.value ?? '').trim();
+    const prioritas = document.getElementById('rekomendasiPrioritas')?.value || 'sedang';
+    const pic      = (document.getElementById('rekomendasiPic')?.value ?? '').trim();
+    const deadline = document.getElementById('rekomendasiDeadline')?.value || null;
+
+    if (!judul) { rekomendasiAlert('Isi Rekomendasi wajib diisi.', 'error'); return; }
+
+    const payload = {
+        plan_audit_id: activePlanId,
+        judul,
+        prioritas,
+        status: 'open',
+        pic: pic || null,
+        deadline: deadline || null,
+    };
+
+    const btn = document.getElementById('rekomendasiSimpanBtn');
+    if (btn) { btn.textContent = 'Menyimpan...'; btn.disabled = true; }
+    try {
+        if (_rekomendasiEditId) {
+            await fetchJson('/api/recommendations/' + _rekomendasiEditId, {
+                method: 'PUT',
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify(payload),
+            });
+        } else {
+            await fetchJson('/api/recommendations', {
+                method: 'POST',
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify(payload),
+            });
+        }
+        rekomendasiHideForm();
+        await rekomendasiLoadList();
+        rekomendasiAlert('Rekomendasi tersimpan.', 'success');
+    } catch (e) {
+        rekomendasiAlert(e.message, 'error');
+    } finally {
+        if (btn) { btn.textContent = 'Save'; btn.disabled = false; }
+    }
+}
+
+function rekomendasiAlert(msg, type = 'success') {
+    const el = document.getElementById('rekomendasiAlert');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'rounded-xl border px-4 py-3 text-sm ' + (
+        type === 'error'
+            ? 'border-red-500/30 bg-red-500/10 text-red-200'
+            : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+    );
+    el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 4000);
+}
+
+function initRekomendasiForm() {
+    document.getElementById('rekomendasiTambahBtn')?.addEventListener('click', () => rekomendasiShowForm());
+    document.getElementById('rekomendasiBatalBtn')?.addEventListener('click', rekomendasiHideForm);
+    document.getElementById('rekomendasiSimpanBtn')?.addEventListener('click', rekomendasiSave);
+}
+
 // Expose functions needed by inline onclick handlers (Vite bundles as ES module)
 window.gradingOpenDetailModal  = gradingOpenDetailModal;
 window.gradingDeleteDetail     = gradingDeleteDetail;
@@ -5945,3 +6110,5 @@ window.gradingOpenPicaModal    = gradingOpenPicaModal;
 window.gradingClosePicaModal   = gradingClosePicaModal;
 window.gradingSavePicaModal    = gradingSavePicaModal;
 window.gradingRemoveFraudTag   = gradingRemoveFraudTag;
+window.rekomendasiEdit         = rekomendasiEdit;
+window.rekomendasiDelete       = rekomendasiDelete;

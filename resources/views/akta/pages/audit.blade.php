@@ -149,6 +149,10 @@
                 class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
                 Lampiran
             </button>
+            <button type="button" data-tab="rekomendasi"
+                class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
+                Rekomendasi
+            </button>
         </div>
 
         {{-- Panel: Pemeriksaan Kas --}}
@@ -2298,6 +2302,92 @@
                     <p class="text-sm font-bold text-green-300">PDF Gabungan Siap</p>
                     <p class="text-xs text-slate-400 mt-0.5">Semua file telah digabung menjadi 1 PDF. Klik tombol Download di atas.</p>
                 </div>
+            </div>
+
+        </div>
+
+        {{-- Panel: Rekomendasi --}}
+        <div id="tabPanel-rekomendasi" class="audit-tab-panel hidden space-y-5">
+
+            <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-slate-100">Rekomendasi Audit</h3>
+                <button id="rekomendasiTambahBtn" type="button"
+                    class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition">
+                    + Tambah Rekomendasi
+                </button>
+            </div>
+
+            {{-- Alert --}}
+            <div id="rekomendasiAlert" class="hidden rounded-xl border px-4 py-3 text-sm"></div>
+
+            {{-- Form tambah / edit --}}
+            <div id="rekomendasiForm" class="hidden rounded-2xl border border-slate-700 bg-slate-800/60 p-5 space-y-4">
+                <h4 class="text-sm font-bold text-slate-200">Rekomendasi Form</h4>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold text-blue-400">Audit ID <span class="text-red-400">*</span></label>
+                        <input id="rekomendasiNoSpt" type="text" readonly
+                            class="w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-300 outline-none cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold text-blue-400">Nama Unit Usaha</label>
+                        <input id="rekomendasiCabang" type="text" readonly
+                            class="w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-300 outline-none cursor-not-allowed">
+                    </div>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold text-blue-400">Tanggal Audit</label>
+                        <input id="rekomendasiTglAudit" type="date"
+                            class="w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold text-blue-400">Prioritas <span class="text-red-400">*</span></label>
+                        <select id="rekomendasiPrioritas"
+                            class="w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                            <option value="rendah">Rendah</option>
+                            <option value="sedang" selected>Sedang</option>
+                            <option value="tinggi">Tinggi</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-xs font-semibold text-blue-400">Isi Rekomendasi <span class="text-red-400">*</span></label>
+                    <textarea id="rekomendasiIsi" rows="4" placeholder="Tuliskan rekomendasi..."
+                        class="w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 resize-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-xs font-semibold text-blue-400">PIC</label>
+                    <input id="rekomendasiPic" type="text" placeholder="Nama penanggung jawab..."
+                        class="w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-xs font-semibold text-blue-400">Deadline</label>
+                    <input id="rekomendasiDeadline" type="date"
+                        class="w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                </div>
+
+                <div class="flex gap-3 justify-end pt-2">
+                    <button id="rekomendasiBatalBtn" type="button"
+                        class="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 transition">
+                        Cancel
+                    </button>
+                    <button id="rekomendasiSimpanBtn" type="button"
+                        class="rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition">
+                        Save
+                    </button>
+                </div>
+            </div>
+
+            {{-- Daftar rekomendasi --}}
+            <div id="rekomendasiList" class="space-y-3">
+                <p class="py-8 text-center text-sm text-slate-500">Belum ada rekomendasi untuk pemeriksaan ini.</p>
             </div>
 
         </div>
