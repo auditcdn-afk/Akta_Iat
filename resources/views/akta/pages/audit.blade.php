@@ -139,15 +139,15 @@
             </button>
             <button type="button" data-tab="grading"
                 class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
-                ⭐ Grading
+                Grading
             </button>
             <button type="button" data-tab="pica"
                 class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
-                🎯 PICA
+                PICA
             </button>
             <button type="button" data-tab="lampiran"
                 class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
-                📎 Lampiran
+                Lampiran
             </button>
         </div>
 
