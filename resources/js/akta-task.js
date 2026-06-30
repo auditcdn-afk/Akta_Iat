@@ -146,19 +146,41 @@ function toDateOnly(value) {
     return String(value).slice(0, 10);
 }
 
-// Role approval: hanya melihat data plan + tombol Setujui/Tolak (bukan form pelaksanaan).
-// Tiap role menyetujui pada tahap status tertentu sesuai birokrasi.
+// Role approval untuk PLAN
 const APPROVAL_STAGE = {
     koordinator: "pending_koordinator",
     manajer:     "pending_manajer",
     coo:         "pending_coo",
 };
 
-// HO roles yang punya form pelaksanaan sendiri
-const HO_ROLES = ["admin", "manajer", "auditor", "koordinator", "coo"];
+// Role approval untuk PINJAMAN CABANG (BPK & BPB)
+const PINJAMAN_STAGE = {
+    koordinator: "pending_koordinator",
+    manajer:     "pending_manajer",
+    coo:         "pending_coo",
+    unit:        "pending_unit",
+    bpk:         "pending_bpk",
+};
+
+const PINJAMAN_STATUS_LABEL = {
+    pending_koordinator: "Menunggu Koordinator",
+    pending_manajer:     "Menunggu Manajer Audit",
+    pending_coo:         "Menunggu COO",
+    pending_unit:        "Menunggu Unit Usaha",
+    pending_bpk:         "Menunggu Role BPK",
+    approved:            "Disetujui",
+    rejected:            "Ditolak",
+};
+
+// HO roles (bukan branch user)
+const HO_ROLES = ["admin", "manajer", "auditor", "koordinator", "coo", "unit", "bpk"];
 
 function isApprovalRole() {
     return Object.prototype.hasOwnProperty.call(APPROVAL_STAGE, currentUser?.role);
+}
+
+function isPinjamanApprovalRole() {
+    return Object.prototype.hasOwnProperty.call(PINJAMAN_STAGE, currentUser?.role);
 }
 
 function isBranchUser() {
@@ -166,7 +188,8 @@ function isBranchUser() {
 }
 
 function isViewOnly() {
-    return isApprovalRole();
+    // unit dan bpk tidak approve plan, tapi approval pinjaman saja
+    return isApprovalRole() || isPinjamanApprovalRole();
 }
 
 // Label status birokrasi untuk timeline
@@ -267,11 +290,13 @@ function openModal(task) {
     const execSection = document.getElementById("execSection");
     const approvalSection = document.getElementById("approvalSection");
     const branchSection = document.getElementById("branchSection");
+    const pinjamanApprovalSection = document.getElementById("pinjamanApprovalSection");
 
     // Sembunyikan semua seksi dulu
     execSection?.classList.add("hidden");
     approvalSection?.classList.add("hidden");
     branchSection?.classList.add("hidden");
+    pinjamanApprovalSection?.classList.add("hidden");
 
     if (branch) {
         // Branch user: tampilkan tombol Mulai Cabang jika plan sedang running
@@ -280,14 +305,13 @@ function openModal(task) {
             document.getElementById("approvePlanId").value = plan.id || "";
         }
     } else if (viewOnly) {
-        // Tampilkan tombol approve/reject jika plan berada di tahap role ini
+        // Tampilkan tombol approve/reject PLAN jika role ada di APPROVAL_STAGE
         const stage = APPROVAL_STAGE[currentUser?.role];
-        const canApprove = stage && plan.status === stage;
+        const canApprovePlan = stage && plan.status === stage;
         if (approvalSection) {
-            approvalSection.classList.toggle("hidden", !canApprove);
+            approvalSection.classList.toggle("hidden", !canApprovePlan);
             document.getElementById("approvePlanId").value = plan.id || "";
 
-            // Sesuaikan teks info menunggu persetujuan
             const info = document.getElementById("approvalInfo");
             if (info) {
                 const labelMap = {
@@ -315,7 +339,7 @@ function openModal(task) {
         }
     }
 
-    // Wire pinjaman section to this task
+    // Wire pinjaman section to this task (form untuk auditor)
     _pinjamanTaskId = task.id;
     const pinjamanSec = document.getElementById('pinjamanSection');
     if (pinjamanSec) {
@@ -324,6 +348,12 @@ function openModal(task) {
         pinjamanSec.classList.toggle('hidden', !(hasS && hasF));
     }
     pinjamanLoadList(task.id).catch(() => {});
+
+    // Tampilkan pinjaman approval section untuk role yang ada di alur birokrasi pinjaman
+    if (isPinjamanApprovalRole()) {
+        pinjamanApprovalSection?.classList.remove("hidden");
+        pinjamanApprovalLoadList(task.id).catch(() => {});
+    }
 
     modal.classList.remove("hidden");
     modal.classList.add("flex");
@@ -566,6 +596,65 @@ function terbilang(n) {
     }
     return ribuan(Math.floor(n)).trim() + ' Rupiah';
 }
+
+async function pinjamanApprovalLoadList(taskId) {
+    const listEl = document.getElementById('pinjamanApprovalList');
+    if (!listEl || !taskId) return;
+    try {
+        const res  = await fetchJson('/api/pinjaman-cabang?audit_task_id=' + taskId, { headers: authHeaders() });
+        const rows = res.data ?? [];
+        if (!rows.length) {
+            listEl.innerHTML = '<p class="text-xs text-slate-500">Tidak ada pinjaman yang diajukan.</p>';
+            return;
+        }
+
+        const myStage = PINJAMAN_STAGE[currentUser?.role];
+        listEl.innerHTML = rows.map(r => {
+            const canAct = myStage && r.status === myStage;
+            const statusLabel = PINJAMAN_STATUS_LABEL[r.status] || r.status;
+            const statusColor = r.status === 'approved' ? 'text-emerald-400' : r.status === 'rejected' ? 'text-red-400' : 'text-amber-400';
+            const cabang = (r.cabangRealisasi ?? []).join(', ') || '-';
+            return `<div class="rounded-xl border border-slate-700 bg-slate-800/60 p-3 space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="font-bold text-sm ${r.jenis === 'BPK' ? 'text-blue-300' : 'text-purple-300'}">${r.jenis}</span>
+                    <span class="text-xs ${statusColor} font-semibold">${escapeHtml(statusLabel)}</span>
+                </div>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-400">
+                    <div><span class="text-slate-500">Nominal:</span> Rp ${Number(r.nominal).toLocaleString('id-ID')}</div>
+                    ${r.jenis === 'BPK' ? `<div><span class="text-slate-500">Cabang:</span> ${escapeHtml(cabang)}</div>` : `<div><span class="text-slate-500">Dept:</span> Finance</div>`}
+                    ${r.noSpd ? `<div><span class="text-slate-500">No SPD:</span> ${escapeHtml(r.noSpd)}</div>` : ''}
+                    ${r.catatan ? `<div class="col-span-2"><span class="text-slate-500">Catatan:</span> ${escapeHtml(r.catatan)}</div>` : ''}
+                </div>
+                ${r.approvals?.length ? `<div class="text-xs text-slate-500 border-t border-slate-700 pt-2">
+                    ${r.approvals.map(a => `<div>${escapeHtml(a.role)} — ${escapeHtml(a.action)} (${escapeHtml(a.at?.slice(0,10) || '')})</div>`).join('')}
+                </div>` : ''}
+                ${canAct ? `<div class="flex gap-2 pt-1">
+                    <button type="button" onclick="pinjamanApprove(${r.id},'reject')" class="flex-1 rounded-lg border border-red-500/40 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10">Tolak</button>
+                    <button type="button" onclick="pinjamanApprove(${r.id},'approve')" class="flex-1 rounded-lg bg-emerald-600 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">Setujui</button>
+                </div>` : ''}
+            </div>`;
+        }).join('');
+    } catch (e) {
+        listEl.innerHTML = '<p class="text-xs text-red-400">Gagal memuat pinjaman.</p>';
+    }
+}
+
+async function pinjamanApprove(id, action) {
+    const note = action === 'reject' ? (prompt('Alasan penolakan:') ?? '') : '';
+    if (action === 'reject' && note === null) return;
+    try {
+        const res = await fetchJson(`/api/pinjaman-cabang/${id}/approve`, {
+            method: 'POST',
+            headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, note }),
+        });
+        showAlert(res.message || 'Status pinjaman diperbarui.');
+        pinjamanApprovalLoadList(_pinjamanTaskId).catch(() => {});
+    } catch (e) {
+        showAlert(e.message, 'error');
+    }
+}
+window.pinjamanApprove = pinjamanApprove;
 
 function setupFilters() {
     let timer = null;

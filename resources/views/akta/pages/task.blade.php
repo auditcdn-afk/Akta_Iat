@@ -247,7 +247,7 @@
                 </div>
             </div>
 
-            {{-- ── Approval (koordinator) ── --}}
+            {{-- ── Approval (koordinator/manajer/coo) ── --}}
             <div id="approvalSection" class="hidden">
                 <div id="approvalInfo" class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
                     Plan audit ini menunggu persetujuan. Periksa data plan di atas lalu pilih tindakan.
@@ -265,6 +265,16 @@
                         class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500">
                         Setujui
                     </button>
+                </div>
+            </div>
+
+            {{-- ── Pinjaman Cabang — tampil untuk semua role yang ada di alur birokrasi ── --}}
+            <div id="pinjamanApprovalSection" class="hidden space-y-3">
+                <div class="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                    <h4 class="mb-3 text-sm font-bold text-amber-300">Pinjaman Cabang</h4>
+                    <div id="pinjamanApprovalList" class="space-y-3 text-sm text-slate-400">
+                        Memuat data pinjaman...
+                    </div>
                 </div>
             </div>
         </form>
