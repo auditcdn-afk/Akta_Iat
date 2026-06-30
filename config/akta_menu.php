@@ -47,6 +47,13 @@ return [
             'admin_only' => false,
         ],
         [
+            'label' => 'Grading',
+            'route' => 'akta.grading',
+            'path' => '/akta/grading',
+            'code' => 'GR',
+            'admin_only' => false,
+        ],
+        [
             'label' => 'Report Audit',
             'route' => 'akta.report-audit',
             'path' => '/akta/report-audit',

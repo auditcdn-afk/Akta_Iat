@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\PlanAudit;
 
 class AuditGrading extends Model
 {
@@ -19,6 +21,11 @@ class AuditGrading extends Model
         'details'     => 'array',
         'total_nilai' => 'float',
     ];
+
+    public function planAudit(): BelongsTo
+    {
+        return $this->belongsTo(PlanAudit::class, 'plan_audit_id');
+    }
 
     public function toAktaArray(): array
     {

@@ -211,6 +211,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/audit-detail/hga/parse-excel-pts', [HgaController::class, 'parsePts'])
         ->middleware('akta.role:admin,manajer,auditor');
 
+    // ── Grading (menu utama) ──
+    Route::get('/gradings',         [GradingController::class, 'index']);
+    Route::get('/gradings/{id}',    [GradingController::class, 'detail']);
+
     // ── Grading ──
     Route::get('/audit-detail/grading',              [GradingController::class, 'show']);
     Route::get('/audit-detail/grading/plan-info',    [GradingController::class, 'planInfo']);

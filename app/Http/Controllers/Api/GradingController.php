@@ -179,4 +179,76 @@ class GradingController extends Controller
             'jenisGrading' => $jenisGrading,
         ]]);
     }
+
+    // Daftar semua grading yang sudah tersimpan (untuk menu utama Grading)
+    public function index(Request $request): JsonResponse
+    {
+        try {
+            $q        = $request->query('q', '');
+            $wilayah  = $request->query('wilayah', '');
+            $jenis    = $request->query('jenis', '');
+
+            $query = AuditGrading::with('planAudit')
+                ->whereNotNull('id')
+                ->orderByDesc('updated_at');
+
+            $rows = $query->get()->map(function ($g) {
+                $plan = $g->planAudit;
+                return [
+                    'id'           => $g->id,
+                    'planAuditId'  => $g->plan_audit_id,
+                    'noSpt'        => $plan?->no_spt       ?? '-',
+                    'cabang'       => $plan?->cabang       ?? '-',
+                    'cabangArea'   => $plan?->cabang_area  ?? $g->area ?? '-',
+                    'jenisAudit'   => $plan?->jenis_audit  ?? '-',
+                    'tglMulai'     => optional($plan?->tgl_mulai)->format('Y-m-d'),
+                    'tglSelesai'   => optional($plan?->tgl_selesai)->format('Y-m-d'),
+                    'idGrading'    => $g->id_grading,
+                    'jenis'        => $g->jenis,
+                    'area'         => $g->area,
+                    'bbnkb'        => $g->bbnkb,
+                    'fraud'        => $g->fraud,
+                    'totalNilai'   => $g->total_nilai,
+                    'itemCount'    => count($g->details ?? []),
+                    'updatedAt'    => optional($g->updated_at)->format('Y-m-d'),
+                ];
+            });
+
+            // Filter client-side fields
+            if ($q) {
+                $q = strtolower($q);
+                $rows = $rows->filter(fn($r) =>
+                    str_contains(strtolower($r['cabang']), $q) ||
+                    str_contains(strtolower($r['noSpt']),  $q) ||
+                    str_contains(strtolower($r['area']),   $q)
+                );
+            }
+            if ($wilayah) $rows = $rows->filter(fn($r) => strtolower($r['area'])  === strtolower($wilayah));
+            if ($jenis)   $rows = $rows->filter(fn($r) => strtolower($r['jenis']) === strtolower($jenis));
+
+            return response()->json(['data' => array_values($rows->toArray()), 'total' => $rows->count()]);
+        } catch (\Exception $e) {
+            return response()->json(['data' => [], 'total' => 0]);
+        }
+    }
+
+    // Detail grading lengkap (untuk analisa)
+    public function detail(int $id): JsonResponse
+    {
+        try {
+            $g    = AuditGrading::findOrFail($id);
+            $plan = $g->planAudit;
+            return response()->json(['data' => [
+                ...$g->toAktaArray(),
+                'noSpt'      => $plan?->no_spt      ?? '-',
+                'cabang'     => $plan?->cabang      ?? '-',
+                'cabangArea' => $plan?->cabang_area ?? $g->area ?? '-',
+                'jenisAudit' => $plan?->jenis_audit ?? '-',
+                'tglMulai'   => optional($plan?->tgl_mulai)->format('Y-m-d'),
+                'tglSelesai' => optional($plan?->tgl_selesai)->format('Y-m-d'),
+            ]]);
+        } catch (\Exception $e) {
+            return response()->json(['data' => null], 404);
+        }
+    }
 }
