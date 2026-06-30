@@ -5448,34 +5448,39 @@ function gradingFillNilaiFromHasil(hasilLabel) {
     elNilai.value = nilai;
 }
 
-async function gradingOpenDetailModal(idx = -1) {
+function gradingOpenDetailModal(idx = -1) {
     _gradingEditIdx = idx;
     const modal = document.getElementById('gradingDetailModal');
     if (!modal) return;
-    const title = document.getElementById('gradingDetailModalTitle');
 
-    // Pastikan master sudah loaded agar dropdown tidak kosong
-    if (_gradingMaster.length === 0) await gradingLoadMaster();
+    const _doOpen = () => {
+        const title = document.getElementById('gradingDetailModalTitle');
+        if (idx >= 0) {
+            const d = (_gradingData?.details || [])[idx];
+            if (title) title.textContent = 'Edit Item Pemeriksaan';
+            gradingPopulateNamaSelect(d?.namaPemeriksaan || '');
+            gradingPopulateHasilSelect(d?.namaPemeriksaan || '', d?.hasilPemeriksaan || '');
+            // Pertahankan nilai yang sudah ada
+            const elNilai = document.getElementById('gradingDetailNilai');
+            if (elNilai && d?.nilai != null) elNilai.value = d.nilai;
+        } else {
+            if (title) title.textContent = 'Tambah Item Pemeriksaan';
+            gradingPopulateNamaSelect('');
+            gradingPopulateHasilSelect('', '');
+            const elNilai = document.getElementById('gradingDetailNilai');
+            if (elNilai) elNilai.value = '';
+        }
+        const msg = document.getElementById('gradingDetailMsg');
+        if (msg) msg.classList.add('hidden');
+        modal.classList.remove('hidden');
+    };
 
-    if (idx >= 0) {
-        const d = (_gradingData?.details || [])[idx];
-        if (title) title.textContent = 'Edit Item Pemeriksaan';
-        gradingPopulateNamaSelect(d?.namaPemeriksaan || '');
-        gradingPopulateHasilSelect(d?.namaPemeriksaan || '', d?.hasilPemeriksaan || '');
-        // Pertahankan nilai yang sudah ada (override auto-fill dari master)
-        const elNilai = document.getElementById('gradingDetailNilai');
-        if (elNilai && d?.nilai != null) elNilai.value = d.nilai;
+    // Jika master belum ada, load dulu lalu buka modal; jika sudah ada langsung buka
+    if (_gradingMaster.length === 0) {
+        gradingLoadMaster().then(_doOpen).catch(_doOpen);
     } else {
-        if (title) title.textContent = 'Tambah Item Pemeriksaan';
-        gradingPopulateNamaSelect('');
-        gradingPopulateHasilSelect('', '');
-        const elNilai = document.getElementById('gradingDetailNilai');
-        if (elNilai) elNilai.value = '';
+        _doOpen();
     }
-
-    const msg = document.getElementById('gradingDetailMsg');
-    if (msg) msg.classList.add('hidden');
-    modal.classList.remove('hidden');
 }
 
 function gradingCloseDetailModal() {
