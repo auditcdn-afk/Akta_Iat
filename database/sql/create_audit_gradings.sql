@@ -17,6 +17,5 @@ CREATE TABLE IF NOT EXISTS `audit_gradings` (
     `updated_by`        VARCHAR(255)    NULL,
     `created_at`        TIMESTAMP       NULL,
     `updated_at`        TIMESTAMP       NULL,
-    CONSTRAINT `audit_gradings_plan_audit_id_foreign`
-        FOREIGN KEY (`plan_audit_id`) REFERENCES `plan_audits` (`id`) ON DELETE CASCADE
+    INDEX `audit_gradings_plan_audit_id_index` (`plan_audit_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

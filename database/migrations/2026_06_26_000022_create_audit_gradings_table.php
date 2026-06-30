@@ -9,7 +9,7 @@ return new class extends Migration {
     {
         Schema::create('audit_gradings', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('plan_audit_id');
+            $table->unsignedBigInteger('plan_audit_id')->index();
             $table->string('id_grading')->nullable();
             $table->string('jenis')->nullable();       // Cabang, Bengkel, WHS PART, WHS UNIT, Lain-Lain
             $table->string('area')->nullable();         // RRI, dll dari cabang_area
@@ -23,7 +23,7 @@ return new class extends Migration {
             $table->string('updated_by')->nullable();
             $table->timestamps();
 
-            $table->foreign('plan_audit_id')->references('id')->on('plan_audits')->onDelete('cascade');
+
         });
     }
 
