@@ -609,33 +609,41 @@ async function pinjamanApprovalLoadList(taskId) {
         }
 
         const myStage = PINJAMAN_STAGE[currentUser?.role];
-        listEl.innerHTML = rows.map(r => {
+        const fmtRp = (n) => {
+            try { return Number(n || 0).toLocaleString('id-ID'); }
+            catch (_) { return String(Number(n || 0)); }
+        };
+        const html = [];
+        for (const r of rows) {
             const canAct = myStage && r.status === myStage;
-            const statusLabel = PINJAMAN_STATUS_LABEL[r.status] || r.status;
-            const statusColor = r.status === 'approved' ? 'text-emerald-400' : r.status === 'rejected' ? 'text-red-400' : 'text-amber-400';
-            const cabang = (r.cabangRealisasi ?? []).join(', ') || '-';
-            return `<div class="rounded-xl border border-slate-700 bg-slate-800/60 p-3 space-y-2">
+            const slabel = PINJAMAN_STATUS_LABEL[r.status] || String(r.status || '-');
+            const scolor = r.status === 'approved' ? 'text-emerald-400' : r.status === 'rejected' ? 'text-red-400' : 'text-amber-400';
+            const jenis  = String(r.jenis || '');
+            const cabang = Array.isArray(r.cabangRealisasi) ? r.cabangRealisasi.join(', ') : (r.cabangRealisasi || '-');
+            const approvalRows = Array.isArray(r.approvals) ? r.approvals.map(a =>
+                `<div>${escapeHtml(String(a.role||''))} &mdash; ${escapeHtml(String(a.action||''))} (${escapeHtml(String((a.at||'').slice(0,10)))})</div>`
+            ).join('') : '';
+            html.push(`<div class="rounded-xl border border-slate-700 bg-slate-800/60 p-3 space-y-2">
                 <div class="flex items-center justify-between">
-                    <span class="font-bold text-sm ${r.jenis === 'BPK' ? 'text-blue-300' : 'text-purple-300'}">${r.jenis}</span>
-                    <span class="text-xs ${statusColor} font-semibold">${escapeHtml(statusLabel)}</span>
+                    <span class="font-bold text-sm ${jenis === 'BPK' ? 'text-blue-300' : 'text-purple-300'}">${escapeHtml(jenis)}</span>
+                    <span class="text-xs ${scolor} font-semibold">${escapeHtml(slabel)}</span>
                 </div>
                 <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-400">
-                    <div><span class="text-slate-500">Nominal:</span> Rp ${Number(r.nominal).toLocaleString('id-ID')}</div>
-                    ${r.jenis === 'BPK' ? `<div><span class="text-slate-500">Cabang:</span> ${escapeHtml(cabang)}</div>` : `<div><span class="text-slate-500">Dept:</span> Finance</div>`}
-                    ${r.noSpd ? `<div><span class="text-slate-500">No SPD:</span> ${escapeHtml(r.noSpd)}</div>` : ''}
-                    ${r.catatan ? `<div class="col-span-2"><span class="text-slate-500">Catatan:</span> ${escapeHtml(r.catatan)}</div>` : ''}
+                    <div><span class="text-slate-500">Nominal:</span> Rp ${fmtRp(r.nominal)}</div>
+                    ${jenis === 'BPK' ? `<div><span class="text-slate-500">Cabang:</span> ${escapeHtml(String(cabang))}</div>` : `<div><span class="text-slate-500">Dept:</span> Finance</div>`}
+                    ${r.noSpd ? `<div><span class="text-slate-500">No SPD:</span> ${escapeHtml(String(r.noSpd))}</div>` : ''}
+                    ${r.catatan ? `<div class="col-span-2"><span class="text-slate-500">Catatan:</span> ${escapeHtml(String(r.catatan))}</div>` : ''}
                 </div>
-                ${r.approvals?.length ? `<div class="text-xs text-slate-500 border-t border-slate-700 pt-2">
-                    ${r.approvals.map(a => `<div>${escapeHtml(a.role)} — ${escapeHtml(a.action)} (${escapeHtml(a.at?.slice(0,10) || '')})</div>`).join('')}
-                </div>` : ''}
+                ${approvalRows ? `<div class="text-xs text-slate-500 border-t border-slate-700 pt-2">${approvalRows}</div>` : ''}
                 ${canAct ? `<div class="flex gap-2 pt-1">
                     <button type="button" onclick="pinjamanApprove(${r.id},'reject')" class="flex-1 rounded-lg border border-red-500/40 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10">Tolak</button>
                     <button type="button" onclick="pinjamanApprove(${r.id},'approve')" class="flex-1 rounded-lg bg-emerald-600 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">Setujui</button>
                 </div>` : ''}
-            </div>`;
-        }).join('');
+            </div>`);
+        }
+        listEl.innerHTML = html.join('');
     } catch (e) {
-        listEl.innerHTML = '<p class="text-xs text-red-400">Gagal memuat pinjaman.</p>';
+        listEl.innerHTML = `<p class="text-xs text-red-400">Error: ${escapeHtml(e.message || String(e))}</p>`;
     }
 }
 
