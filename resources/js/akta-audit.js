@@ -5659,7 +5659,12 @@ async function _doSaveGrading() {
         gradingRenderDetails();
         showAlert(res.message || 'Grading tersimpan.', 'success');
     } catch (e) {
-        showAlert(e.message || 'Gagal menyimpan grading.', 'error');
+        const msg = e.message || '';
+        if (msg.includes('migrate') || msg.includes('42S02') || msg.includes("doesn't exist")) {
+            showAlert('Tabel grading belum dibuat. Jalankan perintah: php artisan migrate — atau import file database/sql/create_audit_gradings.sql ke phpMyAdmin.', 'error');
+        } else {
+            showAlert(msg || 'Gagal menyimpan grading.', 'error');
+        }
     } finally {
         if (btn) { btn.textContent = '💾 Simpan Grading'; btn.disabled = false; }
     }

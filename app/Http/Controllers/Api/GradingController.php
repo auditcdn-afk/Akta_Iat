@@ -32,34 +32,49 @@ class GradingController extends Controller
 
     public function show(Request $request): JsonResponse
     {
-        $planId = $request->query('plan_audit_id');
-        $rec    = AuditGrading::where('plan_audit_id', $planId)->first();
-        return response()->json(['data' => $rec ? $rec->toAktaArray() : null]);
+        try {
+            $planId = $request->query('plan_audit_id');
+            $rec    = AuditGrading::where('plan_audit_id', $planId)->first();
+            return response()->json(['data' => $rec ? $rec->toAktaArray() : null]);
+        } catch (\Exception $e) {
+            // Tabel belum dibuat — kembalikan null agar UI tidak crash
+            return response()->json(['data' => null]);
+        }
     }
 
     public function save(Request $request): JsonResponse
     {
-        $planId = $request->input('planAuditId') ?? $request->input('plan_audit_id');
-        $who    = $request->user()?->username ?? $request->user()?->email;
+        try {
+            $planId = $request->input('planAuditId') ?? $request->input('plan_audit_id');
+            $who    = $request->user()?->username ?? $request->user()?->email;
 
-        $rec = AuditGrading::updateOrCreate(
-            ['plan_audit_id' => $planId],
-            [
-                'id_grading'       => $request->input('idGrading'),
-                'jenis'            => $request->input('jenis'),
-                'area'             => $request->input('area'),
-                'bbnkb'            => $request->input('bbnkb', 'N'),
-                'fraud'            => $request->input('fraud', 'N'),
-                'jenis_fraud'      => $request->input('jenisFraud', []),
-                'keterangan_fraud' => $request->input('keteranganFraud'),
-                'details'          => $request->input('details', []),
-                'total_nilai'      => $request->input('totalNilai'),
-                'updated_by'       => $who,
-            ]
-        );
-        if (!$rec->created_by) $rec->update(['created_by' => $who]);
+            $rec = AuditGrading::updateOrCreate(
+                ['plan_audit_id' => $planId],
+                [
+                    'id_grading'       => $request->input('idGrading'),
+                    'jenis'            => $request->input('jenis'),
+                    'area'             => $request->input('area'),
+                    'bbnkb'            => $request->input('bbnkb', 'N'),
+                    'fraud'            => $request->input('fraud', 'N'),
+                    'jenis_fraud'      => $request->input('jenisFraud', []),
+                    'keterangan_fraud' => $request->input('keteranganFraud'),
+                    'details'          => $request->input('details', []),
+                    'total_nilai'      => $request->input('totalNilai'),
+                    'updated_by'       => $who,
+                ]
+            );
+            if (!$rec->created_by) $rec->update(['created_by' => $who]);
 
-        return response()->json(['message' => 'Grading tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+            return response()->json(['message' => 'Grading tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+        } catch (\Exception $e) {
+            if (str_contains($e->getMessage(), "doesn't exist") || str_contains($e->getMessage(), '42S02')) {
+                return response()->json([
+                    'message' => 'Tabel audit_gradings belum ada. Jalankan: php artisan migrate',
+                    'migrate' => true,
+                ], 500);
+            }
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
     }
 
     // Master: daftar pemeriksaan + pilihan hasil berdasarkan jenis & wilayah
