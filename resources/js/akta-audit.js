@@ -5293,19 +5293,57 @@ function gradingRenderDetails() {
         gradingUpdateStats();
         return;
     }
-    tbody.innerHTML = details.map((d, i) => `
+    tbody.innerHTML = details.map((d, i) => {
+        const isPica = picaIsLowGrade(d.hasilPemeriksaan);
+        const hasPica = isPica && (d.currentCondition || '').trim() !== '';
+        const picaBtn = isPica
+            ? `<button onclick="gradingOpenPicaModal(${i})" title="Isi PICA" class="ml-1 text-xs px-1.5 py-0.5 rounded font-semibold ${hasPica ? 'bg-emerald-700 text-emerald-200' : 'bg-amber-700 text-amber-200'} hover:opacity-80">PICA</button>`
+            : '';
+        return `
         <tr class="hover:bg-slate-800/40 border-b border-slate-800">
             <td class="px-3 py-2 text-center text-slate-500">${i + 1}</td>
             <td class="px-3 py-2 text-slate-200">${escapeHtml(d.namaPemeriksaan || '')}</td>
             <td class="px-3 py-2 text-slate-300">${escapeHtml(d.hasilPemeriksaan || '')}</td>
             <td class="px-3 py-2 text-right font-mono text-yellow-300">${gradingN(d.nilai).toFixed(2)}</td>
-            <td class="px-3 py-2 text-center">
-                <button onclick="gradingOpenDetailModal(${i})" class="text-blue-400 hover:text-blue-200 mr-2 text-xs">✏️</button>
+            <td class="px-3 py-2 text-center whitespace-nowrap">
+                <button onclick="gradingOpenDetailModal(${i})" class="text-blue-400 hover:text-blue-200 mr-1 text-xs">✏️</button>
                 <button onclick="gradingDeleteDetail(${i})" class="text-red-400 hover:text-red-200 text-xs">🗑️</button>
+                ${picaBtn}
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
     gradingUpdateStats();
+}
+
+function gradingOpenPicaModal(idx) {
+    if (!_gradingData?.details) return;
+    const d = _gradingData.details[idx];
+    if (!d) return;
+    const modal = document.getElementById('gradingPicaModal');
+    if (!modal) return;
+    document.getElementById('gradingPicaNama').textContent   = d.namaPemeriksaan  || '-';
+    document.getElementById('gradingPicaHasil').textContent  = d.hasilPemeriksaan || '-';
+    document.getElementById('gradingPicaNilai').textContent  = gradingN(d.nilai).toFixed(2);
+    document.getElementById('gradingPicaCondition').value    = d.currentCondition || '';
+    modal.dataset.picaIdx = idx;
+    modal.classList.remove('hidden');
+    document.getElementById('gradingPicaCondition').focus();
+}
+
+function gradingClosePicaModal() {
+    const modal = document.getElementById('gradingPicaModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function gradingSavePicaModal() {
+    const modal = document.getElementById('gradingPicaModal');
+    if (!modal || !_gradingData?.details) return;
+    const idx = parseInt(modal.dataset.picaIdx, 10);
+    const condition = (document.getElementById('gradingPicaCondition')?.value || '').trim();
+    if (!condition) { showAlert('Current Condition wajib diisi.', 'error'); return; }
+    _gradingData.details[idx] = { ..._gradingData.details[idx], currentCondition: condition };
+    gradingClosePicaModal();
+    gradingRenderDetails();
 }
 
 async function gradingLoadMaster() {
@@ -5693,6 +5731,11 @@ function initGradingForm() {
 
     // Save grading
     document.getElementById('gradingSaveBtn')?.addEventListener('click', () => _doSaveGrading());
+
+    // PICA modal backdrop close
+    document.getElementById('gradingPicaModal')?.addEventListener('click', e => {
+        if (e.target === e.currentTarget) gradingClosePicaModal();
+    });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
