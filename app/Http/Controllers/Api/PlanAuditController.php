@@ -247,6 +247,41 @@ class PlanAuditController extends Controller
         return response()->json(['ok' => true, 'message' => 'Plan dikembalikan ke Draft.', 'data' => $plan->toAktaArray()]);
     }
 
+    // ── Admin: reset status ke status tertentu ────────────────────────────────
+    public function adminResetStatus(Request $request, PlanAudit $plan, ActivityLogger $logger): JsonResponse
+    {
+        $validStatuses = [
+            'draft', 'pending_koordinator', 'pending_manajer', 'pending_coo',
+            'scheduled', 'running', 'cabang_active', 'done',
+        ];
+
+        $request->validate([
+            'status' => ['required', 'in:' . implode(',', $validStatuses)],
+            'alasan' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $oldStatus = $plan->status;
+        $newStatus = $request->input('status');
+        $alasan    = trim((string) $request->input('alasan', '')) ?: 'Koreksi admin';
+        $who       = $request->user()?->username ?? 'admin';
+
+        $plan->status     = $newStatus;
+        $plan->updated_by = $who;
+        $plan->save();
+
+        $plan->recordLog('reject', $oldStatus, $newStatus, $request->user(),
+            "Koreksi admin: {$alasan}");
+
+        $logger->write($request, 'PLAN_ADMIN_RESET', 'plan_audits',
+            "Admin reset plan {$plan->no_spt}: {$oldStatus} → {$newStatus} ({$alasan})", $request->user());
+
+        return response()->json([
+            'ok'      => true,
+            'message' => "Status plan diubah dari [{$oldStatus}] ke [{$newStatus}].",
+            'data'    => $plan->fresh()->toAktaArray(),
+        ]);
+    }
+
     private function validatedPayload(Request $request): array
     {
         $allStatuses = array_merge(

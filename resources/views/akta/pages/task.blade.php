@@ -268,6 +268,46 @@
                 </div>
             </div>
 
+            {{-- ── Admin Tools (reset status — hanya admin) ── --}}
+            <div id="adminToolsSection" class="hidden space-y-3">
+                <div class="rounded-xl border border-red-500/30 bg-red-500/5 p-4 space-y-4">
+                    <h4 class="text-sm font-bold text-red-400">Admin Tools — Koreksi Status</h4>
+
+                    {{-- Reset Plan --}}
+                    <div class="space-y-2">
+                        <p class="text-xs font-semibold text-slate-400">Reset Status Plan Audit</p>
+                        <div class="flex gap-2">
+                            <select id="adminPlanStatus"
+                                class="flex-1 rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-red-500">
+                                <option value="">-- Pilih status tujuan --</option>
+                                <option value="draft">Draft</option>
+                                <option value="pending_koordinator">Menunggu Koordinator</option>
+                                <option value="pending_manajer">Menunggu Manajer Audit</option>
+                                <option value="pending_coo">Menunggu COO</option>
+                                <option value="scheduled">Terjadwal</option>
+                                <option value="running">Audit Berjalan</option>
+                                <option value="cabang_active">Cabang Aktif</option>
+                                <option value="done">Selesai</option>
+                            </select>
+                            <button type="button" id="adminPlanResetBtn"
+                                class="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500 whitespace-nowrap">
+                                Reset Plan
+                            </button>
+                        </div>
+                        <input id="adminPlanAlasan" type="text" placeholder="Alasan koreksi (wajib)..."
+                            class="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-red-500">
+                    </div>
+
+                    {{-- Reset Pinjaman --}}
+                    <div class="space-y-2">
+                        <p class="text-xs font-semibold text-slate-400">Reset Status Pinjaman Cabang</p>
+                        <div id="adminPinjamanResetList" class="space-y-2 text-xs text-slate-400">
+                            Tidak ada pinjaman.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {{-- ── Pinjaman Cabang — tampil untuk semua role yang ada di alur birokrasi ── --}}
             <div id="pinjamanApprovalSection" class="hidden space-y-3">
                 <div class="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">

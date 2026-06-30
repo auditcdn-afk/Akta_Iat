@@ -220,6 +220,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/pinjaman-cabang/{id}/approve',[PinjamanCabangController::class, 'approve'])
         ->middleware('akta.role:admin,manajer,auditor,koordinator,coo,bpk,unit');
+    Route::post('/pinjaman-cabang/{id}/admin-reset', [PinjamanCabangController::class, 'adminResetStatus'])
+        ->middleware('akta.role:admin');
 
     // ── BU Performance ──
     Route::get('/bu-performance',         [BuPerformanceController::class, 'index']);
@@ -352,6 +354,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Alur birokrasi: advance & reject (semua role terautentikasi, kontrol di dalam controller)
     Route::post('/plans/{plan}/advance', [PlanAuditController::class, 'advance']);
     Route::post('/plans/{plan}/reject', [PlanAuditController::class, 'reject']);
+    Route::post('/plans/{plan}/admin-reset', [PlanAuditController::class, 'adminResetStatus'])
+        ->middleware('akta.role:admin');
 
     // Menu untuk user yang sedang login (server memfilter berdasarkan role)
     Route::get('/menus', [MenuController::class, 'myMenus']);

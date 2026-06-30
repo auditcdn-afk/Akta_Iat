@@ -94,4 +94,44 @@ class PinjamanCabangController extends Controller
         $pinjaman = PinjamanCabang::findOrFail($id);
         return response()->json(['data' => $pinjaman->toAktaArray()]);
     }
+
+    // Admin: reset status pinjaman ke tahap tertentu
+    public function adminResetStatus(Request $request, int $id): JsonResponse
+    {
+        $pinjaman = PinjamanCabang::findOrFail($id);
+
+        $validStatuses = $pinjaman->jenis === 'BPK'
+            ? PinjamanCabang::FLOW_BPK
+            : PinjamanCabang::FLOW_BPB;
+
+        $request->validate([
+            'status' => ['required', 'in:' . implode(',', $validStatuses)],
+            'alasan' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $oldStatus = $pinjaman->status;
+        $newStatus = $request->input('status');
+        $alasan    = trim((string) $request->input('alasan', '')) ?: 'Koreksi admin';
+        $who       = $request->user()?->username ?? 'admin';
+
+        $approvals   = $pinjaman->approvals ?? [];
+        $approvals[] = [
+            'role'   => 'admin',
+            'user'   => $who,
+            'action' => 'admin_reset',
+            'note'   => "Koreksi: {$oldStatus} → {$newStatus}. {$alasan}",
+            'at'     => now()->toDateTimeString(),
+        ];
+
+        $pinjaman->update([
+            'status'     => $newStatus,
+            'approvals'  => $approvals,
+            'updated_by' => $who,
+        ]);
+
+        return response()->json([
+            'message' => "Status pinjaman diubah dari [{$oldStatus}] ke [{$newStatus}].",
+            'data'    => $pinjaman->fresh()->toAktaArray(),
+        ]);
+    }
 }

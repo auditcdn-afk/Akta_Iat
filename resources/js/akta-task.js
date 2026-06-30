@@ -355,6 +355,17 @@ function openModal(task) {
         pinjamanApprovalLoadList(task.id).catch(() => {});
     }
 
+    // Admin tools — reset status
+    const adminSec = document.getElementById("adminToolsSection");
+    if (adminSec) {
+        if (currentUser?.role === 'admin') {
+            adminSec.classList.remove("hidden");
+            adminLoadPinjamanReset(task.id).catch(() => {});
+        } else {
+            adminSec.classList.add("hidden");
+        }
+    }
+
     modal.classList.remove("hidden");
     modal.classList.add("flex");
 }
@@ -681,6 +692,56 @@ async function pinjamanApprove(id, action) {
 }
 window.pinjamanApprove = pinjamanApprove;
 
+// ── Admin Tools ───────────────────────────────────────────────────────────────
+async function adminLoadPinjamanReset(taskId) {
+    const el = document.getElementById('adminPinjamanResetList');
+    if (!el || !taskId) return;
+    try {
+        const res  = await fetchJson('/api/pinjaman-cabang?audit_task_id=' + taskId, { headers: authHeaders() });
+        const rows = res.data ?? [];
+        if (!rows.length) { el.innerHTML = '<p class="text-slate-500">Tidak ada pinjaman.</p>'; return; }
+        el.innerHTML = rows.map(r => {
+            const flow = r.jenis === 'BPK'
+                ? ['pending_koordinator','pending_manajer','pending_coo','pending_unit','pending_bpk','approved','rejected']
+                : ['pending_koordinator','pending_manajer','pending_bpk','approved','rejected'];
+            const opts = flow.map(s => `<option value="${s}" ${s===r.status?'selected':''}>${s.replace(/_/g,' ')}</option>`).join('');
+            return `<div class="rounded-lg border border-slate-700 bg-slate-800/60 p-2 space-y-1">
+                <div class="flex items-center gap-2">
+                    <span class="font-bold ${r.jenis==='BPK'?'text-blue-300':'text-purple-300'}">${r.jenis}</span>
+                    <span class="text-slate-400">— Rp ${Number(r.nominal||0).toLocaleString()}</span>
+                    <span class="ml-auto text-amber-400">${escapeHtml(r.status||'')}</span>
+                </div>
+                <div class="flex gap-2">
+                    <select id="adminPinjSel_${r.id}" class="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100 outline-none">${opts}</select>
+                    <button type="button" onclick="adminResetPinjaman(${r.id})"
+                        class="rounded-lg bg-red-600/80 px-3 py-1 text-xs font-semibold text-white hover:bg-red-500">Reset</button>
+                </div>
+                <input id="adminPinjAlasan_${r.id}" type="text" placeholder="Alasan koreksi..."
+                    class="w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100 outline-none">
+            </div>`;
+        }).join('');
+    } catch (_) {}
+}
+
+async function adminResetPinjaman(id) {
+    const status = document.getElementById(`adminPinjSel_${id}`)?.value;
+    const alasan = document.getElementById(`adminPinjAlasan_${id}`)?.value?.trim();
+    if (!status) { alert('Pilih status tujuan.'); return; }
+    if (!alasan) { alert('Alasan koreksi wajib diisi.'); return; }
+    if (!confirm(`Reset pinjaman #${id} ke status [${status}]?`)) return;
+    try {
+        const res = await fetchJson(`/api/pinjaman-cabang/${id}/admin-reset`, {
+            method: 'POST',
+            headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status, alasan }),
+        });
+        showAlert(res.message || 'Status pinjaman direset.');
+        adminLoadPinjamanReset(_pinjamanTaskId).catch(() => {});
+        pinjamanApprovalLoadList(_pinjamanTaskId).catch(() => {});
+    } catch (e) { showAlert(e.message, 'error'); }
+}
+window.adminResetPinjaman = adminResetPinjaman;
+
 function setupFilters() {
     let timer = null;
     document.getElementById("taskSearch")?.addEventListener("input", () => {
@@ -716,6 +777,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("rejectBtn")?.addEventListener("click", () => {
         const planId = document.getElementById("approvePlanId")?.value;
         rejectPlan(planId).catch((err) => showAlert(err.message, "error"));
+    });
+
+    document.getElementById("adminPlanResetBtn")?.addEventListener("click", async () => {
+        const planId = document.getElementById("approvePlanId")?.value;
+        const status = document.getElementById("adminPlanStatus")?.value;
+        const alasan = document.getElementById("adminPlanAlasan")?.value?.trim();
+        if (!planId) { showAlert('Buka modal task terlebih dahulu.', 'error'); return; }
+        if (!status) { showAlert('Pilih status tujuan.', 'error'); return; }
+        if (!alasan) { showAlert('Alasan koreksi wajib diisi.', 'error'); return; }
+        if (!confirm(`Reset status plan ke [${status}]?\nAlasan: ${alasan}`)) return;
+        try {
+            const res = await fetchJson(`/api/plans/${planId}/admin-reset`, {
+                method: 'POST',
+                headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status, alasan }),
+            });
+            showAlert(res.message || 'Status plan direset.');
+            document.getElementById("adminPlanAlasan").value = '';
+            closeModal();
+            await loadTasks();
+        } catch (e) { showAlert(e.message, 'error'); }
     });
 
     document.getElementById("tasksTableBody")?.addEventListener("click", (e) => {
