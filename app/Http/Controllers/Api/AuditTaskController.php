@@ -59,13 +59,16 @@ class AuditTaskController extends Controller
             ->when($approvalStage, function ($query) use ($approvalStage) {
                 $query->whereHas('planAudit', fn($q) => $q->where('status', $approvalStage));
             })
-            ->when(! $approvalStage, function ($query) use ($onlyMine, $identities) {
+            ->when(! $approvalStage, function ($query) use ($onlyMine, $identities, $role) {
                 // Auditor/cabang: hanya task miliknya. Semua role non-approval:
-                // sembunyikan task yang sudah selesai (transit).
+                // sembunyikan task yang sudah selesai (transit), kecuali admin
+                // yang butuh akses untuk koreksi status.
                 if ($onlyMine && ! empty($identities)) {
                     $query->whereIn('assigned_to', $identities);
                 }
-                $query->where('status', '!=', 'done');
+                if ($role !== 'admin') {
+                    $query->where('status', '!=', 'done');
+                }
             })
             ->when($request->filled('q'), function ($query) use ($request) {
                 $q = $request->query('q');
