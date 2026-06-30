@@ -7,17 +7,17 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('pemeriksaan_lampiran', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('plan_audit_id');
-            $table->json('files_json')->nullable();
-            $table->string('merged_pdf')->nullable();
-            $table->string('created_by')->nullable();
-            $table->string('updated_by')->nullable();
-            $table->timestamps();
-
-            $table->foreign('plan_audit_id')->references('id')->on('plan_audit')->onDelete('cascade');
-        });
+        if (!Schema::hasTable('pemeriksaan_lampiran')) {
+            Schema::create('pemeriksaan_lampiran', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('plan_audit_id')->index();
+                $table->json('files_json')->nullable();
+                $table->string('merged_pdf')->nullable();
+                $table->string('created_by')->nullable();
+                $table->string('updated_by')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     public function down(): void
