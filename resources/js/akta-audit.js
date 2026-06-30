@@ -5434,23 +5434,26 @@ function gradingFillNilaiFromHasil(hasilLabel) {
     if (!hasilLabel) { elNilai.value = ''; return; }
     const opt = _gradingCurrentOpts.find(o => o.label === hasilLabel);
     const nilai = opt ? gradingNilaiFromOption(opt) : '';
-    console.log('[Grading] hasilLabel:', hasilLabel, '| opt:', opt, '| bbnkb:', _gradingData?.bbnkb, '| fraud:', _gradingData?.fraud, '| nilai:', nilai);
     elNilai.value = nilai;
 }
 
-function gradingOpenDetailModal(idx = -1) {
+async function gradingOpenDetailModal(idx = -1) {
     _gradingEditIdx = idx;
     const modal = document.getElementById('gradingDetailModal');
     if (!modal) return;
     const title = document.getElementById('gradingDetailModalTitle');
+
+    // Pastikan master sudah loaded agar dropdown tidak kosong
+    if (_gradingMaster.length === 0) await gradingLoadMaster();
 
     if (idx >= 0) {
         const d = (_gradingData?.details || [])[idx];
         if (title) title.textContent = 'Edit Item Pemeriksaan';
         gradingPopulateNamaSelect(d?.namaPemeriksaan || '');
         gradingPopulateHasilSelect(d?.namaPemeriksaan || '', d?.hasilPemeriksaan || '');
+        // Pertahankan nilai yang sudah ada (override auto-fill dari master)
         const elNilai = document.getElementById('gradingDetailNilai');
-        if (elNilai) elNilai.value = d?.nilai != null ? d.nilai : '';
+        if (elNilai && d?.nilai != null) elNilai.value = d.nilai;
     } else {
         if (title) title.textContent = 'Tambah Item Pemeriksaan';
         gradingPopulateNamaSelect('');
