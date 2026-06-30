@@ -264,6 +264,9 @@ function switchTab(tab) {
     if (tab === "grading") {
         loadGradingTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "pica") {
+        loadPicaTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1715,6 +1718,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initSmhTarikanForm();
     initLampiranForm();
     initGradingForm();
+    initPicaForm();
 
     try {
         await loadCurrentUser();
@@ -5689,4 +5693,155 @@ function initGradingForm() {
 
     // Save grading
     document.getElementById('gradingSaveBtn')?.addEventListener('click', () => _doSaveGrading());
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PICA MODULE (berdasarkan item Grading dengan hasil nomor 1 & 2)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Cek apakah hasil pemeriksaan termasuk kategori PICA (diawali "1." atau "2.")
+function picaIsLowGrade(hasilLabel) {
+    return /^\s*[12]\s*\./.test(hasilLabel || '');
+}
+
+// Ambil daftar detail grading yang termasuk PICA (dengan index aslinya)
+function picaGetItems() {
+    const details = _gradingData?.details || [];
+    return details
+        .map((d, idx) => ({ ...d, _idx: idx }))
+        .filter(d => picaIsLowGrade(d.hasilPemeriksaan));
+}
+
+function picaUpdateStats() {
+    const items  = picaGetItems();
+    const filled = items.filter(d => (d.currentCondition || '').trim() !== '').length;
+    const elTotal  = document.getElementById('picaStatTotal');
+    const elFilled = document.getElementById('picaStatFilled');
+    if (elTotal)  elTotal.textContent  = items.length;
+    if (elFilled) elFilled.textContent = filled;
+}
+
+function picaRenderList() {
+    const wrap  = document.getElementById('picaList');
+    const empty = document.getElementById('picaEmpty');
+    if (!wrap) return;
+
+    const items = picaGetItems();
+
+    if (items.length === 0) {
+        wrap.innerHTML = '';
+        if (empty) empty.classList.remove('hidden');
+        picaUpdateStats();
+        return;
+    }
+    if (empty) empty.classList.add('hidden');
+
+    wrap.innerHTML = items.map(d => {
+        const nomor = (d.hasilPemeriksaan || '').trim().charAt(0); // "1" atau "2"
+        const badgeColor = nomor === '1' ? 'bg-red-900/40 text-red-300 border-red-700/40'
+                                         : 'bg-amber-900/30 text-amber-300 border-amber-700/40';
+        return `
+        <div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-5 space-y-4" data-pica-idx="${d._idx}">
+            <div class="flex items-start justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center justify-center w-9 h-9 rounded-xl border ${badgeColor} text-sm font-bold">${escapeHtml(nomor)}</span>
+                    <div>
+                        <div class="text-sm font-bold text-slate-100">${escapeHtml(d.namaPemeriksaan || '-')}</div>
+                        <div class="text-xs text-slate-400">Nilai: <span class="font-mono text-yellow-300">${gradingN(d.nilai).toFixed(2)}</span></div>
+                    </div>
+                </div>
+                ${(d.currentCondition || '').trim() !== ''
+                    ? '<span class="rounded-full bg-emerald-900/30 text-emerald-300 text-[11px] font-semibold px-3 py-1 border border-emerald-700/40">✓ Terisi</span>'
+                    : '<span class="rounded-full bg-slate-700/50 text-slate-300 text-[11px] font-semibold px-3 py-1">Belum diisi</span>'}
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-semibold text-slate-400">Hasil Pemeriksaan</label>
+                <div class="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs text-slate-300">${escapeHtml(d.hasilPemeriksaan || '-')}</div>
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-semibold text-slate-300">Current Condition <span class="text-red-400">*</span></label>
+                <textarea class="pica-condition rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none resize-y"
+                    rows="3" placeholder="Tuliskan kondisi saat ini / temuan untuk item ini..."
+                    data-pica-idx="${d._idx}">${escapeHtml(d.currentCondition || '')}</textarea>
+            </div>
+        </div>`;
+    }).join('');
+
+    // Wire textarea input → update _gradingData.details langsung
+    wrap.querySelectorAll('.pica-condition').forEach(ta => {
+        ta.addEventListener('input', function () {
+            const idx = parseInt(this.dataset.picaIdx, 10);
+            if (_gradingData?.details?.[idx]) {
+                _gradingData.details[idx].currentCondition = this.value;
+            }
+        });
+        ta.addEventListener('blur', picaUpdateStats);
+    });
+
+    picaUpdateStats();
+}
+
+async function loadPicaTab() {
+    if (!activePlanId) return;
+    // Pastikan data grading sudah dimuat
+    if (!_gradingData) {
+        await loadGradingTab();
+    }
+    picaRenderList();
+}
+
+async function _doSavePica() {
+    if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
+    if (!_gradingData) { showAlert('Data grading belum dimuat.', 'error'); return; }
+
+    // Validasi: semua item PICA harus terisi
+    const items   = picaGetItems();
+    const kosong  = items.filter(d => (d.currentCondition || '').trim() === '');
+    if (items.length === 0) {
+        showAlert('Tidak ada item PICA untuk disimpan.', 'info');
+        return;
+    }
+    if (kosong.length > 0) {
+        showAlert(`Masih ada ${kosong.length} item PICA yang belum diisi Current Condition-nya.`, 'error');
+        return;
+    }
+
+    const details    = _gradingData.details || [];
+    const totalNilai = details.reduce((s, d) => s + gradingN(d.nilai), 0);
+
+    const payload = {
+        planAuditId:     activePlanId,
+        idGrading:       document.getElementById('gradingIdGrading')?.value || _gradingData.idGrading || '',
+        jenis:           _gradingData.jenis || '',
+        area:            _gradingData.area  || '',
+        bbnkb:           _gradingData.bbnkb || 'N',
+        fraud:           _gradingData.fraud || 'N',
+        jenisFraud:      _gradingData.jenisFraud || [],
+        keteranganFraud: _gradingData.keteranganFraud || '',
+        details,
+        totalNilai,
+    };
+
+    const btn = document.getElementById('picaSaveBtn');
+    if (btn) { btn.textContent = '⏳ Menyimpan...'; btn.disabled = true; }
+    try {
+        const res = await fetchJson('/api/audit-detail/grading', {
+            method:  'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body:    JSON.stringify(payload),
+        });
+        if (res.data?.details) _gradingData.details = res.data.details;
+        picaRenderList();
+        showAlert(res.message || 'PICA tersimpan.', 'success');
+    } catch (e) {
+        showAlert(e.message || 'Gagal menyimpan PICA.', 'error');
+    } finally {
+        if (btn) { btn.textContent = '💾 Simpan PICA'; btn.disabled = false; }
+    }
+}
+
+function initPicaForm() {
+    document.getElementById('picaSaveBtn')?.addEventListener('click', () => _doSavePica());
 }
