@@ -272,6 +272,9 @@ function switchTab(tab) {
     if (tab === "rekomendasi") {
         loadRekomendasiTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "bu-performance") {
+        loadBupTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
@@ -1725,6 +1728,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initGradingForm();
     initPicaForm();
     initRekomendasiForm();
+    initBupTabForm();
 
     try {
         await loadCurrentUser();
@@ -6119,6 +6123,149 @@ function initRekomendasiForm() {
     }
 }
 
+// ── BU Performance Tab ────────────────────────────────────────────────────────
+async function loadBupTab() {
+    if (!activePlanId) return;
+    const plan = activePlan || {};
+    // Auto-set bulan dari tgl_mulai plan
+    const tglMulai = plan.tglMulai || plan.tgl_mulai || plan.tglPlan || '';
+    if (tglMulai) {
+        const d = new Date(tglMulai);
+        if (!isNaN(d)) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const bupEl = document.getElementById('bupTabBulan');
+            if (bupEl && !bupEl.value) bupEl.value = `${y}-${m}`;
+        }
+    }
+    await bupTabLoadList();
+}
+
+async function bupTabLoadList() {
+    const tbody = document.getElementById('bupTabTableBody');
+    if (!tbody) return;
+    try {
+        const res  = await fetchJson('/api/bu-performance', { headers: authHeaders() });
+        const rows = res.data ?? [];
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="py-10 text-center text-slate-500">Belum ada data.</td></tr>';
+            return;
+        }
+        let html = '';
+        rows.forEach(r => {
+            const penilaian = r.penilaian ?? [];
+            const items = penilaian.length ? penilaian : [{ pic: '-', jabatan: '-', uraian: 'TIDAK ADA MASALAH' }];
+            items.forEach((p, idx) => {
+                const uraianCls = p.uraian && p.uraian !== 'TIDAK ADA MASALAH' ? 'text-amber-300' : 'text-slate-400 italic';
+                html += `<tr class="hover:bg-slate-800/40">
+                    <td class="px-4 py-2 border-r border-slate-800 font-medium text-slate-200">${idx === 0 ? escapeHtml(r.unitUsaha) : ''}</td>
+                    <td class="px-4 py-2 border-r border-slate-800 text-slate-400">${idx === 0 ? escapeHtml(r.auditor ?? '-') : ''}</td>
+                    <td class="px-4 py-2 border-r border-slate-800 text-slate-300">${escapeHtml(p.pic ?? '-')}</td>
+                    <td class="px-4 py-2 border-r border-slate-800 text-slate-300">${escapeHtml(p.jabatan ?? '-')}</td>
+                    <td class="px-4 py-2 border-r border-slate-800 ${uraianCls}">${escapeHtml(p.uraian ?? '-')}</td>
+                    <td class="px-3 py-2 text-center">
+                        ${idx === 0 ? `<span class="text-emerald-400 font-bold">&#10003;</span>
+                        <button onclick="bupTabDelete(${r.id})" class="ml-1 text-xs text-red-400 hover:text-red-300">&times;</button>` : ''}
+                    </td>
+                </tr>`;
+            });
+        });
+        tbody.innerHTML = html;
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-red-400">${escapeHtml(e.message)}</td></tr>`;
+    }
+}
+
+function bupTabOpenForm() {
+    document.getElementById('bupTabForm')?.classList.remove('hidden');
+    document.getElementById('bupTabInputBody').innerHTML = '';
+    bupTabAddRow(); bupTabAddRow(); bupTabAddRow();
+}
+
+function bupTabCloseForm() {
+    document.getElementById('bupTabForm')?.classList.add('hidden');
+}
+
+function bupTabAddRow(data = {}) {
+    const tbody = document.getElementById('bupTabInputBody');
+    if (!tbody) return;
+    const tr = document.createElement('tr');
+    tr.className = 'bup-tab-row';
+    tr.innerHTML = `
+        <td class="px-2 py-1.5"><input type="text" placeholder="Unit Usaha" value="${escapeHtml(data.unitUsaha ?? '')}" class="bup-t-unit w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-blue-500"></td>
+        <td class="px-2 py-1.5"><input type="text" placeholder="Auditor" value="${escapeHtml(data.auditor ?? '')}" class="bup-t-auditor w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-blue-500"></td>
+        <td class="px-2 py-1.5"><input type="text" placeholder="PIC" value="${escapeHtml(data.pic ?? '')}" class="bup-t-pic w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-blue-500"></td>
+        <td class="px-2 py-1.5"><input type="text" placeholder="Jabatan" value="${escapeHtml(data.jabatan ?? '')}" class="bup-t-jabatan w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-blue-500"></td>
+        <td class="px-2 py-1.5"><input type="text" placeholder="Uraian..." value="${escapeHtml(data.uraian ?? '')}" class="bup-t-uraian w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-blue-500"></td>
+        <td class="px-2 py-1.5 text-center"><button type="button" onclick="this.closest('tr').remove()" class="text-red-400 hover:text-red-300">&times;</button></td>
+    `;
+    tbody.appendChild(tr);
+}
+
+async function bupTabSave() {
+    const bulanRaw = document.getElementById('bupTabBulan')?.value;
+    if (!bulanRaw) { bupTabAlert('Bulan wajib diisi.', 'error'); return; }
+
+    const rows = [];
+    document.querySelectorAll('.bup-tab-row').forEach(tr => {
+        const unitUsaha = tr.querySelector('.bup-t-unit')?.value.trim();
+        if (!unitUsaha) return;
+        rows.push({
+            unitUsaha,
+            auditor:  tr.querySelector('.bup-t-auditor')?.value.trim() || null,
+            penilaian: [{ pic: tr.querySelector('.bup-t-pic')?.value.trim() || '-', jabatan: tr.querySelector('.bup-t-jabatan')?.value.trim() || '-', uraian: tr.querySelector('.bup-t-uraian')?.value.trim() || 'TIDAK ADA MASALAH' }],
+        });
+    });
+    if (!rows.length) { bupTabAlert('Tambahkan minimal 1 baris.', 'error'); return; }
+
+    const [y, m] = bulanRaw.split('-');
+    const names  = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const bulan  = (names[parseInt(m, 10) - 1] ?? m) + ' ' + y;
+
+    const btn = document.getElementById('bupTabSaveBtn');
+    if (btn) { btn.textContent = 'Menyimpan...'; btn.disabled = true; }
+    try {
+        await fetchJson('/api/bu-performance', {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ bulan, rows }),
+        });
+        bupTabCloseForm();
+        await bupTabLoadList();
+        bupTabAlert('Data BU Performance tersimpan.', 'success');
+    } catch (e) {
+        bupTabAlert(e.message, 'error');
+    } finally {
+        if (btn) { btn.textContent = 'Simpan'; btn.disabled = false; }
+    }
+}
+
+async function bupTabDelete(id) {
+    if (!confirm('Hapus data ini?')) return;
+    try {
+        await fetchJson('/api/bu-performance/' + id, { method: 'DELETE', headers: authHeaders() });
+        await bupTabLoadList();
+    } catch (e) {
+        bupTabAlert(e.message, 'error');
+    }
+}
+
+function bupTabAlert(msg, type = 'success') {
+    const el = document.getElementById('bupTabAlert');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'rounded-xl border px-4 py-3 text-sm ' + (type === 'error' ? 'border-red-500/30 bg-red-500/10 text-red-200' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200');
+    el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 4000);
+}
+
+function initBupTabForm() {
+    document.getElementById('bupTabTambahBtn')?.addEventListener('click', bupTabOpenForm);
+    document.getElementById('bupTabCancelBtn')?.addEventListener('click', bupTabCloseForm);
+    document.getElementById('bupTabSaveBtn')?.addEventListener('click', bupTabSave);
+    document.getElementById('bupTabAddRowBtn')?.addEventListener('click', () => bupTabAddRow());
+}
+
 // Expose functions needed by inline onclick handlers (Vite bundles as ES module)
 window.gradingOpenDetailModal  = gradingOpenDetailModal;
 window.gradingDeleteDetail     = gradingDeleteDetail;
@@ -6128,3 +6275,4 @@ window.gradingSavePicaModal    = gradingSavePicaModal;
 window.gradingRemoveFraudTag   = gradingRemoveFraudTag;
 window.rekomendasiEdit         = rekomendasiEdit;
 window.rekomendasiDelete       = rekomendasiDelete;
+window.bupTabDelete            = bupTabDelete;
