@@ -5954,7 +5954,7 @@ async function loadRekomendasiTab() {
     const tglEl    = document.getElementById('rekomendasiTglAudit');
     if (noSptEl)  noSptEl.value  = plan.noSpt   || plan.no_spt   || '';
     if (cabangEl) cabangEl.value = plan.cabang   || '';
-    if (tglEl && !tglEl.value) tglEl.value = plan.tglMulai || plan.tgl_mulai || '';
+    if (tglEl) tglEl.value = plan.tglMulai || plan.tgl_mulai || plan.tglPlan || '';
 
     await rekomendasiLoadList();
 }
