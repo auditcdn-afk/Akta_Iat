@@ -325,6 +325,7 @@ function openModal(task) {
         }
     } else {
         execSection?.classList.remove("hidden");
+        document.getElementById("approvePlanId").value = plan.id || "";
 
         // Prefill bila sudah pernah dikerjakan; jika belum, tanggal mulai = hari ini
         document.getElementById("startedAt").value = toDateOnly(task.startedAt) || todayLocal();
