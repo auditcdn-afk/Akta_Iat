@@ -5388,8 +5388,15 @@ async function gradingLoadMaster() {
 function gradingPopulateNamaSelect(currentVal = '') {
     const sel = document.getElementById('gradingDetailNama');
     if (!sel) return;
+    // Nama yang sudah dipilih di detail lain (kecuali item yang sedang diedit)
+    const usedNames = new Set(
+        (_gradingData?.details || [])
+            .filter((_, i) => i !== _gradingEditIdx)
+            .map(d => d.namaPemeriksaan)
+    );
+    const available = _gradingMaster.filter(m => !usedNames.has(m.namaPemeriksaan));
     sel.innerHTML = '<option value="">-- Pilih Pemeriksaan --</option>' +
-        _gradingMaster.map(m => `<option value="${escapeHtml(m.namaPemeriksaan)}">${escapeHtml(m.namaPemeriksaan)}</option>`).join('');
+        available.map(m => `<option value="${escapeHtml(m.namaPemeriksaan)}">${escapeHtml(m.namaPemeriksaan)}</option>`).join('');
     if (currentVal) sel.value = currentVal;
 }
 
