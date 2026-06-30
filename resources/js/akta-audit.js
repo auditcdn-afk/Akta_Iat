@@ -6003,10 +6003,9 @@ function rekomendasiShowForm(id = null) {
     _rekomendasiEditId = id;
     document.getElementById('rekomendasiForm')?.classList.remove('hidden');
     if (!id) {
-        document.getElementById('rekomendasiIsi').value      = '';
-        document.getElementById('rekomendasiPic').value      = '';
-        document.getElementById('rekomendasiDeadline').value = '';
-        document.getElementById('rekomendasiPrioritas').value = 'sedang';
+        document.getElementById('rekomendasiIsi').value  = '';
+        document.getElementById('rekomendasiFileName').classList.add('hidden');
+        document.getElementById('rekomendasiFileInput').value = '';
     }
     document.getElementById('rekomendasiIsi')?.focus();
 }
@@ -6021,11 +6020,8 @@ async function rekomendasiEdit(id) {
         const res = await fetchJson('/api/recommendations/' + id, { headers: authHeaders() });
         const r   = res.data ?? res;
         rekomendasiShowForm(id);
-        document.getElementById('rekomendasiIsi').value       = r.judul       || '';
-        document.getElementById('rekomendasiPic').value       = r.pic         || '';
-        document.getElementById('rekomendasiDeadline').value  = r.deadline    || '';
-        document.getElementById('rekomendasiPrioritas').value = r.prioritas   || 'sedang';
-        document.getElementById('rekomendasiTglAudit').value  = r.tglAudit    || document.getElementById('rekomendasiTglAudit').value;
+        document.getElementById('rekomendasiIsi').value      = r.judul || '';
+        document.getElementById('rekomendasiTglAudit').value = r.tglAudit || document.getElementById('rekomendasiTglAudit').value;
     } catch (e) {
         rekomendasiAlert(e.message, 'error');
     }
@@ -6042,37 +6038,29 @@ async function rekomendasiDelete(id) {
 }
 
 async function rekomendasiSave() {
-    const judul    = (document.getElementById('rekomendasiIsi')?.value ?? '').trim();
-    const prioritas = document.getElementById('rekomendasiPrioritas')?.value || 'sedang';
-    const pic      = (document.getElementById('rekomendasiPic')?.value ?? '').trim();
-    const deadline = document.getElementById('rekomendasiDeadline')?.value || null;
-
+    const judul = (document.getElementById('rekomendasiIsi')?.value ?? '').trim();
     if (!judul) { rekomendasiAlert('Isi Rekomendasi wajib diisi.', 'error'); return; }
+
+    const fileInput = document.getElementById('rekomendasiFileInput');
+    const file      = fileInput?.files?.[0] || null;
+    const fileName  = file ? file.name : null;
 
     const payload = {
         plan_audit_id: activePlanId,
         judul,
-        prioritas,
-        status: 'open',
-        pic: pic || null,
-        deadline: deadline || null,
+        prioritas: 'sedang',
+        status:    'open',
+        deskripsi: fileName ? 'Lampiran: ' + fileName : null,
     };
 
     const btn = document.getElementById('rekomendasiSimpanBtn');
     if (btn) { btn.textContent = 'Menyimpan...'; btn.disabled = true; }
     try {
+        const headers = authHeaders({ 'Content-Type': 'application/json' });
         if (_rekomendasiEditId) {
-            await fetchJson('/api/recommendations/' + _rekomendasiEditId, {
-                method: 'PUT',
-                headers: authHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify(payload),
-            });
+            await fetchJson('/api/recommendations/' + _rekomendasiEditId, { method: 'PUT', headers, body: JSON.stringify(payload) });
         } else {
-            await fetchJson('/api/recommendations', {
-                method: 'POST',
-                headers: authHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify(payload),
-            });
+            await fetchJson('/api/recommendations', { method: 'POST', headers, body: JSON.stringify(payload) });
         }
         rekomendasiHideForm();
         await rekomendasiLoadList();
@@ -6101,6 +6089,34 @@ function initRekomendasiForm() {
     document.getElementById('rekomendasiTambahBtn')?.addEventListener('click', () => rekomendasiShowForm());
     document.getElementById('rekomendasiBatalBtn')?.addEventListener('click', rekomendasiHideForm);
     document.getElementById('rekomendasiSimpanBtn')?.addEventListener('click', rekomendasiSave);
+
+    // File input: tampilkan nama file yang dipilih
+    document.getElementById('rekomendasiFileInput')?.addEventListener('change', function () {
+        const nameEl = document.getElementById('rekomendasiFileName');
+        if (!nameEl) return;
+        if (this.files?.[0]) {
+            nameEl.textContent = this.files[0].name;
+            nameEl.classList.remove('hidden');
+        } else {
+            nameEl.classList.add('hidden');
+        }
+    });
+
+    // Drag & drop
+    const dz = document.getElementById('rekomendasiDropzone');
+    if (dz) {
+        dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('border-blue-400'); });
+        dz.addEventListener('dragleave', () => dz.classList.remove('border-blue-400'));
+        dz.addEventListener('drop', e => {
+            e.preventDefault();
+            dz.classList.remove('border-blue-400');
+            const fi = document.getElementById('rekomendasiFileInput');
+            if (fi && e.dataTransfer.files.length) {
+                fi.files = e.dataTransfer.files;
+                fi.dispatchEvent(new Event('change'));
+            }
+        });
+    }
 }
 
 // Expose functions needed by inline onclick handlers (Vite bundles as ES module)
