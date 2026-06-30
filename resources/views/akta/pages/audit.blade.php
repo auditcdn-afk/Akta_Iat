@@ -2226,7 +2226,7 @@
             <div id="picaList" class="space-y-3"></div>
 
             {{-- Empty / info state --}}
-            <div id="picaEmpty" class="hidden rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-10 text-center">
+            <div id="picaEmpty" class="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-10 text-center">
                 <div class="text-4xl mb-2">✅</div>
                 <p class="text-sm text-slate-400">Tidak ada item Grading dengan hasil nomor 1 atau 2.</p>
                 <p class="text-xs text-slate-500 mt-1">PICA hanya muncul untuk hasil pemeriksaan dengan nilai rendah.</p>

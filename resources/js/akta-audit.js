@@ -5785,10 +5785,8 @@ function picaRenderList() {
 
 async function loadPicaTab() {
     if (!activePlanId) return;
-    // Pastikan data grading sudah dimuat
-    if (!_gradingData) {
-        await loadGradingTab();
-    }
+    // Selalu muat ulang data grading dari server untuk memastikan data terbaru
+    await loadGradingTab();
     picaRenderList();
 }
 
