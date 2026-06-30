@@ -5395,6 +5395,10 @@ function gradingPopulateNamaSelect(currentVal = '') {
             .map(d => d.namaPemeriksaan)
     );
     const available = _gradingMaster.filter(m => !usedNames.has(m.namaPemeriksaan));
+    // Saat edit: pastikan nilai saat ini selalu ada di dropdown meski tidak ada di master
+    if (currentVal && !available.find(m => m.namaPemeriksaan === currentVal)) {
+        available.unshift({ namaPemeriksaan: currentVal });
+    }
     sel.innerHTML = '<option value="">-- Pilih Pemeriksaan --</option>' +
         available.map(m => `<option value="${escapeHtml(m.namaPemeriksaan)}">${escapeHtml(m.namaPemeriksaan)}</option>`).join('');
     if (currentVal) sel.value = currentVal;
@@ -5414,18 +5418,25 @@ function gradingNilaiFromOption(o) {
 }
 
 function gradingPopulateHasilSelect(namaPemeriksaan, currentVal = '') {
-    const sel     = document.getElementById('gradingDetailHasil');
-    const elNilai = document.getElementById('gradingDetailNilai');
+    const sel = document.getElementById('gradingDetailHasil');
     if (!sel) return;
     const master = _gradingMaster.find(m => m.namaPemeriksaan === namaPemeriksaan);
     _gradingCurrentOpts = master?.hasilOptions || [];
+    // Saat edit: pastikan hasil saat ini ada di dropdown meski tidak ada di master
+    const labels = _gradingCurrentOpts.map(o => o.label);
+    const extraOpts = (currentVal && !labels.includes(currentVal))
+        ? [`<option value="${escapeHtml(currentVal)}">${escapeHtml(currentVal)}</option>`]
+        : [];
     sel.innerHTML = '<option value="">-- Pilih Hasil --</option>' +
         _gradingCurrentOpts.map(o =>
             `<option value="${escapeHtml(o.label)}">${escapeHtml(o.label)}</option>`
-        ).join('');
+        ).join('') +
+        extraOpts.join('');
     if (currentVal) sel.value = currentVal;
-    // Auto-fill nilai berdasarkan pilihan sekarang
-    gradingFillNilaiFromHasil(sel.value);
+    // Auto-fill nilai berdasarkan pilihan sekarang (hanya jika ada di master)
+    if (_gradingCurrentOpts.find(o => o.label === currentVal)) {
+        gradingFillNilaiFromHasil(sel.value);
+    }
 }
 
 function gradingFillNilaiFromHasil(hasilLabel) {
