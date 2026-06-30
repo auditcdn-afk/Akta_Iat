@@ -26,8 +26,14 @@ return [
     'roles' => [
         'admin',
         'manajer',
+        'koordinator',
         'auditor',
         'viewer',
+        'coo',
+        'h1',
+        'h2',
+        'bpk',
+        'unit',
     ],
 
 ];

@@ -297,6 +297,20 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/data', [DataStoreController::class, 'write']);
 
     Route::get('/plan-users', [PlanAuditController::class, 'teamOptions']);
+
+    // Opsi unit usaha berdasarkan role (untuk dropdown pinjaman cabang dll)
+    Route::get('/users/unit-usaha-by-role', function (\Illuminate\Http\Request $request) {
+        $role = $request->query('role', 'h1');
+        $options = \App\Models\User::where('role', $role)
+            ->whereNotNull('unit_usaha')
+            ->where('unit_usaha', '!=', '')
+            ->where('is_disabled', false)
+            ->orderBy('unit_usaha')
+            ->pluck('unit_usaha')
+            ->unique()
+            ->values();
+        return response()->json(['data' => $options]);
+    });
     Route::get('/plans', [PlanAuditController::class, 'index']);
     Route::get('/plans/{plan}', [PlanAuditController::class, 'show']);
 

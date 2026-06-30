@@ -422,8 +422,18 @@ async function saveExecution(event) {
 }
 
 // ── Pinjaman Cabang ───────────────────────────────────────────────────────────
-let _pinjamanTaskId  = null;
-let _pinjamanCabangSelected = new Set();
+let _pinjamanTaskId = null;
+
+async function loadPinjamanCabangOptions() {
+    const sel = document.getElementById('pinjamanCabang');
+    if (!sel) return;
+    try {
+        const res = await fetchJson('/api/users/unit-usaha-by-role?role=h1', { headers: authHeaders() });
+        const opts = res.data ?? [];
+        sel.innerHTML = '<option value="">-- Pilih Unit Usaha --</option>' +
+            opts.map(u => `<option value="${u}">${u}</option>`).join('');
+    } catch (_) {}
+}
 
 function initPinjaman() {
     // Tampilkan section setelah kedua tanggal diisi
@@ -442,28 +452,13 @@ function initPinjaman() {
         document.getElementById('pinjamanBpbForm')?.classList.add('hidden');
         document.getElementById('pinjamanBpkBtn').classList.add('border-blue-500', 'text-blue-300');
         document.getElementById('pinjamanBpbBtn').classList.remove('border-purple-500', 'text-purple-300');
+        loadPinjamanCabangOptions();
     });
     document.getElementById('pinjamanBpbBtn')?.addEventListener('click', () => {
         document.getElementById('pinjamanBpbForm')?.classList.remove('hidden');
         document.getElementById('pinjamanBpkForm')?.classList.add('hidden');
         document.getElementById('pinjamanBpbBtn').classList.add('border-purple-500', 'text-purple-300');
         document.getElementById('pinjamanBpkBtn').classList.remove('border-blue-500', 'text-blue-300');
-    });
-
-    // Cabang chip toggle
-    document.getElementById('pinjamanCabangGrid')?.addEventListener('click', (e) => {
-        const chip = e.target.closest('.pinjaman-cabang-chip');
-        if (!chip) return;
-        const val = chip.dataset.cabang;
-        if (_pinjamanCabangSelected.has(val)) {
-            _pinjamanCabangSelected.delete(val);
-            chip.classList.remove('border-blue-500', 'bg-blue-600/20', 'text-blue-300');
-            chip.classList.add('border-slate-600', 'text-slate-300');
-        } else {
-            _pinjamanCabangSelected.add(val);
-            chip.classList.add('border-blue-500', 'bg-blue-600/20', 'text-blue-300');
-            chip.classList.remove('border-slate-600', 'text-slate-300');
-        }
     });
 
     // Auto terbilang dari nominal
@@ -477,7 +472,8 @@ function initPinjaman() {
     // Submit BPK
     document.getElementById('pinjamanBpkSubmit')?.addEventListener('click', async () => {
         if (!_pinjamanTaskId) return;
-        if (_pinjamanCabangSelected.size === 0) { alert('Pilih minimal 1 Cabang Realisasi.'); return; }
+        const cabang = document.getElementById('pinjamanCabang')?.value;
+        if (!cabang) { alert('Pilih Cabang Realisasi.'); return; }
         const noSpd   = document.getElementById('pinjamanNoSpd')?.value.trim();
         const nominal = document.getElementById('pinjamanNominal')?.value || '0';
         if (!noSpd) { alert('No SPD wajib diisi.'); return; }
@@ -485,7 +481,7 @@ function initPinjaman() {
         const form = new FormData();
         form.append('audit_task_id', _pinjamanTaskId);
         form.append('jenis', 'BPK');
-        form.append('cabang_realisasi', JSON.stringify([..._pinjamanCabangSelected]));
+        form.append('cabang_realisasi', JSON.stringify([cabang]));
         form.append('no_spd', noSpd);
         form.append('nominal', nominal);
         form.append('terbilang', document.getElementById('pinjamanTerbilang')?.value || '');
@@ -525,11 +521,8 @@ async function pinjamanSubmit(formData) {
         // Reset form
         document.getElementById('pinjamanBpkForm')?.classList.add('hidden');
         document.getElementById('pinjamanBpbForm')?.classList.add('hidden');
-        _pinjamanCabangSelected.clear();
-        document.querySelectorAll('.pinjaman-cabang-chip').forEach(c => {
-            c.classList.remove('border-blue-500', 'bg-blue-600/20', 'text-blue-300');
-            c.classList.add('border-slate-600', 'text-slate-300');
-        });
+        const cabSel = document.getElementById('pinjamanCabang');
+        if (cabSel) cabSel.value = '';
     } catch (e) {
         showAlert(e.message, 'error');
     }

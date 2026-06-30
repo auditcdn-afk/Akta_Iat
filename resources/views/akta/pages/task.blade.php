@@ -137,15 +137,12 @@
                     {{-- Form BPK --}}
                     <div id="pinjamanBpkForm" class="hidden space-y-4">
                         <div>
-                            <label class="mb-2 block text-xs font-semibold text-blue-400">Cabang Realisasi <span class="text-red-400">*</span></label>
-                            <div id="pinjamanCabangGrid" class="flex flex-wrap gap-2">
-                                @foreach(['Pusat','SO KAN','SO TDB','SO ALB','SO NGY','SO TPP','SO BTC','SO DRI','POS PKC','SO BBT','SO GRG','SO PGR','SO TPI','SO MKG','SO SPP','SO ARK','SO TBS','SO MBO','SO BKN','SO SKH','SO TKN','SO SDR','SO KPR','SO SGL','SO UJT','POS TBN','SO LPK','POS SPK','CSC KAN','CSC TDB','CSC ALB','CSC NGY','CSC TPP','CSC BTC','CSC DRI','CSC BBT','CSC GRG','CSC PGR','CSC TPI','CSC MKG','CSC SPP','CSC ARK','CSC TBS','CSC MBO','CSC BKN','CSC SKH','CSC TKN','CSC SDR','CSC KPR','CSC SGL','CSC UJT','CSC LPK','CSC SPK','WHS PART','WHS UNIT'] as $cab)
-                                <button type="button" data-cabang="{{ $cab }}"
-                                    class="pinjaman-cabang-chip rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 hover:border-blue-500 hover:text-blue-300 transition">
-                                    {{ $cab }}
-                                </button>
-                                @endforeach
-                            </div>
+                            <label class="mb-1 block text-xs font-semibold text-blue-400">Cabang Realisasi <span class="text-red-400">*</span></label>
+                            <select id="pinjamanCabang"
+                                class="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                                <option value="">-- Pilih Unit Usaha --</option>
+                            </select>
+                            <p class="mt-1 text-xs text-slate-500">Diambil dari data user role H1</p>
                         </div>
                         <div class="grid gap-3 sm:grid-cols-2">
                             <div>
