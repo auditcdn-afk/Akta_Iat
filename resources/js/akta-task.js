@@ -361,6 +361,23 @@ function openModal(task) {
 
 async function approvePlan(planId) {
     if (!planId) return;
+
+    // Cek apakah masih ada pinjaman yang menunggu giliran role ini
+    if (_pinjamanTaskId && isPinjamanApprovalRole()) {
+        try {
+            const res = await fetchJson('/api/pinjaman-cabang?audit_task_id=' + _pinjamanTaskId, { headers: authHeaders() });
+            const myStage = PINJAMAN_STAGE[currentUser?.role];
+            const pending = (res.data ?? []).filter(p => p.status === myStage);
+            if (pending.length > 0) {
+                showAlert(
+                    `Harap setujui atau tolak ${pending.length} pinjaman cabang (${pending.map(p=>p.jenis).join(', ')}) terlebih dahulu sebelum menyetujui plan audit.`,
+                    'error'
+                );
+                return;
+            }
+        } catch (_) {}
+    }
+
     if (!confirm("Setujui plan audit ini?")) return;
     try {
         const payload = await fetchJson(`/api/plans/${planId}/advance`, {
