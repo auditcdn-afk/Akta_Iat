@@ -5930,3 +5930,12 @@ async function _doSavePica() {
 function initPicaForm() {
     document.getElementById('picaSaveBtn')?.addEventListener('click', () => _doSavePica());
 }
+
+
+// Expose functions needed by inline onclick handlers (Vite bundles as ES module)
+window.gradingOpenDetailModal  = gradingOpenDetailModal;
+window.gradingDeleteDetail     = gradingDeleteDetail;
+window.gradingOpenPicaModal    = gradingOpenPicaModal;
+window.gradingClosePicaModal   = gradingClosePicaModal;
+window.gradingSavePicaModal    = gradingSavePicaModal;
+window.gradingRemoveFraudTag   = gradingRemoveFraudTag;
