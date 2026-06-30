@@ -315,6 +315,16 @@ function openModal(task) {
         }
     }
 
+    // Wire pinjaman section to this task
+    _pinjamanTaskId = task.id;
+    const pinjamanSec = document.getElementById('pinjamanSection');
+    if (pinjamanSec) {
+        const hasS = !!toDateOnly(task.startedAt);
+        const hasF = !!toDateOnly(task.finishedAt);
+        pinjamanSec.classList.toggle('hidden', !(hasS && hasF));
+    }
+    pinjamanLoadList(task.id).catch(() => {});
+
     modal.classList.remove("hidden");
     modal.classList.add("flex");
 }
@@ -411,6 +421,159 @@ async function saveExecution(event) {
     await loadTasks();
 }
 
+// ── Pinjaman Cabang ───────────────────────────────────────────────────────────
+let _pinjamanTaskId  = null;
+let _pinjamanCabangSelected = new Set();
+
+function initPinjaman() {
+    // Tampilkan section setelah kedua tanggal diisi
+    ['startedAt', 'finishedAt'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', () => {
+            const s = document.getElementById('startedAt')?.value;
+            const f = document.getElementById('finishedAt')?.value;
+            const sec = document.getElementById('pinjamanSection');
+            if (sec) sec.classList.toggle('hidden', !(s && f));
+        });
+    });
+
+    // Toggle BPK / BPB form
+    document.getElementById('pinjamanBpkBtn')?.addEventListener('click', () => {
+        document.getElementById('pinjamanBpkForm')?.classList.remove('hidden');
+        document.getElementById('pinjamanBpbForm')?.classList.add('hidden');
+        document.getElementById('pinjamanBpkBtn').classList.add('border-blue-500', 'text-blue-300');
+        document.getElementById('pinjamanBpbBtn').classList.remove('border-purple-500', 'text-purple-300');
+    });
+    document.getElementById('pinjamanBpbBtn')?.addEventListener('click', () => {
+        document.getElementById('pinjamanBpbForm')?.classList.remove('hidden');
+        document.getElementById('pinjamanBpkForm')?.classList.add('hidden');
+        document.getElementById('pinjamanBpbBtn').classList.add('border-purple-500', 'text-purple-300');
+        document.getElementById('pinjamanBpkBtn').classList.remove('border-blue-500', 'text-blue-300');
+    });
+
+    // Cabang chip toggle
+    document.getElementById('pinjamanCabangGrid')?.addEventListener('click', (e) => {
+        const chip = e.target.closest('.pinjaman-cabang-chip');
+        if (!chip) return;
+        const val = chip.dataset.cabang;
+        if (_pinjamanCabangSelected.has(val)) {
+            _pinjamanCabangSelected.delete(val);
+            chip.classList.remove('border-blue-500', 'bg-blue-600/20', 'text-blue-300');
+            chip.classList.add('border-slate-600', 'text-slate-300');
+        } else {
+            _pinjamanCabangSelected.add(val);
+            chip.classList.add('border-blue-500', 'bg-blue-600/20', 'text-blue-300');
+            chip.classList.remove('border-slate-600', 'text-slate-300');
+        }
+    });
+
+    // Auto terbilang dari nominal
+    document.getElementById('pinjamanNominal')?.addEventListener('input', function () {
+        document.getElementById('pinjamanTerbilang').value = terbilang(Number(this.value || 0));
+    });
+    document.getElementById('pinjamanBpbNominal')?.addEventListener('input', function () {
+        document.getElementById('pinjamanBpbTerbilang').value = terbilang(Number(this.value || 0));
+    });
+
+    // Submit BPK
+    document.getElementById('pinjamanBpkSubmit')?.addEventListener('click', async () => {
+        if (!_pinjamanTaskId) return;
+        if (_pinjamanCabangSelected.size === 0) { alert('Pilih minimal 1 Cabang Realisasi.'); return; }
+        const noSpd   = document.getElementById('pinjamanNoSpd')?.value.trim();
+        const nominal = document.getElementById('pinjamanNominal')?.value || '0';
+        if (!noSpd) { alert('No SPD wajib diisi.'); return; }
+
+        const form = new FormData();
+        form.append('audit_task_id', _pinjamanTaskId);
+        form.append('jenis', 'BPK');
+        form.append('cabang_realisasi', JSON.stringify([..._pinjamanCabangSelected]));
+        form.append('no_spd', noSpd);
+        form.append('nominal', nominal);
+        form.append('terbilang', document.getElementById('pinjamanTerbilang')?.value || '');
+        form.append('catatan', document.getElementById('pinjamanCatatan')?.value || '');
+        const bukti = document.getElementById('pinjamanBukti')?.files?.[0];
+        if (bukti) form.append('bukti_file', bukti);
+
+        await pinjamanSubmit(form);
+    });
+
+    // Submit BPB
+    document.getElementById('pinjamanBpbSubmit')?.addEventListener('click', async () => {
+        if (!_pinjamanTaskId) return;
+        const nominal = document.getElementById('pinjamanBpbNominal')?.value || '0';
+
+        const form = new FormData();
+        form.append('audit_task_id', _pinjamanTaskId);
+        form.append('jenis', 'BPB');
+        form.append('departemen', 'Finance');
+        form.append('nominal', nominal);
+        form.append('terbilang', document.getElementById('pinjamanBpbTerbilang')?.value || '');
+        form.append('catatan', document.getElementById('pinjamanBpbCatatan')?.value || '');
+
+        await pinjamanSubmit(form);
+    });
+}
+
+async function pinjamanSubmit(formData) {
+    try {
+        const res = await fetchJson('/api/pinjaman-cabang', {
+            method: 'POST',
+            headers: authHeaders(),
+            body: formData,
+        });
+        showAlert(res.message || 'Pinjaman diajukan.');
+        await pinjamanLoadList(_pinjamanTaskId);
+        // Reset form
+        document.getElementById('pinjamanBpkForm')?.classList.add('hidden');
+        document.getElementById('pinjamanBpbForm')?.classList.add('hidden');
+        _pinjamanCabangSelected.clear();
+        document.querySelectorAll('.pinjaman-cabang-chip').forEach(c => {
+            c.classList.remove('border-blue-500', 'bg-blue-600/20', 'text-blue-300');
+            c.classList.add('border-slate-600', 'text-slate-300');
+        });
+    } catch (e) {
+        showAlert(e.message, 'error');
+    }
+}
+
+async function pinjamanLoadList(taskId) {
+    const listEl = document.getElementById('pinjamanList');
+    if (!listEl || !taskId) return;
+    try {
+        const res  = await fetchJson('/api/pinjaman-cabang?audit_task_id=' + taskId, { headers: authHeaders() });
+        const rows = res.data ?? [];
+        if (!rows.length) { listEl.innerHTML = ''; return; }
+        listEl.innerHTML = `<p class="text-xs font-semibold text-slate-400 mb-1">Pinjaman yang sudah diajukan:</p>` +
+            rows.map(r => {
+                const statusColor = r.status === 'approved' ? 'text-emerald-400' : r.status === 'rejected' ? 'text-red-400' : 'text-amber-400';
+                return `<div class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-xs flex justify-between items-center">
+                    <div>
+                        <span class="font-bold ${r.jenis === 'BPK' ? 'text-blue-300' : 'text-purple-300'}">${r.jenis}</span>
+                        <span class="mx-2 text-slate-500">|</span>
+                        <span class="text-slate-300">Rp ${Number(r.nominal).toLocaleString('id-ID')}</span>
+                        ${r.jenis === 'BPK' ? `<span class="mx-2 text-slate-500">|</span><span class="text-slate-400">${(r.cabangRealisasi ?? []).join(', ')}</span>` : ''}
+                    </div>
+                    <span class="${statusColor} font-semibold">${r.status.replace(/_/g,' ')}</span>
+                </div>`;
+            }).join('');
+    } catch (_) {}
+}
+
+function terbilang(n) {
+    if (!n || n === 0) return 'Nol Rupiah';
+    const satuan = ['','Satu','Dua','Tiga','Empat','Lima','Enam','Tujuh','Delapan','Sembilan'];
+    const belasan = ['Sepuluh','Sebelas','Dua Belas','Tiga Belas','Empat Belas','Lima Belas','Enam Belas','Tujuh Belas','Delapan Belas','Sembilan Belas'];
+    function ribuan(num) {
+        if (num < 10)   return satuan[num];
+        if (num < 20)   return belasan[num - 10];
+        if (num < 100)  return satuan[Math.floor(num/10)] + ' Puluh ' + (satuan[num % 10] || '');
+        if (num < 1000) return (num < 200 ? 'Seratus' : satuan[Math.floor(num/100)] + ' Ratus') + ' ' + (ribuan(num % 100) || '');
+        if (num < 1e6)  return (num < 2000 ? 'Seribu' : ribuan(Math.floor(num/1000)) + ' Ribu') + ' ' + (ribuan(num % 1000) || '');
+        if (num < 1e9)  return ribuan(Math.floor(num/1e6)) + ' Juta ' + (ribuan(num % 1e6) || '');
+        return ribuan(Math.floor(num/1e9)) + ' Miliar ' + (ribuan(num % 1e9) || '');
+    }
+    return ribuan(Math.floor(n)).trim() + ' Rupiah';
+}
+
 function setupFilters() {
     let timer = null;
     document.getElementById("taskSearch")?.addEventListener("input", () => {
@@ -456,6 +619,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     setupFilters();
+    initPinjaman();
 
     try {
         await loadCurrentUser();

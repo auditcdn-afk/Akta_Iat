@@ -115,6 +115,111 @@
                     </div>
                 </div>
 
+                {{-- ── Pinjaman Cabang (muncul setelah tgl diisi) ── --}}
+                <div id="pinjamanSection" class="hidden rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-sm font-bold text-amber-300">Pinjaman Cabang</h4>
+                        <span class="text-xs text-slate-400">Opsional — ajukan jika diperlukan</span>
+                    </div>
+
+                    {{-- Pilih jenis --}}
+                    <div class="flex gap-3">
+                        <button type="button" id="pinjamanBpkBtn"
+                            class="flex-1 rounded-xl border-2 border-slate-600 bg-slate-800 py-3 text-sm font-semibold text-slate-300 hover:border-blue-500 hover:text-blue-300 transition">
+                            BPK<br><span class="text-xs font-normal text-slate-500">Pinjaman Kendaraan / Operasional</span>
+                        </button>
+                        <button type="button" id="pinjamanBpbBtn"
+                            class="flex-1 rounded-xl border-2 border-slate-600 bg-slate-800 py-3 text-sm font-semibold text-slate-300 hover:border-purple-500 hover:text-purple-300 transition">
+                            BPB<br><span class="text-xs font-normal text-slate-500">Pinjaman ke Finance</span>
+                        </button>
+                    </div>
+
+                    {{-- Form BPK --}}
+                    <div id="pinjamanBpkForm" class="hidden space-y-4">
+                        <div>
+                            <label class="mb-2 block text-xs font-semibold text-blue-400">Cabang Realisasi <span class="text-red-400">*</span></label>
+                            <div id="pinjamanCabangGrid" class="flex flex-wrap gap-2">
+                                @foreach(['Pusat','SO KAN','SO TDB','SO ALB','SO NGY','SO TPP','SO BTC','SO DRI','POS PKC','SO BBT','SO GRG','SO PGR','SO TPI','SO MKG','SO SPP','SO ARK','SO TBS','SO MBO','SO BKN','SO SKH','SO TKN','SO SDR','SO KPR','SO SGL','SO UJT','POS TBN','SO LPK','POS SPK','CSC KAN','CSC TDB','CSC ALB','CSC NGY','CSC TPP','CSC BTC','CSC DRI','CSC BBT','CSC GRG','CSC PGR','CSC TPI','CSC MKG','CSC SPP','CSC ARK','CSC TBS','CSC MBO','CSC BKN','CSC SKH','CSC TKN','CSC SDR','CSC KPR','CSC SGL','CSC UJT','CSC LPK','CSC SPK','WHS PART','WHS UNIT'] as $cab)
+                                <button type="button" data-cabang="{{ $cab }}"
+                                    class="pinjaman-cabang-chip rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 hover:border-blue-500 hover:text-blue-300 transition">
+                                    {{ $cab }}
+                                </button>
+                                @endforeach
+                            </div>
+                        </div>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <label class="mb-1 block text-xs font-semibold text-blue-400">No SPD <span class="text-red-400">*</span></label>
+                                <input id="pinjamanNoSpd" type="text" placeholder="Nomor SPD..."
+                                    class="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-semibold text-blue-400">Nominal <span class="text-red-400">*</span></label>
+                                <input id="pinjamanNominal" type="number" min="0" placeholder="0"
+                                    class="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold text-blue-400">Terbilang</label>
+                            <input id="pinjamanTerbilang" type="text" placeholder="Otomatis dari nominal..." readonly
+                                class="w-full rounded-xl border border-slate-600 bg-slate-900/60 px-3 py-2 text-sm text-slate-400 outline-none cursor-not-allowed">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold text-blue-400">Catatan</label>
+                            <textarea id="pinjamanCatatan" rows="2" placeholder="Keterangan..."
+                                class="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 resize-none"></textarea>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold text-blue-400">Bukti</label>
+                            <input id="pinjamanBukti" type="file" accept=".pdf,.jpg,.jpeg,.png"
+                                class="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1 file:text-white outline-none">
+                        </div>
+                        <div class="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 text-xs text-slate-400">
+                            <strong class="text-blue-300">Alur BPK:</strong>
+                            Auditor → Koordinator → Manajer Audit → COO → Unit Usaha → Role BPK
+                        </div>
+                        <button type="button" id="pinjamanBpkSubmit"
+                            class="w-full rounded-xl bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition">
+                            Ajukan BPK
+                        </button>
+                    </div>
+
+                    {{-- Form BPB --}}
+                    <div id="pinjamanBpbForm" class="hidden space-y-4">
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold text-purple-400">Departemen Tujuan</label>
+                            <input type="text" value="Finance" readonly
+                                class="w-full rounded-xl border border-slate-600 bg-slate-900/60 px-3 py-2 text-sm text-slate-400 cursor-not-allowed outline-none">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold text-purple-400">Nominal <span class="text-red-400">*</span></label>
+                            <input id="pinjamanBpbNominal" type="number" min="0" placeholder="0"
+                                class="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-purple-500">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold text-purple-400">Terbilang</label>
+                            <input id="pinjamanBpbTerbilang" type="text" placeholder="Otomatis dari nominal..." readonly
+                                class="w-full rounded-xl border border-slate-600 bg-slate-900/60 px-3 py-2 text-sm text-slate-400 outline-none cursor-not-allowed">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold text-purple-400">Catatan</label>
+                            <textarea id="pinjamanBpbCatatan" rows="2" placeholder="Keterangan keperluan..."
+                                class="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-purple-500 resize-none"></textarea>
+                        </div>
+                        <div class="rounded-lg border border-purple-500/20 bg-purple-500/5 p-3 text-xs text-slate-400">
+                            <strong class="text-purple-300">Alur BPB:</strong>
+                            Auditor → Koordinator → Manajer Audit → Role BPK
+                        </div>
+                        <button type="button" id="pinjamanBpbSubmit"
+                            class="w-full rounded-xl bg-purple-600 py-2 text-sm font-semibold text-white hover:bg-purple-500 transition">
+                            Ajukan BPB
+                        </button>
+                    </div>
+
+                    {{-- Daftar pinjaman yang sudah diajukan --}}
+                    <div id="pinjamanList" class="space-y-2"></div>
+                </div>
+
                 <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
                     <button type="button" id="cancelTaskFormButton"
                         class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">

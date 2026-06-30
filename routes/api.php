@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\SmhTarikanController;
 use App\Http\Controllers\Api\LampiranController;
 use App\Http\Controllers\Api\GradingController;
 use App\Http\Controllers\Api\BuPerformanceController;
+use App\Http\Controllers\Api\PinjamanCabangController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', [DataStoreController::class, 'ping']);
@@ -211,6 +212,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hga/parse-excel-pts', [HgaController::class, 'parsePts'])
         ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── Pinjaman Cabang (BPK / BPB) ──
+    Route::get('/pinjaman-cabang',              [PinjamanCabangController::class, 'index']);
+    Route::get('/pinjaman-cabang/{id}',         [PinjamanCabangController::class, 'show']);
+    Route::post('/pinjaman-cabang',             [PinjamanCabangController::class, 'store'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/pinjaman-cabang/{id}/approve',[PinjamanCabangController::class, 'approve'])
+        ->middleware('akta.role:admin,manajer,auditor,koordinator,coo,bpk,unit');
 
     // ── BU Performance ──
     Route::get('/bu-performance',         [BuPerformanceController::class, 'index']);
