@@ -199,6 +199,8 @@ function closePemeriksaan() {
     document.getElementById("pemeriksaanSection")?.classList.add("hidden");
     activePlanId = null;
     activePlan = null;
+    _gradingData = null;
+    _gradingLoadedPlanId = null;
 }
 
 function switchTab(tab) {
@@ -5272,6 +5274,7 @@ let _gradingData        = null;
 let _gradingMaster      = [];
 let _gradingEditIdx     = -1;
 let _gradingCurrentOpts = [];  // hasilOptions untuk pemeriksaan yang sedang dipilih di modal
+let _gradingLoadedPlanId = null; // planId yang sudah dimuat, untuk menghindari reset saat ganti tab
 
 function gradingN(v) { return parseFloat(v) || 0; }
 
@@ -5531,12 +5534,20 @@ function gradingRemoveFraudTag(idx) {
     gradingRenderFraudTags();
 }
 
-async function loadGradingTab() {
+async function loadGradingTab(forceReload = false) {
     if (!activePlanId) return;
+
+    // Jika data sudah dimuat untuk plan yang sama, cukup re-render (jangan reset)
+    if (!forceReload && _gradingData && _gradingLoadedPlanId === activePlanId) {
+        await gradingLoadMaster();
+        gradingRenderDetails();
+        return;
+    }
 
     // Reset
     _gradingData = null;
     _gradingMaster = [];
+    _gradingLoadedPlanId = activePlanId;
 
     // Load plan info for auto-fill area & jenis
     let autoJenis = '', autoArea = '', autoCabang = '';
@@ -5828,8 +5839,10 @@ function picaRenderList() {
 
 async function loadPicaTab() {
     if (!activePlanId) return;
-    // Selalu muat ulang data grading dari server untuk memastikan data terbaru
-    await loadGradingTab();
+    // Muat grading jika belum ada untuk plan ini (tidak reset data yang sudah ada)
+    if (!_gradingData || _gradingLoadedPlanId !== activePlanId) {
+        await loadGradingTab();
+    }
     picaRenderList();
 }
 
