@@ -5317,11 +5317,11 @@ function gradingRenderDetails() {
     }).join('');
     gradingUpdateStats();
     // Sembunyikan tombol Tambah Item & Simpan jika sudah tersimpan ke server
-    const isSaved = !!_gradingData?.id;
+    const gradingSaved = !!_gradingData?.id;
     const addBtn  = document.getElementById('gradingAddDetailBtn');
     const saveBtn = document.getElementById('gradingSaveBtn');
-    if (addBtn)  addBtn.classList.toggle('hidden', isSaved);
-    if (saveBtn) saveBtn.classList.toggle('hidden', isSaved);
+    if (addBtn)  addBtn.classList.toggle('hidden', gradingSaved);
+    if (saveBtn) saveBtn.classList.toggle('hidden', gradingSaved);
 }
 
 function gradingOpenPicaModal(idx) {
