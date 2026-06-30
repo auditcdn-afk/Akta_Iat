@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\HgaController;
 use App\Http\Controllers\Api\SmhTarikanController;
 use App\Http\Controllers\Api\LampiranController;
 use App\Http\Controllers\Api\GradingController;
+use App\Http\Controllers\Api\BuPerformanceController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', [DataStoreController::class, 'ping']);
@@ -210,6 +211,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hga/parse-excel-pts', [HgaController::class, 'parsePts'])
         ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── BU Performance ──
+    Route::get('/bu-performance',         [BuPerformanceController::class, 'index']);
+    Route::get('/bu-performance/bulans',  [BuPerformanceController::class, 'bulanOptions']);
+    Route::post('/bu-performance',        [BuPerformanceController::class, 'save'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::delete('/bu-performance/{id}', [BuPerformanceController::class, 'destroy'])
+        ->middleware('akta.role:admin,manajer');
 
     // ── Grading (menu utama) ──
     Route::get('/gradings',         [GradingController::class, 'index']);

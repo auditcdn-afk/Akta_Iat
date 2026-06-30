@@ -35,12 +35,7 @@ Route::prefix('akta')->name('akta.')->group(function () {
     Route::view('/grading', 'akta.pages.grading')->name('grading');
     Route::view('/audit-detail/kas', 'akta.pages.audit-detail-kas')->name('audit-detail.kas');
 
-    Route::get('/bu-performance', function () {
-        return view('akta.pages.placeholder', [
-            'title' => 'BU Performance',
-            'description' => 'Modul performa business unit, indikator pengecekan, dan evaluasi hasil.',
-        ]);
-    })->name('bu-performance');
+    Route::view('/bu-performance', 'akta.pages.bu-performance')->name('bu-performance');
 
     Route::get('/pulsa', function () {
         return view('akta.pages.placeholder', [
