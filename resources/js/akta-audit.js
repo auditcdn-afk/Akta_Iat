@@ -5296,26 +5296,32 @@ function gradingRenderDetails() {
         gradingUpdateStats();
         return;
     }
+    const isSaved = !!_gradingData?.id; // sudah tersimpan ke server jika punya id
     tbody.innerHTML = details.map((d, i) => {
         const isPica = picaIsLowGrade(d.hasilPemeriksaan);
         const hasPica = isPica && (d.currentCondition || '').trim() !== '';
         const picaBtn = isPica
             ? `<button onclick="gradingOpenPicaModal(${i})" title="Isi PICA" class="ml-1 text-xs px-1.5 py-0.5 rounded font-semibold ${hasPica ? 'bg-emerald-700 text-emerald-200' : 'bg-amber-700 text-amber-200'} hover:opacity-80">PICA</button>`
             : '';
+        const editDeleteBtns = isSaved ? '' : `
+                <button onclick="gradingOpenDetailModal(${i})" class="text-blue-400 hover:text-blue-200 mr-1 text-xs">✏️</button>
+                <button onclick="gradingDeleteDetail(${i})" class="text-red-400 hover:text-red-200 text-xs">🗑️</button>`;
         return `
         <tr class="hover:bg-slate-800/40 border-b border-slate-800">
             <td class="px-3 py-2 text-center text-slate-500">${i + 1}</td>
             <td class="px-3 py-2 text-slate-200">${escapeHtml(d.namaPemeriksaan || '')}</td>
             <td class="px-3 py-2 text-slate-300">${escapeHtml(d.hasilPemeriksaan || '')}</td>
             <td class="px-3 py-2 text-right font-mono text-yellow-300">${gradingN(d.nilai).toFixed(2)}</td>
-            <td class="px-3 py-2 text-center whitespace-nowrap">
-                <button onclick="gradingOpenDetailModal(${i})" class="text-blue-400 hover:text-blue-200 mr-1 text-xs">✏️</button>
-                <button onclick="gradingDeleteDetail(${i})" class="text-red-400 hover:text-red-200 text-xs">🗑️</button>
-                ${picaBtn}
-            </td>
+            <td class="px-3 py-2 text-center whitespace-nowrap">${editDeleteBtns}${picaBtn}</td>
         </tr>`;
     }).join('');
     gradingUpdateStats();
+    // Sembunyikan tombol Tambah Item & Simpan jika sudah tersimpan ke server
+    const isSaved = !!_gradingData?.id;
+    const addBtn  = document.getElementById('gradingAddDetailBtn');
+    const saveBtn = document.getElementById('gradingSaveBtn');
+    if (addBtn)  addBtn.classList.toggle('hidden', isSaved);
+    if (saveBtn) saveBtn.classList.toggle('hidden', isSaved);
 }
 
 function gradingOpenPicaModal(idx) {
