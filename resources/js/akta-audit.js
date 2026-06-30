@@ -6179,7 +6179,17 @@ async function bupTabLoadList() {
 function bupTabOpenForm() {
     document.getElementById('bupTabForm')?.classList.remove('hidden');
     document.getElementById('bupTabInputBody').innerHTML = '';
-    bupTabAddRow(); bupTabAddRow(); bupTabAddRow();
+
+    // Ambil data dari activePlan
+    const plan     = activePlan || {};
+    const unitUsaha = plan.cabang || '';
+    const tim       = [plan.kepalaTim, ...(plan.tim || [])].filter(Boolean);
+    const auditor   = tim.join('/');
+
+    // 1 baris pre-filled, sisanya kosong
+    bupTabAddRow({ unitUsaha, auditor });
+    bupTabAddRow({ unitUsaha, auditor });
+    bupTabAddRow({ unitUsaha, auditor });
 }
 
 function bupTabCloseForm() {
