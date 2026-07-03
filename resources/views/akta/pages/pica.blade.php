@@ -255,6 +255,14 @@
                     <textarea id="notes" rows="3"
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
                 </div>
+
+                {{-- Unit Usaha: hanya admin/manajer yang bisa mengubah --}}
+                <div id="unitUsahaWrap" class="sm:col-span-2 hidden">
+                    <label class="mb-1 block text-sm font-medium text-indigo-300">Unit Usaha (Cabang) <span class="text-xs text-slate-500">— hanya admin</span></label>
+                    <input id="unitUsaha" type="text" placeholder="Contoh: POS PJD"
+                        class="w-full rounded-xl border border-indigo-500/40 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-500">
+                    <p class="mt-1 text-xs text-slate-500">Unit usaha ini menentukan cabang mana yang dapat melihat PICA.</p>
+                </div>
             </div>
 
             <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">

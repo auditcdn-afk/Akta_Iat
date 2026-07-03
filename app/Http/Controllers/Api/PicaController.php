@@ -145,7 +145,7 @@ class PicaController extends Controller
             $this->ensureCanClose($request);
         }
 
-        if (array_key_exists('audit_recommendation_id', $data)) {
+        if (array_key_exists('audit_recommendation_id', $data) && !empty($data['audit_recommendation_id'])) {
             $recommendation = AuditRecommendation::query()
                 ->findOrFail($data['audit_recommendation_id']);
 
@@ -234,6 +234,7 @@ class PicaController extends Controller
             'actual_date' => ['nullable', 'date'],
             'evidence' => ['nullable', 'array'],
             'notes' => ['nullable', 'string'],
+            'unit_usaha' => ['nullable', 'string', 'max:150'],
         ];
 
         return Validator::make($payload, $rules)->validate();
@@ -258,6 +259,7 @@ class PicaController extends Controller
             'actualDate' => 'actual_date',
             'closeNote' => 'close_note',
             'prioritas' => 'priority',
+            'unitUsaha' => 'unit_usaha',
         ];
 
         foreach ($aliases as $from => $to) {

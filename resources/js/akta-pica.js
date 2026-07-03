@@ -326,6 +326,12 @@ function openModal(item = null) {
         document.getElementById('targetDate').value = onlyDate(item.target_date);
         document.getElementById('actualDate').value = onlyDate(item.actual_date);
         document.getElementById('notes').value = item.notes || '';
+        document.getElementById('unitUsaha').value = item.unit_usaha || '';
+
+        // Tampilkan field unit_usaha hanya untuk admin/manajer
+        const isAdminOrMgr = ['admin', 'manajer'].includes(currentUser?.role);
+        const unitWrap = document.getElementById('unitUsahaWrap');
+        if (unitWrap) unitWrap.classList.toggle('hidden', !isAdminOrMgr);
 
         // Cabang hanya bisa isi kolom tertentu
         const branchOnly = isBranchRole();
@@ -340,6 +346,8 @@ function openModal(item = null) {
         document.getElementById('picaId').value = '';
         document.getElementById('priority').value = 'sedang';
         document.getElementById('status').value = 'open';
+        const unitWrap = document.getElementById('unitUsahaWrap');
+        if (unitWrap) unitWrap.classList.add('hidden');
     }
 
     modal.classList.remove('hidden');
@@ -374,6 +382,7 @@ function getFormPayload() {
         target_date: emptyToNull(document.getElementById('targetDate').value),
         actual_date: emptyToNull(document.getElementById('actualDate').value),
         notes: emptyToNull(document.getElementById('notes').value),
+        unit_usaha: emptyToNull(document.getElementById('unitUsaha')?.value),
     };
 }
 
