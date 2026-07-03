@@ -236,17 +236,21 @@ function renderPicas() {
             `
             : '';
 
+        const isBranch = isBranchRole();
+        const editLabel = isBranch ? 'Isi' : 'Edit';
+        const deleteBtn = !isBranch
+            ? `<button type="button" class="delete-pica ml-2 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${item.id}">Hapus</button>`
+            : '';
+
         const actions = canManagePicas()
             ? `
                 <button type="button" class="edit-pica rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${item.id}">
-                    Edit
+                    ${editLabel}
                 </button>
 
-                <button type="button" class="delete-pica ml-2 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${item.id}">
-                    Hapus
-                </button>
+                ${deleteBtn}
 
-                ${closeButton}
+                ${isBranch ? '' : closeButton}
             `
             : '<span class="text-xs text-slate-500">Read only</span>';
 
@@ -335,9 +339,10 @@ function openModal(item = null) {
 
         // Cabang hanya bisa isi kolom tertentu
         const branchOnly = isBranchRole();
-        ['title','problem','rootCause','preventiveAction','priority','status','actualDate','notes']
+        // Field yang TIDAK boleh diubah cabang (auditor/admin saja)
+        ['title','problem','currentCondition','rootCause','preventiveAction','priority','status','actualDate','notes']
             .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = branchOnly; });
-        // Field yang bisa diisi cabang
+        // Field yang WAJIB bisa diisi cabang
         ['problemIdentification','correctiveAction','pic','relationShip','relationShip2','targetDate']
             .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
     } else {
@@ -572,7 +577,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await loadCurrentUser();
 
-        if (!canManagePicas()) {
+        // Branch role tidak boleh buat PICA baru dan tidak tampil tombol Tambah
+        if (!canManagePicas() || isBranchRole()) {
             document.getElementById('openCreatePicaButton')?.classList.add('hidden');
         }
         if (!['admin', 'manajer', 'auditor'].includes(currentUser?.role)) {
