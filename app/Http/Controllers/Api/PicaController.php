@@ -11,7 +11,10 @@ use Illuminate\Support\Facades\Validator;
 
 class PicaController extends Controller
 {
-    private array $writeRoles = ['admin', 'manajer', 'auditor'];
+    // Role cabang yang boleh mengisi kolom Problem Identification, Corrective Action, dll.
+    private const BRANCH_ROLES = ['h1', 'h2', 'unit', 'bpk'];
+
+    private array $writeRoles = ['admin', 'manajer', 'auditor', 'h1', 'h2', 'unit'];
 
     private array $closeRoles = ['admin', 'manajer'];
 
@@ -55,6 +58,15 @@ class PicaController extends Controller
 
         if ($request->filled('prioritas') && $request->query('prioritas') !== 'all') {
             $query->where('priority', $request->query('prioritas'));
+        }
+
+        // Cabang hanya melihat PICA yang ditujukan untuk unit_usaha mereka
+        $role = strtolower((string) ($request->user()?->role ?? ''));
+        if (in_array($role, self::BRANCH_ROLES, true)) {
+            $unitUsaha = $request->user()?->unit_usaha;
+            if ($unitUsaha) {
+                $query->where('unit_usaha', $unitUsaha);
+            }
         }
 
         if ($request->filled('q')) {
@@ -208,10 +220,14 @@ class PicaController extends Controller
             'pica_no' => ['nullable', 'string', 'max:80'],
             'title' => ['nullable', 'string', 'max:200'],
             'problem' => ['nullable', 'string'],
+            'current_condition' => ['nullable', 'string'],
+            'problem_identification' => ['nullable', 'string'],
             'root_cause' => ['nullable', 'string'],
             'corrective_action' => ['nullable', 'string'],
             'preventive_action' => ['nullable', 'string'],
             'pic' => ['nullable', 'string', 'max:150'],
+            'relation_ship' => ['nullable', 'string', 'max:150'],
+            'relation_ship2' => ['nullable', 'string', 'max:150'],
             'priority' => ['nullable', 'string', 'max:40'],
             'status' => ['nullable', 'string', 'max:40'],
             'target_date' => ['nullable', 'date'],

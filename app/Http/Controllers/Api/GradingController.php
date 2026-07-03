@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditGrading;
 use App\Models\DbGrading;
 use App\Models\DbUnitUsaha;
+use App\Models\Pica;
 use App\Models\PlanAudit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -64,6 +65,9 @@ class GradingController extends Controller
                 ]
             );
             if (!$rec->created_by) $rec->update(['created_by' => $who]);
+
+            // Auto-sync PICA untuk setiap item grading yang punya currentCondition
+            $this->syncPicaFromGrading($rec, $planId, $who);
 
             return response()->json(['message' => 'Grading tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
         } catch (\Exception $e) {
@@ -249,6 +253,54 @@ class GradingController extends Controller
             ]]);
         } catch (\Exception $e) {
             return response()->json(['data' => null], 404);
+        }
+    }
+
+    private function syncPicaFromGrading(AuditGrading $grading, mixed $planId, ?string $who): void
+    {
+        try {
+            $plan    = PlanAudit::find($planId);
+            $details = $grading->details ?? [];
+
+            foreach ($details as $idx => $item) {
+                $condition = trim((string) ($item['currentCondition'] ?? ''));
+                $isPica    = (bool) ($item['isPica'] ?? false);
+
+                if (!$isPica || $condition === '') {
+                    continue;
+                }
+
+                $namaPemeriksaan = $item['namaPemeriksaan'] ?? ('Item ' . ($idx + 1));
+
+                Pica::updateOrCreate(
+                    [
+                        'source_type'     => 'grading',
+                        'source_id'       => $grading->id,
+                        'source_item_idx' => $idx,
+                    ],
+                    [
+                        'plan_audit_id'     => $planId,
+                        'title'             => $namaPemeriksaan,
+                        'current_condition' => $condition,
+                        'unit_usaha'        => $plan?->cabang,
+                        'status'            => 'open',
+                        'priority'          => 'sedang',
+                        'created_by'        => $grading->created_by ?? $who,
+                        'updated_by'        => $who,
+                    ]
+                );
+            }
+
+            // Auto-generate pica_no jika belum ada
+            Pica::where('source_type', 'grading')
+                ->where('source_id', $grading->id)
+                ->whereNull('pica_no')
+                ->each(function (Pica $p) {
+                    $p->pica_no = 'PICA-' . now()->format('Ymd') . '-' . str_pad((string) $p->id, 4, '0', STR_PAD_LEFT);
+                    $p->save();
+                });
+        } catch (\Throwable) {
+            // Jangan gagalkan save grading hanya karena PICA sync error
         }
     }
 }

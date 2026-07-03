@@ -23,8 +23,14 @@ function authHeaders() {
     };
 }
 
+const BRANCH_ROLES = ['h1', 'h2', 'unit', 'bpk'];
+
+function isBranchRole() {
+    return BRANCH_ROLES.includes(currentUser?.role);
+}
+
 function canManagePicas() {
-    return ['admin', 'manajer', 'auditor'].includes(currentUser?.role);
+    return ['admin', 'manajer', 'auditor', 'h1', 'h2', 'unit'].includes(currentUser?.role);
 }
 
 function canClosePicas() {
@@ -244,23 +250,28 @@ function renderPicas() {
             `
             : '<span class="text-xs text-slate-500">Read only</span>';
 
+        const branchPending = item.source_type === 'grading' && !item.problem_identification;
+        const branchFilled  = item.source_type === 'grading' && item.problem_identification;
+
         return `
-            <tr class="hover:bg-slate-950/50">
+            <tr class="hover:bg-slate-950/50 ${branchPending ? 'border-l-2 border-l-amber-500' : ''}">
                 <td class="px-4 py-4">
                     <div class="font-semibold text-slate-100">${escapeHtml(item.pica_no || `PICA-${item.id}`)}</div>
                     <div class="text-xs text-slate-500">${escapeHtml(item.title || '-')}</div>
-                    <div class="mt-2 max-w-xl text-xs text-slate-400">
-                        <div><span class="text-slate-500">Problem:</span> ${escapeHtml(item.problem || '-')}</div>
-                        <div><span class="text-slate-500">Root Cause:</span> ${escapeHtml(item.root_cause || '-')}</div>
+                    ${item.unit_usaha ? `<div class="text-xs text-blue-400">Cabang: ${escapeHtml(item.unit_usaha)}</div>` : ''}
+                    <div class="mt-2 max-w-xl text-xs text-slate-400 space-y-0.5">
+                        ${item.current_condition ? `<div><span class="text-slate-500">Current Condition:</span> ${escapeHtml(item.current_condition)}</div>` : ''}
+                        ${item.problem_identification ? `<div><span class="text-slate-500">Problem ID:</span> ${escapeHtml(item.problem_identification)}</div>` : ''}
+                        ${item.corrective_action ? `<div><span class="text-slate-500">Corrective Action:</span> ${escapeHtml(item.corrective_action)}</div>` : ''}
                     </div>
+                    ${branchPending ? `<span class="mt-1 inline-block text-xs font-semibold text-amber-400">⚠ Menunggu isian cabang</span>` : ''}
+                    ${branchFilled  ? `<span class="mt-1 inline-block text-xs font-semibold text-emerald-400">✓ Cabang sudah mengisi</span>` : ''}
                 </td>
 
                 <td class="px-4 py-4 text-sm text-slate-300">
-                    ${escapeHtml(recommendationTitle)}
-                </td>
-
-                <td class="px-4 py-4 text-sm text-slate-300">
-                    ${escapeHtml(item.pic || '-')}
+                    <div>${escapeHtml(item.pic || '-')}</div>
+                    ${item.relation_ship  ? `<div class="text-xs text-slate-500">${escapeHtml(item.relation_ship)}</div>` : ''}
+                    ${item.relation_ship2 ? `<div class="text-xs text-slate-500">${escapeHtml(item.relation_ship2)}</div>` : ''}
                 </td>
 
                 <td class="px-4 py-4 text-sm text-slate-300">
@@ -302,15 +313,27 @@ function openModal(item = null) {
         document.getElementById('picaNo').value = item.pica_no || '';
         document.getElementById('title').value = item.title || '';
         document.getElementById('problem').value = item.problem || '';
+        document.getElementById('currentCondition').value = item.current_condition || '';
+        document.getElementById('problemIdentification').value = item.problem_identification || '';
         document.getElementById('rootCause').value = item.root_cause || '';
         document.getElementById('correctiveAction').value = item.corrective_action || '';
         document.getElementById('preventiveAction').value = item.preventive_action || '';
         document.getElementById('pic').value = item.pic || '';
+        document.getElementById('relationShip').value = item.relation_ship || '';
+        document.getElementById('relationShip2').value = item.relation_ship2 || '';
         document.getElementById('priority').value = item.priority || 'sedang';
         document.getElementById('status').value = item.status || 'open';
         document.getElementById('targetDate').value = onlyDate(item.target_date);
         document.getElementById('actualDate').value = onlyDate(item.actual_date);
         document.getElementById('notes').value = item.notes || '';
+
+        // Cabang hanya bisa isi kolom tertentu
+        const branchOnly = isBranchRole();
+        ['auditRecommendationId','picaNo','title','problem','rootCause','preventiveAction','priority','status','actualDate','notes']
+            .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = branchOnly; });
+        // Field yang bisa diisi cabang
+        ['problemIdentification','correctiveAction','pic','relationShip','relationShip2','targetDate']
+            .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
     } else {
         title.textContent = 'Tambah PICA';
 
@@ -338,10 +361,14 @@ function getFormPayload() {
         pica_no: emptyToNull(document.getElementById('picaNo').value),
         title: emptyToNull(document.getElementById('title').value),
         problem: emptyToNull(document.getElementById('problem').value),
+        current_condition: emptyToNull(document.getElementById('currentCondition').value),
+        problem_identification: emptyToNull(document.getElementById('problemIdentification').value),
         root_cause: emptyToNull(document.getElementById('rootCause').value),
         corrective_action: emptyToNull(document.getElementById('correctiveAction').value),
         preventive_action: emptyToNull(document.getElementById('preventiveAction').value),
         pic: emptyToNull(document.getElementById('pic').value),
+        relation_ship: emptyToNull(document.getElementById('relationShip').value),
+        relation_ship2: emptyToNull(document.getElementById('relationShip2').value),
         priority: document.getElementById('priority').value,
         status: document.getElementById('status').value,
         target_date: emptyToNull(document.getElementById('targetDate').value),
