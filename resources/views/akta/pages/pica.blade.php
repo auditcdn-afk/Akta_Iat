@@ -36,6 +36,11 @@
                 <option value="kritis">Kritis</option>
             </select>
 
+            <button id="syncPicaBtn" type="button"
+                class="rounded-xl border border-emerald-600 px-4 py-2 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/10">
+                🔄 Sinkron dari Grading
+            </button>
+
             <button id="openCreatePicaButton" type="button"
                 class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500">
                 Tambah

@@ -243,6 +243,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/audit-detail/grading/wilayah',      [GradingController::class, 'wilayahOptions']);
     Route::post('/audit-detail/grading',             [GradingController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/grading/sync-pica',  [GradingController::class, 'syncPica'])
+        ->middleware('akta.role:admin,manajer,auditor');
 
     // ── Lampiran ──
     Route::get('/audit-detail/lampiran',             [LampiranController::class, 'show']);

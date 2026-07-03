@@ -256,6 +256,22 @@ class GradingController extends Controller
         }
     }
 
+    // Endpoint: trigger sync PICA untuk plan tertentu (data grading yang sudah ada)
+    public function syncPica(Request $request): JsonResponse
+    {
+        $planId = $request->input('planAuditId') ?? $request->input('plan_audit_id');
+        $who    = $request->user()?->username ?? $request->user()?->email;
+
+        $grading = AuditGrading::where('plan_audit_id', $planId)->first();
+        if (!$grading) {
+            return response()->json(['message' => 'Data grading tidak ditemukan.'], 404);
+        }
+
+        $this->syncPicaFromGrading($grading, $planId, $who);
+
+        return response()->json(['message' => 'PICA berhasil disinkronisasi dari data grading.']);
+    }
+
     private function syncPicaFromGrading(AuditGrading $grading, mixed $planId, ?string $who): void
     {
         try {

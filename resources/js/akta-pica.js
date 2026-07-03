@@ -531,11 +531,43 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     setupFilters();
 
+    document.getElementById('syncPicaBtn')?.addEventListener('click', async () => {
+        const btn = document.getElementById('syncPicaBtn');
+        if (btn) { btn.textContent = '⏳ Sinkronisasi...'; btn.disabled = true; }
+        try {
+            // Sync semua grading yang ada agar PICA-nya muncul
+            const gradings = await fetchJson('/api/gradings');
+            const list = Array.isArray(gradings) ? gradings : (gradings.data ?? []);
+            let count = 0;
+            for (const g of list) {
+                const planId = g.plan_audit_id ?? g.planAuditId;
+                if (!planId) continue;
+                try {
+                    await fetchJson('/api/audit-detail/grading/sync-pica', {
+                        method: 'POST',
+                        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ planAuditId: planId }),
+                    });
+                    count++;
+                } catch (_) {}
+            }
+            showAlert(`Sinkronisasi selesai: ${count} plan diproses.`);
+            await loadPicas();
+        } catch (e) {
+            showAlert(e.message || 'Gagal sinkronisasi.', 'error');
+        } finally {
+            if (btn) { btn.textContent = '🔄 Sinkron dari Grading'; btn.disabled = false; }
+        }
+    });
+
     try {
         await loadCurrentUser();
 
         if (!canManagePicas()) {
             document.getElementById('openCreatePicaButton')?.classList.add('hidden');
+        }
+        if (!['admin', 'manajer', 'auditor'].includes(currentUser?.role)) {
+            document.getElementById('syncPicaBtn')?.classList.add('hidden');
         }
 
         await loadRecommendations();
