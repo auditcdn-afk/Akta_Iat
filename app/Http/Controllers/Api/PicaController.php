@@ -102,16 +102,18 @@ class PicaController extends Controller
         $payload = $this->normalizePayload($request);
         $data = $this->validatePayload($payload, true);
 
-        $recommendation = AuditRecommendation::query()
-            ->findOrFail($data['audit_recommendation_id']);
+        if (!empty($data['audit_recommendation_id'])) {
+            $recommendation = AuditRecommendation::query()
+                ->findOrFail($data['audit_recommendation_id']);
 
-        $data['plan_audit_id'] = $recommendation->getAttribute('plan_audit_id')
-            ?? $recommendation->getAttribute('plan_id')
-            ?? null;
+            $data['plan_audit_id'] = $recommendation->getAttribute('plan_audit_id')
+                ?? $recommendation->getAttribute('plan_id')
+                ?? null;
 
-        $data['audit_task_id'] = $recommendation->getAttribute('audit_task_id')
-            ?? $recommendation->getAttribute('task_id')
-            ?? null;
+            $data['audit_task_id'] = $recommendation->getAttribute('audit_task_id')
+                ?? $recommendation->getAttribute('task_id')
+                ?? null;
+        }
 
         $data['created_by'] = $this->userName($request);
         $data['status'] = $data['status'] ?? 'open';
@@ -213,7 +215,7 @@ class PicaController extends Controller
     {
         $rules = [
             'audit_recommendation_id' => [
-                $isCreate ? 'required' : 'sometimes',
+                'nullable',
                 'integer',
                 'exists:audit_recommendations,id',
             ],

@@ -309,8 +309,8 @@ function openModal(item = null) {
         title.textContent = 'Edit PICA';
 
         document.getElementById('picaId').value = item.id;
-        document.getElementById('auditRecommendationId').value = item.audit_recommendation_id || '';
-        document.getElementById('picaNo').value = item.pica_no || '';
+        if (document.getElementById('auditRecommendationId')) document.getElementById('auditRecommendationId').value = item.audit_recommendation_id || '';
+        if (document.getElementById('picaNo')) document.getElementById('picaNo').value = item.pica_no || '';
         document.getElementById('title').value = item.title || '';
         document.getElementById('problem').value = item.problem || '';
         document.getElementById('currentCondition').value = item.current_condition || '';
@@ -335,7 +335,7 @@ function openModal(item = null) {
 
         // Cabang hanya bisa isi kolom tertentu
         const branchOnly = isBranchRole();
-        ['auditRecommendationId','picaNo','title','problem','rootCause','preventiveAction','priority','status','actualDate','notes']
+        ['title','problem','rootCause','preventiveAction','priority','status','actualDate','notes']
             .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = branchOnly; });
         // Field yang bisa diisi cabang
         ['problemIdentification','correctiveAction','pic','relationShip','relationShip2','targetDate']

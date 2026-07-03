@@ -131,28 +131,10 @@
 
         <form id="picaForm" class="space-y-4 px-5 py-5">
             <input type="hidden" id="picaId">
+            <input type="hidden" id="auditRecommendationId">
+            <input type="hidden" id="picaNo">
 
             <div class="grid gap-4 sm:grid-cols-2">
-                <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Rekomendasi Audit</label>
-                    <select id="auditRecommendationId" required
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        <option value="">Pilih Rekomendasi</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Nomor PICA</label>
-                    <input id="picaNo" type="text" placeholder="Kosongkan untuk nomor otomatis"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                </div>
-
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">PIC</label>
-                    <input id="pic" type="text"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                </div>
-
                 <div class="sm:col-span-2">
                     <label class="mb-1 block text-sm font-medium text-slate-300">Judul</label>
                     <input id="title" type="text"
