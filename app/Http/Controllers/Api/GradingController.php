@@ -280,9 +280,9 @@ class GradingController extends Controller
 
             foreach ($details as $idx => $item) {
                 $condition = trim((string) ($item['currentCondition'] ?? ''));
-                $isPica    = (bool) ($item['isPica'] ?? false);
 
-                if (!$isPica || $condition === '') {
+                // Item dianggap PICA jika isPica=true ATAU currentCondition sudah diisi
+                if ($condition === '') {
                     continue;
                 }
 
