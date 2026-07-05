@@ -228,6 +228,25 @@
         </form>
     </div>
 </div>
+{{-- Modal View PICA --}}
+<div id="viewPicaModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
+    <div class="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+            <div>
+                <h3 id="viewPicaTitle" class="text-lg font-bold">Detail PICA</h3>
+                <p id="viewPicaNo" class="text-sm text-slate-400"></p>
+            </div>
+            <button id="closeViewPicaModal" type="button"
+                class="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">
+                Tutup
+            </button>
+        </div>
+        <div id="viewPicaBody" class="space-y-4 px-5 py-5 text-sm text-slate-300">
+            {{-- diisi oleh JS --}}
+        </div>
+    </div>
+</div>
+
 {{-- Modal Re-Chek --}}
 <div id="rechekModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
     <div class="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">

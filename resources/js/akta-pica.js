@@ -373,7 +373,12 @@ function renderPicas() {
                 </td>
 
                 <td class="px-4 py-4 text-right">
-                    ${actions}
+                    <div class="flex flex-col items-end gap-2">
+                        <button type="button" class="view-pica rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${item.id}">
+                            View
+                        </button>
+                        ${actions}
+                    </div>
                 </td>
             </tr>
         `;
@@ -606,6 +611,82 @@ function formatDate(value) {
     return String(value).slice(0, 10);
 }
 
+function fieldRow(label, value, amber = false) {
+    if (!value) return '';
+    const color = amber ? 'text-amber-300' : 'text-slate-400';
+    return `
+        <div class="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3">
+            <div class="mb-1 text-xs font-semibold uppercase tracking-wide ${color}">${label}</div>
+            <div class="whitespace-pre-wrap text-sm text-slate-100">${escapeHtml(value)}</div>
+        </div>`;
+}
+
+function openViewModal(item) {
+    document.getElementById('viewPicaTitle').textContent = item.title || 'Detail PICA';
+    document.getElementById('viewPicaNo').textContent = item.pica_no || `PICA-${item.id}`;
+
+    const step1 = !!item.current_condition;
+    const step2 = !!(item.problem_identification && item.corrective_action && item.target_date && item.pic && (item.relation_ship || item.relation_ship2));
+    const step3 = !!item.forwarded_filled_at;
+    const step4 = !!item.recheck_at;
+    const pct = step4 ? 100 : ([step1, step2, step3].filter(Boolean).length * 25);
+    const pColor = pct === 100 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#3b82f6';
+
+    document.getElementById('viewPicaBody').innerHTML = `
+        <div class="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950 px-4 py-3">
+            <span class="text-xs font-semibold uppercase text-slate-400">Progress Birokrasi</span>
+            <span class="text-lg font-bold" style="color:${pColor}">${pct}%</span>
+        </div>
+        <div class="h-2 w-full rounded-full bg-slate-700">
+            <div class="h-2 rounded-full transition-all" style="width:${pct}%;background:${pColor}"></div>
+        </div>
+        <div class="grid grid-cols-4 gap-2 text-center text-xs">
+            ${[
+                ['① Auditor', step1],
+                ['② Unit Usaha', step2],
+                ['③ Relation Ship', step3],
+                ['④ Re-Chek', step4],
+            ].map(([l, done]) => `
+                <div class="rounded-lg border ${done ? 'border-emerald-700 bg-emerald-950 text-emerald-400' : 'border-slate-700 bg-slate-950 text-slate-500'} px-2 py-2 font-semibold">
+                    ${done ? '✓' : '○'} ${l}
+                </div>`).join('')}
+        </div>
+        <hr class="border-slate-800">
+        <p class="text-xs font-semibold uppercase text-slate-500">— Auditor —</p>
+        ${fieldRow('Current Condition', item.current_condition)}
+        <hr class="border-slate-800">
+        <p class="text-xs font-semibold uppercase text-slate-500">— Unit Usaha / Cabang —</p>
+        ${fieldRow('Problem Identification', item.problem_identification)}
+        ${fieldRow('Corrective Action', item.corrective_action)}
+        ${fieldRow('PIC Completion', item.pic)}
+        ${fieldRow('Deadline Completion', item.target_date ? String(item.target_date).slice(0,10) : null)}
+        ${fieldRow('Relation Ship', item.relation_ship)}
+        ${fieldRow('Relation Ship 2', item.relation_ship2)}
+        <hr class="border-slate-800">
+        <p class="text-xs font-semibold uppercase text-slate-500">— Tanggapan Relation Ship —</p>
+        ${item.forwarded_filled_at
+            ? fieldRow('Tanggapan PICA', item.problem_identification, true)
+            : '<div class="text-xs text-slate-600 italic">Belum ada tanggapan.</div>'}
+        <hr class="border-slate-800">
+        <p class="text-xs font-semibold uppercase text-slate-500">— Re-Chek Unit Usaha —</p>
+        ${item.recheck_at ? `
+            ${fieldRow('Re-Chek at the next Review', item.recheck_note, true)}
+            ${fieldRow('Deadline Recheck', item.recheck_deadline ? String(item.recheck_deadline).slice(0,10) : null)}
+            ${item.recheck_file ? `<div class="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3"><div class="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-300">Upload File</div><a href="${escapeHtml(item.recheck_file)}" target="_blank" class="text-blue-400 underline text-sm">Lihat File</a></div>` : ''}
+        ` : '<div class="text-xs text-slate-600 italic">Belum ada re-chek.</div>'}
+    `;
+
+    const modal = document.getElementById('viewPicaModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeViewModal() {
+    const modal = document.getElementById('viewPicaModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
 function openRechekModal(item) {
     document.getElementById('rechekPicaId').value = item.id;
     document.getElementById('rechekNote').value = item.recheck_note || '';
@@ -645,6 +726,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const deleteButton = event.target.closest('.delete-pica');
         const closeButton = event.target.closest('.close-pica');
         const rechekButton = event.target.closest('.recheck-pica');
+        const viewButton = event.target.closest('.view-pica');
+
+        if (viewButton) {
+            const item = picas.find((row) => String(row.id) === String(viewButton.dataset.id));
+            if (item) openViewModal(item);
+            return;
+        }
 
         if (editButton) {
             const item = picas.find((row) => String(row.id) === String(editButton.dataset.id));
@@ -675,6 +763,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             openRechekModal(item);
         }
     });
+
+    // View modal handlers
+    document.getElementById('closeViewPicaModal')?.addEventListener('click', closeViewModal);
 
     // Re-Chek modal handlers
     document.getElementById('closeRechekModal')?.addEventListener('click', closeRechekModal);
