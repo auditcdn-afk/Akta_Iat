@@ -409,11 +409,14 @@ async function savePica(event) {
 
     const id = document.getElementById('picaId').value;
     const isEdit = Boolean(id);
+    const formData = getFormPayload();
+    console.log('Saving PICA payload:', formData);
 
     const payload = await fetchJson(isEdit ? `/api/picas/${id}` : '/api/picas', {
         method: isEdit ? 'PUT' : 'POST',
-        body: JSON.stringify(getFormPayload()),
+        body: JSON.stringify(formData),
     });
+    console.log('PICA save response:', payload);
 
     closeModal();
     if (payload.forwarded_to) {
@@ -522,7 +525,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             await savePica(event);
         } catch (error) {
-            showAlert(error.message || 'Gagal menyimpan PICA.', 'error');
+            console.error('PICA save error:', error);
+            const msg = error.message || 'Gagal menyimpan PICA.';
+            showAlert(msg, 'error');
+            alert('Error simpan PICA: ' + msg);
         }
     });
 
