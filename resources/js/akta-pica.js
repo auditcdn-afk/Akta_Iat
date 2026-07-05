@@ -388,6 +388,11 @@ function openModal(item = null) {
         // Field yang bisa diisi cabang/forwarded party
         ['problemIdentification','correctiveAction','pic','relationShip','relationShip2','targetDate']
             .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
+
+        // Forwarded party mengisi form baru — kosongkan Tanggapan PICA agar tidak terisi data cabang
+        if (isForwardedToMe) {
+            document.getElementById('problemIdentification').value = '';
+        }
     } else {
         title.textContent = 'Tambah PICA';
 
