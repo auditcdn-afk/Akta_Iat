@@ -148,7 +148,37 @@
                         class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300 outline-none focus:border-blue-500 disabled:opacity-50"></textarea>
                 </div>
 
-                {{-- Tanggapan PICA: diisi cabang --}}
+                {{-- Corrective Action: read-only, diisi cabang --}}
+                <div class="sm:col-span-2">
+                    <label class="mb-1 block text-sm font-medium text-slate-400">Corrective Action <span class="text-xs text-slate-500">(diisi cabang)</span></label>
+                    <textarea id="correctiveAction" rows="3" disabled
+                        class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300 outline-none opacity-70 cursor-not-allowed"></textarea>
+                </div>
+
+                {{-- PIC Completion: read-only --}}
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-400">PIC Completion <span class="text-xs text-slate-500">(diisi cabang)</span></label>
+                    <input id="pic" type="text" disabled
+                        class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300 outline-none opacity-70 cursor-not-allowed">
+                </div>
+
+                {{-- Relation Ship 1: read-only --}}
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-400">Relation Ship <span class="text-xs text-slate-500">(diisi cabang)</span></label>
+                    <input id="relationShip" type="text" disabled
+                        class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300 outline-none opacity-70 cursor-not-allowed">
+                    <datalist id="userDatalist1"></datalist>
+                </div>
+
+                {{-- Relation Ship 2: read-only --}}
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-400">Relation Ship 2 <span class="text-xs text-slate-500">(diisi cabang)</span></label>
+                    <input id="relationShip2" type="text" disabled
+                        class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300 outline-none opacity-70 cursor-not-allowed">
+                    <datalist id="userDatalist2"></datalist>
+                </div>
+
+                {{-- Tanggapan PICA: diisi cabang/forwarded --}}
                 <div class="sm:col-span-2">
                     <label class="mb-1 block text-sm font-medium text-amber-300">Tanggapan PICA <span class="text-xs text-slate-500">(diisi cabang)</span></label>
                     <textarea id="problemIdentification" rows="3"
@@ -161,13 +191,6 @@
                     <input id="targetDate" type="date"
                         class="w-full rounded-xl border border-amber-500/30 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500">
                 </div>
-
-                <input type="hidden" id="pic">
-                <input type="hidden" id="correctiveAction">
-                <input type="hidden" id="relationShip">
-                <input type="hidden" id="relationShip2">
-                <datalist id="userDatalist1"></datalist>
-                <datalist id="userDatalist2"></datalist>
 
                 <input type="hidden" id="priority" value="sedang">
                 <input type="hidden" id="status" value="open">

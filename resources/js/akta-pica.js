@@ -385,9 +385,12 @@ function openModal(item = null) {
         // Field yang TIDAK boleh diubah
         ['title','currentCondition','notes']
             .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = restrictedMode; });
-        // Field yang bisa diisi cabang/forwarded party
-        ['problemIdentification','correctiveAction','pic','relationShip','relationShip2','targetDate']
+        // Field yang bisa diisi (aktifkan hanya yg editable)
+        ['problemIdentification','targetDate']
             .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
+        // Field info cabang selalu read-only
+        ['correctiveAction','pic','relationShip','relationShip2']
+            .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = true; });
 
         // Forwarded party mengisi form baru — kosongkan Tanggapan PICA agar tidak terisi data cabang
         if (isForwardedToMe) {
