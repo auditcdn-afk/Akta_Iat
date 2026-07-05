@@ -251,22 +251,27 @@ function renderPicas() {
             : '';
 
         const isBranch = isBranchRole();
-        const editLabel = isBranch ? 'Isi' : 'Edit';
+        // Cabang sudah mengisi jika problem_identification terisi
+        const branchAlreadyFilled = isBranch && item.problem_identification;
         const deleteBtn = !isBranch
             ? `<button type="button" class="delete-pica ml-2 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${item.id}">Hapus</button>`
             : '';
 
-        const actions = canManagePicas()
-            ? `
+        let actions;
+        if (!canManagePicas()) {
+            actions = '<span class="text-xs text-slate-500">Read only</span>';
+        } else if (isBranch && branchAlreadyFilled) {
+            actions = '<span class="text-xs text-emerald-500">✓ Sudah diisi</span>';
+        } else {
+            const editLabel = isBranch ? 'Isi' : 'Edit';
+            actions = `
                 <button type="button" class="edit-pica rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${item.id}">
                     ${editLabel}
                 </button>
-
                 ${deleteBtn}
-
                 ${isBranch ? '' : closeButton}
-            `
-            : '<span class="text-xs text-slate-500">Read only</span>';
+            `;
+        }
 
         const branchPending = item.source_type === 'grading' && !item.problem_identification;
         const branchFilled  = item.source_type === 'grading' && item.problem_identification;
