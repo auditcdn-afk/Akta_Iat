@@ -300,9 +300,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
             $pica->recheck_file = $path;
         }
 
-        $pica->recheck_note     = $request->input('recheck_note') ?: null;
-        $pica->recheck_deadline = $request->input('recheck_deadline') ?: null;
-        $pica->recheck_at       = $request->input('recheck_at') ? now() : now();
+        // Hanya timpa jika nilai baru tidak kosong (proteksi data lama)
+        $note = $request->input('recheck_note');
+        if (!is_null($note) && $note !== '') $pica->recheck_note = $note;
+
+        $deadline = $request->input('recheck_deadline');
+        if (!is_null($deadline) && $deadline !== '') $pica->recheck_deadline = $deadline;
+
+        if (!$pica->recheck_at) $pica->recheck_at = now();
         $pica->save();
 
         return response()->json([
