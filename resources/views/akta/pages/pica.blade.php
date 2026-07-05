@@ -195,11 +195,7 @@
                 <input type="hidden" id="status" value="open">
                 <input type="hidden" id="actualDate">
 
-                <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Catatan</label>
-                    <textarea id="notes" rows="3"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
-                </div>
+                <input type="hidden" id="notes">
 
                 {{-- Unit Usaha: hanya admin/manajer yang bisa mengubah --}}
                 <div id="unitUsahaWrap" class="sm:col-span-2 hidden">
