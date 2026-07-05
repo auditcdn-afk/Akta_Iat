@@ -316,19 +316,16 @@ function openModal(item = null) {
         if (document.getElementById('auditRecommendationId')) document.getElementById('auditRecommendationId').value = item.audit_recommendation_id || '';
         if (document.getElementById('picaNo')) document.getElementById('picaNo').value = item.pica_no || '';
         document.getElementById('title').value = item.title || '';
-        document.getElementById('problem').value = item.problem || '';
         document.getElementById('currentCondition').value = item.current_condition || '';
         document.getElementById('problemIdentification').value = item.problem_identification || '';
-        document.getElementById('rootCause').value = item.root_cause || '';
         document.getElementById('correctiveAction').value = item.corrective_action || '';
-        document.getElementById('preventiveAction').value = item.preventive_action || '';
         document.getElementById('pic').value = item.pic || '';
         document.getElementById('relationShip').value = item.relation_ship || '';
         document.getElementById('relationShip2').value = item.relation_ship2 || '';
-        document.getElementById('priority').value = item.priority || 'sedang';
-        document.getElementById('status').value = item.status || 'open';
+        if (document.getElementById('priority')) document.getElementById('priority').value = item.priority || 'sedang';
+        if (document.getElementById('status')) document.getElementById('status').value = item.status || 'open';
         document.getElementById('targetDate').value = onlyDate(item.target_date);
-        document.getElementById('actualDate').value = onlyDate(item.actual_date);
+        if (document.getElementById('actualDate')) document.getElementById('actualDate').value = onlyDate(item.actual_date);
         document.getElementById('notes').value = item.notes || '';
         document.getElementById('unitUsaha').value = item.unit_usaha || '';
 
@@ -340,7 +337,7 @@ function openModal(item = null) {
         // Cabang hanya bisa isi kolom tertentu
         const branchOnly = isBranchRole();
         // Field yang TIDAK boleh diubah cabang (auditor/admin saja)
-        ['title','problem','currentCondition','rootCause','preventiveAction','priority','status','actualDate','notes']
+        ['title','currentCondition','notes']
             .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = branchOnly; });
         // Field yang WAJIB bisa diisi cabang
         ['problemIdentification','correctiveAction','pic','relationShip','relationShip2','targetDate']
@@ -371,21 +368,18 @@ function getFormPayload() {
 
     return {
         audit_recommendation_id: recommendationId ? Number(recommendationId) : null,
-        pica_no: emptyToNull(document.getElementById('picaNo').value),
+        pica_no: emptyToNull(document.getElementById('picaNo')?.value),
         title: emptyToNull(document.getElementById('title').value),
-        problem: emptyToNull(document.getElementById('problem').value),
         current_condition: emptyToNull(document.getElementById('currentCondition').value),
         problem_identification: emptyToNull(document.getElementById('problemIdentification').value),
-        root_cause: emptyToNull(document.getElementById('rootCause').value),
         corrective_action: emptyToNull(document.getElementById('correctiveAction').value),
-        preventive_action: emptyToNull(document.getElementById('preventiveAction').value),
         pic: emptyToNull(document.getElementById('pic').value),
         relation_ship: emptyToNull(document.getElementById('relationShip').value),
         relation_ship2: emptyToNull(document.getElementById('relationShip2').value),
-        priority: document.getElementById('priority').value,
-        status: document.getElementById('status').value,
+        priority: document.getElementById('priority')?.value || 'sedang',
+        status: document.getElementById('status')?.value || 'open',
         target_date: emptyToNull(document.getElementById('targetDate').value),
-        actual_date: emptyToNull(document.getElementById('actualDate').value),
+        actual_date: emptyToNull(document.getElementById('actualDate')?.value),
         notes: emptyToNull(document.getElementById('notes').value),
         unit_usaha: emptyToNull(document.getElementById('unitUsaha')?.value),
     };

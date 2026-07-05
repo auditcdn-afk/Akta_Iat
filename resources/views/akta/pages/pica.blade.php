@@ -148,23 +148,11 @@
                         class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300 outline-none focus:border-blue-500 disabled:opacity-50"></textarea>
                 </div>
 
-                <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Problem</label>
-                    <textarea id="problem" rows="2"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 disabled:opacity-50"></textarea>
-                </div>
-
                 {{-- Problem Identification: diisi cabang --}}
                 <div class="sm:col-span-2">
                     <label class="mb-1 block text-sm font-medium text-amber-300">Problem Identification <span class="text-xs text-slate-500">(diisi cabang)</span></label>
                     <textarea id="problemIdentification" rows="3"
                         class="w-full rounded-xl border border-amber-500/30 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"></textarea>
-                </div>
-
-                <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Root Cause</label>
-                    <textarea id="rootCause" rows="2"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 disabled:opacity-50"></textarea>
                 </div>
 
                 {{-- Corrective Action: diisi cabang --}}
@@ -174,13 +162,7 @@
                         class="w-full rounded-xl border border-amber-500/30 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"></textarea>
                 </div>
 
-                <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Preventive Action</label>
-                    <textarea id="preventiveAction" rows="2"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 disabled:opacity-50"></textarea>
-                </div>
-
-                {{-- PIC & Relation Ship: diisi cabang --}}
+                {{-- PIC, Deadline, Relation Ship: diisi cabang --}}
                 <div>
                     <label class="mb-1 block text-sm font-medium text-amber-300">PIC Completion <span class="text-xs text-slate-500">(diisi cabang)</span></label>
                     <input id="pic" type="text"
@@ -205,32 +187,9 @@
                         class="w-full rounded-xl border border-amber-500/30 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500">
                 </div>
 
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Prioritas</label>
-                    <select id="priority" required
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        <option value="rendah">Rendah</option>
-                        <option value="sedang" selected>Sedang</option>
-                        <option value="tinggi">Tinggi</option>
-                        <option value="kritis">Kritis</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Status</label>
-                    <select id="status" required
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        <option value="open">Open</option>
-                        <option value="progress">Progress</option>
-                        <option value="closed">Closed</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Actual Date</label>
-                    <input id="actualDate" type="date"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 disabled:opacity-50">
-                </div>
+                <input type="hidden" id="priority" value="sedang">
+                <input type="hidden" id="status" value="open">
+                <input type="hidden" id="actualDate">
 
                 <div class="sm:col-span-2">
                     <label class="mb-1 block text-sm font-medium text-slate-300">Catatan</label>
