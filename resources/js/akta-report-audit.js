@@ -169,9 +169,15 @@ function renderReportItems() {
                     </td>
 
                     <td class="px-4 py-4 text-right">
-                        <button type="button" class="view-report-detail rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-plan-id="${plan.id}">
-                            Detail
-                        </button>
+                        <div class="flex items-center justify-end gap-2">
+                            <button type="button" class="view-report-detail rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-plan-id="${plan.id}">
+                                Detail
+                            </button>
+                            <a href="/akta/report-audit/pdf/${plan.id}" target="_blank"
+                               class="rounded-lg border border-blue-600 bg-blue-600/10 px-3 py-1.5 text-xs font-semibold text-blue-400 hover:bg-blue-600/20">
+                                📄 Cetak PDF
+                            </a>
+                        </div>
                     </td>
                 </tr>
             `;
