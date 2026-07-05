@@ -672,7 +672,11 @@ function openViewModal(item) {
         ${item.recheck_at ? `
             ${fieldRow('Re-Chek at the next Review', item.recheck_note, true)}
             ${fieldRow('Deadline Recheck', item.recheck_deadline ? String(item.recheck_deadline).slice(0,10) : null)}
-            ${item.recheck_file ? `<div class="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3"><div class="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-300">Upload File</div><a href="${escapeHtml(item.recheck_file)}" target="_blank" class="text-blue-400 underline text-sm">Lihat File</a></div>` : ''}
+            ${item.recheck_file ? (() => {
+                const fileUrl = item.recheck_file.startsWith('http') ? item.recheck_file : `/storage/${item.recheck_file}`;
+                const fileName = item.recheck_file.split('/').pop();
+                return `<div class="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3"><div class="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-300">Upload File</div><a href="${escapeHtml(fileUrl)}" target="_blank" class="inline-flex items-center gap-1.5 text-blue-400 underline text-sm hover:text-blue-300">📎 ${escapeHtml(fileName)}</a></div>`;
+            })() : ''}
         ` : '<div class="text-xs text-slate-600 italic">Belum ada re-chek.</div>'}
     `;
 
@@ -782,19 +786,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveBtn.textContent = 'Menyimpan...';
 
         try {
-            let rechekFile = null;
+            // Upload file dulu jika ada
             if (fileInput.files[0]) {
                 const formData = new FormData();
                 formData.append('file', fileInput.files[0]);
-                const up = await fetch('/api/upload', {
+                await fetch(`/api/picas/${id}/upload-recheck`, {
                     method: 'POST',
                     headers: authHeaders(),
                     body: formData,
                 });
-                if (up.ok) {
-                    const upData = await up.json();
-                    rechekFile = upData.path ?? upData.url ?? null;
-                }
             }
 
             await fetchJson(`/api/picas/${id}`, {
@@ -803,7 +803,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 body: JSON.stringify({
                     recheck_note: note || null,
                     recheck_deadline: deadline || null,
-                    recheck_file: rechekFile,
                     recheck_at: new Date().toISOString(),
                 }),
             });

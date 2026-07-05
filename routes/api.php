@@ -292,6 +292,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/picas/{pica}/close', [PicaController::class, 'close'])
         ->middleware('akta.role:admin,manajer');
 
+    Route::post('/picas/{pica}/upload-recheck', function (\Illuminate\Http\Request $request, \App\Models\Pica $pica) {
+        $request->validate(['file' => ['required', 'file', 'max:10240']]);
+        $path = $request->file('file')->store('pica-recheck', 'public');
+        $pica->recheck_file = $path;
+        $pica->save();
+        return response()->json(['path' => $path, 'url' => asset('storage/' . $path)]);
+    });
+
     Route::get('/all-data', [DataStoreController::class, 'allData']);
 
     Route::get('/data/{key}', [DataStoreController::class, 'read']);
