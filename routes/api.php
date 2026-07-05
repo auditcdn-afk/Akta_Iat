@@ -285,7 +285,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,manajer,auditor');
 
     Route::put('/picas/{pica}', [PicaController::class, 'update'])
-        ->middleware('akta.role:admin,manajer,auditor');
+        ->middleware('akta.role:admin,manajer,auditor,h1,h2,unit');
 
     Route::delete('/picas/{pica}', [PicaController::class, 'destroy'])
         ->middleware('akta.role:admin,manajer,auditor');
