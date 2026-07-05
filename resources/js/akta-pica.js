@@ -251,12 +251,16 @@ function renderPicas() {
             : '';
 
         const isBranch = isBranchRole();
-        // PICA diteruskan ke unit user ini (relation ship party) — berlaku untuk semua role
-        const isForwardedToMe = item.forwarded_to_unit && currentUser?.unit_usaha &&
-            item.forwarded_to_unit === currentUser.unit_usaha;
+        const myUnit = currentUser?.unit_usaha;
+        // PICA diteruskan ke unit user ini: cek forwarded_to_unit, atau fallback ke relation_ship fields
+        const forwardedByColumn = item.forwarded_to_unit && myUnit && item.forwarded_to_unit === myUnit;
+        const forwardedByRelation = myUnit && !forwardedByColumn && (
+            (item.relation_ship && item.relation_ship.includes(myUnit)) ||
+            (item.relation_ship2 && item.relation_ship2.includes(myUnit))
+        );
+        const isForwardedToMe = forwardedByColumn || forwardedByRelation;
         // Cek apakah forwarded party sudah mengisi (corrective_action terisi dari forwarded side)
-        // Gunakan flag: jika status sudah closed atau ada corrective_action dan bukan milik cabang asli
-        const forwardedAlreadyFilled = isForwardedToMe && item.corrective_action && item.unit_usaha !== currentUser?.unit_usaha;
+        const forwardedAlreadyFilled = isForwardedToMe && item.corrective_action && item.unit_usaha !== myUnit;
 
         // Cabang sudah mengisi jika problem_identification terisi
         const branchAlreadyFilled = isBranch && item.problem_identification;
@@ -370,8 +374,13 @@ function openModal(item = null) {
         if (unitWrap) unitWrap.classList.toggle('hidden', !isAdminOrMgr);
 
         // Cabang ATAU pihak Relation Ship hanya bisa isi kolom tertentu
-        const isForwardedToMe = item.forwarded_to_unit && currentUser?.unit_usaha &&
-            item.forwarded_to_unit === currentUser.unit_usaha;
+        const _myUnit = currentUser?.unit_usaha;
+        const _fwdByCol = item.forwarded_to_unit && _myUnit && item.forwarded_to_unit === _myUnit;
+        const _fwdByRel = _myUnit && !_fwdByCol && (
+            (item.relation_ship && item.relation_ship.includes(_myUnit)) ||
+            (item.relation_ship2 && item.relation_ship2.includes(_myUnit))
+        );
+        const isForwardedToMe = _fwdByCol || _fwdByRel;
         const restrictedMode = isBranchRole() || isForwardedToMe;
         // Field yang TIDAK boleh diubah
         ['title','currentCondition','notes']
