@@ -148,6 +148,13 @@
                         class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300 outline-none focus:border-blue-500 disabled:opacity-50"></textarea>
                 </div>
 
+                {{-- Problem Identification: read-only, diisi cabang --}}
+                <div class="sm:col-span-2">
+                    <label class="mb-1 block text-sm font-medium text-slate-400">Problem Identification <span class="text-xs text-slate-500">(diisi cabang)</span></label>
+                    <textarea id="problemIdentificationReadonly" rows="3" disabled
+                        class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300 outline-none opacity-70 cursor-not-allowed"></textarea>
+                </div>
+
                 {{-- Corrective Action: read-only, diisi cabang --}}
                 <div class="sm:col-span-2">
                     <label class="mb-1 block text-sm font-medium text-slate-400">Corrective Action <span class="text-xs text-slate-500">(diisi cabang)</span></label>
@@ -176,13 +183,6 @@
                     <input id="relationShip2" type="text" disabled
                         class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300 outline-none opacity-70 cursor-not-allowed">
                     <datalist id="userDatalist2"></datalist>
-                </div>
-
-                {{-- Problem Identification: read-only, diisi cabang --}}
-                <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-slate-400">Problem Identification <span class="text-xs text-slate-500">(diisi cabang)</span></label>
-                    <textarea id="problemIdentificationReadonly" rows="3" disabled
-                        class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300 outline-none opacity-70 cursor-not-allowed"></textarea>
                 </div>
 
                 {{-- Tanggapan PICA: diisi forwarded party --}}
