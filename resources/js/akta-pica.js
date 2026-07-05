@@ -251,7 +251,7 @@ function renderPicas() {
             : '';
 
         const isBranch = isBranchRole();
-        const myUnit = currentUser?.unit_usaha;
+        const myUnit = currentUser?.unitUsaha || currentUser?.unit_usaha;
         // PICA diteruskan ke unit user ini: cek forwarded_to_unit, atau fallback ke relation_ship fields
         const forwardedByColumn = item.forwarded_to_unit && myUnit && item.forwarded_to_unit === myUnit;
         const forwardedByRelation = myUnit && !forwardedByColumn && (
@@ -374,7 +374,7 @@ function openModal(item = null) {
         if (unitWrap) unitWrap.classList.toggle('hidden', !isAdminOrMgr);
 
         // Cabang ATAU pihak Relation Ship hanya bisa isi kolom tertentu
-        const _myUnit = currentUser?.unit_usaha;
+        const _myUnit = currentUser?.unitUsaha || currentUser?.unit_usaha;
         const _fwdByCol = item.forwarded_to_unit && _myUnit && item.forwarded_to_unit === _myUnit;
         const _fwdByRel = _myUnit && !_fwdByCol && (
             (item.relation_ship && item.relation_ship.includes(_myUnit)) ||
