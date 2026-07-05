@@ -259,8 +259,8 @@ function renderPicas() {
             (item.relation_ship2 && item.relation_ship2.includes(myUnit))
         );
         const isForwardedToMe = forwardedByColumn || forwardedByRelation;
-        // Cek apakah forwarded party sudah mengisi (corrective_action terisi dari forwarded side)
-        const forwardedAlreadyFilled = isForwardedToMe && item.corrective_action && item.unit_usaha !== myUnit;
+        // Forwarded party dianggap sudah mengisi jika ada field forwarded_filled_at (set saat mereka simpan)
+        const forwardedAlreadyFilled = isForwardedToMe && !!item.forwarded_filled_at;
 
         // Cabang sudah mengisi jika problem_identification terisi
         const branchAlreadyFilled = isBranch && item.problem_identification;

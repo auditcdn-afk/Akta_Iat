@@ -173,7 +173,16 @@ class PicaController extends Controller
         $relationShip = $data['relation_ship'] ?? $pica->relation_ship;
 
         $userUnit   = $request->user()?->unit_usaha;
-        $isForwarded = $userUnit && $pica->forwarded_to_unit === $userUnit;
+        $isForwarded = $userUnit && (
+            $pica->forwarded_to_unit === $userUnit ||
+            ($pica->relation_ship && str_contains($pica->relation_ship, $userUnit)) ||
+            ($pica->relation_ship2 && str_contains($pica->relation_ship2, $userUnit))
+        );
+
+        // Jika forwarded party yang menyimpan, tandai sudah diisi
+        if ($isForwarded && !in_array($role, self::BRANCH_ROLES, true)) {
+            $data['forwarded_filled_at'] = now();
+        }
 
         if ((in_array($role, self::BRANCH_ROLES, true) || $isForwarded) && !empty($relationShip)) {
             // Parse nama dari format "Nama (unit_usaha)" atau cari user langsung
