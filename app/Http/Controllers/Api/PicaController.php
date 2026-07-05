@@ -60,12 +60,15 @@ class PicaController extends Controller
             $query->where('priority', $request->query('prioritas'));
         }
 
-        // Cabang hanya melihat PICA yang ditujukan untuk unit_usaha mereka
+        // Cabang melihat PICA milik unitnya ATAU PICA yang diteruskan ke unitnya
         $role = strtolower((string) ($request->user()?->role ?? ''));
         if (in_array($role, self::BRANCH_ROLES, true)) {
             $unitUsaha = $request->user()?->unit_usaha;
             if ($unitUsaha) {
-                $query->where('unit_usaha', $unitUsaha);
+                $query->where(function ($q) use ($unitUsaha) {
+                    $q->where('unit_usaha', $unitUsaha)
+                      ->orWhere('forwarded_to_unit', $unitUsaha);
+                });
             }
         }
 
@@ -162,15 +165,29 @@ class PicaController extends Controller
 
         $data['updated_by'] = $this->userName($request);
 
-        // Jika cabang menyimpan dan relation_ship sudah diisi → otomatis progress
+        // Jika cabang menyimpan dan relation_ship sudah diisi → cari unit_usaha pihak terkait
         $role = $this->role($request);
         $relationShip = $data['relation_ship'] ?? $pica->relation_ship;
-        if (
-            in_array($role, self::BRANCH_ROLES, true) &&
-            !empty($relationShip) &&
-            ($pica->status === 'open' || ($data['status'] ?? $pica->status) === 'open')
-        ) {
-            $data['status'] = 'progress';
+
+        if (in_array($role, self::BRANCH_ROLES, true) && !empty($relationShip)) {
+            // Parse nama dari format "Nama (unit_usaha)" atau cari user langsung
+            $forwardedUnit = null;
+            preg_match('/\(([^)]+)\)$/', $relationShip, $m);
+            if (!empty($m[1])) {
+                $forwardedUnit = trim($m[1]);
+            } else {
+                // Cari user berdasarkan nama
+                $u = \App\Models\User::where('name', $relationShip)
+                    ->orWhere('username', $relationShip)
+                    ->first();
+                $forwardedUnit = $u?->unit_usaha;
+            }
+            if ($forwardedUnit) $data['forwarded_to_unit'] = $forwardedUnit;
+
+            // Auto progress jika masih open
+            if ($pica->status === 'open' || ($data['status'] ?? $pica->status) === 'open') {
+                $data['status'] = 'progress';
+            }
         }
 
         $pica->fill($data);
@@ -255,6 +272,7 @@ class PicaController extends Controller
             'evidence' => ['nullable', 'array'],
             'notes' => ['nullable', 'string'],
             'unit_usaha' => ['nullable', 'string', 'max:150'],
+            'forwarded_to_unit' => ['nullable', 'string', 'max:150'],
         ];
 
         return Validator::make($payload, $rules)->validate();

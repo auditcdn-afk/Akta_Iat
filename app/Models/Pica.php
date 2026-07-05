@@ -25,6 +25,7 @@ class Pica extends Model
         'pic',
         'relation_ship',
         'relation_ship2',
+        'forwarded_to_unit',
         'unit_usaha',
         'source_type',
         'source_id',
