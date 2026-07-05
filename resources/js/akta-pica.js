@@ -804,9 +804,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 formData.append('file', fileInput.files[0]);
             }
 
+            const session = getSession();
             const resp = await fetch(`/api/picas/${id}/upload-recheck`, {
                 method: 'POST',
-                headers: authHeaders(),
+                headers: {
+                    Accept: 'application/json',
+                    Authorization: `${session?.tokenType || 'Bearer'} ${session?.token}`,
+                },
                 body: formData,
             });
 
