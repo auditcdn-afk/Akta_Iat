@@ -42,6 +42,10 @@ class Pica extends Model
         'closed_at',
         'close_note',
         'forwarded_filled_at',
+        'recheck_note',
+        'recheck_deadline',
+        'recheck_file',
+        'recheck_at',
     ];
 
     protected $casts = [
@@ -50,6 +54,8 @@ class Pica extends Model
         'actual_date' => 'date:Y-m-d',
         'closed_at' => 'datetime',
         'forwarded_filled_at' => 'datetime',
+        'recheck_deadline' => 'date:Y-m-d',
+        'recheck_at' => 'datetime',
     ];
 
     public function recommendation(): BelongsTo

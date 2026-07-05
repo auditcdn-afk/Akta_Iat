@@ -280,6 +280,17 @@ function renderPicas() {
             actions = '<span class="text-xs text-emerald-500">✓ Sudah diisi</span>';
         } else if (!canManagePicas()) {
             actions = '<span class="text-xs text-slate-500">Read only</span>';
+        } else if (isBranch && item.forwarded_filled_at) {
+            // Forwarded party sudah mengisi → cabang bisa Re-Chek
+            const rechekLabel = item.recheck_at ? '✓ Re-Chek' : 'Re-Chek';
+            const rechekClass = item.recheck_at
+                ? 'text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/10'
+                : 'text-blue-300 border-blue-500/40 hover:bg-blue-500/10';
+            actions = `
+                <button type="button" class="recheck-pica rounded-lg border ${rechekClass} px-3 py-1.5 text-xs font-semibold" data-id="${item.id}">
+                    ${rechekLabel}
+                </button>
+            `;
         } else if (isBranch && branchAlreadyFilled) {
             actions = '<span class="text-xs text-emerald-500">✓ Sudah diisi</span>';
         } else {
@@ -558,6 +569,24 @@ function formatDate(value) {
     return String(value).slice(0, 10);
 }
 
+function openRechekModal(item) {
+    document.getElementById('rechekPicaId').value = item.id;
+    document.getElementById('rechekNote').value = item.recheck_note || '';
+    document.getElementById('rechekDeadline').value = onlyDate(item.recheck_deadline);
+    document.getElementById('rechekFile').value = '';
+    const existing = document.getElementById('rechekFileExisting');
+    if (existing) existing.textContent = item.recheck_file ? `File saat ini: ${item.recheck_file}` : '';
+    const modal = document.getElementById('rechekModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeRechekModal() {
+    const modal = document.getElementById('rechekModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('openCreatePicaButton')?.addEventListener('click', () => openModal());
     document.getElementById('closePicaModalButton')?.addEventListener('click', closeModal);
@@ -578,6 +607,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const editButton = event.target.closest('.edit-pica');
         const deleteButton = event.target.closest('.delete-pica');
         const closeButton = event.target.closest('.close-pica');
+        const rechekButton = event.target.closest('.recheck-pica');
 
         if (editButton) {
             const item = picas.find((row) => String(row.id) === String(editButton.dataset.id));
@@ -600,6 +630,64 @@ document.addEventListener('DOMContentLoaded', async () => {
             } catch (error) {
                 showAlert(error.message || 'Gagal close PICA.', 'error');
             }
+            return;
+        }
+
+        if (rechekButton) {
+            const item = picas.find((row) => String(row.id) === String(rechekButton.dataset.id));
+            openRechekModal(item);
+        }
+    });
+
+    // Re-Chek modal handlers
+    document.getElementById('closeRechekModal')?.addEventListener('click', closeRechekModal);
+    document.getElementById('cancelRechekButton')?.addEventListener('click', closeRechekModal);
+    document.getElementById('rechekForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('rechekPicaId').value;
+        const note = document.getElementById('rechekNote').value.trim();
+        const deadline = document.getElementById('rechekDeadline').value;
+        const fileInput = document.getElementById('rechekFile');
+
+        const saveBtn = document.getElementById('saveRechekButton');
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Menyimpan...';
+
+        try {
+            let rechekFile = null;
+            if (fileInput.files[0]) {
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                const up = await fetch('/api/upload', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: formData,
+                });
+                if (up.ok) {
+                    const upData = await up.json();
+                    rechekFile = upData.path ?? upData.url ?? null;
+                }
+            }
+
+            await fetchJson(`/api/picas/${id}`, {
+                method: 'PUT',
+                headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    recheck_note: note || null,
+                    recheck_deadline: deadline || null,
+                    recheck_file: rechekFile,
+                    recheck_at: new Date().toISOString(),
+                }),
+            });
+
+            showAlert('Re-Chek berhasil disimpan.');
+            closeRechekModal();
+            await loadPicas();
+        } catch (err) {
+            showAlert(err.message || 'Gagal menyimpan Re-Chek.', 'error');
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Simpan Re-Chek';
         }
     });
 

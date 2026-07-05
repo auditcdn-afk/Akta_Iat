@@ -299,6 +299,10 @@ class PicaController extends Controller
             'notes' => ['nullable', 'string'],
             'unit_usaha' => ['nullable', 'string', 'max:150'],
             'forwarded_to_unit' => ['nullable', 'string', 'max:150'],
+            'recheck_note' => ['nullable', 'string'],
+            'recheck_deadline' => ['nullable', 'date'],
+            'recheck_file' => ['nullable', 'string', 'max:255'],
+            'recheck_at' => ['nullable', 'date'],
         ];
 
         return Validator::make($payload, $rules)->validate();

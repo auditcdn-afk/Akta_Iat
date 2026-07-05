@@ -228,6 +228,55 @@
         </form>
     </div>
 </div>
+{{-- Modal Re-Chek --}}
+<div id="rechekModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
+    <div class="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+            <div>
+                <h3 class="text-lg font-bold">Re-Chek PICA</h3>
+                <p class="text-sm text-slate-400">Isi hasil re-check setelah tanggapan diterima.</p>
+            </div>
+            <button id="closeRechekModal" type="button"
+                class="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">
+                Tutup
+            </button>
+        </div>
+
+        <form id="rechekForm" class="space-y-4 px-5 py-5">
+            <input type="hidden" id="rechekPicaId">
+
+            <div>
+                <label class="mb-1 block text-sm font-medium text-blue-300">Re-Chek at the next Review</label>
+                <textarea id="rechekNote" rows="4" placeholder="Catatan hasil re-check..."
+                    class="w-full rounded-xl border border-blue-500/30 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
+            </div>
+
+            <div>
+                <label class="mb-1 block text-sm font-medium text-blue-300">Deadline Recheck</label>
+                <input id="rechekDeadline" type="date"
+                    class="w-full rounded-xl border border-blue-500/30 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 max-w-xs">
+            </div>
+
+            <div>
+                <label class="mb-1 block text-sm font-medium text-blue-300">Upload File</label>
+                <input id="rechekFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                    class="w-full rounded-xl border border-blue-500/30 bg-slate-950 px-3 py-2 text-sm text-slate-300 outline-none focus:border-blue-500">
+                <p id="rechekFileExisting" class="mt-1 text-xs text-slate-500"></p>
+            </div>
+
+            <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
+                <button type="button" id="cancelRechekButton"
+                    class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">
+                    Batal
+                </button>
+                <button type="submit" id="saveRechekButton"
+                    class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500">
+                    Simpan Re-Chek
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
