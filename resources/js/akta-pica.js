@@ -251,9 +251,16 @@ function renderPicas() {
             : '';
 
         const isBranch = isBranchRole();
+        // PICA diteruskan ke unit user ini (relation ship party) — berlaku untuk semua role
+        const isForwardedToMe = item.forwarded_to_unit && currentUser?.unit_usaha &&
+            item.forwarded_to_unit === currentUser.unit_usaha;
+        // Cek apakah forwarded party sudah mengisi (corrective_action terisi dari forwarded side)
+        // Gunakan flag: jika status sudah closed atau ada corrective_action dan bukan milik cabang asli
+        const forwardedAlreadyFilled = isForwardedToMe && item.corrective_action && item.unit_usaha !== currentUser?.unit_usaha;
+
         // Cabang sudah mengisi jika problem_identification terisi
         const branchAlreadyFilled = isBranch && item.problem_identification;
-        const deleteBtn = !isBranch
+        const deleteBtn = (!isBranch && !isForwardedToMe)
             ? `<button type="button" class="delete-pica ml-2 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${item.id}">Hapus</button>`
             : '';
 
@@ -262,6 +269,15 @@ function renderPicas() {
             actions = '<span class="text-xs text-slate-500">Read only</span>';
         } else if (isBranch && branchAlreadyFilled) {
             actions = '<span class="text-xs text-emerald-500">✓ Sudah diisi</span>';
+        } else if (isForwardedToMe && !forwardedAlreadyFilled) {
+            // Pihak Relation Ship: hanya tombol Isi
+            actions = `
+                <button type="button" class="edit-pica rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/10" data-id="${item.id}">
+                    Isi
+                </button>
+            `;
+        } else if (isForwardedToMe && forwardedAlreadyFilled) {
+            actions = '<span class="text-xs text-emerald-500">✓ Sudah diisi</span>';
         } else {
             const editLabel = isBranch ? 'Isi' : 'Edit';
             actions = `
@@ -269,7 +285,7 @@ function renderPicas() {
                     ${editLabel}
                 </button>
                 ${deleteBtn}
-                ${isBranch ? '' : closeButton}
+                ${(isBranch || isForwardedToMe) ? '' : closeButton}
             `;
         }
 
@@ -353,12 +369,14 @@ function openModal(item = null) {
         const unitWrap = document.getElementById('unitUsahaWrap');
         if (unitWrap) unitWrap.classList.toggle('hidden', !isAdminOrMgr);
 
-        // Cabang hanya bisa isi kolom tertentu
-        const branchOnly = isBranchRole();
-        // Field yang TIDAK boleh diubah cabang (auditor/admin saja)
+        // Cabang ATAU pihak Relation Ship hanya bisa isi kolom tertentu
+        const isForwardedToMe = item.forwarded_to_unit && currentUser?.unit_usaha &&
+            item.forwarded_to_unit === currentUser.unit_usaha;
+        const restrictedMode = isBranchRole() || isForwardedToMe;
+        // Field yang TIDAK boleh diubah
         ['title','currentCondition','notes']
-            .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = branchOnly; });
-        // Field yang WAJIB bisa diisi cabang
+            .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = restrictedMode; });
+        // Field yang bisa diisi cabang/forwarded party
         ['problemIdentification','correctiveAction','pic','relationShip','relationShip2','targetDate']
             .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
     } else {

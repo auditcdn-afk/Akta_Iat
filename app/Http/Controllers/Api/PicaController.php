@@ -172,7 +172,10 @@ class PicaController extends Controller
         $role = $this->role($request);
         $relationShip = $data['relation_ship'] ?? $pica->relation_ship;
 
-        if (in_array($role, self::BRANCH_ROLES, true) && !empty($relationShip)) {
+        $userUnit   = $request->user()?->unit_usaha;
+        $isForwarded = $userUnit && $pica->forwarded_to_unit === $userUnit;
+
+        if ((in_array($role, self::BRANCH_ROLES, true) || $isForwarded) && !empty($relationShip)) {
             // Parse nama dari format "Nama (unit_usaha)" atau cari user langsung
             $forwardedUnit = null;
             preg_match('/\(([^)]+)\)$/', $relationShip, $m);
