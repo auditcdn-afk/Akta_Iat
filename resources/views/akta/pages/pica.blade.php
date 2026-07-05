@@ -148,48 +148,26 @@
                         class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300 outline-none focus:border-blue-500 disabled:opacity-50"></textarea>
                 </div>
 
-                {{-- Problem Identification: diisi cabang --}}
+                {{-- Tanggapan PICA: diisi cabang --}}
                 <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-amber-300">Problem Identification <span class="text-xs text-slate-500">(diisi cabang)</span></label>
+                    <label class="mb-1 block text-sm font-medium text-amber-300">Tanggapan PICA <span class="text-xs text-slate-500">(diisi cabang)</span></label>
                     <textarea id="problemIdentification" rows="3"
                         class="w-full rounded-xl border border-amber-500/30 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"></textarea>
                 </div>
 
-                {{-- Corrective Action: diisi cabang --}}
-                <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-amber-300">Corrective Action <span class="text-xs text-slate-500">(diisi cabang)</span></label>
-                    <textarea id="correctiveAction" rows="3"
-                        class="w-full rounded-xl border border-amber-500/30 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"></textarea>
-                </div>
-
-                {{-- PIC, Deadline, Relation Ship: diisi cabang --}}
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-amber-300">PIC Completion <span class="text-xs text-slate-500">(diisi cabang)</span></label>
-                    <input id="pic" type="text"
-                        class="w-full rounded-xl border border-amber-500/30 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500">
-                </div>
-
+                {{-- Deadline Completion: diisi cabang --}}
                 <div>
                     <label class="mb-1 block text-sm font-medium text-amber-300">Deadline Completion <span class="text-xs text-slate-500">(diisi cabang)</span></label>
                     <input id="targetDate" type="date"
                         class="w-full rounded-xl border border-amber-500/30 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500">
                 </div>
 
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-amber-300">Relation Ship <span class="text-xs text-slate-500">(diisi cabang)</span></label>
-                    <input id="relationShip" type="text" list="userDatalist1" placeholder="Ketik nama atau pilih pengguna..."
-                        autocomplete="off"
-                        class="w-full rounded-xl border border-amber-500/30 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500">
-                    <datalist id="userDatalist1"></datalist>
-                </div>
-
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-amber-300">Relation Ship 2 <span class="text-xs text-slate-500">(diisi cabang)</span></label>
-                    <input id="relationShip2" type="text" list="userDatalist2" placeholder="Ketik nama atau pilih pengguna..."
-                        autocomplete="off"
-                        class="w-full rounded-xl border border-amber-500/30 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500">
-                    <datalist id="userDatalist2"></datalist>
-                </div>
+                <input type="hidden" id="pic">
+                <input type="hidden" id="correctiveAction">
+                <input type="hidden" id="relationShip">
+                <input type="hidden" id="relationShip2">
+                <datalist id="userDatalist1"></datalist>
+                <datalist id="userDatalist2"></datalist>
 
                 <input type="hidden" id="priority" value="sedang">
                 <input type="hidden" id="status" value="open">
