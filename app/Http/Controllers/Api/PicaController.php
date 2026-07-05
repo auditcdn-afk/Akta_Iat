@@ -140,7 +140,7 @@ class PicaController extends Controller
 
     public function update(Request $request, Pica $pica): JsonResponse
     {
-        $this->ensureCanWrite($request);
+        $this->ensureCanWrite($request, $pica);
 
         if ($pica->status === 'closed' && !$this->canClose($request)) {
             abort(403, 'PICA sudah closed. Hanya admin/manajer yang boleh mengubah.');
@@ -326,13 +326,17 @@ class PicaController extends Controller
         return $data;
     }
 
-    private function ensureCanWrite(Request $request): void
+    private function ensureCanWrite(Request $request, ?Pica $pica = null): void
     {
-        abort_unless(
-            in_array($this->role($request), $this->writeRoles, true),
-            403,
-            'Role tidak diizinkan mengubah PICA.'
-        );
+        $canWrite = in_array($this->role($request), $this->writeRoles, true);
+
+        // Also allow forwarded party (any role) to update the PICA
+        if (!$canWrite && $pica) {
+            $userUnit = $request->user()?->unit_usaha;
+            $canWrite = $userUnit && $pica->forwarded_to_unit === $userUnit;
+        }
+
+        abort_unless($canWrite, 403, 'Role tidak diizinkan mengubah PICA.');
     }
 
     private function ensureCanClose(Request $request): void

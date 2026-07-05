@@ -265,11 +265,7 @@ function renderPicas() {
             : '';
 
         let actions;
-        if (!canManagePicas()) {
-            actions = '<span class="text-xs text-slate-500">Read only</span>';
-        } else if (isBranch && branchAlreadyFilled) {
-            actions = '<span class="text-xs text-emerald-500">✓ Sudah diisi</span>';
-        } else if (isForwardedToMe && !forwardedAlreadyFilled) {
+        if (isForwardedToMe && !forwardedAlreadyFilled) {
             // Pihak Relation Ship: hanya tombol Isi
             actions = `
                 <button type="button" class="edit-pica rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/10" data-id="${item.id}">
@@ -277,6 +273,10 @@ function renderPicas() {
                 </button>
             `;
         } else if (isForwardedToMe && forwardedAlreadyFilled) {
+            actions = '<span class="text-xs text-emerald-500">✓ Sudah diisi</span>';
+        } else if (!canManagePicas()) {
+            actions = '<span class="text-xs text-slate-500">Read only</span>';
+        } else if (isBranch && branchAlreadyFilled) {
             actions = '<span class="text-xs text-emerald-500">✓ Sudah diisi</span>';
         } else {
             const editLabel = isBranch ? 'Isi' : 'Edit';
