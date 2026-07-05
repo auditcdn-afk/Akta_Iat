@@ -670,13 +670,22 @@ function openViewModal(item) {
         <hr class="border-slate-800">
         <p class="text-xs font-semibold uppercase text-slate-500">— Re-Chek Unit Usaha —</p>
         ${item.recheck_at ? `
-            ${fieldRow('Re-Chek at the next Review', item.recheck_note, true)}
-            ${fieldRow('Deadline Recheck', item.recheck_deadline ? String(item.recheck_deadline).slice(0,10) : null)}
-            ${item.recheck_file ? (() => {
-                const fileUrl = item.recheck_file.startsWith('http') ? item.recheck_file : `/storage/${item.recheck_file}`;
-                const fileName = item.recheck_file.split('/').pop();
-                return `<div class="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3"><div class="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-300">Upload File</div><a href="${escapeHtml(fileUrl)}" target="_blank" class="inline-flex items-center gap-1.5 text-blue-400 underline text-sm hover:text-blue-300">📎 ${escapeHtml(fileName)}</a></div>`;
-            })() : ''}
+            <div class="rounded-xl border border-amber-700/30 bg-slate-950 px-4 py-3">
+                <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-300">Re-Chek at the next Review</div>
+                <div class="whitespace-pre-wrap text-sm text-slate-100">${escapeHtml(item.recheck_note || '-')}</div>
+            </div>
+            <div class="rounded-xl border border-amber-700/30 bg-slate-950 px-4 py-3">
+                <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-300">Deadline Recheck</div>
+                <div class="text-sm text-slate-100">${item.recheck_deadline ? String(item.recheck_deadline).slice(0,10) : '-'}</div>
+            </div>
+            <div class="rounded-xl border border-amber-700/30 bg-slate-950 px-4 py-3">
+                <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-300">Upload File</div>
+                ${item.recheck_file ? (() => {
+                    const fileUrl = item.recheck_file.startsWith('http') ? item.recheck_file : `/storage/${item.recheck_file}`;
+                    const fileName = item.recheck_file.split('/').pop();
+                    return `<a href="${escapeHtml(fileUrl)}" target="_blank" class="inline-flex items-center gap-1.5 text-blue-400 underline text-sm hover:text-blue-300">📎 ${escapeHtml(fileName)}</a>`;
+                })() : '<span class="text-xs text-slate-500 italic">Tidak ada file</span>'}
+            </div>
         ` : '<div class="text-xs text-slate-600 italic">Belum ada re-chek.</div>'}
     `;
 
