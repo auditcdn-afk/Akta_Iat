@@ -786,32 +786,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveBtn.textContent = 'Menyimpan...';
 
         try {
-            // Upload file dulu jika ada
+            // Kirim semua data (termasuk file) via FormData ke satu endpoint
+            const formData = new FormData();
+            formData.append('recheck_note', note || '');
+            formData.append('recheck_deadline', deadline || '');
+            formData.append('recheck_at', new Date().toISOString());
             if (fileInput.files[0]) {
-                const formData = new FormData();
                 formData.append('file', fileInput.files[0]);
-                await fetch(`/api/picas/${id}/upload-recheck`, {
-                    method: 'POST',
-                    headers: authHeaders(),
-                    body: formData,
-                });
             }
 
-            await fetchJson(`/api/picas/${id}`, {
-                method: 'PUT',
-                headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    recheck_note: note || null,
-                    recheck_deadline: deadline || null,
-                    recheck_at: new Date().toISOString(),
-                }),
+            const resp = await fetch(`/api/picas/${id}/upload-recheck`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: formData,
             });
+
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.message || `Upload gagal (${resp.status})`);
+            }
 
             showAlert('Re-Chek berhasil disimpan.');
             closeRechekModal();
             await loadPicas();
         } catch (err) {
             showAlert(err.message || 'Gagal menyimpan Re-Chek.', 'error');
+            alert('Error Re-Chek: ' + err.message);
         } finally {
             saveBtn.disabled = false;
             saveBtn.textContent = 'Simpan Re-Chek';
