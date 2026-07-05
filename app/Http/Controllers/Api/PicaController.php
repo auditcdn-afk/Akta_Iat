@@ -65,9 +65,12 @@ class PicaController extends Controller
         if (in_array($role, self::BRANCH_ROLES, true)) {
             $unitUsaha = $request->user()?->unit_usaha;
             if ($unitUsaha) {
-                $query->where(function ($q) use ($unitUsaha) {
-                    $q->where('unit_usaha', $unitUsaha)
-                      ->orWhere('forwarded_to_unit', $unitUsaha);
+                $hasForwardedCol = \Illuminate\Support\Facades\Schema::hasColumn('picas', 'forwarded_to_unit');
+                $query->where(function ($q) use ($unitUsaha, $hasForwardedCol) {
+                    $q->where('unit_usaha', $unitUsaha);
+                    if ($hasForwardedCol) {
+                        $q->orWhere('forwarded_to_unit', $unitUsaha);
+                    }
                 });
             }
         }
@@ -190,8 +193,19 @@ class PicaController extends Controller
             }
         }
 
-        $pica->fill($data);
-        $pica->save();
+        // Coba simpan dengan forwarded_to_unit; jika kolom belum ada, simpan tanpa itu
+        try {
+            $pica->fill($data);
+            $pica->save();
+        } catch (\Illuminate\Database\QueryException $e) {
+            if (str_contains($e->getMessage(), 'forwarded_to_unit') || str_contains($e->getMessage(), 'Unknown column')) {
+                unset($data['forwarded_to_unit']);
+                $pica->fill($data);
+                $pica->save();
+            } else {
+                throw $e;
+            }
+        }
 
         $forwarded = !empty($relationShip) && in_array($role, self::BRANCH_ROLES, true);
         $message   = $forwarded
