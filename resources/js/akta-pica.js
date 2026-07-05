@@ -455,13 +455,23 @@ function getFormPayload() {
 async function savePica(event) {
     event.preventDefault();
 
-    if (!canManagePicas()) {
+    const id = document.getElementById('picaId').value;
+    const isEdit = Boolean(id);
+
+    // Cek apakah user adalah forwarded party untuk PICA ini
+    const currentPica = isEdit ? picas.find(p => String(p.id) === String(id)) : null;
+    const myUnit = currentUser?.unitUsaha || currentUser?.unit_usaha;
+    const isForwardedParty = currentPica && myUnit && (
+        currentPica.forwarded_to_unit === myUnit ||
+        (currentPica.relation_ship && currentPica.relation_ship.includes(myUnit)) ||
+        (currentPica.relation_ship2 && currentPica.relation_ship2.includes(myUnit))
+    );
+
+    if (!canManagePicas() && !isForwardedParty) {
         showAlert('Role kamu hanya boleh melihat data.', 'error');
         return;
     }
 
-    const id = document.getElementById('picaId').value;
-    const isEdit = Boolean(id);
     const formData = getFormPayload();
     console.log('Saving PICA payload:', formData);
 
