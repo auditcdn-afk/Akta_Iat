@@ -177,14 +177,18 @@
 
                 <div>
                     <label class="mb-1 block text-sm font-medium text-amber-300">Relation Ship <span class="text-xs text-slate-500">(diisi cabang)</span></label>
-                    <input id="relationShip" type="text" placeholder="Contoh: FIN DEPT"
+                    <input id="relationShip" type="text" list="userDatalist1" placeholder="Ketik nama atau pilih pengguna..."
+                        autocomplete="off"
                         class="w-full rounded-xl border border-amber-500/30 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500">
+                    <datalist id="userDatalist1"></datalist>
                 </div>
 
                 <div>
                     <label class="mb-1 block text-sm font-medium text-amber-300">Relation Ship 2 <span class="text-xs text-slate-500">(diisi cabang)</span></label>
-                    <input id="relationShip2" type="text" placeholder="Contoh: RSS RRI"
+                    <input id="relationShip2" type="text" list="userDatalist2" placeholder="Ketik nama atau pilih pengguna..."
+                        autocomplete="off"
                         class="w-full rounded-xl border border-amber-500/30 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500">
+                    <datalist id="userDatalist2"></datalist>
                 </div>
 
                 <input type="hidden" id="priority" value="sedang">

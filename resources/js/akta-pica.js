@@ -127,6 +127,24 @@ async function loadCurrentUser() {
     currentUser = payload.user;
 }
 
+async function loadUserDatalist() {
+    try {
+        const payload = await fetchJson('/api/users?per_page=500');
+        const users = Array.isArray(payload) ? payload : (payload.data ?? []);
+        const options = users.map(u => {
+            const label = u.name || u.username || u.email || '';
+            const unit  = u.unit_usaha ? ` (${u.unit_usaha})` : '';
+            return `<option value="${label}${unit}">`;
+        }).join('');
+        ['userDatalist1', 'userDatalist2'].forEach(id => {
+            const dl = document.getElementById(id);
+            if (dl) dl.innerHTML = options;
+        });
+    } catch (_) {
+        // datalist kosong — user tetap bisa ketik manual
+    }
+}
+
 async function loadRecommendations() {
     const payload = await fetchJson('/api/recommendations');
 
@@ -579,6 +597,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('syncPicaBtn')?.classList.add('hidden');
         }
 
+        await loadUserDatalist();
         await loadRecommendations();
         await loadPicas();
     } catch (error) {
