@@ -129,13 +129,9 @@ async function loadCurrentUser() {
 
 async function loadUserDatalist() {
     try {
-        const payload = await fetchJson('/api/users');
-        const users = Array.isArray(payload) ? payload : (payload.data ?? []);
-        const options = users.map(u => {
-            const label = u.name || u.username || u.email || '';
-            const unit  = u.unitUsaha ? ` (${u.unitUsaha})` : '';
-            return `<option value="${label}${unit}">`;
-        }).join('');
+        const payload = await fetchJson('/api/users/names');
+        const users = payload.data ?? [];
+        const options = users.map(u => `<option value="${u.label}">`).join('');
         ['userDatalist1', 'userDatalist2'].forEach(id => {
             const dl = document.getElementById(id);
             if (dl) dl.innerHTML = options;

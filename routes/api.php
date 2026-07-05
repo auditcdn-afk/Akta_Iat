@@ -302,6 +302,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/plan-users', [PlanAuditController::class, 'teamOptions']);
 
+    // Daftar nama pengguna untuk datalist/autocomplete (semua role terautentikasi)
+    Route::get('/users/names', function () {
+        $users = \App\Models\User::where('is_disabled', false)
+            ->orderBy('name')
+            ->get(['name', 'username', 'unit_usaha']);
+        return response()->json([
+            'data' => $users->map(fn($u) => [
+                'label' => ($u->name ?: $u->username) . ($u->unit_usaha ? ' (' . $u->unit_usaha . ')' : ''),
+            ]),
+        ]);
+    });
+
     // Opsi unit usaha berdasarkan role (untuk dropdown pinjaman cabang dll)
     Route::get('/users/unit-usaha-by-role', function (\Illuminate\Http\Request $request) {
         $role = $request->query('role', 'h1');
