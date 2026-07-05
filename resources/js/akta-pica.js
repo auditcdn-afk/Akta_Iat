@@ -129,11 +129,11 @@ async function loadCurrentUser() {
 
 async function loadUserDatalist() {
     try {
-        const payload = await fetchJson('/api/users?per_page=500');
+        const payload = await fetchJson('/api/users');
         const users = Array.isArray(payload) ? payload : (payload.data ?? []);
         const options = users.map(u => {
             const label = u.name || u.username || u.email || '';
-            const unit  = u.unit_usaha ? ` (${u.unit_usaha})` : '';
+            const unit  = u.unitUsaha ? ` (${u.unitUsaha})` : '';
             return `<option value="${label}${unit}">`;
         }).join('');
         ['userDatalist1', 'userDatalist2'].forEach(id => {
