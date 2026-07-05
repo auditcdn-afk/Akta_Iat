@@ -2,10 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AuditGrading;
-use App\Models\AuditRecommendation;
 use App\Models\BpkbOnhandItem;
-use App\Models\BuPerformance;
 use App\Models\PemeriksaanBank;
 use App\Models\PemeriksaanBpkbInproses;
 use App\Models\PemeriksaanCekFisik;
@@ -22,7 +19,6 @@ use App\Models\PemeriksaanPiutangReguler;
 use App\Models\PemeriksaanSmh;
 use App\Models\PemeriksaanSmhTarikan;
 use App\Models\PemeriksaanTtpGantung;
-use App\Models\Pica;
 use App\Models\PlanAudit;
 use Illuminate\View\View;
 
@@ -48,26 +44,13 @@ class ReportPdfController extends Controller
         $hgp        = PemeriksaanHgp::where('plan_audit_id', $id)->first();
         $hga        = PemeriksaanHga::where('plan_audit_id', $id)->first();
         $smhTarikan = PemeriksaanSmhTarikan::where('plan_audit_id', $id)->first();
-        $grading    = AuditGrading::where('plan_audit_id', $id)->first();
-        $picas      = Pica::where('plan_audit_id', $id)->with('recommendation')->get();
-        $rekomendasi = AuditRecommendation::where('plan_audit_id', $id)->get();
         $lampiran   = PemeriksaanLampiran::where('plan_audit_id', $id)->first();
-
-        // BU Performance: by unit_usaha of the plan (no direct plan_audit_id)
-        $buPerformance = null;
-        $unitUsaha = $plan->unit_usaha ?? $plan->cabang ?? null;
-        if ($unitUsaha) {
-            $buPerformance = BuPerformance::where('unit_usaha', $unitUsaha)
-                ->orderByDesc('updated_at')
-                ->first();
-        }
 
         return view('akta.pdf.report-audit', compact(
             'plan', 'kas', 'smh', 'perlengkapan', 'bank', 'materai',
             'bpkbOnhand', 'bpkbInproses', 'kwitansi', 'piutangReguler',
             'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'hga',
-            'smhTarikan', 'grading', 'picas', 'rekomendasi', 'lampiran',
-            'buPerformance'
+            'smhTarikan', 'lampiran'
         ));
     }
 }
