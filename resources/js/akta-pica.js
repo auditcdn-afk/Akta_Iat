@@ -416,7 +416,11 @@ async function savePica(event) {
     });
 
     closeModal();
-    showAlert(payload.message || 'PICA berhasil disimpan.');
+    if (payload.forwarded_to) {
+        showAlert(`✅ PICA diteruskan ke: ${payload.forwarded_to} — status berubah ke Progress.`);
+    } else {
+        showAlert(payload.message || 'PICA berhasil disimpan.');
+    }
     await loadPicas();
 }
 

@@ -162,12 +162,30 @@ class PicaController extends Controller
 
         $data['updated_by'] = $this->userName($request);
 
+        // Jika cabang menyimpan dan relation_ship sudah diisi → otomatis progress
+        $role = $this->role($request);
+        $relationShip = $data['relation_ship'] ?? $pica->relation_ship;
+        if (
+            in_array($role, self::BRANCH_ROLES, true) &&
+            !empty($relationShip) &&
+            ($pica->status === 'open' || ($data['status'] ?? $pica->status) === 'open')
+        ) {
+            $data['status'] = 'progress';
+        }
+
         $pica->fill($data);
         $pica->save();
 
-        return response()->json(
-            $pica->load(['recommendation', 'plan', 'task'])
-        );
+        $forwarded = !empty($relationShip) && in_array($role, self::BRANCH_ROLES, true);
+        $message   = $forwarded
+            ? "PICA berhasil disimpan dan diteruskan ke: {$relationShip}."
+            : 'PICA berhasil disimpan.';
+
+        return response()->json([
+            'message' => $message,
+            'forwarded_to' => $forwarded ? $relationShip : null,
+            ...$pica->load(['recommendation', 'plan', 'task'])->toArray(),
+        ]);
     }
 
     public function destroy(Request $request, Pica $pica): JsonResponse
