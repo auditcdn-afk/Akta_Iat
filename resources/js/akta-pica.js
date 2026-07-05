@@ -307,6 +307,18 @@ function renderPicas() {
         const branchPending = item.source_type === 'grading' && !item.problem_identification;
         const branchFilled  = item.source_type === 'grading' && item.problem_identification;
 
+        // Hitung progress PICA (4 tahap × 25%)
+        const step1 = !!item.current_condition;
+        const step2 = !!(item.problem_identification && item.corrective_action && item.target_date && item.pic && (item.relation_ship || item.relation_ship2));
+        const step3 = !!item.forwarded_filled_at;
+        const step4 = !!item.recheck_at;
+        // Jika Re-Chek sudah diisi → 100% langsung
+        const pct = step4 ? 100 : ([step1, step2, step3].filter(Boolean).length * 25 + (step4 ? 25 : 0));
+        const pctFull = step4 ? 100 : (step1 ? 25 : 0) + (step2 ? 25 : 0) + (step3 ? 25 : 0);
+        const progressPct = step4 ? 100 : pctFull;
+        const progressColor = progressPct === 100 ? 'bg-emerald-500' : progressPct >= 50 ? 'bg-amber-500' : 'bg-blue-500';
+        const progressLabel = progressPct === 100 ? 'text-emerald-400' : progressPct >= 50 ? 'text-amber-400' : 'text-blue-400';
+
         return `
             <tr class="hover:bg-slate-950/50 ${branchPending ? 'border-l-2 border-l-amber-500' : ''}">
                 <td class="px-4 py-4">
@@ -320,6 +332,21 @@ function renderPicas() {
                     </div>
                     ${branchPending ? `<span class="mt-1 inline-block text-xs font-semibold text-amber-400">⚠ Menunggu isian cabang</span>` : ''}
                     ${branchFilled  ? `<span class="mt-1 inline-block text-xs font-semibold text-emerald-400">✓ Cabang sudah mengisi</span>` : ''}
+                    <div class="mt-2 w-full max-w-xs">
+                        <div class="flex items-center justify-between mb-0.5">
+                            <span class="text-xs text-slate-500">Progress</span>
+                            <span class="text-xs font-bold ${progressLabel}">${progressPct}%</span>
+                        </div>
+                        <div class="h-1.5 w-full rounded-full bg-slate-700">
+                            <div class="h-1.5 rounded-full ${progressColor} transition-all duration-300" style="width:${progressPct}%"></div>
+                        </div>
+                        <div class="mt-1 flex gap-1.5 text-xs text-slate-600">
+                            <span title="Auditor" class="${step1 ? 'text-emerald-500' : ''}">①</span>
+                            <span title="Unit Usaha" class="${step2 ? 'text-emerald-500' : ''}">②</span>
+                            <span title="Relation Ship" class="${step3 ? 'text-emerald-500' : ''}">③</span>
+                            <span title="Re-Chek" class="${step4 ? 'text-emerald-500' : ''}">④</span>
+                        </div>
+                    </div>
                 </td>
 
                 <td class="px-4 py-4 text-sm text-slate-300">
