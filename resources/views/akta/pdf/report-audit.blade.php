@@ -107,7 +107,7 @@
         <tbody>
           @foreach($kas as $i => $k)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ $k->nama_pos ?? '-' }}</td>
             <td style="text-align:right">{{ number_format($k->saldo_fisik ?? 0, 0, ',', '.') }}</td>
             <td style="text-align:right">{{ number_format($k->saldo_buku ?? 0, 0, ',', '.') }}</td>
@@ -178,7 +178,7 @@
         <tbody>
           @foreach($perlengkapan as $i => $p)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ $p->nama ?? $p->nama_item ?? '-' }}</td>
             <td style="text-align:right">{{ $p->jumlah ?? '-' }}</td>
             <td>{{ $p->satuan ?? '-' }}</td>
@@ -205,7 +205,7 @@
         <tbody>
           @foreach($bank as $i => $b)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ $b->nama_bank ?? '-' }}</td>
             <td>{{ $b->no_rekening ?? '-' }}</td>
             <td style="text-align:right">{{ number_format($b->saldo_buku ?? 0, 0, ',', '.') }}</td>
@@ -235,7 +235,7 @@
         <tbody>
           @foreach($materai as $i => $m)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ $m->jenis_materai ?? '-' }}</td>
             <td style="text-align:right">{{ number_format($m->saldo_awal ?? 0, 0, ',', '.') }}</td>
             <td style="text-align:right">{{ number_format($m->total_debet ?? 0, 0, ',', '.') }}</td>
@@ -265,7 +265,7 @@
         <tbody>
           @foreach($bpkbOnhand->take(100) as $i => $b)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ $b->no_bpkb ?? '-' }}</td>
             <td>{{ $b->no_polisi ?? '-' }}</td>
             <td>{{ $b->nama_pemilik ?? '-' }}</td>
@@ -326,7 +326,7 @@
         <tbody>
           @foreach($kwItems as $i => $kw)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ $kw['nama'] ?? $kw['name'] ?? '-' }}</td>
             <td>{{ $kw['no_kwitansi'] ?? $kw['no'] ?? '-' }}</td>
             <td style="text-align:right">{{ isset($kw['jumlah']) ? number_format($kw['jumlah'], 0, ',', '.') : '-' }}</td>
@@ -358,7 +358,7 @@
         <tbody>
           @foreach(array_slice($prItems, 0, 100) as $i => $pr)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ $pr['nama'] ?? $pr['name'] ?? '-' }}</td>
             <td>{{ $pr['no_kontrak'] ?? $pr['no'] ?? '-' }}</td>
             <td style="text-align:right">{{ isset($pr['tunggakan']) ? number_format($pr['tunggakan'], 0, ',', '.') : '-' }}</td>
@@ -393,7 +393,7 @@
         <tbody>
           @foreach(array_slice($cdnItems, 0, 100) as $i => $cdn)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ $cdn['nama'] ?? $cdn['name'] ?? '-' }}</td>
             <td>{{ $cdn['no_kontrak'] ?? $cdn['no'] ?? '-' }}</td>
             <td style="text-align:right">{{ isset($cdn['jumlah']) ? number_format($cdn['jumlah'], 0, ',', '.') : (isset($cdn['tunggakan']) ? number_format($cdn['tunggakan'], 0, ',', '.') : '-') }}</td>
@@ -432,7 +432,7 @@
         <tbody>
           @foreach($ttpItems as $i => $t)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ $t['nama'] ?? $t['name'] ?? '-' }}</td>
             <td style="text-align:right">{{ isset($t['jumlah']) ? number_format($t['jumlah'], 0, ',', '.') : '-' }}</td>
             <td>{{ $t['keterangan'] ?? $t['ket'] ?? '-' }}</td>
@@ -463,7 +463,7 @@
         <tbody>
           @foreach(array_slice($cfData, 0, 100) as $i => $cf)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ is_array($cf) ? ($cf['no_rangka'] ?? $cf['id'] ?? json_encode($cf)) : $cf }}</td>
             <td>{{ is_array($cf) ? ($cf['keterangan'] ?? $cf['ket'] ?? '') : '' }}</td>
           </tr>
@@ -493,7 +493,7 @@
         <tbody>
           @foreach(array_slice($mtData, 0, 50) as $i => $row)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ is_array($row) ? implode(' | ', array_filter(array_map(fn($v) => is_scalar($v) ? $v : null, $row))) : $row }}</td>
           </tr>
           @endforeach
@@ -522,7 +522,7 @@
         <tbody>
           @foreach(array_slice($hgpItems, 0, 100) as $i => $item)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ is_array($item) ? ($item['nama'] ?? $item['kode'] ?? $item['name'] ?? '') : $item }}</td>
             <td style="text-align:right">{{ is_array($item) ? ($item['qty'] ?? $item['jumlah'] ?? '') : '' }}</td>
             <td>{{ is_array($item) ? ($item['satuan'] ?? '') : '' }}</td>
@@ -554,7 +554,7 @@
         <tbody>
           @foreach(array_slice($hgaItems, 0, 100) as $i => $item)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ is_array($item) ? ($item['nama'] ?? $item['kode'] ?? $item['name'] ?? '') : $item }}</td>
             <td style="text-align:right">{{ is_array($item) ? ($item['qty'] ?? $item['jumlah'] ?? '') : '' }}</td>
             <td>{{ is_array($item) ? ($item['satuan'] ?? '') : '' }}</td>
@@ -586,7 +586,7 @@
         <tbody>
           @foreach(array_slice($tarItems, 0, 100) as $i => $t)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ is_array($t) ? ($t['no_rangka'] ?? '') : $t }}</td>
             <td>{{ is_array($t) ? ($t['no_mesin'] ?? '') : '' }}</td>
             <td>{{ is_array($t) ? ($t['jenis'] ?? '') : '' }}</td>
@@ -626,7 +626,7 @@
         <tbody>
           @foreach($details as $i => $d)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ is_array($d) ? ($d['item'] ?? $d['nama'] ?? '') : $d }}</td>
             <td style="text-align:center">{{ is_array($d) ? ($d['nilai'] ?? $d['score'] ?? '') : '' }}</td>
             <td>{{ is_array($d) ? ($d['keterangan'] ?? $d['ket'] ?? '') : '' }}</td>
@@ -701,7 +701,7 @@
         <tbody>
           @foreach($rekomendasi as $i => $r)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ $r->judul ?? '-' }}</td>
             <td>{{ $r->deskripsi ?? $r->isi ?? '-' }}</td>
             <td>{{ $r->kategori ?? '-' }}</td>
@@ -737,7 +737,7 @@
         <tbody>
           @foreach($penilaian as $i => $pn)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ is_array($pn) ? ($pn['aspek'] ?? $pn['kpi'] ?? $pn['nama'] ?? '') : $pn }}</td>
             <td style="text-align:center">{{ is_array($pn) ? ($pn['nilai'] ?? $pn['score'] ?? '') : '' }}</td>
             <td>{{ is_array($pn) ? ($pn['keterangan'] ?? $pn['ket'] ?? '') : '' }}</td>
@@ -766,7 +766,7 @@
         <tbody>
           @foreach($files as $i => $f)
           <tr>
-            <td>{{ $i+1 }}</td>
+            <td>{{ (int)$i+1 }}</td>
             <td>{{ $f['name'] ?? '-' }}</td>
             <td>{{ strtoupper($f['ext'] ?? '-') }}</td>
             <td>{{ isset($f['size']) ? number_format($f['size']/1024, 1).' KB' : '-' }}</td>
