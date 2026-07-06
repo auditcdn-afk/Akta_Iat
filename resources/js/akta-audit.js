@@ -6382,14 +6382,26 @@ async function rekomendasiAutoFill() {
             if (rows.length) blocks.push(`4. PERLENGKAPAN SMH\n${rows.join('\n')}\n  ${'─'.repeat(40)}\n  Total selisih: ${grandSel}`);
         } catch {}
 
-        // ── 4. MATERAI ──────────────────────────────────────
+        // ── 5. MATERAI ──────────────────────────────────────
         try {
             const matRes  = await fetchJson(`/api/audit-detail/materai?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
             const matRows = matRes.data ?? matRes ?? [];
-            let selMaterai = 0;
-            for (const m of matRows) selMaterai += Number(m.selisih ?? 0);
-            if (selMaterai !== 0)
-                blocks.push(`5. MATERAI\n  • Selisih: ${Math.abs(selMaterai)} lembar (${selMaterai < 0 ? 'kurang' : 'lebih'})`);
+            const matWithSel = [];
+            for (const m of matRows) {
+                const saldoBuku = Number(m.saldoAkhir ?? m.saldo_akhir ?? 0);
+                const fisik     = Number(m.fisik ?? 0);
+                const selisih   = fisik - saldoBuku;
+                if (selisih !== 0) matWithSel.push({ jenis: m.jenisMaterai ?? m.jenis_materai ?? '-', saldoBuku, fisik, selisih });
+            }
+            if (matWithSel.length > 0) {
+                const rows = [];
+                rows.push(`  ${'Jenis Materai'.padEnd(20)} ${'Saldo Buku'.padStart(12)} ${'Fisik'.padStart(8)} ${'Selisih'.padStart(10)}`);
+                rows.push(`  ${'─'.repeat(52)}`);
+                for (const m of matWithSel) {
+                    rows.push(`  ${m.jenis.padEnd(20)} ${String(m.saldoBuku).padStart(12)} ${String(m.fisik).padStart(8)} ${((m.selisih > 0 ? '+' : '') + m.selisih).padStart(10)}`);
+                }
+                blocks.push(`5. MATERAI\n${rows.join('\n')}`);
+            }
         } catch {}
 
         // ── 5. CEK FISIK ────────────────────────────────────
