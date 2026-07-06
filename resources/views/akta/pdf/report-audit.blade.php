@@ -1852,25 +1852,135 @@
     @if(!$ttpGantung)
       <p class="empty">Belum ada data.</p>
     @else
-      @php $ttpItems = $ttpGantung->ttp_json ?? []; @endphp
-      <div class="kv" style="margin-bottom:8px;">
-        <span class="kv-label">Tgl Audit:</span>
-        <span class="kv-val">{{ $ttpGantung->tgl_audit ? \Carbon\Carbon::parse($ttpGantung->tgl_audit)->format('d/m/Y') : '-' }}</span>
+      @php
+        $ttpItems    = $ttpGantung->ttp_json ?? [];
+        $tglAuditStr = $ttpGantung->tgl_audit ?? null;
+        $tglAuditTs  = $tglAuditStr ? strtotime($tglAuditStr) : time();
+        $ttpTotBelum = array_sum(array_column($ttpItems, 'belumCair'));
+        $ttpTotNilai = array_sum(array_column($ttpItems, 'nilai'));
+        $ttpByLeasing = collect($ttpItems)->groupBy('leasing');
+        // Compute max diff
+        $ttpDiffs = collect($ttpItems)->map(function($r) use ($tglAuditTs) {
+            if (!($r['tglTtp'] ?? null)) return null;
+            $ts = strtotime($r['tglTtp']);
+            return $ts ? (int)(($tglAuditTs - $ts) / 86400) : null;
+        })->filter(fn($d) => $d !== null && $d >= 0);
+        $ttpMaxDiff = $ttpDiffs->count() ? $ttpDiffs->max() : null;
+        $fmtTtp = fn($v) => $v ? number_format($v, 0, ',', '.') : '-';
+      @endphp
+
+      {{-- Summary cards --}}
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="card-stat" style="flex:1;min-width:80px;">
+          <div class="cs-val">{{ count($ttpItems) }}</div>
+          <div class="cs-lbl">Total Data</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:120px;">
+          <div class="cs-val" style="font-size:11px;">Rp {{ number_format($ttpTotNilai,0,',','.') }}</div>
+          <div class="cs-lbl">Total Nilai TTP</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:120px;">
+          <div class="cs-val" style="font-size:11px;color:#f97316;">Rp {{ number_format($ttpTotBelum,0,',','.') }}</div>
+          <div class="cs-lbl">Total Belum Cair</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="color:#ef4444;">{{ $ttpMaxDiff !== null ? $ttpMaxDiff.' hari' : '-' }}</div>
+          <div class="cs-lbl">Diff Terlama</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val">{{ $ttpByLeasing->count() }}</div>
+          <div class="cs-lbl">Kelompok Leasing</div>
+        </div>
       </div>
+
+      <div class="kv" style="margin-bottom:10px;">
+        <span class="kv-label">Tgl Audit:</span>
+        <span class="kv-val">{{ $tglAuditStr ? \Carbon\Carbon::parse($tglAuditStr)->format('d/m/Y') : '-' }}</span>
+      </div>
+
       @if(count($ttpItems))
-      <table>
-        <thead><tr><th>#</th><th>Nama</th><th>Jumlah</th><th>Keterangan</th></tr></thead>
-        <tbody>
-          @foreach($ttpItems as $i => $t)
-          <tr>
-            <td>{{ (int)$i+1 }}</td>
-            <td>{{ $t['nama'] ?? $t['name'] ?? '-' }}</td>
-            <td style="text-align:right">{{ isset($t['jumlah']) ? number_format($t['jumlah'], 0, ',', '.') : '-' }}</td>
-            <td>{{ $t['keterangan'] ?? $t['ket'] ?? '-' }}</td>
-          </tr>
-          @endforeach
-        </tbody>
-      </table>
+        @php $no = 0; @endphp
+        @foreach($ttpByLeasing as $leasingName => $lsItems)
+          @php
+            $lsTotNilai = $lsItems->sum('nilai');
+            $lsTotBelum = $lsItems->sum('belumCair');
+          @endphp
+          <div style="margin-bottom:14px;">
+            <div style="font-weight:600;font-size:11px;margin-bottom:4px;padding:4px 8px;background:#1e293b;border-left:3px solid #f59e0b;text-transform:uppercase;letter-spacing:.05em;">
+              {{ $leasingName ?: '-' }}
+              <span style="font-weight:400;color:#94a3b8;margin-left:8px;">{{ $lsItems->count() }} tagihan</span>
+            </div>
+            <table style="font-size:9.5px;">
+              <thead>
+                <tr>
+                  <th rowspan="2" style="vertical-align:middle;">#</th>
+                  <th colspan="2" style="text-align:center;">TTP</th>
+                  <th colspan="3" style="text-align:center;">Faktur</th>
+                  <th colspan="2" style="text-align:center;">Pencairan</th>
+                  <th rowspan="2" style="text-align:right;vertical-align:middle;">Tagihan Belum Cair</th>
+                  <th rowspan="2" style="vertical-align:middle;">Keterangan</th>
+                  <th rowspan="2" style="text-align:center;vertical-align:middle;">Diff (hari)</th>
+                  <th rowspan="2" style="text-align:center;vertical-align:middle;">Fisik</th>
+                </tr>
+                <tr>
+                  <th>No TTP</th>
+                  <th>Tgl TTP</th>
+                  <th>No Faktur</th>
+                  <th>Nama</th>
+                  <th style="text-align:right;">Nilai</th>
+                  <th>Tanggal</th>
+                  <th style="text-align:right;">Nilai</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($lsItems as $t)
+                  @php
+                    $no++;
+                    $diff = null;
+                    if (!empty($t['tglTtp'])) {
+                        $ts = strtotime($t['tglTtp']);
+                        if ($ts) $diff = (int)(($tglAuditTs - $ts) / 86400);
+                    }
+                    $diffColor = $diff === null ? '#6b7280'
+                               : ($diff > 60 ? '#ef4444' : ($diff > 30 ? '#f97316' : '#94a3b8'));
+                    $diffWeight = ($diff !== null && $diff > 60) ? '700' : '400';
+                  @endphp
+                  <tr>
+                    <td>{{ $no }}</td>
+                    <td style="font-family:monospace;color:#93c5fd;">{{ $t['noTtp'] ?? '-' }}</td>
+                    <td>{{ $t['tglTtp'] ?? '-' }}</td>
+                    <td style="font-family:monospace;font-size:9px;">{{ $t['noFaktur'] ?? '-' }}</td>
+                    <td>{{ $t['nama'] ?? '-' }}</td>
+                    <td style="text-align:right;">{{ $fmtTtp($t['nilai'] ?? 0) }}</td>
+                    <td>{{ $t['pencTgl'] ?? '-' }}</td>
+                    <td style="text-align:right;color:{{ ($t['pencNilai'] ?? 0) > 0 ? '#4ade80' : '#6b7280' }};">{{ $fmtTtp($t['pencNilai'] ?? 0) }}</td>
+                    <td style="text-align:right;font-weight:{{ ($t['belumCair'] ?? 0) > 0 ? '600' : '400' }};color:{{ ($t['belumCair'] ?? 0) > 0 ? '#fb923c' : '#6b7280' }};">{{ $fmtTtp($t['belumCair'] ?? 0) }}</td>
+                    <td style="font-size:9px;max-width:180px;">{{ $t['keterangan'] ?? '-' }}</td>
+                    <td style="text-align:center;color:{{ $diffColor }};font-weight:{{ $diffWeight }};">{{ $diff !== null ? $diff.' hr' : '-' }}</td>
+                    <td style="text-align:center;">
+                      @if(!empty($t['fisik'])) <span style="color:#10b981;font-weight:700;">✓</span>
+                      @else <span style="color:#ef4444;">✗</span>
+                      @endif
+                    </td>
+                  </tr>
+                @endforeach
+                <tr style="background:#1e293b;font-weight:700;font-size:9px;">
+                  <td colspan="5" style="text-align:right;">Sub Total {{ $leasingName }}:</td>
+                  <td style="text-align:right;">{{ number_format($lsTotNilai,0,',','.') }}</td>
+                  <td colspan="2"></td>
+                  <td style="text-align:right;color:#fb923c;">{{ number_format($lsTotBelum,0,',','.') }}</td>
+                  <td colspan="3"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        @endforeach
+
+        {{-- Grand total --}}
+        <div style="margin-top:8px;padding:8px 12px;background:#1e3a5f;border-radius:6px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:600;font-size:12px;">Total TTP Gantung ({{ count($ttpItems) }} tagihan)</span>
+          <span style="font-weight:700;font-size:13px;color:#fb923c;">Rp {{ number_format($ttpTotBelum,0,',','.') }} belum cair</span>
+        </div>
       @else
         <p class="empty">Tidak ada item.</p>
       @endif
