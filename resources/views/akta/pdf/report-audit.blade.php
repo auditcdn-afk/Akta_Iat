@@ -1225,17 +1225,14 @@
     @else
     @foreach($bpkbInproses as $b)
     @php
+      // Semua field angka disimpan sebagai 'qty', bukan 'jumlah'
       $penFisik  = $b->penerimaan_fisik_json    ?? [];
       $kelBpkb   = $b->pengeluaran_bpkb_json    ?? [];
-      $pendaftar = $b->pendaftaran_bpkb_json     ?? [];
-      $penyelesaian = $b->penyelesaian_inproses_json ?? [];
-      $ketSelisih   = $b->ket_selisih_inproses_json  ?? [];
-      $rincian      = $b->rincian_inproses_json       ?? [];
-      $blocks       = $b->inproses_blocks_json         ?? [];
+      $blocks    = $b->inproses_blocks_json      ?? [];
 
       $saldoAwalFisik  = (int)($b->saldo_awal_fisik ?? 0);
-      $totalPenFisik   = array_sum(array_column($penFisik, 'jumlah'));
-      $totalKelBpkb    = array_sum(array_column($kelBpkb, 'jumlah'));
+      $totalPenFisik   = array_sum(array_column($penFisik, 'qty'));
+      $totalKelBpkb    = array_sum(array_column($kelBpkb, 'qty'));
       $fisikBpkbHitung = (int)($b->fisik_bpkb_hitung ?? ($saldoAwalFisik + $totalPenFisik - $totalKelBpkb));
       $onhandBpkb      = (int)($b->onhand_bpkb ?? 0);
       $selisihBpkb     = $fisikBpkbHitung - $onhandBpkb;
@@ -1267,17 +1264,19 @@
         @if(count($blocks))
         @foreach($blocks as $blk)
         @php
-          $saldoBlk  = (int)($blk['saldoAwalInproses'] ?? 0);
-          $penyelBlk = $blk['penyelesaianInproses'] ?? [];
-          $totalPenyelBlk = array_sum(array_column($penyelBlk, 'jumlah'));
-          $fisikBlk  = (int)($blk['fisikInprosesHitung'] ?? ($saldoBlk - $totalPenyelBlk));
-          $selBlk    = 0; // inproses selisih: fisik vs fisik hitung
+          $saldoBlk   = (int)($blk['saldoAwalInproses'] ?? 0);
+          $pendBlk    = $blk['pendaftaranBpkb']      ?? [];
+          $penyelBlk  = $blk['penyelesaianInproses'] ?? [];
+          $totalPendBlk  = array_sum(array_column($pendBlk,   'qty'));
+          $totalPenyelBlk= array_sum(array_column($penyelBlk, 'qty'));
+          $fisikBlk   = (int)($blk['fisikInprosesHitung'] ?? ($saldoBlk + $totalPendBlk - $totalPenyelBlk));
         @endphp
         <div style="background:#fff;border:1px solid #e0e7ff;border-radius:6px;padding:8px 14px;flex:1;min-width:180px;">
           <div style="font-size:10px;font-weight:700;color:#7c3aed;margin-bottom:6px;border-bottom:1px solid #ede9fe;padding-bottom:3px;">
             📋 {{ $blk['filterInproses'] ?? 'INPROSES' }}
           </div>
-          <div style="font-size:10px;display:flex;justify-content:space-between;margin-bottom:3px;"><span>Saldo Awal Inproses</span><strong>{{ $fmt($saldoBlk) }}</strong></div>
+          <div style="font-size:10px;display:flex;justify-content:space-between;margin-bottom:3px;"><span>Saldo Awal</span><strong>{{ $fmt($saldoBlk) }}</strong></div>
+          @if($totalPendBlk)<div style="font-size:10px;display:flex;justify-content:space-between;margin-bottom:3px;color:#1d4ed8;"><span>+ Pendaftaran</span><strong>{{ $fmt($totalPendBlk) }}</strong></div>@endif
           @if($totalPenyelBlk)<div style="font-size:10px;display:flex;justify-content:space-between;margin-bottom:3px;color:#dc2626;"><span>− Penyelesaian</span><strong>{{ $fmt($totalPenyelBlk) }}</strong></div>@endif
           <div style="font-size:10px;display:flex;justify-content:space-between;border-top:1px solid #ede9fe;padding-top:3px;font-weight:700;"><span>Fisik Inproses</span><span>{{ $fmt($fisikBlk) }}</span></div>
         </div>
@@ -1291,18 +1290,17 @@
     <div style="margin-bottom:14px;">
       <div style="font-weight:700;font-size:11px;color:#1d4ed8;border-bottom:2px solid #1d4ed8;padding-bottom:3px;margin-bottom:8px;">A. PENERIMAAN FISIK BPKB</div>
       <table style="font-size:9.5px;">
-        <thead><tr><th>#</th><th>Tanggal</th><th>Keterangan</th><th style="text-align:right">Jumlah</th></tr></thead>
+        <thead><tr><th>#</th><th>Keterangan</th><th style="text-align:right">Qty (unit)</th></tr></thead>
         <tbody>
           @foreach($penFisik as $ii => $r)
           <tr>
             <td>{{ $ii+1 }}</td>
-            <td>{{ $r['tanggal'] ?? '-' }}</td>
             <td>{{ $r['keterangan'] ?? '-' }}</td>
-            <td style="text-align:right;color:#059669;font-weight:700">{{ $fmt($r['jumlah'] ?? 0) }}</td>
+            <td style="text-align:right;color:#059669;font-weight:700">{{ $fmt($r['qty'] ?? 0) }}</td>
           </tr>
           @endforeach
           <tr style="background:#f0fdf4;font-weight:700;">
-            <td colspan="3" style="text-align:right">Total Penerimaan</td>
+            <td colspan="2" style="text-align:right">Total Penerimaan</td>
             <td style="text-align:right;color:#059669">{{ $fmt($totalPenFisik) }}</td>
           </tr>
         </tbody>
@@ -1315,18 +1313,17 @@
     <div style="margin-bottom:14px;">
       <div style="font-weight:700;font-size:11px;color:#dc2626;border-bottom:2px solid #dc2626;padding-bottom:3px;margin-bottom:8px;">B. PENGELUARAN / PENGIRIMAN BPKB</div>
       <table style="font-size:9.5px;">
-        <thead><tr><th>#</th><th>Tanggal</th><th>Keterangan</th><th style="text-align:right">Jumlah</th></tr></thead>
+        <thead><tr><th>#</th><th>Keterangan</th><th style="text-align:right">Qty (unit)</th></tr></thead>
         <tbody>
           @foreach($kelBpkb as $ii => $r)
           <tr>
             <td>{{ $ii+1 }}</td>
-            <td>{{ $r['tanggal'] ?? '-' }}</td>
             <td>{{ $r['keterangan'] ?? '-' }}</td>
-            <td style="text-align:right;color:#dc2626;font-weight:700">{{ $fmt($r['jumlah'] ?? 0) }}</td>
+            <td style="text-align:right;color:#dc2626;font-weight:700">{{ $fmt($r['qty'] ?? 0) }}</td>
           </tr>
           @endforeach
           <tr style="background:#fff1f2;font-weight:700;">
-            <td colspan="3" style="text-align:right">Total Pengeluaran</td>
+            <td colspan="2" style="text-align:right">Total Pengeluaran</td>
             <td style="text-align:right;color:#dc2626">{{ $fmt($totalKelBpkb) }}</td>
           </tr>
         </tbody>
@@ -1337,68 +1334,114 @@
     {{-- ── C. Detail Inproses Blocks ── --}}
     @foreach($blocks as $bi => $blk)
     @php
-      $penyelBlk = $blk['penyelesaianInproses'] ?? [];
-      $ketBlk    = $blk['ketSelisihInproses']   ?? [];
-      $rincBlk   = $blk['rincianInproses']       ?? [];
-      $saldoBlk  = (int)($blk['saldoAwalInproses'] ?? 0);
-      $totalPenyelBlk = array_sum(array_column($penyelBlk, 'jumlah'));
-      $fisikBlk  = (int)($blk['fisikInprosesHitung'] ?? ($saldoBlk - $totalPenyelBlk));
+      $pendBlk    = $blk['pendaftaranBpkb']      ?? [];
+      $penyelBlk  = $blk['penyelesaianInproses'] ?? [];
+      $ketBlk     = $blk['ketSelisihInproses']   ?? [];
+      $rincBlk    = $blk['rincianInproses']       ?? [];
+      $saldoBlk   = (int)($blk['saldoAwalInproses'] ?? 0);
+      $totalPendBlk   = array_sum(array_column($pendBlk,   'qty'));
+      $totalPenyelBlk = array_sum(array_column($penyelBlk, 'qty'));
+      $fisikBlk   = (int)($blk['fisikInprosesHitung'] ?? ($saldoBlk + $totalPendBlk - $totalPenyelBlk));
+      $selisihBlk = $fisikBlk - ($saldoBlk + $totalPendBlk - $totalPenyelBlk);
     @endphp
     <div style="margin-bottom:14px;border:1px solid #ede9fe;border-radius:6px;overflow:hidden;">
-      <div style="background:#7c3aed;color:#fff;padding:6px 12px;font-weight:700;font-size:10px;">
-        📋 {{ (int)$bi+1 }}. INPROSES: {{ $blk['filterInproses'] ?? '-' }}
-        &nbsp;|&nbsp; Saldo Awal: {{ $fmt($saldoBlk) }}
-        &nbsp;|&nbsp; Fisik: {{ $fmt($fisikBlk) }}
+      <div style="background:#7c3aed;color:#fff;padding:6px 12px;font-weight:700;font-size:10px;display:flex;justify-content:space-between;">
+        <span>📋 {{ (int)$bi+1 }}. INPROSES: {{ $blk['filterInproses'] ?? '-' }}</span>
+        <span>Saldo Awal: {{ $fmt($saldoBlk) }} &nbsp;|&nbsp; Fisik: {{ $fmt($fisikBlk) }}</span>
       </div>
       <div style="padding:8px 12px;">
-        @if(count($penyelBlk))
-        <div style="font-size:10px;font-weight:700;margin-bottom:4px;color:#374151;">Penyelesaian Inproses</div>
+
+        {{-- Rekap mini ── --}}
+        <table style="width:260px;margin-bottom:10px;font-size:10px;border:1px solid #d1d5db;">
+          <tr><td style="padding:3px 8px;border:1px solid #d1d5db;">Saldo Awal Inproses</td>
+              <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;font-weight:700">{{ $fmt($saldoBlk) }}</td></tr>
+          @if($totalPendBlk)
+          <tr><td style="padding:3px 8px;border:1px solid #d1d5db;color:#1d4ed8;">+ Pendaftaran BPKB</td>
+              <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;color:#1d4ed8;font-weight:700">{{ $fmt($totalPendBlk) }}</td></tr>
+          @endif
+          @if($totalPenyelBlk)
+          <tr><td style="padding:3px 8px;border:1px solid #d1d5db;color:#dc2626;">− Penyelesaian Inproses</td>
+              <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;color:#dc2626;font-weight:700">{{ $fmt($totalPenyelBlk) }}</td></tr>
+          @endif
+          <tr style="background:#ede9fe;font-weight:700;">
+            <td style="padding:3px 8px;border:1px solid #d1d5db;">Saldo Buku</td>
+            <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;">{{ $fmt($saldoBlk + $totalPendBlk - $totalPenyelBlk) }}</td></tr>
+          <tr style="background:{{ $selisihBlk != 0 ? '#fee2e2' : '#f0fdf4' }};font-weight:700;">
+            <td style="padding:3px 8px;border:1px solid #d1d5db;">Selisih</td>
+            <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;color:{{ $selisihBlk != 0 ? '#dc2626' : '#059669' }};">
+              {{ $selisihBlk != 0 ? $fmt($selisihBlk) : 'Nihil' }}</td></tr>
+        </table>
+
+        {{-- Pendaftaran BPKB ── --}}
+        @if(count($pendBlk))
+        <div style="font-size:10px;font-weight:700;margin-bottom:4px;color:#1d4ed8;">+ Pendaftaran BPKB</div>
         <table style="font-size:9.5px;margin-bottom:8px;">
-          <thead><tr><th>#</th><th>Tanggal</th><th>Keterangan</th><th style="text-align:right">Jumlah</th></tr></thead>
+          <thead><tr><th>#</th><th>Keterangan</th><th style="text-align:right">Qty</th></tr></thead>
+          <tbody>
+            @foreach($pendBlk as $ii => $r)
+            <tr>
+              <td>{{ $ii+1 }}</td>
+              <td>{{ $r['keterangan'] ?? '-' }}</td>
+              <td style="text-align:right;color:#1d4ed8;font-weight:700">{{ $fmt($r['qty'] ?? 0) }}</td>
+            </tr>
+            @endforeach
+            <tr style="background:#dbeafe;font-weight:700;">
+              <td colspan="2" style="text-align:right">Total Pendaftaran</td>
+              <td style="text-align:right;color:#1d4ed8">{{ $fmt($totalPendBlk) }}</td>
+            </tr>
+          </tbody>
+        </table>
+        @endif
+
+        {{-- Penyelesaian Inproses ── --}}
+        @if(count($penyelBlk))
+        <div style="font-size:10px;font-weight:700;margin-bottom:4px;color:#dc2626;">− Penyelesaian Inproses</div>
+        <table style="font-size:9.5px;margin-bottom:8px;">
+          <thead><tr><th>#</th><th>Keterangan</th><th style="text-align:right">Qty</th></tr></thead>
           <tbody>
             @foreach($penyelBlk as $ii => $r)
             <tr>
               <td>{{ $ii+1 }}</td>
-              <td>{{ $r['tanggal'] ?? '-' }}</td>
               <td>{{ $r['keterangan'] ?? '-' }}</td>
-              <td style="text-align:right;color:#dc2626;font-weight:700">{{ $fmt($r['jumlah'] ?? 0) }}</td>
+              <td style="text-align:right;color:#dc2626;font-weight:700">{{ $fmt($r['qty'] ?? 0) }}</td>
             </tr>
             @endforeach
-            <tr style="background:#fdf4ff;font-weight:700;">
-              <td colspan="3" style="text-align:right">Total Penyelesaian</td>
+            <tr style="background:#fff1f2;font-weight:700;">
+              <td colspan="2" style="text-align:right">Total Penyelesaian</td>
               <td style="text-align:right;color:#dc2626">{{ $fmt($totalPenyelBlk) }}</td>
             </tr>
           </tbody>
         </table>
         @endif
 
+        {{-- Rincian Inproses ── --}}
         @if(count($rincBlk))
         <div style="font-size:10px;font-weight:700;margin-bottom:4px;color:#374151;">Rincian Inproses</div>
         <table style="font-size:9.5px;margin-bottom:8px;">
-          <thead><tr><th>#</th><th>No BPKB</th><th>Keterangan</th><th>Status</th></tr></thead>
+          <thead><tr><th>#</th><th>Bulan / Periode</th><th style="text-align:right">Qty</th></tr></thead>
           <tbody>
             @foreach($rincBlk as $ii => $r)
             <tr>
               <td>{{ $ii+1 }}</td>
-              <td style="font-weight:600">{{ $r['noBpkb'] ?? $r['no_bpkb'] ?? '-' }}</td>
-              <td>{{ $r['keterangan'] ?? '-' }}</td>
-              <td>{{ $r['status'] ?? '-' }}</td>
+              <td>{{ $r['bulan'] ?? $r['keterangan'] ?? '-' }}</td>
+              <td style="text-align:right;font-weight:700">{{ $fmt($r['qty'] ?? 0) }}</td>
             </tr>
             @endforeach
           </tbody>
         </table>
         @endif
 
+        {{-- Keterangan Selisih ── --}}
         @if(count($ketBlk))
         <div style="font-size:10px;font-weight:700;margin-bottom:4px;color:#374151;">Keterangan Selisih</div>
         <table style="font-size:9.5px;">
-          <thead><tr><th>#</th><th>Keterangan</th><th>Jumlah</th></tr></thead>
+          <thead><tr><th>#</th><th>Keterangan</th><th style="text-align:right">Qty</th></tr></thead>
           <tbody>
             @foreach($ketBlk as $ii => $r)
             <tr>
               <td>{{ $ii+1 }}</td>
               <td>{{ $r['keterangan'] ?? '-' }}</td>
-              <td style="text-align:right">{{ $fmt($r['jumlah'] ?? 0) }}</td>
+              <td style="text-align:right">{{ $fmt($r['qty'] ?? 0) }}</td>
             </tr>
             @endforeach
           </tbody>
