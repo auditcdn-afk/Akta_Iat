@@ -6306,6 +6306,7 @@ async function rekomendasiAutoFill() {
         } catch {}
 
         // ── 2. CEK FISIK SMH ────────────────────────────────
+        // Hanya masuk rekomendasi jika ada unit TIDAK ditemukan > 0
         try {
             const smhRes  = await fetchJson(`/api/audit-detail/smh?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
             const smhRows = smhRes.data ?? smhRes ?? [];
@@ -6314,11 +6315,13 @@ async function rekomendasiAutoFill() {
                 totalUnit    += Number(s.totalUnit ?? s.total_unit ?? 0);
                 totalTemukan += Number(s.ditemukan ?? s.totalDitemukan ?? 0);
             }
-            if (totalUnit > 0) {
-                const tidakTemukan = totalUnit - totalTemukan;
-                const rows = [`  • Total unit diperiksa : ${totalUnit}`,
-                              `  • Ditemukan           : ${totalTemukan}`];
-                if (tidakTemukan > 0) rows.push(`  • Tidak ditemukan     : ${tidakTemukan} unit`);
+            const tidakTemukan = totalUnit - totalTemukan;
+            if (totalUnit > 0 && tidakTemukan > 0) {
+                const rows = [
+                    `  • Total unit diperiksa : ${totalUnit}`,
+                    `  • Ditemukan            : ${totalTemukan}`,
+                    `  • Tidak ditemukan      : ${tidakTemukan} unit`,
+                ];
                 blocks.push(`2. CEK FISIK SMH\n${rows.join('\n')}`);
             }
         } catch {}
