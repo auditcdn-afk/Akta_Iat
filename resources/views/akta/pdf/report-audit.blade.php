@@ -322,72 +322,189 @@
 </div>
 
 {{-- ═══════════════════════════════════════════════
-     2. PEMERIKSAAN SMH
+     2. PEMERIKSAAN SMH & PERLENGKAPAN
      ═══════════════════════════════════════════════ --}}
 <div class="section">
-  <div class="section-title">2. PEMERIKSAAN SMH (Stock Motor Honda)</div>
+  <div class="section-title">2. PEMERIKSAAN SMH (Stock Motor Honda) &amp; PERLENGKAPAN</div>
   <div class="section-body">
+
+    {{-- ── A. SMH Cek Fisik Per Unit ── --}}
+    <div style="font-weight:700;font-size:11px;color:#1d4ed8;border-bottom:2px solid #1d4ed8;padding-bottom:3px;margin-bottom:10px;">A. CEK FISIK UNIT SMH</div>
     @if($smh->isEmpty())
-      <p class="empty">Belum ada data.</p>
+      <p class="empty">Belum ada data cek fisik SMH.</p>
     @else
       @foreach($smh as $s)
-      <div style="margin-bottom:12px;">
-        <div class="kv-grid" style="margin-bottom:6px;">
+      @php
+        $allItems = $s->items ?? collect();
+        $adaItems = $allItems->where('status_fisik', 'ada');
+        $tidakItems = $allItems->where('status_fisik', 'tidak');
+      @endphp
+      {{-- Ringkasan SMH --}}
+      <div style="background:#f0f4ff;border:1px solid #c7d2fe;border-radius:6px;padding:8px 12px;margin-bottom:10px;">
+        <div class="kv-grid">
+          <div class="kv"><span class="kv-label">No SPT:</span><span class="kv-val">{{ $s->no_spt ?? '-' }}</span></div>
+          <div class="kv"><span class="kv-label">Cabang:</span><span class="kv-val">{{ $s->cabang ?? '-' }}</span></div>
           <div class="kv"><span class="kv-label">Tgl Onhand:</span><span class="kv-val">{{ $s->tgl_onhand ? \Carbon\Carbon::parse($s->tgl_onhand)->format('d/m/Y') : '-' }}</span></div>
-          <div class="kv"><span class="kv-label">Total Unit:</span><span class="kv-val">{{ $s->total_unit ?? 0 }}</span></div>
-          <div class="kv"><span class="kv-label">Ditemukan:</span><span class="kv-val">{{ $s->total_ditemukan ?? 0 }}</span></div>
-          <div class="kv"><span class="kv-label">Tidak Ditemukan:</span><span class="kv-val">{{ $s->total_tidak_ditemukan ?? 0 }}</span></div>
+          <div class="kv"><span class="kv-label">Pemeriksa:</span><span class="kv-val">{{ $s->nama_pemeriksa ?? '-' }}</span></div>
         </div>
-        @if($s->items && $s->items->count())
-        <table>
-          <thead><tr><th>#</th><th>No Rangka</th><th>No Mesin</th><th>Kode Model</th><th>Warna</th><th>Status Fisik</th></tr></thead>
-          <tbody>
-            @foreach($s->items->take(50) as $ii => $item)
-            <tr>
-              <td>{{ $ii+1 }}</td>
-              <td>{{ $item->no_rangka ?? '-' }}</td>
-              <td>{{ $item->no_mesin ?? '-' }}</td>
-              <td>{{ $item->kode_model ?? '-' }}</td>
-              <td>{{ $item->warna ?? '-' }}</td>
-              <td>{{ $item->status_fisik ?? '-' }}</td>
-            </tr>
-            @endforeach
-            @if($s->items->count() > 50)
-            <tr><td colspan="6" style="font-style:italic;color:#6b7280">... dan {{ $s->items->count()-50 }} unit lainnya.</td></tr>
-            @endif
-          </tbody>
-        </table>
-        @endif
+        <div style="margin-top:6px;display:flex;gap:20px;font-size:10px;">
+          <span style="background:#dbeafe;padding:2px 10px;border-radius:99px;color:#1d4ed8;font-weight:700;">Total Unit: {{ $allItems->count() }}</span>
+          <span style="background:#d1fae5;padding:2px 10px;border-radius:99px;color:#065f46;font-weight:700;">Ditemukan: {{ $adaItems->count() }}</span>
+          <span style="background:#fee2e2;padding:2px 10px;border-radius:99px;color:#991b1b;font-weight:700;">Tidak Ditemukan: {{ $tidakItems->count() }}</span>
+        </div>
       </div>
-      @endforeach
-    @endif
-  </div>
-</div>
 
-{{-- ═══════════════════════════════════════════════
-     3. PERLENGKAPAN DI LUAR SMH
-     ═══════════════════════════════════════════════ --}}
-<div class="section">
-  <div class="section-title">3. PERLENGKAPAN DI LUAR SMH</div>
-  <div class="section-body">
-    @if($perlengkapan->isEmpty())
-      <p class="empty">Belum ada data.</p>
-    @else
-      <table>
-        <thead><tr><th>#</th><th>Nama</th><th>Jumlah</th><th>Satuan</th><th>Keterangan</th></tr></thead>
-        <tbody>
-          @foreach($perlengkapan as $i => $p)
+      @if($allItems->count())
+      <table style="margin-bottom:16px;font-size:9.5px;">
+        <thead>
           <tr>
-            <td>{{ (int)$i+1 }}</td>
-            <td>{{ $p->nama ?? $p->nama_item ?? '-' }}</td>
-            <td style="text-align:right">{{ $p->jumlah ?? '-' }}</td>
-            <td>{{ $p->satuan ?? '-' }}</td>
-            <td>{{ $p->keterangan ?? '-' }}</td>
+            <th style="width:28px">#</th>
+            <th>No Rangka</th>
+            <th>No Mesin</th>
+            <th>Kode Model</th>
+            <th>Warna</th>
+            <th>Gudang</th>
+            <th>No SPB</th>
+            <th>Tgl SPB</th>
+            <th>Status Fisik</th>
+            <th>Perlengkapan</th>
+            <th>Keterangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach($allItems as $ii => $item)
+          @php
+            $plJson = $item->perlengkapan_json ?? [];
+            $plAda  = collect($plJson)->where('ada', true)->pluck('nama')->join(', ');
+            $plTdk  = collect($plJson)->where('ada', false)->pluck('nama')->join(', ');
+            $rowBg  = ($item->status_fisik === 'tidak') ? 'background:#fff1f2;' : '';
+          @endphp
+          <tr style="{{ $rowBg }}">
+            <td>{{ (int)$ii + 1 }}</td>
+            <td style="font-family:monospace;font-size:9px;">{{ $item->no_rangka ?? '-' }}</td>
+            <td style="font-family:monospace;font-size:9px;">{{ $item->no_mesin ?? '-' }}</td>
+            <td>{{ $item->kode_model ?? '-' }}</td>
+            <td>{{ $item->warna ?? '-' }}</td>
+            <td>{{ $item->gudang ?? '-' }}</td>
+            <td>{{ $item->no_spb ?? '-' }}</td>
+            <td>{{ $item->tgl_spb ? \Carbon\Carbon::parse($item->tgl_spb)->format('d/m/Y') : '-' }}</td>
+            <td style="font-weight:700;color:{{ ($item->status_fisik === 'ada') ? '#059669' : (($item->status_fisik === 'tidak') ? '#dc2626' : '#374151') }}">
+              {{ strtoupper($item->status_fisik ?? '-') }}
+            </td>
+            <td style="font-size:9px;">
+              @if(count($plJson))
+                @if($plAda)<span style="color:#059669">✓ {{ $plAda }}</span>@endif
+                @if($plTdk)<br><span style="color:#dc2626">✗ {{ $plTdk }}</span>@endif
+              @else
+                -
+              @endif
+            </td>
+            <td style="font-size:9px;">{{ $item->keterangan_fisik ?? '-' }}</td>
           </tr>
           @endforeach
         </tbody>
       </table>
+
+      {{-- Rekap Perlengkapan SMH per Jenis --}}
+      @php
+        $plSummary = [];
+        foreach($allItems as $item) {
+            foreach(($item->perlengkapan_json ?? []) as $pl) {
+                $nm = trim($pl['nama'] ?? '');
+                if($nm === '') continue;
+                if(!isset($plSummary[$nm])) $plSummary[$nm] = ['ada'=>0,'tidak'=>0];
+                if($pl['ada'] ?? false) $plSummary[$nm]['ada']++;
+                else $plSummary[$nm]['tidak']++;
+            }
+        }
+      @endphp
+      @if(count($plSummary))
+      <div style="margin-bottom:16px;">
+        <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:4px;">Rekap Perlengkapan Per Jenis (dari Cek Fisik Unit)</div>
+        <table style="font-size:9.5px;">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Jenis Perlengkapan</th>
+              <th style="text-align:center">Ada</th>
+              <th style="text-align:center">Tidak Ada</th>
+              <th style="text-align:center">Total Diperiksa</th>
+              <th style="text-align:center">%Ada</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach($plSummary as $plNm => $plCnt)
+            @php $plTotal = $plCnt['ada'] + $plCnt['tidak']; $plPct = $plTotal > 0 ? round($plCnt['ada']/$plTotal*100) : 0; @endphp
+            <tr>
+              <td>{{ $loop->iteration }}</td>
+              <td>{{ $plNm }}</td>
+              <td style="text-align:center;color:#059669;font-weight:700">{{ $plCnt['ada'] }}</td>
+              <td style="text-align:center;color:#dc2626;font-weight:700">{{ $plCnt['tidak'] }}</td>
+              <td style="text-align:center">{{ $plTotal }}</td>
+              <td style="text-align:center;color:{{ $plPct>=100 ? '#059669' : ($plPct>=80 ? '#d97706' : '#dc2626') }}">{{ $plPct }}%</td>
+            </tr>
+            @endforeach
+          </tbody>
+        </table>
+      </div>
+      @endif
+
+      @endif
+      @endforeach
     @endif
+
+    {{-- ── B. Perlengkapan di Luar SMH ── --}}
+    <div style="font-weight:700;font-size:11px;color:#7c3aed;border-bottom:2px solid #7c3aed;padding-bottom:3px;margin-bottom:10px;margin-top:16px;">B. PERLENGKAPAN DI LUAR SMH</div>
+    @if($perlengkapan->isEmpty())
+      <p class="empty">Belum ada data perlengkapan di luar SMH.</p>
+    @else
+      @php
+        $totalSaldo = $perlengkapan->sum('saldo');
+        $totalFisik = $perlengkapan->sum('fisik');
+        $totalSelisih = $perlengkapan->sum('selisih');
+      @endphp
+      <table style="font-size:9.5px;">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Jenis Perlengkapan</th>
+            <th>Tgl Periksa</th>
+            <th>Pemeriksa</th>
+            <th>Unit Usaha</th>
+            <th style="text-align:right">Saldo (Buku)</th>
+            <th style="text-align:right">Fisik</th>
+            <th style="text-align:right">Selisih</th>
+            <th>Penjelasan</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach($perlengkapan as $i => $p)
+          @php $sel = (float)($p->selisih ?? 0); @endphp
+          <tr>
+            <td>{{ (int)$i + 1 }}</td>
+            <td style="font-weight:600">{{ $p->jenis_perlengkapan ?? '-' }}</td>
+            <td>{{ $p->tgl_periksa ? \Carbon\Carbon::parse($p->tgl_periksa)->format('d/m/Y') : '-' }}</td>
+            <td>{{ $p->nama_pemeriksa ?? '-' }}</td>
+            <td>{{ $p->nama_unit_usaha ?? '-' }}</td>
+            <td style="text-align:right">{{ number_format((float)($p->saldo ?? 0), 0, ',', '.') }}</td>
+            <td style="text-align:right">{{ number_format((int)($p->fisik ?? 0), 0, ',', '.') }}</td>
+            <td style="text-align:right;font-weight:700;color:{{ $sel != 0 ? '#dc2626' : '#059669' }}">
+              {{ number_format($sel, 0, ',', '.') }}
+            </td>
+            <td style="font-size:9px">{{ $p->penjelasan ?? '-' }}</td>
+          </tr>
+          @endforeach
+          <tr style="background:#f3f4f6;font-weight:700;">
+            <td colspan="5" style="text-align:right">TOTAL</td>
+            <td style="text-align:right">{{ number_format((float)$totalSaldo, 0, ',', '.') }}</td>
+            <td style="text-align:right">{{ number_format((float)$totalFisik, 0, ',', '.') }}</td>
+            <td style="text-align:right;color:{{ $totalSelisih != 0 ? '#dc2626' : '#059669' }}">{{ number_format((float)$totalSelisih, 0, ',', '.') }}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    @endif
+
   </div>
 </div>
 
