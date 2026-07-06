@@ -6306,22 +6306,45 @@ async function rekomendasiAutoFill() {
             }
         } catch {}
 
-        // 3. Perlengkapan SMH
+        // 3. Perlengkapan SMH — rekap gabungan per jenis (SMH cek fisik + luar SMH)
         try {
-            const plRes = await fetchJson(`/api/audit-detail/perlengkapan?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
-            const plRows = plRes.data ?? plRes ?? [];
-            if (plRows.length > 0) {
-                const grouped = {};
-                for (const p of plRows) {
-                    const jenis = p.jenis || p.namaJenis || 'Lainnya';
-                    if (!grouped[jenis]) grouped[jenis] = { ada: 0, kurang: 0 };
-                    grouped[jenis].ada += Number(p.ada ?? 0);
-                    grouped[jenis].kurang += Number(p.kurang ?? p.tidakAda ?? 0);
+            const [smhSumRes, luarRes] = await Promise.all([
+                fetchJson(`/api/audit-detail/perlengkapan/smh-summary?plan_audit_id=${activePlanId}`, { headers: authHeaders() }),
+                fetchJson(`/api/audit-detail/perlengkapan?plan_audit_id=${activePlanId}`, { headers: authHeaders() }),
+            ]);
+            // SMH cek fisik: { nama, ada (fisik), total (saldo) }
+            const smhMap = {};
+            for (const r of (smhSumRes.data ?? [])) {
+                const nm = (r.nama || '').trim();
+                if (!nm) continue;
+                smhMap[nm] = { smhSaldo: Number(r.total ?? 0), smhFisik: Number(r.ada ?? 0) };
+            }
+            // Perlengkapan luar SMH
+            const luarMap = {};
+            for (const p of (luarRes.data ?? [])) {
+                const nm = (p.jenisPerlengkapan ?? p.jenis_perlengkapan ?? p.jenis ?? '').trim();
+                if (!nm) continue;
+                if (!luarMap[nm]) luarMap[nm] = { luarSaldo: 0, luarFisik: 0, luarSelisih: 0 };
+                luarMap[nm].luarSaldo   += Number(p.saldo ?? 0);
+                luarMap[nm].luarFisik   += Number(p.fisik ?? 0);
+                luarMap[nm].luarSelisih += Number(p.selisih ?? 0);
+            }
+            // Gabungkan semua jenis
+            const allJenis = [...new Set([...Object.keys(smhMap), ...Object.keys(luarMap)])].sort();
+            const selisihRows = [];
+            let grandTotalSel = 0;
+            for (const jenis of allJenis) {
+                const smhD  = smhMap[jenis]  ?? { smhSaldo: 0, smhFisik: 0 };
+                const luarD = luarMap[jenis] ?? { luarSaldo: 0, luarFisik: 0, luarSelisih: 0 };
+                const smhSel    = smhD.smhFisik - smhD.smhSaldo;
+                const totalSel  = smhSel + luarD.luarSelisih;
+                grandTotalSel  += totalSel;
+                if (totalSel !== 0) {
+                    selisihRows.push(`${jenis}: total selisih ${totalSel}`);
                 }
-                const jenisLines = Object.entries(grouped).map(([j, v]) =>
-                    `${j}: ada ${v.ada}${v.kurang > 0 ? `, kurang ${v.kurang}` : ''}`
-                );
-                lines.push('3. PERLENGKAPAN SMH\n   ' + jenisLines.join('\n   '));
+            }
+            if (selisihRows.length > 0) {
+                lines.push(`3. PERLENGKAPAN SMH\n   Grand total selisih: ${grandTotalSel}\n   ` + selisihRows.join('\n   '));
             }
         } catch {}
 
