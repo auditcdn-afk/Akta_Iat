@@ -1472,26 +1472,117 @@
     @if(!$kwitansi)
       <p class="empty">Belum ada data.</p>
     @else
-      @php $kwItems = $kwitansi->kwitansi_json ?? []; @endphp
-      <div class="kv" style="margin-bottom:8px;">
-        <span class="kv-label">Tgl Audit:</span>
-        <span class="kv-val">{{ $kwitansi->tgl_audit ? \Carbon\Carbon::parse($kwitansi->tgl_audit)->format('d/m/Y') : '-' }}</span>
+      @php
+        $kwItems = $kwitansi->kwitansi_json ?? [];
+        $kwTotalNilai   = array_sum(array_column($kwItems, 'nilaiKwitansi'));
+        $kwLeasing      = collect($kwItems)->pluck('leasing')->filter()->unique()->sort()->values();
+        $kwCustomerCnt  = collect($kwItems)->pluck('namaCustomer')->filter()->unique()->count();
+        $kwDiffs        = array_filter(array_column($kwItems, 'diff'), fn($d) => $d !== null && $d !== '');
+        $kwAvgDiff      = count($kwDiffs) ? round(array_sum($kwDiffs) / count($kwDiffs)) : null;
+        $kwByLeasing    = collect($kwItems)->groupBy('leasing');
+        $tglAuditTs     = $kwitansi->tgl_audit ? strtotime($kwitansi->tgl_audit->format('Y-m-d')) : null;
+      @endphp
+
+      {{-- Summary cards --}}
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val">{{ count($kwItems) }}</div>
+          <div class="cs-lbl">Total Kwitansi</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val">{{ $kwCustomerCnt }}</div>
+          <div class="cs-lbl">Customer</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val">{{ $kwLeasing->count() }}</div>
+          <div class="cs-lbl">Leasing</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:140px;">
+          <div class="cs-val" style="font-size:13px;">Rp {{ number_format($kwTotalNilai,0,',','.') }}</div>
+          <div class="cs-lbl">Total Nilai</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val">{{ $kwAvgDiff !== null ? $kwAvgDiff.' hari' : '-' }}</div>
+          <div class="cs-lbl">Rata-rata Gantung</div>
+        </div>
       </div>
+
+      <div class="kv" style="margin-bottom:10px;">
+        <span class="kv-label">Tgl Audit:</span>
+        <span class="kv-val">{{ $kwitansi->tgl_audit ? $kwitansi->tgl_audit->format('d/m/Y') : '-' }}</span>
+      </div>
+
       @if(count($kwItems))
-      <table>
-        <thead><tr><th>#</th><th>Nama</th><th>No Kwitansi</th><th>Jumlah</th><th>Keterangan</th></tr></thead>
-        <tbody>
-          @foreach($kwItems as $i => $kw)
-          <tr>
-            <td>{{ (int)$i+1 }}</td>
-            <td>{{ $kw['nama'] ?? $kw['name'] ?? '-' }}</td>
-            <td>{{ $kw['no_kwitansi'] ?? $kw['no'] ?? '-' }}</td>
-            <td style="text-align:right">{{ isset($kw['jumlah']) ? number_format($kw['jumlah'], 0, ',', '.') : '-' }}</td>
-            <td>{{ $kw['keterangan'] ?? $kw['ket'] ?? '-' }}</td>
-          </tr>
-          @endforeach
-        </tbody>
-      </table>
+        @foreach($kwByLeasing as $leasingName => $lsItems)
+          @php
+            $lsTotal   = $lsItems->sum('nilaiKwitansi');
+            $lsDiffs   = $lsItems->pluck('diff')->filter(fn($d) => $d !== null && $d !== '');
+            $lsAvgDiff = $lsDiffs->count() ? round($lsDiffs->avg()) : null;
+          @endphp
+          <div style="margin-bottom:14px;">
+            <div style="font-weight:600;font-size:12px;margin-bottom:4px;padding:4px 8px;background:#1e293b;border-left:3px solid #3b82f6;">
+              {{ $leasingName ?: '-' }}
+              <span style="font-weight:400;color:#94a3b8;margin-left:8px;">{{ $lsItems->count() }} kwitansi</span>
+              @if($lsAvgDiff !== null)
+                <span style="font-weight:400;color:#94a3b8;margin-left:8px;">avg gantung: {{ $lsAvgDiff }} hari</span>
+              @endif
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:30px;">#</th>
+                  <th>No Kwitansi</th>
+                  <th>Tgl Kwitansi</th>
+                  <th>Nama Customer</th>
+                  <th>No AR</th>
+                  <th>No Faktur</th>
+                  <th style="text-align:right;">Nilai Kwitansi</th>
+                  <th style="text-align:center;">Diff (hari)</th>
+                  <th>Keterangan</th>
+                  <th style="text-align:center;">Fisik</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($lsItems as $idx => $kw)
+                <tr>
+                  <td>{{ (int)$idx+1 }}</td>
+                  <td style="font-family:monospace;">{{ $kw['noKwitansi'] ?? '-' }}</td>
+                  <td>{{ isset($kw['tglKwitansi']) && $kw['tglKwitansi'] ? \Carbon\Carbon::parse($kw['tglKwitansi'])->format('d/m/Y') : '-' }}</td>
+                  <td>{{ $kw['namaCustomer'] ?? '-' }}</td>
+                  <td style="font-family:monospace;font-size:10px;">{{ $kw['noAr'] ?? '-' }}</td>
+                  <td style="font-family:monospace;font-size:10px;">{{ $kw['noFaktur'] ?? '-' }}</td>
+                  <td style="text-align:right;">Rp {{ isset($kw['nilaiKwitansi']) ? number_format($kw['nilaiKwitansi'],0,',','.') : '-' }}</td>
+                  <td style="text-align:center;">
+                    @php $d = $kw['diff'] ?? null; @endphp
+                    @if($d !== null && $d !== '')
+                      <span style="font-weight:600;color:{{ $d <= 30 ? '#10b981' : ($d <= 90 ? '#f59e0b' : '#ef4444') }};">{{ $d }}</span>
+                    @else
+                      -
+                    @endif
+                  </td>
+                  <td>{{ $kw['keterangan'] ?? '-' }}</td>
+                  <td style="text-align:center;">
+                    @if(!empty($kw['fisik'])) <span style="color:#10b981;font-weight:600;">✓</span>
+                    @else <span style="color:#ef4444;">✗</span>
+                    @endif
+                  </td>
+                </tr>
+                @endforeach
+                <tr style="background:#1e293b;font-weight:600;">
+                  <td colspan="6" style="text-align:right;">Sub Total {{ $leasingName }}:</td>
+                  <td style="text-align:right;">Rp {{ number_format($lsTotal,0,',','.') }}</td>
+                  <td colspan="3"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        @endforeach
+
+        {{-- Grand total --}}
+        <div style="margin-top:8px;padding:8px 12px;background:#1e3a5f;border-radius:6px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:600;font-size:12px;">Total Kwitansi Gantung ({{ count($kwItems) }} item)</span>
+          <span style="font-weight:700;font-size:13px;">Rp {{ number_format($kwTotalNilai,0,',','.') }}</span>
+        </div>
       @else
         <p class="empty">Tidak ada item kwitansi.</p>
       @endif
