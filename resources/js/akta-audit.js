@@ -6248,8 +6248,156 @@ function rekomendasiShowForm(id = null) {
         document.getElementById('rekomendasiIsi').value  = '';
         document.getElementById('rekomendasiFileName').classList.add('hidden');
         document.getElementById('rekomendasiFileInput').value = '';
+        // Auto-fill isi rekomendasi dari semua data pemeriksaan
+        rekomendasiAutoFill();
     }
     document.getElementById('rekomendasiIsi')?.focus();
+}
+
+async function rekomendasiAutoFill() {
+    if (!activePlanId) return;
+    const isiEl = document.getElementById('rekomendasiIsi');
+    if (!isiEl) return;
+    isiEl.value = 'Memuat data...';
+    const fmtRp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+    const lines = [];
+    try {
+        // 1. KAS
+        try {
+            const kasRes = await fetchJson(`/api/audit-detail/kas?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const kasRows = kasRes.data ?? kasRes ?? [];
+            let selBesar = 0, selKecil = 0;
+            for (const k of kasRows) {
+                const items = k.items_json ?? k.itemsJson ?? [];
+                let sb = 0, sf = 0, sBuku = 0, sFisik = 0;
+                for (const it of items) {
+                    if ((it.kategori || it.jenis || '').toLowerCase().includes('besar')) {
+                        sBuku += Number(it.saldoBuku ?? it.saldo_buku ?? 0);
+                        sFisik += Number(it.saldoFisik ?? it.saldo_fisik ?? 0);
+                    } else if ((it.kategori || it.jenis || '').toLowerCase().includes('kecil')) {
+                        sb += Number(it.saldoBuku ?? it.saldo_buku ?? 0);
+                        sf += Number(it.saldoFisik ?? it.saldo_fisik ?? 0);
+                    }
+                }
+                selBesar += (sFisik - sBuku) || (Number(k.selisihBesar ?? k.selisih_besar ?? 0));
+                selKecil += (sf - sb) || (Number(k.selisihKecil ?? k.selisih_kecil ?? 0));
+            }
+            // fallback: gunakan data in-memory dari tampilan kas jika tersedia
+            const kasBesarEl = document.querySelector('[data-kas-selisih-besar]');
+            const kasKecilEl = document.querySelector('[data-kas-selisih-kecil]');
+            const items = [];
+            if (selBesar !== 0) items.push(`Kas Besar: selisih ${fmtRp(selBesar)}`);
+            if (selKecil !== 0) items.push(`Kas Kecil: selisih ${fmtRp(selKecil)}`);
+            if (items.length) lines.push('1. PEMERIKSAAN KAS\n   ' + items.join('\n   '));
+        } catch {}
+
+        // 2. Fisik SMH
+        try {
+            const smhRes = await fetchJson(`/api/audit-detail/smh?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const smhRows = smhRes.data ?? smhRes ?? [];
+            let totalUnit = 0, totalTemukan = 0;
+            for (const s of smhRows) {
+                totalUnit += Number(s.totalUnit ?? s.total_unit ?? 0);
+                totalTemukan += Number(s.ditemukan ?? s.totalDitemukan ?? 0);
+            }
+            if (totalUnit > 0) {
+                const tidakTemukan = totalUnit - totalTemukan;
+                lines.push(`2. CEK FISIK SMH\n   Total unit: ${totalUnit}, Ditemukan: ${totalTemukan}${tidakTemukan > 0 ? `, Tidak ditemukan: ${tidakTemukan}` : ''}`);
+            }
+        } catch {}
+
+        // 3. Perlengkapan SMH
+        try {
+            const plRes = await fetchJson(`/api/audit-detail/perlengkapan?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const plRows = plRes.data ?? plRes ?? [];
+            if (plRows.length > 0) {
+                const grouped = {};
+                for (const p of plRows) {
+                    const jenis = p.jenis || p.namaJenis || 'Lainnya';
+                    if (!grouped[jenis]) grouped[jenis] = { ada: 0, kurang: 0 };
+                    grouped[jenis].ada += Number(p.ada ?? 0);
+                    grouped[jenis].kurang += Number(p.kurang ?? p.tidakAda ?? 0);
+                }
+                const jenisLines = Object.entries(grouped).map(([j, v]) =>
+                    `${j}: ada ${v.ada}${v.kurang > 0 ? `, kurang ${v.kurang}` : ''}`
+                );
+                lines.push('3. PERLENGKAPAN SMH\n   ' + jenisLines.join('\n   '));
+            }
+        } catch {}
+
+        // 4. Materai
+        try {
+            const matRes = await fetchJson(`/api/audit-detail/materai?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const matRows = matRes.data ?? matRes ?? [];
+            let selMaterai = 0;
+            for (const m of matRows) {
+                selMaterai += Number(m.selisih ?? 0);
+            }
+            if (selMaterai !== 0) lines.push(`4. MATERAI\n   Selisih: ${selMaterai} lembar`);
+        } catch {}
+
+        // 5. Cek Fisik (CF/BPKB)
+        try {
+            const cfRes = await fetchJson(`/api/audit-detail/cek-fisik?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const cf = cfRes.data ?? cfRes ?? {};
+            const cfItems = cf.items_json ?? cf.itemsJson ?? cf.items ?? [];
+            let totalCf = 0, tidakAda = 0;
+            for (const it of cfItems) {
+                totalCf++;
+                if (!(it.ada ?? it.ditemukan ?? true)) tidakAda++;
+            }
+            if (tidakAda > 0) lines.push(`5. CEK FISIK\n   Tidak ditemukan: ${tidakAda} dari ${totalCf} item`);
+        } catch {}
+
+        // 6. HGP & AHM Oils
+        try {
+            const hgpRes = await fetchJson(`/api/audit-detail/hgp?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const hgp = hgpRes.data ?? hgpRes ?? {};
+            const hgpItems = hgp.items_json ?? hgp.itemsJson ?? hgp.items ?? [];
+            let hgpTotalSel = 0, hgpTotalNilai = 0;
+            const hgpSelisihRows = [];
+            for (const it of hgpItems) {
+                const sel = Number(it.selisih ?? 0);
+                const harga = Number(it.hargaHet ?? it.harga_het ?? 0);
+                const nilaiSel = Math.abs(sel) * harga;
+                if (sel !== 0) {
+                    hgpTotalSel++;
+                    hgpTotalNilai += nilaiSel;
+                    hgpSelisihRows.push(`${it.sparepart || it.noPart || '-'}: selisih ${sel} (${fmtRp(nilaiSel)})`);
+                }
+            }
+            if (hgpTotalSel > 0) {
+                lines.push(`6. HGP & AHM OILS\n   Item selisih: ${hgpTotalSel}, Total nilai: ${fmtRp(hgpTotalNilai)}\n   ` + hgpSelisihRows.slice(0, 10).join('\n   '));
+            }
+        } catch {}
+
+        // 7. MT - rusak dan hilang
+        try {
+            const mtRes = await fetchJson(`/api/audit-detail/mt?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const mt = mtRes.data ?? mtRes ?? {};
+            const mtEntries = mt.entries ?? mt.items_json ?? mt.itemsJson ?? [];
+            const mtMekanikSel = mt.mekanikSelectedJenis ?? {};
+            const mtLines = [];
+            for (const entry of mtEntries) {
+                const mekanik = entry.mekanik || '-';
+                const jenis = entry.jenis || '';
+                const selectedJenis = mtMekanikSel[mekanik] || 'baru';
+                if (jenis !== selectedJenis) continue;
+                const rusak = (entry.rusak ?? []).length;
+                const hilang = (entry.hilang ?? []).length;
+                if (rusak > 0 || hilang > 0) {
+                    mtLines.push(`${mekanik}: rusak ${rusak}${hilang > 0 ? `, hilang ${hilang}` : ''}`);
+                }
+            }
+            if (mtLines.length) lines.push('7. MEKANIK TOOLS (MT)\n   ' + mtLines.join('\n   '));
+        } catch {}
+
+        isiEl.value = lines.length
+            ? lines.join('\n\n')
+            : '(Tidak ada temuan signifikan dari data pemeriksaan)';
+    } catch (e) {
+        isiEl.value = '';
+    }
 }
 
 function rekomendasiHideForm() {
