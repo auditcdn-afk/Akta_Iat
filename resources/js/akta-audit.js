@@ -6305,7 +6305,32 @@ async function rekomendasiAutoFill() {
                 blocks.push(`1. PEMERIKSAAN KAS\n${rows.join('\n')}`);
         } catch {}
 
-        // ── 2. CEK FISIK SMH ────────────────────────────────
+        // ── 2. PEMERIKSAAN BANK ─────────────────────────────
+        try {
+            const bankRes  = await fetchJson(`/api/audit-detail/bank?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const bankRows = bankRes.data ?? bankRes ?? [];
+            const bankWithSel = [];
+            for (const b of bankRows) {
+                const saldoBuku = Number(b.saldo_buku ?? b.saldoBuku ?? 0);
+                const saldoRk   = Number(b.saldo_bank ?? b.saldoBank ?? b.saldo_rk ?? b.saldoRk ?? 0);
+                const selisih   = saldoRk - saldoBuku;
+                if (selisih !== 0) {
+                    bankWithSel.push({ nama: b.nama_bank ?? b.namaBank ?? '-', saldoBuku, saldoRk, selisih });
+                }
+            }
+            if (bankWithSel.length > 0) {
+                const rows = [];
+                rows.push(`  ${'Nama Bank'.padEnd(20)} ${'Saldo Buku'.padStart(16)} ${'Saldo Rek. Koran'.padStart(18)} ${'Selisih'.padStart(14)}`);
+                rows.push(`  ${'─'.repeat(70)}`);
+                for (const b of bankWithSel) {
+                    const selStr = (b.selisih > 0 ? '+' : '') + fmtRp(b.selisih);
+                    rows.push(`  ${b.nama.padEnd(20)} ${fmtRp(b.saldoBuku).padStart(16)} ${fmtRp(b.saldoRk).padStart(18)} ${selStr.padStart(14)}`);
+                }
+                blocks.push(`2. PEMERIKSAAN BANK\n${rows.join('\n')}`);
+            }
+        } catch {}
+
+        // ── 3. CEK FISIK SMH ────────────────────────────────
         // Hanya masuk rekomendasi jika ada unit TIDAK ditemukan > 0
         try {
             const smhRes  = await fetchJson(`/api/audit-detail/smh?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
@@ -6322,7 +6347,7 @@ async function rekomendasiAutoFill() {
                     `  • Ditemukan            : ${totalTemukan}`,
                     `  • Tidak ditemukan      : ${tidakTemukan} unit`,
                 ];
-                blocks.push(`2. CEK FISIK SMH\n${rows.join('\n')}`);
+                blocks.push(`3. CEK FISIK SMH\n${rows.join('\n')}`);
             }
         } catch {}
 
@@ -6354,7 +6379,7 @@ async function rekomendasiAutoFill() {
                 grandSel += totalSel;
                 if (totalSel !== 0) rows.push(`  • ${jenis.padEnd(26)} selisih: ${totalSel}`);
             }
-            if (rows.length) blocks.push(`3. PERLENGKAPAN SMH\n${rows.join('\n')}\n  ${'─'.repeat(40)}\n  Total selisih: ${grandSel}`);
+            if (rows.length) blocks.push(`4. PERLENGKAPAN SMH\n${rows.join('\n')}\n  ${'─'.repeat(40)}\n  Total selisih: ${grandSel}`);
         } catch {}
 
         // ── 4. MATERAI ──────────────────────────────────────
@@ -6364,7 +6389,7 @@ async function rekomendasiAutoFill() {
             let selMaterai = 0;
             for (const m of matRows) selMaterai += Number(m.selisih ?? 0);
             if (selMaterai !== 0)
-                blocks.push(`4. MATERAI\n  • Selisih: ${Math.abs(selMaterai)} lembar (${selMaterai < 0 ? 'kurang' : 'lebih'})`);
+                blocks.push(`5. MATERAI\n  • Selisih: ${Math.abs(selMaterai)} lembar (${selMaterai < 0 ? 'kurang' : 'lebih'})`);
         } catch {}
 
         // ── 5. CEK FISIK ────────────────────────────────────
@@ -6375,7 +6400,7 @@ async function rekomendasiAutoFill() {
             let total = 0, tidakAda = 0;
             for (const it of cfItems) { total++; if (!(it.ada ?? it.ditemukan ?? true)) tidakAda++; }
             if (tidakAda > 0)
-                blocks.push(`5. CEK FISIK\n  • Tidak ditemukan: ${tidakAda} dari ${total} item`);
+                blocks.push(`6. CEK FISIK\n  • Tidak ditemukan: ${tidakAda} dari ${total} item`);
         } catch {}
 
         // ── 6. HGP & AHM OILS ───────────────────────────────
@@ -6396,7 +6421,7 @@ async function rekomendasiAutoFill() {
                 }
             }
             if (cntSel > 0) {
-                blocks.push(`6. HGP & AHM OILS\n  • Item selisih : ${cntSel}\n  • Total nilai  : ${fmtRp(totalNilai)}\n${rows.slice(0, 12).join('\n')}`);
+                blocks.push(`7. HGP & AHM OILS\n  • Item selisih : ${cntSel}\n  • Total nilai  : ${fmtRp(totalNilai)}\n${rows.slice(0, 12).join('\n')}`);
             }
         } catch {}
 
@@ -6417,7 +6442,7 @@ async function rekomendasiAutoFill() {
                 if (rusak.length)  rows.push(`    Rusak  (${rusak.length})  : ${rusak.map(t => t.nama || t).join(', ')}`);
                 if (hilang.length) rows.push(`    Hilang (${hilang.length}) : ${hilang.map(t => t.nama || t).join(', ')}`);
             }
-            if (rows.length) blocks.push(`7. MEKANIK TOOLS (MT)\n${rows.join('\n')}`);
+            if (rows.length) blocks.push(`8. MEKANIK TOOLS (MT)\n${rows.join('\n')}`);
         } catch {}
 
         isiEl.value = blocks.length
