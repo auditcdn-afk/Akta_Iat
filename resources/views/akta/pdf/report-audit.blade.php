@@ -2122,29 +2122,78 @@
 </div>
 
 {{-- ═══════════════════════════════════════════════
-     13. MT (Motor Tarikan)
+     13. MT (Mechanic Truster Tools)
      ═══════════════════════════════════════════════ --}}
 <div class="section">
-  <div class="section-title">13. MT (Motor Tarikan)</div>
+  <div class="section-title">13. MT (Mechanic Truster Tools)</div>
   <div class="section-body">
     @if(!$mt)
       <p class="empty">Belum ada data.</p>
     @else
-      @php $mtData = $mt->data_json ?? []; @endphp
-      @if(is_array($mtData) && count($mtData))
-      <table>
-        <thead><tr><th>#</th><th>Detail</th></tr></thead>
-        <tbody>
-          @foreach(array_slice($mtData, 0, 50) as $i => $row)
-          <tr>
-            <td>{{ (int)$i+1 }}</td>
-            <td>{{ is_array($row) ? implode(' | ', array_filter(array_map(fn($v) => is_scalar($v) ? $v : null, $row))) : $row }}</td>
-          </tr>
-          @endforeach
-        </tbody>
-      </table>
-      @else
+      @php
+        $mtRaw     = $mt->data_json ?? [];
+        $mtEntries = $mtRaw['entries'] ?? [];
+        // Group by mekanik
+        $mtByMekanik = collect($mtEntries)->groupBy('mekanik');
+        $mtJenisLabel = ['baru' => 'Baru', 'lama' => 'Lama', 'fi' => 'FI'];
+        $mtKatLabel   = ['bagus' => 'Bagus', 'rusak' => 'Rusak', 'skAudit' => 'SK Audit', 'hilang' => 'Hilang'];
+        $mtKatColor   = ['bagus' => '#10b981', 'rusak' => '#ef4444', 'skAudit' => '#60a5fa', 'hilang' => '#f97316'];
+      @endphp
+
+      @if($mtByMekanik->isEmpty())
         <p class="empty">Tidak ada data.</p>
+      @else
+        @foreach($mtByMekanik as $mekanik => $entries)
+          {{-- Mekanik header --}}
+          <div style="margin-bottom:18px;">
+            <div style="font-size:13px;font-weight:700;padding:6px 12px;background:#1e3a5f;border-left:4px solid #3b82f6;margin-bottom:10px;border-radius:0 4px 4px 0;">
+              Mekanik: {{ $mekanik }}
+              <span style="font-size:10px;font-weight:400;color:#94a3b8;margin-left:8px;">{{ $entries->count() }} jenis diperiksa</span>
+            </div>
+
+            @foreach($entries as $entry)
+              @php
+                $jenis    = $entry['jenis'] ?? '-';
+                $jenisLbl = $mtJenisLabel[$jenis] ?? strtoupper($jenis);
+                $totalTools = collect(['bagus','rusak','skAudit','hilang'])
+                    ->sum(fn($k) => count($entry[$k] ?? []));
+              @endphp
+              <div style="margin-bottom:12px;padding:10px 14px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;">
+                {{-- Jenis header with summary --}}
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                  <span style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;background:#1d4ed8;color:#fff;">{{ $jenisLbl }}</span>
+                  <span style="font-size:10px;color:#94a3b8;">{{ $totalTools }} tools</span>
+                  {{-- Summary per kategori --}}
+                  @foreach(['bagus','rusak','skAudit','hilang'] as $kat)
+                    @php $cnt = count($entry[$kat] ?? []); @endphp
+                    @if($cnt > 0)
+                      <span style="font-size:10px;font-weight:600;color:{{ $mtKatColor[$kat] }};">{{ $mtKatLabel[$kat] }}: {{ $cnt }}</span>
+                    @endif
+                  @endforeach
+                </div>
+
+                {{-- Per-kategori detail --}}
+                @foreach(['bagus','rusak','skAudit','hilang'] as $kat)
+                  @php $tools = $entry[$kat] ?? []; @endphp
+                  @if(count($tools))
+                  <div style="margin-bottom:6px;">
+                    <div style="font-size:10px;font-weight:600;color:{{ $mtKatColor[$kat] }};margin-bottom:3px;">
+                      {{ $mtKatLabel[$kat] }} ({{ count($tools) }})
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                      @foreach($tools as $tool)
+                      <span style="font-size:9.5px;padding:2px 8px;border-radius:999px;border:1px solid {{ $mtKatColor[$kat] }}33;color:{{ $mtKatColor[$kat] }};background:{{ $mtKatColor[$kat] }}11;">
+                        {{ $tool }}
+                      </span>
+                      @endforeach
+                    </div>
+                  </div>
+                  @endif
+                @endforeach
+              </div>
+            @endforeach
+          </div>
+        @endforeach
       @endif
     @endif
   </div>
