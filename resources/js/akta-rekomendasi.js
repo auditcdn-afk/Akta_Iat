@@ -24,12 +24,36 @@ function authHeaders() {
     };
 }
 
-function canManageRecommendations() {
+function isInternal() {
     return ['admin', 'manajer', 'auditor'].includes(currentUser?.role);
+}
+
+function canManageRecommendations() {
+    return isInternal();
 }
 
 function canApproveRecommendations() {
     return ['admin', 'manajer'].includes(currentUser?.role);
+}
+
+// Returns true if the current user can fill the "Isi" (unit usaha response) for this recommendation
+function canIsiRekomendasi(item) {
+    if (isInternal()) return true;
+    const planCabang = item.planAudit?.cabang ?? '';
+    const myUnit     = currentUser?.unitUsaha ?? '';
+    return myUnit && myUnit === planCabang;
+}
+
+// Returns true if current user can fill a specific birokrasi step role
+function canIsiStep(roleName) {
+    if (isInternal()) return true;
+    const myUnit = currentUser?.unitUsaha ?? '';
+    if (!myUnit) return false;
+    // Direct match: role name matches unit usaha (e.g. user unit_usaha = "SO" matches step "SO")
+    if (myUnit === roleName) return true;
+    // Prefix match: user "SO TDB" matches role "SO" — NO, this is wrong.
+    // Only exact match or admin/manajer/auditor can fill steps.
+    return false;
 }
 
 function showAlert(message, type = 'success') {
@@ -219,9 +243,12 @@ function renderRecommendations() {
 
         // Check if this recommendation has been filled (has isi_rekomendasi step)
         const isiStep = (item.steps ?? []).find(s => s.step === 'isi_rekomendasi');
-        const isiBtn = `<button type="button" class="isi-recommendation rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10 transition" data-id="${item.id}" data-judul="${escapeHtml(item.judul)}">
+        const userCanIsi = canIsiRekomendasi(item);
+        const isiBtn = userCanIsi
+            ? `<button type="button" class="isi-recommendation rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10 transition" data-id="${item.id}" data-judul="${escapeHtml(item.judul)}">
                     ${isiStep ? 'Lihat / Edit Isian' : 'Isi'}
-                </button>`;
+                </button>`
+            : '';
 
         const actions = canManageRecommendations()
             ? `
@@ -391,9 +418,9 @@ function buildBirokrasiCards(item) {
         const content = done && s.note
             ? `<p class="mt-1 text-xs text-slate-700">${escapeHtml(s.note)}</p><p class="mt-1 text-[10px] text-slate-400">${escapeHtml(s.user ?? '')}${s.time ? ' · ' + s.time.substring(0,10) : ''}</p>`
             : `<p class="mt-1 text-xs text-slate-400 italic">${canIsi ? 'Giliran mengisi...' : 'Belum giliran'}</p>`;
-        const btn = canIsi
+        const btn = canIsi && canIsiStep(s.step)
             ? `<button onclick="openIsiStepFromReko(${item.id}, ${fullIdx < 0 ? idx+1 : fullIdx}, '${escapeHtml(s.step)}')" class="mt-2 rounded-lg bg-blue-600 hover:bg-blue-500 px-2 py-1 text-[11px] font-semibold text-white">Isi Keputusan</button>`
-            : '';
+            : (canIsi ? `<p class="mt-1 text-[10px] text-amber-400 italic">Giliran pihak ini</p>` : '');
         return `<div class="rounded-lg border p-2.5 ${bg}" style="min-width:160px;max-width:220px">
             <p class="text-xs font-bold text-slate-800">${escapeHtml(s.step)}</p>
             ${content}

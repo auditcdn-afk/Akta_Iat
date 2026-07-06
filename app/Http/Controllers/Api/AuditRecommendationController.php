@@ -14,8 +14,33 @@ class AuditRecommendationController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $user       = $request->user();
+        $isInternal = $user && in_array($user->role, ['admin', 'manajer', 'auditor']);
+        $unitUsaha  = $user?->unit_usaha;
+
+        // Collect all cabang names reachable by this user via birokrasi
+        $allowedCabang = [];
+        if (!$isInternal && $unitUsaha) {
+            foreach (config('birokrasi', []) as $group) {
+                // User's unit_usaha is either a direct unit OR matches a birokrasi role name
+                $inUnits     = in_array($unitUsaha, $group['units']);
+                $inApprovers = in_array($unitUsaha, $group['approvers']);
+                if ($inUnits || $inApprovers) {
+                    $allowedCabang = array_merge($allowedCabang, $group['units']);
+                }
+            }
+            $allowedCabang = array_unique($allowedCabang);
+        }
+
         $recommendations = AuditRecommendation::query()
             ->with(['planAudit', 'auditTask'])
+            // Non-internal users only see recs for their own cabang or birokrasi-related cabang
+            ->when(!$isInternal && $unitUsaha, function ($query) use ($allowedCabang, $unitUsaha) {
+                $query->whereHas('planAudit', function ($q) use ($allowedCabang, $unitUsaha) {
+                    $q->where('cabang', $unitUsaha)
+                      ->orWhereIn('cabang', $allowedCabang);
+                });
+            })
             ->when($request->filled('q'), function ($query) use ($request) {
                 $q = $request->query('q');
 
@@ -237,6 +262,15 @@ class AuditRecommendationController extends Controller
             'isi'     => ['required', 'string'],
         ]);
 
+        $user      = $request->user();
+        $isInternal = $user && in_array($user->role, ['admin', 'manajer', 'auditor']);
+        if (!$isInternal) {
+            $planCabang = $recommendation->planAudit?->cabang ?? '';
+            if ($user?->unit_usaha !== $planCabang) {
+                return response()->json(['ok' => false, 'message' => 'Anda tidak berwenang mengisi rekomendasi ini.'], 403);
+            }
+        }
+
         $steps   = $recommendation->steps ?: [];
         $steps[] = [
             'step'   => 'isi_rekomendasi',
@@ -283,7 +317,17 @@ class AuditRecommendationController extends Controller
             return response()->json(['ok' => false, 'message' => 'Step tidak ditemukan.'], 404);
         }
         if ($steps[$idx]['status'] === 'done' || $steps[$idx]['status'] === 'approved') {
-            return response()->json(['ok' => false, 'message' => 'Step sudah disetujui.'], 422);
+            return response()->json(['ok' => false, 'message' => 'Step sudah diisi.'], 422);
+        }
+
+        // Authorization: internal roles can fill any step; others must match role name
+        $user       = $request->user();
+        $isInternal = $user && in_array($user->role, ['admin', 'manajer', 'auditor']);
+        if (!$isInternal) {
+            $stepRole = $steps[$idx]['role'] ?? $steps[$idx]['step'] ?? '';
+            if ($user?->unit_usaha !== $stepRole) {
+                return response()->json(['ok' => false, 'message' => 'Anda tidak berwenang mengisi step ini.'], 403);
+            }
         }
 
         $steps[$idx]['status'] = 'done';
