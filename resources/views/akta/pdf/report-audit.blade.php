@@ -2485,28 +2485,103 @@
      ═══════════════════════════════════════════════ --}}
 <div class="section">
   <div class="section-title">16. SMH TARIKAN</div>
-  <div class="section-body">
+  <div class="section-body" style="padding:0;">
     @if(!$smhTarikan)
-      <p class="empty">Belum ada data.</p>
+      <p class="empty" style="padding:12px;">Belum ada data.</p>
     @else
-      @php $tarItems = $smhTarikan->items_json ?? []; @endphp
-      @if(count($tarItems))
-      <table>
-        <thead><tr><th>#</th><th>No Rangka</th><th>No Mesin</th><th>Jenis</th><th>Keterangan</th></tr></thead>
-        <tbody>
-          @foreach(array_slice($tarItems, 0, 100) as $i => $t)
+      @php
+        $tarItems   = $smhTarikan->items_json ?? [];
+        $tarTotal   = count($tarItems);
+        $tarLengkap = collect($tarItems)->filter(fn($it) => !empty($it['nama']) && !empty($it['noBast']))->count();
+        $tarPiutang = array_sum(array_map(fn($it) => (float)($it['sisaPiutang'] ?? 0), $tarItems));
+        $tarSudah   = collect($tarItems)->filter(fn($it) => !empty($it['sudahAjukan']))->count();
+        $fmtRp = fn($v) => 'Rp '.number_format((float)$v, 0, ',', '.');
+      @endphp
+
+      {{-- Summary cards --}}
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px 14px;border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:#1e40af;">{{ $tarTotal }}</div>
+          <div style="font-size:9px;color:#6b7280;margin-top:2px;">Total Unit</div>
+        </div>
+        <div style="background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:8px 10px;text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:#059669;">{{ $tarLengkap }}</div>
+          <div style="font-size:9px;color:#6b7280;margin-top:2px;">Data Lengkap</div>
+        </div>
+        <div style="background:#fff;border:1px solid {{ $tarSudah < $tarTotal ? '#fef3c7' : '#d1fae5' }};border-radius:8px;padding:8px 10px;text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:{{ $tarSudah < $tarTotal ? '#b45309' : '#059669' }};">{{ $tarSudah }}/{{ $tarTotal }}</div>
+          <div style="font-size:9px;color:#6b7280;margin-top:2px;">Sudah Ajukan</div>
+        </div>
+        <div style="background:#fff;border:1px solid #fee2e2;border-radius:8px;padding:8px 10px;text-align:center;">
+          <div style="font-size:13px;font-weight:800;color:#dc2626;">{{ $tarPiutang > 0 ? $fmtRp($tarPiutang) : '—' }}</div>
+          <div style="font-size:9px;color:#6b7280;margin-top:2px;">Total Sisa Piutang</div>
+        </div>
+      </div>
+
+      @if($tarTotal > 0)
+      <div style="overflow-x:auto;">
+      <table style="font-size:9.5px;min-width:900px;">
+        <thead>
           <tr>
-            <td>{{ (int)$i+1 }}</td>
-            <td>{{ is_array($t) ? ($t['no_rangka'] ?? '') : $t }}</td>
-            <td>{{ is_array($t) ? ($t['no_mesin'] ?? '') : '' }}</td>
-            <td>{{ is_array($t) ? ($t['jenis'] ?? '') : '' }}</td>
-            <td>{{ is_array($t) ? ($t['keterangan'] ?? $t['ket'] ?? '') : '' }}</td>
+            <th style="width:24px;">#</th>
+            <th>Nama Konsumen</th>
+            <th style="width:80px;">No. BAST</th>
+            <th style="width:60px;">Merk/Type</th>
+            <th style="width:36px;text-align:center;">Tahun</th>
+            <th style="width:90px;">No. Mesin</th>
+            <th style="width:90px;">No. Rangka</th>
+            <th style="width:55px;">No. Polisi</th>
+            <th style="width:70px;">No. Kontrak</th>
+            <th style="width:70px;text-align:right;">Sisa Piutang</th>
+            <th style="width:80px;">Perlengkapan</th>
+            <th style="width:60px;text-align:center;">Tgl Pengajuan</th>
+            <th>Kondisi SMH</th>
           </tr>
+        </thead>
+        <tbody>
+          @foreach($tarItems as $i => $it)
+            @php
+              $sudah    = !empty($it['sudahAjukan']);
+              $piutang  = (float)($it['sisaPiutang'] ?? 0);
+              $isLengkap = !empty($it['nama']) && !empty($it['noBast']);
+            @endphp
+            <tr style="{{ !$isLengkap ? 'background:#fffbeb;' : '' }}">
+              <td>{{ (int)$i + 1 }}</td>
+              <td style="font-weight:700;">{{ $it['nama'] ?? '—' }}</td>
+              <td style="font-size:8.5px;color:#374151;">{{ $it['noBast'] ?? '—' }}</td>
+              <td>{{ $it['merk'] ?? '—' }}</td>
+              <td style="text-align:center;">{{ $it['tahun'] ?? '—' }}</td>
+              <td style="font-family:monospace;font-size:8.5px;">{{ $it['noMesin'] ?? '—' }}</td>
+              <td style="font-family:monospace;font-size:8.5px;">{{ $it['noRangka'] ?? '—' }}</td>
+              <td style="font-weight:600;">{{ $it['nopol'] ?? '—' }}</td>
+              <td style="font-size:8.5px;color:#6b7280;">{{ $it['noKontrak'] ?? '—' }}</td>
+              <td style="text-align:right;font-weight:700;color:{{ $piutang > 0 ? '#dc2626' : '#374151' }};">
+                {{ $piutang > 0 ? $fmtRp($piutang) : '—' }}
+              </td>
+              <td style="font-size:8.5px;color:#374151;">{{ $it['perlengkapan'] ?? '—' }}</td>
+              <td style="text-align:center;">
+                @if($sudah)
+                  <span style="color:#059669;font-weight:700;font-size:8.5px;">{{ $it['tglPengajuan'] ?? '✔' }}</span>
+                @else
+                  <span style="color:#d97706;font-size:8.5px;">Belum Ajukan</span>
+                @endif
+              </td>
+              <td style="font-size:8.5px;color:#6b7280;">{{ $it['kondisi'] ?? '—' }}</td>
+            </tr>
           @endforeach
+          {{-- Total row --}}
+          @if($tarPiutang > 0)
+          <tr style="background:#f3f4f6;font-weight:700;border-top:2px solid #d1d5db;">
+            <td colspan="9" style="text-align:right;">TOTAL SISA PIUTANG</td>
+            <td style="text-align:right;color:#dc2626;">{{ $fmtRp($tarPiutang) }}</td>
+            <td colspan="3"></td>
+          </tr>
+          @endif
         </tbody>
       </table>
+      </div>
       @else
-        <p class="empty">Tidak ada item.</p>
+        <p class="empty" style="padding:12px;">Tidak ada data unit.</p>
       @endif
     @endif
   </div>
