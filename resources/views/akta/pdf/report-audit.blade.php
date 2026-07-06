@@ -1992,27 +1992,130 @@
      12. CEK FISIK
      ═══════════════════════════════════════════════ --}}
 <div class="section">
-  <div class="section-title">12. CEK FISIK</div>
+  <div class="section-title">12. CEK FISIK (Blangko Cek Fisik &amp; STUJ)</div>
   <div class="section-body">
     @if(!$cekFisik)
       <p class="empty">Belum ada data.</p>
     @else
-      @php $cfData = $cekFisik->data_json ?? []; @endphp
-      @if(is_array($cfData) && count($cfData))
-      <table>
-        <thead><tr><th>#</th><th>No Rangka / ID</th><th>Keterangan</th></tr></thead>
-        <tbody>
-          @foreach(array_slice($cfData, 0, 100) as $i => $cf)
+      @php
+        $cf     = $cekFisik->data_json ?? [];
+        $cfSa   = $cf['saldoAwal']  ?? ['tanggal'=>'', 'cf'=>0, 'stuj'=>0, 'fstnk'=>0];
+        $cfPen  = $cf['penerimaan'] ?? [];
+        $cfKel  = $cf['pengeluaran']?? [];
+        $cfFis  = $cf['fisik']      ?? ['cf'=>0,'stuj'=>0,'fstnk'=>0];
+        // Compute saldo akhir
+        $cfAkhirCf    = ($cfSa['cf']    ?? 0);
+        $cfAkhirStuj  = ($cfSa['stuj']  ?? 0);
+        $cfAkhirFstnk = ($cfSa['fstnk'] ?? 0);
+        foreach ($cfPen as $r) { $cfAkhirCf += ($r['cf']??0); $cfAkhirStuj += ($r['stuj']??0); $cfAkhirFstnk += ($r['fstnk']??0); }
+        foreach ($cfKel as $r) { $cfAkhirCf -= ($r['cf']??0); $cfAkhirStuj -= ($r['stuj']??0); $cfAkhirFstnk -= ($r['fstnk']??0); }
+        $cfSelCf    = $cfAkhirCf    - ($cfFis['cf']    ?? 0);
+        $cfSelStuj  = $cfAkhirStuj  - ($cfFis['stuj']  ?? 0);
+        $cfSelFstnk = $cfAkhirFstnk - ($cfFis['fstnk'] ?? 0);
+        $selColor = fn($v) => $v == 0 ? '#10b981' : '#ef4444';
+      @endphp
+
+      {{-- Summary stat cards --}}
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+        {{-- CEK FISIK --}}
+        <div style="flex:1;min-width:150px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:10px 14px;">
+          <div style="font-size:10px;font-weight:600;color:#60a5fa;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">CEK FISIK (CF)</div>
+          <div style="display:flex;gap:12px;">
+            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;">{{ $cfSa['cf'] ?? 0 }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Awal</div></div>
+            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;color:#60a5fa;">{{ $cfAkhirCf }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Akhir</div></div>
+            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;color:{{ $selColor($cfSelCf) }};">{{ $cfSelCf }}</div><div style="font-size:9px;color:#94a3b8;">Selisih</div></div>
+          </div>
+        </div>
+        {{-- STUJ --}}
+        <div style="flex:1;min-width:150px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:10px 14px;">
+          <div style="font-size:10px;font-weight:600;color:#a78bfa;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">STUJ</div>
+          <div style="display:flex;gap:12px;">
+            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;">{{ $cfSa['stuj'] ?? 0 }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Awal</div></div>
+            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;color:#a78bfa;">{{ $cfAkhirStuj }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Akhir</div></div>
+            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;color:{{ $selColor($cfSelStuj) }};">{{ $cfSelStuj }}</div><div style="font-size:9px;color:#94a3b8;">Selisih</div></div>
+          </div>
+        </div>
+        {{-- F.STNK --}}
+        <div style="flex:1;min-width:150px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:10px 14px;">
+          <div style="font-size:10px;font-weight:600;color:#34d399;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">F. STNK</div>
+          <div style="display:flex;gap:12px;">
+            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;">{{ $cfSa['fstnk'] ?? 0 }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Awal</div></div>
+            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;color:#34d399;">{{ $cfAkhirFstnk }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Akhir</div></div>
+            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;color:{{ $selColor($cfSelFstnk) }};">{{ $cfSelFstnk }}</div><div style="font-size:9px;color:#94a3b8;">Selisih</div></div>
+          </div>
+        </div>
+      </div>
+
+      {{-- Rekap tabel 4 baris --}}
+      <table style="margin-bottom:14px;">
+        <thead>
           <tr>
-            <td>{{ (int)$i+1 }}</td>
-            <td>{{ is_array($cf) ? ($cf['no_rangka'] ?? $cf['id'] ?? json_encode($cf)) : $cf }}</td>
-            <td>{{ is_array($cf) ? ($cf['keterangan'] ?? $cf['ket'] ?? '') : '' }}</td>
+            <th style="width:180px;">Keterangan</th>
+            <th style="text-align:center;">Cek Fisik</th>
+            <th style="text-align:center;">STUJ</th>
+            <th style="text-align:center;">F. STNK</th>
           </tr>
-          @endforeach
+        </thead>
+        <tbody>
+          <tr>
+            <td>Saldo Awal ({{ $cfSa['tanggal'] ?? '-' }})</td>
+            <td style="text-align:center;">{{ $cfSa['cf'] ?? 0 }}</td>
+            <td style="text-align:center;">{{ $cfSa['stuj'] ?? 0 }}</td>
+            <td style="text-align:center;">{{ $cfSa['fstnk'] ?? 0 }}</td>
+          </tr>
+          @if(count($cfPen))
+            @foreach($cfPen as $r)
+            <tr style="color:#4ade80;">
+              <td>+ Penerimaan{{ ($r['tanggal']??'') ? ' ('.$r['tanggal'].')' : '' }}{{ ($r['noDokumen']??'') ? ' – '.$r['noDokumen'] : '' }}</td>
+              <td style="text-align:center;">{{ $r['cf'] ?? 0 }}</td>
+              <td style="text-align:center;">{{ $r['stuj'] ?? 0 }}</td>
+              <td style="text-align:center;">{{ $r['fstnk'] ?? 0 }}</td>
+            </tr>
+            @endforeach
+          @endif
+          @if(count($cfKel))
+            @foreach($cfKel as $r)
+            <tr style="color:#f87171;">
+              <td>– Pengeluaran{{ ($r['noDokumen']??'') ? ' ('.$r['noDokumen'].')' : '' }}</td>
+              <td style="text-align:center;">{{ $r['cf'] ?? 0 }}</td>
+              <td style="text-align:center;">{{ $r['stuj'] ?? 0 }}</td>
+              <td style="text-align:center;">{{ $r['fstnk'] ?? 0 }}</td>
+            </tr>
+            @endforeach
+          @endif
+          <tr style="background:#1e293b;font-weight:700;">
+            <td>Saldo Akhir (Sistem)</td>
+            <td style="text-align:center;color:#60a5fa;">{{ $cfAkhirCf }}</td>
+            <td style="text-align:center;color:#a78bfa;">{{ $cfAkhirStuj }}</td>
+            <td style="text-align:center;color:#34d399;">{{ $cfAkhirFstnk }}</td>
+          </tr>
+          <tr>
+            <td>Fisik (Hasil Pemeriksaan)</td>
+            <td style="text-align:center;">{{ $cfFis['cf'] ?? 0 }}</td>
+            <td style="text-align:center;">{{ $cfFis['stuj'] ?? 0 }}</td>
+            <td style="text-align:center;">{{ $cfFis['fstnk'] ?? 0 }}</td>
+          </tr>
+          <tr style="font-weight:700;">
+            <td>Selisih</td>
+            <td style="text-align:center;color:{{ $selColor($cfSelCf) }};">{{ $cfSelCf }}</td>
+            <td style="text-align:center;color:{{ $selColor($cfSelStuj) }};">{{ $cfSelStuj }}</td>
+            <td style="text-align:center;color:{{ $selColor($cfSelFstnk) }};">{{ $cfSelFstnk }}</td>
+          </tr>
         </tbody>
       </table>
+
+      @php $hasSelisih = $cfSelCf != 0 || $cfSelStuj != 0 || $cfSelFstnk != 0; @endphp
+      @if($hasSelisih)
+      <div style="padding:8px 12px;background:#450a0a;border:1px solid #ef4444;border-radius:6px;color:#fca5a5;font-size:11px;font-weight:600;">
+        ⚠ Terdapat selisih pada pemeriksaan blangko:
+        @if($cfSelCf != 0) CF: {{ $cfSelCf > 0 ? '+'.$cfSelCf : $cfSelCf }}; @endif
+        @if($cfSelStuj != 0) STUJ: {{ $cfSelStuj > 0 ? '+'.$cfSelStuj : $cfSelStuj }}; @endif
+        @if($cfSelFstnk != 0) F.STNK: {{ $cfSelFstnk > 0 ? '+'.$cfSelFstnk : $cfSelFstnk }}; @endif
+      </div>
       @else
-        <p class="empty">Tidak ada data.</p>
+      <div style="padding:8px 12px;background:#052e16;border:1px solid #10b981;border-radius:6px;color:#6ee7b7;font-size:11px;font-weight:600;">
+        ✓ Tidak ada selisih — saldo sistem sesuai dengan fisik.
+      </div>
       @endif
     @endif
   </div>
