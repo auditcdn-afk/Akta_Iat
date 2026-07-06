@@ -24,7 +24,8 @@ use App\Models\PemeriksaanSmhTarikan;
 use App\Models\PemeriksaanTtpGantung;
 use App\Models\PlanAudit;
 use App\Models\SmhOnhandItem;
-use Barryvdh\DomPDF\Facade\Pdf;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Http\Response;
 use Illuminate\View\View;
 
@@ -38,24 +39,32 @@ class ReportPdfController extends Controller
     public function download(PlanAudit $plan): Response
     {
         $viewData = $this->buildViewData($plan);
-        // For PDF download: replace PDF embeds with placeholder (DomPDF cannot render <embed>)
         foreach ($viewData['lampiranEmbeds'] as &$embed) {
             if ($embed['type'] === 'pdf') {
-                $embed['data'] = null; // will show fallback in blade
+                $embed['data'] = null;
             }
         }
         unset($embed);
 
-        $pdf = Pdf::loadView('akta.pdf.report-audit', $viewData)
-            ->setPaper('a4', 'portrait')
-            ->setOption('isHtml5ParserEnabled', true)
-            ->setOption('isPhpEnabled', true)
-            ->setOption('defaultFont', 'Arial')
-            ->setOption('dpi', 110);
+        $html = view('akta.pdf.report-audit', $viewData)->render();
+
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isPhpEnabled', true);
+        $options->set('defaultFont', 'Arial');
+        $options->set('dpi', 110);
+
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
 
         $filename = 'Laporan-Audit-' . ($plan->no_spt ? str_replace('/', '-', $plan->no_spt) : $plan->id) . '.pdf';
 
-        return $pdf->download($filename);
+        return response($dompdf->output(), 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
     }
 
     private function buildViewData(PlanAudit $plan): array
