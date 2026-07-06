@@ -308,9 +308,8 @@ class PemeriksaanSmhController extends Controller
         if (!$planId) return null;
         $plan = \App\Models\PlanAudit::find($planId);
         if (!$plan?->cabang) return null;
-        $uu = \App\Models\DbUnitUsaha::where('nama', $plan->cabang)
-            ->orWhere('kode', $plan->cabang)->first();
-        return $uu ? strtolower(trim($uu->alamat ?? '')) : null;
+        $uu = \App\Models\DbUnitUsaha::where('unit_usaha', $plan->cabang)->first();
+        return $uu ? strtolower(trim($uu->wilayah ?? '')) : null;
     }
 
     /** Find DbPerlengkapan by kode + wilayah, fallback to any wilayah for same kode. */
