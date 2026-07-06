@@ -76,7 +76,7 @@
   <span style="font-weight:700;font-size:13px;">📄 Laporan Audit – {{ $plan->no_spt ?? '-' }}</span>
   <div>
     <button onclick="window.print()">🖨️ Cetak / Save PDF</button>
-    <a href="{{ route('report-audit.pdf.download', $plan->id) }}"
+    <a href="{{ route('akta.report-audit.pdf.download', $plan->id) }}"
        style="background:#22c55e;color:#fff;border:none;font-size:11px;font-weight:700;padding:4px 14px;border-radius:6px;cursor:pointer;text-decoration:none;display:inline-block;margin-left:6px;">⬇ Download PDF</a>
     <button class="close-btn" onclick="window.close()">✕ Tutup</button>
   </div>
