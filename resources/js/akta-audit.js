@@ -6218,7 +6218,7 @@ async function rekomendasiLoadList() {
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1">
                         <p class="text-sm font-semibold text-slate-200">${escapeHtml(r.judul)}</p>
-                        ${r.deskripsi ? `<p class="mt-1 text-xs text-slate-400">${escapeHtml(r.deskripsi)}</p>` : ''}
+                        ${r.deskripsi ? `<p class="mt-1 text-xs text-slate-400 whitespace-pre-wrap line-clamp-3">${escapeHtml(r.deskripsi.substring(0, 300))}${r.deskripsi.length > 300 ? '…' : ''}</p>` : ''}
                     </div>
                     <div class="flex gap-2 shrink-0">
                         <span class="rounded-full px-2 py-0.5 text-xs font-semibold ${prioBadge}">${r.prioritas}</span>
@@ -6487,7 +6487,7 @@ async function rekomendasiEdit(id) {
         const res = await fetchJson('/api/recommendations/' + id, { headers: authHeaders() });
         const r   = res.data ?? res;
         rekomendasiShowForm(id);
-        document.getElementById('rekomendasiIsi').value      = r.judul || '';
+        document.getElementById('rekomendasiIsi').value      = r.deskripsi || r.judul || '';
         document.getElementById('rekomendasiTglAudit').value = r.tglAudit || document.getElementById('rekomendasiTglAudit').value;
     } catch (e) {
         rekomendasiAlert(e.message, 'error');
@@ -6505,19 +6505,25 @@ async function rekomendasiDelete(id) {
 }
 
 async function rekomendasiSave() {
-    const judul = (document.getElementById('rekomendasiIsi')?.value ?? '').trim();
-    if (!judul) { rekomendasiAlert('Isi Rekomendasi wajib diisi.', 'error'); return; }
+    const isi = (document.getElementById('rekomendasiIsi')?.value ?? '').trim();
+    if (!isi) { rekomendasiAlert('Isi Rekomendasi wajib diisi.', 'error'); return; }
 
     const fileInput = document.getElementById('rekomendasiFileInput');
     const file      = fileInput?.files?.[0] || null;
     const fileName  = file ? file.name : null;
+
+    // judul = first non-empty line, max 250 chars
+    const firstLine = isi.split('\n').find(l => l.trim()) ?? '';
+    const judul     = firstLine.trim().substring(0, 250) || 'Rekomendasi Audit';
+
+    const deskripsi = isi + (fileName ? '\n\nLampiran: ' + fileName : '');
 
     const payload = {
         plan_audit_id: activePlanId,
         judul,
         prioritas: 'sedang',
         status:    'open',
-        deskripsi: fileName ? 'Lampiran: ' + fileName : null,
+        deskripsi,
     };
 
     const btn = document.getElementById('rekomendasiSimpanBtn');
