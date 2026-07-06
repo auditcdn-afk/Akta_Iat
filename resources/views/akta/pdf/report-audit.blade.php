@@ -2665,13 +2665,10 @@
               @if($embed['type'] === 'image' && $embed['data'])
                 <img src="{{ $embed['data'] }}" alt="{{ $f['name'] ?? '' }}"
                      style="display:block;width:100%;max-width:100%;height:auto;object-fit:contain;">
-              @elseif($embed['type'] === 'pdf')
-                <div style="padding:20px;text-align:center;background:#fef2f2;border-top:3px solid #ef4444;">
-                  <div style="font-size:32px;margin-bottom:8px;">📄</div>
-                  <div style="font-size:12px;font-weight:700;color:#991b1b;margin-bottom:4px;">Dokumen PDF</div>
-                  <div style="font-size:10px;color:#6b7280;">{{ $f['name'] ?? 'document.pdf' }}</div>
-                  <div style="font-size:9px;color:#9ca3af;margin-top:4px;">File PDF tidak dapat ditampilkan secara inline. Lihat file terpisah.</div>
-                </div>
+              @elseif($embed['type'] === 'pdf' && $embed['data'])
+                <embed src="{{ $embed['data'] }}"
+                       type="application/pdf"
+                       style="display:block;width:100%;height:900px;border:none;">
               @else
                 <div style="padding:20px;text-align:center;background:#f9fafb;">
                   <div style="font-size:32px;margin-bottom:8px;">📎</div>

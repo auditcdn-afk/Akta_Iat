@@ -62,8 +62,9 @@ class ReportPdfController extends Controller
                     $mime = match($ext) { 'jpg','jpeg' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif', default => 'image/webp' };
                     $embed['type'] = 'image';
                     $embed['data'] = 'data:'.$mime.';base64,'.base64_encode(file_get_contents($absPath));
-                } elseif ($ext === 'pdf') {
+                } elseif ($ext === 'pdf' && $path && file_exists($absPath)) {
                     $embed['type'] = 'pdf';
+                    $embed['data'] = 'data:application/pdf;base64,'.base64_encode(file_get_contents($absPath));
                 }
                 $lampiranEmbeds[] = $embed;
             }
