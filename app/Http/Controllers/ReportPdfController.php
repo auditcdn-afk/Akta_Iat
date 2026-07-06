@@ -50,6 +50,25 @@ class ReportPdfController extends Controller
         $smhTarikan = PemeriksaanSmhTarikan::where('plan_audit_id', $id)->first();
         $lampiran   = PemeriksaanLampiran::where('plan_audit_id', $id)->first();
 
+        // ── Lampiran: embed images as base64 for inline display ──
+        $lampiranEmbeds = [];
+        if ($lampiran) {
+            foreach ($lampiran->files_json ?? [] as $f) {
+                $ext  = strtolower($f['ext'] ?? '');
+                $path = $f['path'] ?? '';
+                $absPath = storage_path('app/public/' . $path);
+                $embed = ['file' => $f, 'type' => 'other', 'data' => null];
+                if (in_array($ext, ['jpg','jpeg','png','gif','webp']) && $path && file_exists($absPath)) {
+                    $mime = match($ext) { 'jpg','jpeg' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif', default => 'image/webp' };
+                    $embed['type'] = 'image';
+                    $embed['data'] = 'data:'.$mime.';base64,'.base64_encode(file_get_contents($absPath));
+                } elseif ($ext === 'pdf') {
+                    $embed['type'] = 'pdf';
+                }
+                $lampiranEmbeds[] = $embed;
+            }
+        }
+
         // ── Analisa Plafon (computed) ──
         $plafon = $this->buildPlafonAnalisa($plan);
 
@@ -57,7 +76,7 @@ class ReportPdfController extends Controller
             'plan', 'plafon', 'kas', 'smh', 'perlengkapan', 'bank', 'materai',
             'bpkbOnhand', 'bpkbInproses', 'kwitansi', 'piutangReguler',
             'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'hga',
-            'smhTarikan', 'lampiran'
+            'smhTarikan', 'lampiran', 'lampiranEmbeds'
         ));
     }
 

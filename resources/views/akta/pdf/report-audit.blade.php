@@ -2639,42 +2639,40 @@
       </div>
 
       @if($totFiles > 0)
-      {{-- File list cards --}}
-      <div style="padding:12px 14px;">
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
-          @foreach($files as $i => $f)
-            @php
-              $ext = strtoupper($f['ext'] ?? 'FILE');
-              $es  = $getExtStyle($ext);
-              $isImg = in_array($ext, ['JPG','JPEG','PNG','GIF','WEBP']);
-              $isPdf = $ext === 'PDF';
-              $isDoc = in_array($ext, ['DOC','DOCX']);
-              $icon  = $isPdf ? '📄' : ($isImg ? '🖼️' : ($isDoc ? '📝' : '📎'));
-            @endphp
-            <div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;background:#fff;display:flex;align-items:flex-start;gap:10px;">
-              {{-- Icon / type badge --}}
-              <div style="flex-shrink:0;width:36px;height:36px;border-radius:6px;background:{{ $es['bg'] }};border:1px solid {{ $es['border'] }};display:flex;flex-direction:column;align-items:center;justify-content:center;">
-                <span style="font-size:14px;line-height:1;">{{ $icon }}</span>
-                <span style="font-size:7px;font-weight:700;color:{{ $es['text'] }};margin-top:1px;">{{ $ext }}</span>
-              </div>
-              {{-- File info --}}
-              <div style="flex:1;min-width:0;">
-                <div style="font-size:10px;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                  {{ (int)$i+1 }}. {{ $f['name'] ?? 'Unnamed' }}
-                </div>
-                <div style="display:flex;gap:8px;margin-top:3px;flex-wrap:wrap;">
-                  <span style="font-size:8.5px;color:#6b7280;">📦 {{ $fmtSize((int)($f['size'] ?? 0)) }}</span>
-                  @if(!empty($f['uploadedAt']))
-                    <span style="font-size:8.5px;color:#6b7280;">🕐 {{ $f['uploadedAt'] }}</span>
-                  @endif
-                  @if(!empty($f['merged']))
-                    <span style="font-size:8px;color:#059669;font-weight:600;">✔ Tergabung</span>
-                  @endif
-                </div>
-              </div>
+      {{-- Embedded file contents --}}
+      <div style="padding:14px;">
+        @foreach($lampiranEmbeds as $i => $embed)
+          @php $f = $embed['file']; $ext = strtoupper($f['ext'] ?? 'FILE'); $es = $getExtStyle($ext); @endphp
+          <div style="margin-bottom:20px;page-break-inside:avoid;">
+            {{-- File header bar --}}
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f3f4f6;border:1px solid #e5e7eb;border-bottom:none;border-radius:8px 8px 0 0;">
+              <span style="background:{{ $es['bg'] }};color:{{ $es['text'] }};border:1px solid {{ $es['border'] }};font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;">{{ $ext }}</span>
+              <span style="font-size:10px;font-weight:700;color:#111827;flex:1;">{{ (int)$i+1 }}. {{ $f['name'] ?? 'Unnamed' }}</span>
+              <span style="font-size:8.5px;color:#6b7280;">{{ $fmtSize((int)($f['size'] ?? 0)) }}</span>
+              @if(!empty($f['uploadedAt']))<span style="font-size:8.5px;color:#9ca3af;">{{ $f['uploadedAt'] }}</span>@endif
             </div>
-          @endforeach
-        </div>
+            {{-- Content --}}
+            <div style="border:1px solid #e5e7eb;border-radius:0 0 8px 8px;background:#fff;overflow:hidden;">
+              @if($embed['type'] === 'image' && $embed['data'])
+                <img src="{{ $embed['data'] }}" alt="{{ $f['name'] ?? '' }}"
+                     style="display:block;width:100%;max-width:100%;height:auto;object-fit:contain;">
+              @elseif($embed['type'] === 'pdf')
+                <div style="padding:20px;text-align:center;background:#fef2f2;border-top:3px solid #ef4444;">
+                  <div style="font-size:32px;margin-bottom:8px;">📄</div>
+                  <div style="font-size:12px;font-weight:700;color:#991b1b;margin-bottom:4px;">Dokumen PDF</div>
+                  <div style="font-size:10px;color:#6b7280;">{{ $f['name'] ?? 'document.pdf' }}</div>
+                  <div style="font-size:9px;color:#9ca3af;margin-top:4px;">File PDF tidak dapat ditampilkan secara inline. Lihat file terpisah.</div>
+                </div>
+              @else
+                <div style="padding:20px;text-align:center;background:#f9fafb;">
+                  <div style="font-size:32px;margin-bottom:8px;">📎</div>
+                  <div style="font-size:11px;color:#374151;font-weight:600;">{{ $f['name'] ?? 'file' }}</div>
+                  <div style="font-size:9px;color:#9ca3af;margin-top:4px;">Format {{ $ext }} tidak dapat ditampilkan inline.</div>
+                </div>
+              @endif
+            </div>
+          </div>
+        @endforeach
       </div>
       @else
         <p class="empty" style="padding:12px;">Tidak ada file lampiran.</p>
