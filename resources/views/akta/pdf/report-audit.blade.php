@@ -505,6 +505,120 @@
       </table>
     @endif
 
+    {{-- ── C. Rekap Gabungan Perlengkapan ── --}}
+    @php
+      // Bangun map dari SMH fisik: nama → {smhSaldo (total diperiksa), smhFisik (ada)}
+      $smhPlMap = [];
+      foreach($smh as $s) {
+          foreach(($s->items ?? collect()) as $item) {
+              foreach(($item->perlengkapan_json ?? []) as $pl) {
+                  $nm = trim($pl['nama'] ?? '');
+                  if($nm === '') continue;
+                  if(!isset($smhPlMap[$nm])) $smhPlMap[$nm] = ['smhSaldo'=>0, 'smhFisik'=>0];
+                  $smhPlMap[$nm]['smhSaldo']++;
+                  if($pl['ada'] ?? false) $smhPlMap[$nm]['smhFisik']++;
+              }
+          }
+      }
+      // Bangun map dari perlengkapan luar SMH: jenis → {luarSaldo, luarFisik, luarSelisih, penjelasan[]}
+      $luarPlMap = [];
+      foreach($perlengkapan as $p) {
+          $nm = trim($p->jenis_perlengkapan ?? '');
+          if($nm === '') continue;
+          if(!isset($luarPlMap[$nm])) $luarPlMap[$nm] = ['luarSaldo'=>0,'luarFisik'=>0,'luarSelisih'=>0,'penjelasan'=>[]];
+          $luarPlMap[$nm]['luarSaldo']  += (float)($p->saldo ?? 0);
+          $luarPlMap[$nm]['luarFisik']  += (int)($p->fisik ?? 0);
+          $luarPlMap[$nm]['luarSelisih']+= (float)($p->selisih ?? 0);
+          if($p->penjelasan) $luarPlMap[$nm]['penjelasan'][] = $p->penjelasan;
+      }
+      // Gabungkan semua kunci
+      $allJenis = array_unique(array_merge(array_keys($smhPlMap), array_keys($luarPlMap)));
+      sort($allJenis);
+    @endphp
+
+    @if(count($allJenis))
+    <div style="font-weight:700;font-size:11px;color:#0f766e;border-bottom:2px solid #0f766e;padding-bottom:3px;margin-bottom:10px;margin-top:20px;">C. REKAP GABUNGAN PERLENGKAPAN PER JENIS</div>
+    @php
+      $grandSmhSaldo=$grandSmhFisik=$grandSmhSel=0;
+      $grandLuarSaldo=$grandLuarFisik=$grandLuarSel=0;
+      $grandTotalSel=0;
+    @endphp
+    <table style="font-size:9.5px;">
+      <thead>
+        <tr style="background:#ccfbf1;">
+          <th rowspan="2" style="vertical-align:middle">#</th>
+          <th rowspan="2" style="vertical-align:middle">Jenis Perlengkapan</th>
+          <th colspan="3" style="text-align:center;background:#dbeafe;color:#1d4ed8;">SMH Cek Fisik</th>
+          <th colspan="3" style="text-align:center;background:#ede9fe;color:#7c3aed;">Perlengkapan Luar SMH</th>
+          <th rowspan="2" style="vertical-align:middle;text-align:center;background:#fef3c7;color:#92400e;">Total Selisih</th>
+          <th rowspan="2" style="vertical-align:middle">Keterangan</th>
+        </tr>
+        <tr style="background:#ccfbf1;">
+          <th style="text-align:right;background:#dbeafe;color:#1d4ed8;">Saldo (unit)</th>
+          <th style="text-align:right;background:#dbeafe;color:#1d4ed8;">Fisik (ada)</th>
+          <th style="text-align:right;background:#dbeafe;color:#1d4ed8;">Selisih</th>
+          <th style="text-align:right;background:#ede9fe;color:#7c3aed;">Saldo (buku)</th>
+          <th style="text-align:right;background:#ede9fe;color:#7c3aed;">Fisik</th>
+          <th style="text-align:right;background:#ede9fe;color:#7c3aed;">Selisih</th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach($allJenis as $idx => $jns)
+        @php
+          $smhD  = $smhPlMap[$jns]  ?? ['smhSaldo'=>0,'smhFisik'=>0];
+          $luarD = $luarPlMap[$jns] ?? ['luarSaldo'=>0,'luarFisik'=>0,'luarSelisih'=>0,'penjelasan'=>[]];
+          $smhSel  = $smhD['smhFisik'] - $smhD['smhSaldo'];
+          $luarSel = $luarD['luarSelisih'];
+          $totalSel = $smhSel + $luarSel;
+          $grandSmhSaldo  += $smhD['smhSaldo'];
+          $grandSmhFisik  += $smhD['smhFisik'];
+          $grandSmhSel    += $smhSel;
+          $grandLuarSaldo += $luarD['luarSaldo'];
+          $grandLuarFisik += $luarD['luarFisik'];
+          $grandLuarSel   += $luarSel;
+          $grandTotalSel  += $totalSel;
+          $ket = implode('; ', $luarD['penjelasan']);
+        @endphp
+        <tr>
+          <td>{{ $idx + 1 }}</td>
+          <td style="font-weight:600">{{ $jns }}</td>
+          {{-- SMH --}}
+          <td style="text-align:right">{{ $smhD['smhSaldo'] ?: '-' }}</td>
+          <td style="text-align:right">{{ $smhD['smhFisik'] ?: '-' }}</td>
+          <td style="text-align:right;font-weight:700;color:{{ $smhSel < 0 ? '#dc2626' : ($smhSel > 0 ? '#d97706' : '#059669') }}">
+            {{ $smhD['smhSaldo'] ? ($smhSel > 0 ? '+'.$smhSel : $smhSel) : '-' }}
+          </td>
+          {{-- Luar SMH --}}
+          <td style="text-align:right">{{ $luarD['luarSaldo'] ? number_format($luarD['luarSaldo'],0,',','.') : '-' }}</td>
+          <td style="text-align:right">{{ $luarD['luarFisik'] ? number_format($luarD['luarFisik'],0,',','.') : '-' }}</td>
+          <td style="text-align:right;font-weight:700;color:{{ $luarSel != 0 ? '#dc2626' : '#059669' }}">
+            {{ $luarD['luarSaldo'] ? number_format($luarSel,0,',','.') : '-' }}
+          </td>
+          {{-- Total Selisih --}}
+          <td style="text-align:center;font-weight:700;background:#fef9c3;color:{{ $totalSel < 0 ? '#dc2626' : ($totalSel > 0 ? '#d97706' : '#059669') }}">
+            @if($smhD['smhSaldo'] || $luarD['luarSaldo'])
+              {{ $totalSel > 0 ? '+'.$totalSel : $totalSel }}
+            @else -
+            @endif
+          </td>
+          <td style="font-size:9px">{{ $ket ?: '-' }}</td>
+        </tr>
+        @endforeach
+        <tr style="background:#e6fffa;font-weight:700;border-top:2px solid #0f766e;">
+          <td colspan="2" style="text-align:right">TOTAL</td>
+          <td style="text-align:right">{{ $grandSmhSaldo }}</td>
+          <td style="text-align:right">{{ $grandSmhFisik }}</td>
+          <td style="text-align:right;color:{{ $grandSmhSel < 0 ? '#dc2626' : '#059669' }}">{{ $grandSmhSel > 0 ? '+'.$grandSmhSel : $grandSmhSel }}</td>
+          <td style="text-align:right">{{ number_format($grandLuarSaldo,0,',','.') }}</td>
+          <td style="text-align:right">{{ number_format($grandLuarFisik,0,',','.') }}</td>
+          <td style="text-align:right;color:{{ $grandLuarSel != 0 ? '#dc2626' : '#059669' }}">{{ number_format($grandLuarSel,0,',','.') }}</td>
+          <td style="text-align:center;background:#fef3c7;color:{{ $grandTotalSel != 0 ? '#dc2626' : '#059669' }}">{{ $grandTotalSel > 0 ? '+'.$grandTotalSel : $grandTotalSel }}</td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+    @endif
+
   </div>
 </div>
 
