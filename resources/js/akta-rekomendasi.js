@@ -449,8 +449,33 @@ function openIsiModal(id, judul) {
     const modal = document.getElementById('isiModal');
     if (modal) modal.dataset.mode = 'isi';
     document.getElementById('isiRecommendationId').value = id;
-    document.getElementById('isiModalSubtitle').textContent = judul || 'Tindak lanjut atas rekomendasi audit.';
+    document.getElementById('isiModalSubtitle').textContent = judul || '';
 
+    // Show auditor's original recommendation
+    const rekAwal = item?.deskripsi || item?.judul || '-';
+    const rekMeta = item?.createdBy ? `Dibuat oleh: ${item.createdBy}` : '';
+    document.getElementById('isiModalRekomendasiAwal').textContent = rekAwal;
+    document.getElementById('isiModalRekomendasiMeta').textContent = rekMeta;
+
+    // Build history from steps (all filled steps except 'created')
+    const histSteps = (item?.steps ?? []).filter(s => s.step !== 'created' && s.note);
+    const histEl    = document.getElementById('isiModalHistori');
+    const histList  = document.getElementById('isiModalHistoriList');
+    if (histSteps.length) {
+        histList.innerHTML = histSteps.map(s => `
+            <div class="rounded-xl border border-slate-700 bg-slate-800/60 px-4 py-3">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-bold text-slate-300">${escapeHtml(s.step === 'isi_rekomendasi' ? 'Isian Unit Usaha' : s.step)}</span>
+                    <span class="text-[10px] text-slate-500">${escapeHtml(s.user ?? '')}${s.time ? ' · ' + s.time.substring(0,10) : ''}</span>
+                </div>
+                <p class="text-sm text-slate-200 whitespace-pre-wrap">${escapeHtml(s.note)}</p>
+            </div>`).join('');
+        histEl.classList.remove('hidden');
+    } else {
+        histEl.classList.add('hidden');
+    }
+
+    // Form fields
     const today       = new Date().toISOString().substring(0, 10);
     const existingIsi = (item?.steps ?? []).find(s => s.step === 'isi_rekomendasi');
     document.getElementById('isiTglPengisian').value = existingIsi?.time || today;

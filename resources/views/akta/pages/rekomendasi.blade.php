@@ -210,26 +210,47 @@
 
 {{-- Modal Isi Rekomendasi --}}
 <div id="isiModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
-    <div class="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
-        <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+    <div class="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4 sticky top-0 bg-slate-900 z-10">
             <div>
                 <h3 class="text-base font-bold text-slate-100">Isi Rekomendasi</h3>
-                <p id="isiModalSubtitle" class="mt-0.5 text-xs text-slate-400">Tindak lanjut atas rekomendasi audit.</p>
+                <p id="isiModalSubtitle" class="mt-0.5 text-xs text-slate-400"></p>
             </div>
             <button id="closeIsiModalBtn" type="button"
                 class="rounded-xl border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800">Tutup</button>
         </div>
-        <form id="isiForm" class="space-y-4 px-5 py-5">
-            <input type="hidden" id="isiRecommendationId">
-            <div>
-                <label class="mb-1 block text-sm font-medium text-slate-300">Tanggal Pengisian <span class="text-red-400">*</span></label>
-                <input id="isiTglPengisian" type="date" required
-                    class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+
+        {{-- Rekomendasi awal dari auditor --}}
+        <div class="px-5 pt-4">
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Rekomendasi Auditor</p>
+            <div class="rounded-xl border border-blue-800/40 bg-blue-900/10 px-4 py-3">
+                <p id="isiModalRekomendasiAwal" class="text-sm text-blue-200 whitespace-pre-wrap"></p>
+                <p id="isiModalRekomendasiMeta" class="mt-1 text-xs text-slate-500"></p>
             </div>
-            <div>
-                <label class="mb-1 block text-sm font-medium text-slate-300">Isi Rekomendasi <span class="text-red-400">*</span></label>
-                <textarea id="isiKonten" rows="6" required placeholder="Tuliskan tindak lanjut / tanggapan atas rekomendasi..."
-                    class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
+        </div>
+
+        {{-- Riwayat pengisian --}}
+        <div id="isiModalHistori" class="px-5 pt-4 hidden">
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Riwayat Pengisian</p>
+            <div id="isiModalHistoriList" class="space-y-2"></div>
+        </div>
+
+        <form id="isiForm" class="space-y-4 px-5 py-4">
+            <div class="border-t border-slate-800 pt-4">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Pengisian Baru</p>
+                <input type="hidden" id="isiRecommendationId">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="mb-1 block text-sm font-medium text-slate-300">Tanggal Pengisian <span class="text-red-400">*</span></label>
+                        <input id="isiTglPengisian" type="date" required
+                            class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Isi Rekomendasi <span class="text-red-400">*</span></label>
+                    <textarea id="isiKonten" rows="5" required placeholder="Tuliskan tindak lanjut / tanggapan atas rekomendasi..."
+                        class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
+                </div>
             </div>
             <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
                 <button type="button" id="cancelIsiModalBtn"
