@@ -3174,7 +3174,7 @@ let _pcdnItems = [];
 
 async function loadPcdnTab() {
     if (!activePlanId) { pcdnRender(); return; }
-    const res = await fetchJson(`/api/audit-detail/piutang-cdn?plan_audit_id=${activePlanId}`);
+    const res = await fetchJson(`/api/audit-detail/piutang-cdn?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
     if (res.data && (res.data.piutang ?? []).length > 0) {
         _pcdnItems = res.data.piutang;
     }
@@ -3275,9 +3275,11 @@ function pcdnRender() {
 async function savePcdn() {
     if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
     const res = await fetchJson('/api/audit-detail/piutang-cdn', {
-        method: 'POST',
-        body: JSON.stringify({ planAuditId: activePlanId, piutang: _pcdnItems }),
+        method:  'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body:    JSON.stringify({ planAuditId: activePlanId, piutang: _pcdnItems }),
     });
+    if (!res.message) throw new Error('Gagal menyimpan.');
     showAlert(res.message, 'success');
 }
 
