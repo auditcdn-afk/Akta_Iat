@@ -2040,7 +2040,7 @@
 
                     <div class="flex flex-col gap-1">
                         <label class="text-xs font-semibold text-slate-300">Sisa Piutang (Rp)</label>
-                        <input type="number" id="smhTarikanSisaPiutang" placeholder="0" min="0"
+                        <input type="text" inputmode="numeric" id="smhTarikanSisaPiutang" placeholder="0"
                             class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
                     </div>
 

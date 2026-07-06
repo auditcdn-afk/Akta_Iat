@@ -4745,7 +4745,7 @@ function smhTarikanOpenForm(idx = -1) {
     document.getElementById('smhTarikanNoRangka').value     = it.noRangka     || '';
     document.getElementById('smhTarikanNopol').value        = it.nopol        || '';
     document.getElementById('smhTarikanNoKontrak').value    = it.noKontrak    || '';
-    document.getElementById('smhTarikanSisaPiutang').value  = it.sisaPiutang  ?? '';
+    document.getElementById('smhTarikanSisaPiutang').value  = it.sisaPiutang ? Number(it.sisaPiutang).toLocaleString('id-ID') : '';
     document.getElementById('smhTarikanKondisi').value      = it.kondisi      || '';
     document.getElementById('smhTarikanPerlengkapan').value = it.perlengkapan || '';
     const sudah = !!it.sudahAjukan;
@@ -4786,7 +4786,7 @@ function smhTarikanFormSave() {
         noRangka:    (document.getElementById('smhTarikanNoRangka')?.value.trim()  || '').toUpperCase(),
         nopol:       (document.getElementById('smhTarikanNopol')?.value.trim()     || '').toUpperCase(),
         noKontrak:   document.getElementById('smhTarikanNoKontrak')?.value.trim()  || '',
-        sisaPiutang:  smhTarikanN(document.getElementById('smhTarikanSisaPiutang')?.value),
+        sisaPiutang:  smhTarikanN((document.getElementById('smhTarikanSisaPiutang')?.value || '').replace(/\./g, '')),
         kondisi:      document.getElementById('smhTarikanKondisi')?.value.trim()      || '',
         perlengkapan: document.getElementById('smhTarikanPerlengkapan')?.value.trim() || '',
         sudahAjukan:  document.getElementById('smhTarikanSudahAjukan')?.checked ?? false,
@@ -4840,6 +4840,21 @@ function initSmhTarikanForm() {
             document.getElementById('smhTarikanTglPengajuan').value = new Date().toISOString().slice(0, 10);
         }
     });
+
+    // Format ribuan otomatis pada Sisa Piutang
+    const sisaEl = document.getElementById('smhTarikanSisaPiutang');
+    if (sisaEl) {
+        sisaEl.addEventListener('input', () => {
+            const raw = sisaEl.value.replace(/\./g, '').replace(/[^0-9]/g, '');
+            const num = raw ? parseInt(raw, 10) : '';
+            const pos = sisaEl.selectionStart;
+            const prevLen = sisaEl.value.length;
+            sisaEl.value = num !== '' ? num.toLocaleString('id-ID') : '';
+            // Adjust cursor position
+            const diff = sisaEl.value.length - prevLen;
+            sisaEl.setSelectionRange(pos + diff, pos + diff);
+        });
+    }
 
     document.getElementById('smhTarikanAddBtn')?.addEventListener('click', () => smhTarikanOpenForm(-1));
     document.getElementById('smhTarikanFormClose')?.addEventListener('click', smhTarikanCloseForm);
