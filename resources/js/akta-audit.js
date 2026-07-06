@@ -3834,7 +3834,7 @@ const MT_KATEGORI = ['bagus', 'rusak', 'skAudit', 'hilang'];
 const MT_LABEL    = { bagus: 'Bagus', rusak: 'Rusak', skAudit: 'SK Audit', hilang: 'Hilang' };
 const MT_COLOR    = { bagus: 'emerald', rusak: 'red', skAudit: 'blue', hilang: 'orange' };
 
-function mtEmptyData() { return { entries: [] }; }
+function mtEmptyData() { return { entries: [], mekanikSelectedJenis: {} }; }
 function mtActiveJenis()   { return document.querySelector('.mt-jenis-btn.active')?.dataset.mtJenis || 'baru'; }
 function mtActiveMekanik() { return _mtActiveMekanik; }
 
@@ -3850,6 +3850,18 @@ function mtSelectMekanik(name) {
     if (label) label.textContent = name || '';
     const jenisPanel = document.getElementById('mtJenisPanel');
     if (jenisPanel) jenisPanel.classList.toggle('hidden', !name);
+    // Restore saved jenis for this mechanic
+    if (name) {
+        const savedJenis = _mtData?.mekanikSelectedJenis?.[name] || 'baru';
+        document.querySelectorAll('.mt-jenis-btn').forEach(b => {
+            const isActive = b.dataset.mtJenis === savedJenis;
+            b.classList.toggle('active', isActive);
+            b.classList.toggle('bg-blue-600', isActive);
+            b.classList.toggle('text-white', isActive);
+            b.classList.toggle('border-blue-600', isActive);
+            b.classList.toggle('text-slate-300', !isActive);
+        });
+    }
     mtRenderMekanikList();
     mtRenderKategori();
 }
@@ -4075,6 +4087,11 @@ function initMtForm() {
             });
             btn.classList.add('active', 'bg-blue-600', 'text-white', 'border-blue-600');
             btn.classList.remove('text-slate-300');
+            // Save selected jenis for current mechanic
+            if (_mtActiveMekanik && _mtData) {
+                if (!_mtData.mekanikSelectedJenis) _mtData.mekanikSelectedJenis = {};
+                _mtData.mekanikSelectedJenis[_mtActiveMekanik] = btn.dataset.mtJenis;
+            }
             mtRenderKategori();
         });
     });

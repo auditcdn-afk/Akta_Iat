@@ -2131,13 +2131,16 @@
       <p class="empty">Belum ada data.</p>
     @else
       @php
-        $mtRaw     = $mt->data_json ?? [];
-        $mtEntries = $mtRaw['entries'] ?? [];
-        // Filter: only entries that have at least 1 tool in any category
-        $mtEntriesFiltered = collect($mtEntries)->filter(function($e) {
-            return collect(['bagus','rusak','skAudit','hilang'])->sum(fn($k) => count($e[$k] ?? [])) > 0;
+        $mtRaw               = $mt->data_json ?? [];
+        $mtEntries           = $mtRaw['entries'] ?? [];
+        $mtSelectedJenis     = $mtRaw['mekanikSelectedJenis'] ?? [];
+        // For each mechanic, only show the entry matching their selected jenis
+        $mtEntriesFiltered = collect($mtEntries)->filter(function($e) use ($mtSelectedJenis) {
+            $mekanik = $e['mekanik'] ?? '';
+            $selected = $mtSelectedJenis[$mekanik] ?? 'baru';
+            return ($e['jenis'] ?? '') === $selected;
         });
-        // Group by mekanik (preserving only non-empty entries)
+        // Group by mekanik
         $mtByMekanik = $mtEntriesFiltered->groupBy('mekanik');
         $mtJenisLabel = ['baru' => 'Baru', 'lama' => 'Lama', 'fi' => 'FI'];
         $mtKatLabel   = ['bagus' => 'Bagus', 'rusak' => 'Rusak', 'skAudit' => 'SK Audit', 'hilang' => 'Hilang'];
