@@ -6207,6 +6207,8 @@ async function rekomendasiLoadList() {
     try {
         const res = await fetchJson('/api/recommendations?plan_audit_id=' + activePlanId, { headers: authHeaders() });
         const rows = res.data ?? [];
+        const tambahBtn = document.getElementById('rekomendasiTambahBtn');
+        if (tambahBtn) tambahBtn.style.display = rows.length ? 'none' : '';
         if (!rows.length) {
             list.innerHTML = '<p class="py-8 text-center text-sm text-slate-500">Belum ada rekomendasi untuk pemeriksaan ini.</p>';
             return;
