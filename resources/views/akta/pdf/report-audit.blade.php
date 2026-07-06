@@ -2591,29 +2591,93 @@
      17. LAMPIRAN
      ═══════════════════════════════════════════════ --}}
 <div class="section">
-  <div class="section-title">17. LAMPIRAN</div>
-  <div class="section-body">
+  <div class="section-title">17. LAMPIRAN AUDIT</div>
+  <div class="section-body" style="padding:0;">
     @if(!$lampiran)
-      <p class="empty">Belum ada lampiran.</p>
+      <p class="empty" style="padding:12px;">Belum ada lampiran.</p>
     @else
-      @php $files = $lampiran->files_json ?? []; @endphp
-      @if(count($files))
-      <table>
-        <thead><tr><th>#</th><th>Nama File</th><th>Tipe</th><th>Ukuran</th><th>Diupload</th></tr></thead>
-        <tbody>
-          @foreach($files as $i => $f)
-          <tr>
-            <td>{{ (int)$i+1 }}</td>
-            <td>{{ $f['name'] ?? '-' }}</td>
-            <td>{{ strtoupper($f['ext'] ?? '-') }}</td>
-            <td>{{ isset($f['size']) ? number_format($f['size']/1024, 1).' KB' : '-' }}</td>
-            <td>{{ $f['uploadedAt'] ?? '-' }}</td>
-          </tr>
+      @php
+        $files    = $lampiran->files_json ?? [];
+        $totFiles = count($files);
+        $totSize  = array_sum(array_map(fn($f) => (int)($f['size'] ?? 0), $files));
+        $extGroups = collect($files)->groupBy(fn($f) => strtoupper($f['ext'] ?? 'OTHER'));
+        $fmtSize  = function($bytes) {
+            if ($bytes >= 1048576) return number_format($bytes/1048576, 1).' MB';
+            if ($bytes >= 1024)    return number_format($bytes/1024, 1).' KB';
+            return $bytes.' B';
+        };
+        $extColor = [
+            'PDF'  => ['bg' => '#fee2e2', 'text' => '#991b1b', 'border' => '#fca5a5'],
+            'JPG'  => ['bg' => '#dbeafe', 'text' => '#1e40af', 'border' => '#93c5fd'],
+            'JPEG' => ['bg' => '#dbeafe', 'text' => '#1e40af', 'border' => '#93c5fd'],
+            'PNG'  => ['bg' => '#d1fae5', 'text' => '#065f46', 'border' => '#6ee7b7'],
+            'DOC'  => ['bg' => '#ede9fe', 'text' => '#5b21b6', 'border' => '#c4b5fd'],
+            'DOCX' => ['bg' => '#ede9fe', 'text' => '#5b21b6', 'border' => '#c4b5fd'],
+        ];
+        $getExtStyle = fn($ext) => $extColor[strtoupper($ext)] ?? ['bg' => '#f3f4f6', 'text' => '#374151', 'border' => '#d1d5db'];
+      @endphp
+
+      {{-- Summary cards --}}
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px 14px;border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;text-align:center;">
+          <div style="font-size:28px;font-weight:800;color:#1e40af;">{{ $totFiles }}</div>
+          <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">Total File Lampiran</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:#059669;">{{ $fmtSize($totSize) }}</div>
+          <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">Total Ukuran</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;">
+          @foreach($extGroups as $ext => $group)
+            @php $es = $getExtStyle($ext); @endphp
+            <span style="background:{{ $es['bg'] }};color:{{ $es['text'] }};border:1px solid {{ $es['border'] }};font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;">
+              {{ $ext }} ({{ $group->count() }})
+            </span>
           @endforeach
-        </tbody>
-      </table>
+          <div style="width:100%;font-size:9px;color:#6b7280;text-align:center;margin-top:2px;">Jenis File</div>
+        </div>
+      </div>
+
+      @if($totFiles > 0)
+      {{-- File list cards --}}
+      <div style="padding:12px 14px;">
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
+          @foreach($files as $i => $f)
+            @php
+              $ext = strtoupper($f['ext'] ?? 'FILE');
+              $es  = $getExtStyle($ext);
+              $isImg = in_array($ext, ['JPG','JPEG','PNG','GIF','WEBP']);
+              $isPdf = $ext === 'PDF';
+              $isDoc = in_array($ext, ['DOC','DOCX']);
+              $icon  = $isPdf ? '📄' : ($isImg ? '🖼️' : ($isDoc ? '📝' : '📎'));
+            @endphp
+            <div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;background:#fff;display:flex;align-items:flex-start;gap:10px;">
+              {{-- Icon / type badge --}}
+              <div style="flex-shrink:0;width:36px;height:36px;border-radius:6px;background:{{ $es['bg'] }};border:1px solid {{ $es['border'] }};display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                <span style="font-size:14px;line-height:1;">{{ $icon }}</span>
+                <span style="font-size:7px;font-weight:700;color:{{ $es['text'] }};margin-top:1px;">{{ $ext }}</span>
+              </div>
+              {{-- File info --}}
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:10px;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                  {{ (int)$i+1 }}. {{ $f['name'] ?? 'Unnamed' }}
+                </div>
+                <div style="display:flex;gap:8px;margin-top:3px;flex-wrap:wrap;">
+                  <span style="font-size:8.5px;color:#6b7280;">📦 {{ $fmtSize((int)($f['size'] ?? 0)) }}</span>
+                  @if(!empty($f['uploadedAt']))
+                    <span style="font-size:8.5px;color:#6b7280;">🕐 {{ $f['uploadedAt'] }}</span>
+                  @endif
+                  @if(!empty($f['merged']))
+                    <span style="font-size:8px;color:#059669;font-weight:600;">✔ Tergabung</span>
+                  @endif
+                </div>
+              </div>
+            </div>
+          @endforeach
+        </div>
+      </div>
       @else
-        <p class="empty">Tidak ada file lampiran.</p>
+        <p class="empty" style="padding:12px;">Tidak ada file lampiran.</p>
       @endif
     @endif
   </div>
