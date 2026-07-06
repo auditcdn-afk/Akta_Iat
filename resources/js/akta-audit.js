@@ -6266,23 +6266,43 @@ async function rekomendasiAutoFill() {
 
     try {
         // ── 1. PEMERIKSAAN KAS ──────────────────────────────
+        // Hitung persis seperti PDF: dari detail_json → kas_besar, kas_kecil, pecahan
         try {
             const kasRes  = await fetchJson(`/api/audit-detail/kas?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
             const kasRows = kasRes.data ?? kasRes ?? [];
-            let selBesar = 0, selKecil = 0;
+            let kbSaldoBuku = 0, kbSaldoFisik = 0;
+            let kkSaldoBuku = 0, kkSaldoFisik = 0;
             for (const k of kasRows) {
-                selBesar += Number(k.selisihBesar ?? k.selisih_besar ?? 0);
-                selKecil += Number(k.selisihKecil ?? k.selisih_kecil ?? 0);
-                for (const it of (k.items_json ?? k.itemsJson ?? [])) {
-                    const kat = (it.kategori || it.jenis || '').toLowerCase();
-                    if (kat.includes('besar')) selBesar += Number(it.saldoFisik ?? 0) - Number(it.saldoBuku ?? 0);
-                    else if (kat.includes('kecil')) selKecil += Number(it.saldoFisik ?? 0) - Number(it.saldoBuku ?? 0);
-                }
+                const d   = k.detail_json ?? k.detailJson ?? {};
+                const kb  = d.kas_besar ?? d.kasBesar ?? {};
+                const kk  = d.kas_kecil ?? d.kasKecil ?? {};
+                const pcn = d.pecahan   ?? [];
+                // Kas Besar
+                const kbSaldoAwal   = Number(kb.saldo_awal ?? kb.saldoAwal ?? 0);
+                const kbTotalTerima = (kb.penerimaan ?? []).reduce((s, r) => s + Number(r.jumlah ?? 0), 0);
+                const kbTotalKeluar = (kb.pengeluaran ?? []).reduce((s, r) => s + Number(r.jumlah ?? 0), 0);
+                kbSaldoBuku  += kbSaldoAwal + kbTotalTerima - kbTotalKeluar;
+                kbSaldoFisik += pcn.reduce((s, p) => s + Number(p.nominal ?? 0) * Number(p.lembar_besar ?? p.lembarBesar ?? 0), 0);
+                // Kas Kecil
+                const kkCadangan  = Number(kk.cadangan ?? 0);
+                const kkTotalBon  = (kk.bon ?? []).reduce((s, r) => s + Number(r.jumlah ?? 0), 0);
+                kkSaldoBuku  += kkCadangan - kkTotalBon;
+                kkSaldoFisik += pcn.reduce((s, p) => s + Number(p.nominal ?? 0) * Number(p.lembar_kecil ?? p.lembarKecil ?? 0), 0);
             }
+            const kbSel = kbSaldoFisik - kbSaldoBuku;
+            const kkSel = kkSaldoFisik - kkSaldoBuku;
+            const totBuku = kbSaldoBuku + kkSaldoBuku;
+            const totFisik = kbSaldoFisik + kkSaldoFisik;
+            const totSel = kbSel + kkSel;
             const rows = [];
-            if (selBesar !== 0) rows.push(`  • Kas Besar : selisih ${fmtRp(Math.abs(selBesar))} (${selBesar < 0 ? 'kurang' : 'lebih'})`);
-            if (selKecil !== 0) rows.push(`  • Kas Kecil : selisih ${fmtRp(Math.abs(selKecil))} (${selKecil < 0 ? 'kurang' : 'lebih'})`);
-            if (rows.length) blocks.push(`1. PEMERIKSAAN KAS\n${rows.join('\n')}`);
+            rows.push(`  ${'Pos Kas'.padEnd(12)} ${'Saldo Buku'.padStart(16)} ${'Saldo Fisik'.padStart(16)} ${'Selisih'.padStart(14)}`);
+            rows.push(`  ${'─'.repeat(60)}`);
+            rows.push(`  ${'Kas Besar'.padEnd(12)} ${fmtRp(kbSaldoBuku).padStart(16)} ${fmtRp(kbSaldoFisik).padStart(16)} ${(kbSel !== 0 ? (kbSel > 0 ? '+' : '') + fmtRp(kbSel) : 'Rp 0').padStart(14)}`);
+            rows.push(`  ${'Kas Kecil'.padEnd(12)} ${fmtRp(kkSaldoBuku).padStart(16)} ${fmtRp(kkSaldoFisik).padStart(16)} ${(kkSel !== 0 ? (kkSel > 0 ? '+' : '') + fmtRp(kkSel) : 'Rp 0').padStart(14)}`);
+            rows.push(`  ${'─'.repeat(60)}`);
+            rows.push(`  ${'TOTAL'.padEnd(12)} ${fmtRp(totBuku).padStart(16)} ${fmtRp(totFisik).padStart(16)} ${(totSel !== 0 ? (totSel > 0 ? '+' : '') + fmtRp(totSel) : 'Rp 0').padStart(14)}`);
+            if (totSel !== 0 || kbSel !== 0 || kkSel !== 0)
+                blocks.push(`1. PEMERIKSAAN KAS\n${rows.join('\n')}`);
         } catch {}
 
         // ── 2. CEK FISIK SMH ────────────────────────────────
