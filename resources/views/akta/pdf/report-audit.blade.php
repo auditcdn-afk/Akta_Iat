@@ -6,59 +6,67 @@
 <title>Laporan Audit – {{ $plan->no_spt ?? '-' }}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 11px; color: #111; background: #fff; }
+  body {
+    font-family: Arial, sans-serif; font-size: 10px; color: #111; background: #e5e7eb;
+  }
+  .page-wrap {
+    width: 210mm; min-height: 297mm;
+    margin: 12px auto; background: #fff;
+    padding: 14mm 14mm 14mm 14mm;
+    box-shadow: 0 2px 16px rgba(0,0,0,.18);
+  }
 
   /* ── Cover / header ── */
-  .cover { text-align: center; padding: 32px 24px 24px; border-bottom: 3px solid #1e40af; margin-bottom: 20px; }
-  .cover h1 { font-size: 18px; font-weight: 700; color: #1e3a8a; letter-spacing: .5px; }
-  .cover h2 { font-size: 13px; color: #374151; margin-top: 4px; }
-  .cover .meta { display: flex; justify-content: center; flex-wrap: wrap; gap: 16px; margin-top: 14px; font-size: 10px; color: #6b7280; }
+  .cover { text-align: center; padding: 24px 16px 18px; border-bottom: 3px solid #1e40af; margin-bottom: 16px; }
+  .cover h1 { font-size: 15px; font-weight: 700; color: #1e3a8a; letter-spacing: .5px; }
+  .cover h2 { font-size: 11px; color: #374151; margin-top: 3px; }
+  .cover .meta { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 10px; font-size: 9px; color: #6b7280; }
   .cover .meta span strong { color: #1f2937; }
 
   /* ── Section header ── */
-  .section { page-break-inside: avoid; margin-bottom: 20px; }
+  .section { page-break-inside: avoid; margin-bottom: 14px; }
   .section-title {
     background: #1e40af; color: #fff;
-    padding: 5px 10px; font-size: 11px; font-weight: 700; letter-spacing: .4px;
+    padding: 4px 9px; font-size: 10px; font-weight: 700; letter-spacing: .4px;
     border-radius: 4px 4px 0 0;
   }
-  .section-body { border: 1px solid #d1d5db; border-top: none; border-radius: 0 0 4px 4px; padding: 10px; }
+  .section-body { border: 1px solid #d1d5db; border-top: none; border-radius: 0 0 4px 4px; padding: 8px; }
 
   /* ── Tables ── */
-  table { width: 100%; border-collapse: collapse; font-size: 10px; }
-  th { background: #f3f4f6; text-align: left; padding: 5px 7px; border: 1px solid #d1d5db; font-weight: 700; color: #374151; }
-  td { padding: 4px 7px; border: 1px solid #e5e7eb; vertical-align: top; }
+  table { width: 100%; border-collapse: collapse; font-size: 9px; }
+  th { background: #f3f4f6; text-align: left; padding: 4px 6px; border: 1px solid #d1d5db; font-weight: 700; color: #374151; }
+  td { padding: 3px 6px; border: 1px solid #e5e7eb; vertical-align: top; }
   tr:nth-child(even) td { background: #f9fafb; }
 
   /* ── Key-value pairs ── */
-  .kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
-  .kv { display: flex; gap: 6px; }
-  .kv-label { font-weight: 700; min-width: 110px; color: #374151; }
+  .kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+  .kv { display: flex; gap: 4px; }
+  .kv-label { font-weight: 700; min-width: 100px; color: #374151; }
   .kv-val { color: #111; }
 
   /* ── Status badges ── */
-  .badge { display: inline-block; padding: 1px 6px; border-radius: 99px; font-size: 9px; font-weight: 700; }
+  .badge { display: inline-block; padding: 1px 5px; border-radius: 99px; font-size: 8px; font-weight: 700; }
   .badge-open { background: #dbeafe; color: #1d4ed8; }
   .badge-progress { background: #fef3c7; color: #92400e; }
   .badge-closed, .badge-selesai, .badge-done { background: #d1fae5; color: #065f46; }
 
   /* ── Empty state ── */
-  .empty { color: #9ca3af; font-style: italic; padding: 8px 0; }
+  .empty { color: #9ca3af; font-style: italic; padding: 6px 0; }
 
   /* ── Print controls ── */
   .print-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 999;
-    background: #1e40af; color: #fff; padding: 8px 16px;
+    background: #1e40af; color: #fff; padding: 7px 16px;
     display: flex; align-items: center; justify-content: space-between; }
   .print-bar button { background: #fff; color: #1e3a8a; border: none;
-    font-size: 12px; font-weight: 700; padding: 5px 16px; border-radius: 6px; cursor: pointer; }
+    font-size: 11px; font-weight: 700; padding: 4px 14px; border-radius: 6px; cursor: pointer; }
   .print-bar .close-btn { background: transparent; color: #fff; border: 1px solid #fff; margin-left: 8px; }
-  .print-spacer { height: 44px; }
+  .print-spacer { height: 40px; }
 
   @media print {
+    body { background: #fff; }
     .print-bar, .print-spacer { display: none !important; }
-    body { font-size: 10px; }
-    .section { page-break-inside: avoid; }
-    @page { margin: 16mm 14mm; }
+    .page-wrap { width: 100%; margin: 0; padding: 0; box-shadow: none; }
+    @page { size: A4 portrait; margin: 14mm 13mm; }
   }
 </style>
 </head>
@@ -72,6 +80,7 @@
   </div>
 </div>
 <div class="print-spacer"></div>
+<div class="page-wrap">
 
 {{-- ── COVER ── --}}
 <div class="cover">
@@ -2021,27 +2030,27 @@
         <div style="flex:1;min-width:150px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:10px 14px;">
           <div style="font-size:10px;font-weight:600;color:#60a5fa;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">CEK FISIK (CF)</div>
           <div style="display:flex;gap:12px;">
-            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;">{{ $cfSa['cf'] ?? 0 }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Awal</div></div>
-            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;color:#60a5fa;">{{ $cfAkhirCf }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Akhir</div></div>
-            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;color:{{ $selColor($cfSelCf) }};">{{ $cfSelCf }}</div><div style="font-size:9px;color:#94a3b8;">Selisih</div></div>
+            <div style="text-align:center;flex:1;"><div style="font-size:13px;font-weight:700;">{{ $cfSa['cf'] ?? 0 }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Awal</div></div>
+            <div style="text-align:center;flex:1;"><div style="font-size:13px;font-weight:700;color:#60a5fa;">{{ $cfAkhirCf }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Akhir</div></div>
+            <div style="text-align:center;flex:1;"><div style="font-size:13px;font-weight:700;color:{{ $selColor($cfSelCf) }};">{{ $cfSelCf }}</div><div style="font-size:9px;color:#94a3b8;">Selisih</div></div>
           </div>
         </div>
         {{-- STUJ --}}
         <div style="flex:1;min-width:150px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:10px 14px;">
           <div style="font-size:10px;font-weight:600;color:#a78bfa;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">STUJ</div>
           <div style="display:flex;gap:12px;">
-            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;">{{ $cfSa['stuj'] ?? 0 }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Awal</div></div>
-            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;color:#a78bfa;">{{ $cfAkhirStuj }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Akhir</div></div>
-            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;color:{{ $selColor($cfSelStuj) }};">{{ $cfSelStuj }}</div><div style="font-size:9px;color:#94a3b8;">Selisih</div></div>
+            <div style="text-align:center;flex:1;"><div style="font-size:13px;font-weight:700;">{{ $cfSa['stuj'] ?? 0 }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Awal</div></div>
+            <div style="text-align:center;flex:1;"><div style="font-size:13px;font-weight:700;color:#a78bfa;">{{ $cfAkhirStuj }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Akhir</div></div>
+            <div style="text-align:center;flex:1;"><div style="font-size:13px;font-weight:700;color:{{ $selColor($cfSelStuj) }};">{{ $cfSelStuj }}</div><div style="font-size:9px;color:#94a3b8;">Selisih</div></div>
           </div>
         </div>
         {{-- F.STNK --}}
         <div style="flex:1;min-width:150px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:10px 14px;">
           <div style="font-size:10px;font-weight:600;color:#34d399;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">F. STNK</div>
           <div style="display:flex;gap:12px;">
-            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;">{{ $cfSa['fstnk'] ?? 0 }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Awal</div></div>
-            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;color:#34d399;">{{ $cfAkhirFstnk }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Akhir</div></div>
-            <div style="text-align:center;flex:1;"><div style="font-size:16px;font-weight:700;color:{{ $selColor($cfSelFstnk) }};">{{ $cfSelFstnk }}</div><div style="font-size:9px;color:#94a3b8;">Selisih</div></div>
+            <div style="text-align:center;flex:1;"><div style="font-size:13px;font-weight:700;">{{ $cfSa['fstnk'] ?? 0 }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Awal</div></div>
+            <div style="text-align:center;flex:1;"><div style="font-size:13px;font-weight:700;color:#34d399;">{{ $cfAkhirFstnk }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Akhir</div></div>
+            <div style="text-align:center;flex:1;"><div style="font-size:13px;font-weight:700;color:{{ $selColor($cfSelFstnk) }};">{{ $cfSelFstnk }}</div><div style="font-size:9px;color:#94a3b8;">Selisih</div></div>
           </div>
         </div>
       </div>
@@ -2164,7 +2173,7 @@
                 {{ $mekanikIdx }}
               </div>
               <div>
-                <div style="font-size:14px;font-weight:700;color:#111827;line-height:1.2;">{{ $mekanik }}</div>
+                <div style="font-size:11px;font-weight:700;color:#111827;line-height:1.2;">{{ $mekanik }}</div>
                 <div style="font-size:10px;color:#6b7280;">Mechanic Truster Tools – Pemeriksaan Alat</div>
               </div>
               @foreach($entries as $entry)
@@ -2198,7 +2207,7 @@
                 @foreach(['bagus','rusak','skAudit','hilang'] as $kat)
                   @php $cnt = count($entry[$kat] ?? []); @endphp
                   <div style="border:1px solid {{ $mtKatBorder[$kat] }};border-radius:8px;padding:8px 10px;background:{{ $mtKatBg[$kat] }};text-align:center;">
-                    <div style="font-size:20px;font-weight:800;color:{{ $mtKatText[$kat] }};line-height:1;">{{ $cnt }}</div>
+                    <div style="font-size:15px;font-weight:800;color:{{ $mtKatText[$kat] }};line-height:1;">{{ $cnt }}</div>
                     <div style="font-size:9.5px;font-weight:600;color:{{ $mtKatText[$kat] }};margin-top:2px;opacity:.85;">{{ $mtKatIcon[$kat] }} {{ $mtKatLabel[$kat] }}</div>
                   </div>
                 @endforeach
@@ -2262,15 +2271,15 @@
       {{-- Summary cards --}}
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:12px 14px;border-bottom:1px solid #e5e7eb;background:#f9fafb;">
         <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;text-align:center;">
-          <div style="font-size:18px;font-weight:800;color:#1e40af;">{{ count($hgpItems) }}</div>
+          <div style="font-size:14px;font-weight:800;color:#1e40af;">{{ count($hgpItems) }}</div>
           <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">Total Item</div>
         </div>
         <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;text-align:center;">
-          <div style="font-size:18px;font-weight:800;color:#059669;">{{ $fmtN($hgpTotalFisik) }}</div>
+          <div style="font-size:14px;font-weight:800;color:#059669;">{{ $fmtN($hgpTotalFisik) }}</div>
           <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">Total Fisik + WO</div>
         </div>
         <div style="background:#fff;border:1px solid {{ $hgpTotalSelisih < 0 ? '#fee2e2' : '#e5e7eb' }};border-radius:8px;padding:10px 12px;text-align:center;">
-          <div style="font-size:18px;font-weight:800;color:{{ $hgpTotalSelisih < 0 ? '#dc2626' : ($hgpTotalSelisih > 0 ? '#d97706' : '#059669') }};">{{ $fmtSign($hgpTotalSelisih) }}</div>
+          <div style="font-size:14px;font-weight:800;color:{{ $hgpTotalSelisih < 0 ? '#dc2626' : ($hgpTotalSelisih > 0 ? '#d97706' : '#059669') }};">{{ $fmtSign($hgpTotalSelisih) }}</div>
           <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">Total Selisih Qty</div>
         </div>
         <div style="background:#fff;border:1px solid {{ $hgpTotalJumlah < 0 ? '#fee2e2' : '#e5e7eb' }};border-radius:8px;padding:10px 12px;text-align:center;">
@@ -2378,19 +2387,19 @@
       {{-- Summary cards --}}
       <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:12px 14px;border-bottom:1px solid #e5e7eb;background:#f9fafb;">
         <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;text-align:center;">
-          <div style="font-size:20px;font-weight:800;color:#1e40af;">{{ count($hgaItems) }}</div>
+          <div style="font-size:15px;font-weight:800;color:#1e40af;">{{ count($hgaItems) }}</div>
           <div style="font-size:9px;color:#6b7280;margin-top:2px;">Total Item</div>
         </div>
         <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;text-align:center;">
-          <div style="font-size:20px;font-weight:800;color:#059669;">{{ $fmtHga($hgaTotalScan) }}</div>
+          <div style="font-size:15px;font-weight:800;color:#059669;">{{ $fmtHga($hgaTotalScan) }}</div>
           <div style="font-size:9px;color:#6b7280;margin-top:2px;">Total Fisik Scan</div>
         </div>
         <div style="background:#fff;border:1px solid #fef3c7;border-radius:8px;padding:8px 10px;text-align:center;">
-          <div style="font-size:20px;font-weight:800;color:#b45309;">{{ $fmtHga($hgaTotalTtp) }}</div>
+          <div style="font-size:15px;font-weight:800;color:#b45309;">{{ $fmtHga($hgaTotalTtp) }}</div>
           <div style="font-size:9px;color:#6b7280;margin-top:2px;">Total Fisik TTP</div>
         </div>
         <div style="background:#fff;border:1px solid {{ $hgaSelCount > 0 ? '#fee2e2' : '#e5e7eb' }};border-radius:8px;padding:8px 10px;text-align:center;">
-          <div style="font-size:20px;font-weight:800;color:{{ $hgaSelCount > 0 ? '#dc2626' : '#059669' }};">{{ $hgaSelCount }}</div>
+          <div style="font-size:15px;font-weight:800;color:{{ $hgaSelCount > 0 ? '#dc2626' : '#059669' }};">{{ $hgaSelCount }}</div>
           <div style="font-size:9px;color:#6b7280;margin-top:2px;">Item Selisih</div>
         </div>
         <div style="background:#fff;border:1px solid {{ $hgaTotalJumlah < 0 ? '#fee2e2' : '#e5e7eb' }};border-radius:8px;padding:8px 10px;text-align:center;">
@@ -2501,15 +2510,15 @@
       {{-- Summary cards --}}
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px 14px;border-bottom:1px solid #e5e7eb;background:#f9fafb;">
         <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;text-align:center;">
-          <div style="font-size:22px;font-weight:800;color:#1e40af;">{{ $tarTotal }}</div>
+          <div style="font-size:15px;font-weight:800;color:#1e40af;">{{ $tarTotal }}</div>
           <div style="font-size:9px;color:#6b7280;margin-top:2px;">Total Unit</div>
         </div>
         <div style="background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:8px 10px;text-align:center;">
-          <div style="font-size:22px;font-weight:800;color:#059669;">{{ $tarLengkap }}</div>
+          <div style="font-size:15px;font-weight:800;color:#059669;">{{ $tarLengkap }}</div>
           <div style="font-size:9px;color:#6b7280;margin-top:2px;">Data Lengkap</div>
         </div>
         <div style="background:#fff;border:1px solid {{ $tarSudah < $tarTotal ? '#fef3c7' : '#d1fae5' }};border-radius:8px;padding:8px 10px;text-align:center;">
-          <div style="font-size:22px;font-weight:800;color:{{ $tarSudah < $tarTotal ? '#b45309' : '#059669' }};">{{ $tarSudah }}/{{ $tarTotal }}</div>
+          <div style="font-size:15px;font-weight:800;color:{{ $tarSudah < $tarTotal ? '#b45309' : '#059669' }};">{{ $tarSudah }}/{{ $tarTotal }}</div>
           <div style="font-size:9px;color:#6b7280;margin-top:2px;">Sudah Ajukan</div>
         </div>
         <div style="background:#fff;border:1px solid #fee2e2;border-radius:8px;padding:8px 10px;text-align:center;">
@@ -2624,7 +2633,7 @@
           <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">Total File Lampiran</div>
         </div>
         <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;text-align:center;">
-          <div style="font-size:18px;font-weight:800;color:#059669;">{{ $fmtSize($totSize) }}</div>
+          <div style="font-size:14px;font-weight:800;color:#059669;">{{ $fmtSize($totSize) }}</div>
           <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">Total Ukuran</div>
         </div>
         <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;">
@@ -2681,9 +2690,10 @@
   </div>
 </div>
 
-<div style="text-align:center;color:#9ca3af;font-size:9px;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:10px;">
+<div style="text-align:center;color:#9ca3af;font-size:8px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:8px;">
   Laporan ini digenerate secara otomatis oleh sistem AKTA IAT pada {{ now()->format('d/m/Y H:i:s') }}.
 </div>
 
+</div>{{-- end page-wrap --}}
 </body>
 </html>
