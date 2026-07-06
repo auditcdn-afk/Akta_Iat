@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\BpkbOnhandItem;
+use App\Models\DbHargaSmh;
+use App\Models\DbPlafon;
+use App\Models\DbUnitUsaha;
 use App\Models\PemeriksaanBank;
 use App\Models\PemeriksaanBpkbInproses;
 use App\Models\PemeriksaanCekFisik;
@@ -20,6 +23,7 @@ use App\Models\PemeriksaanSmh;
 use App\Models\PemeriksaanSmhTarikan;
 use App\Models\PemeriksaanTtpGantung;
 use App\Models\PlanAudit;
+use App\Models\SmhOnhandItem;
 use Illuminate\View\View;
 
 class ReportPdfController extends Controller
@@ -46,11 +50,89 @@ class ReportPdfController extends Controller
         $smhTarikan = PemeriksaanSmhTarikan::where('plan_audit_id', $id)->first();
         $lampiran   = PemeriksaanLampiran::where('plan_audit_id', $id)->first();
 
+        // ── Analisa Plafon (computed) ──
+        $plafon = $this->buildPlafonAnalisa($plan);
+
         return view('akta.pdf.report-audit', compact(
-            'plan', 'kas', 'smh', 'perlengkapan', 'bank', 'materai',
+            'plan', 'plafon', 'kas', 'smh', 'perlengkapan', 'bank', 'materai',
             'bpkbOnhand', 'bpkbInproses', 'kwitansi', 'piutangReguler',
             'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'hga',
             'smhTarikan', 'lampiran'
         ));
+    }
+
+    private function buildPlafonAnalisa(PlanAudit $plan): array
+    {
+        $cabang    = $plan->cabang ?? '';
+        $cabangSfx = $this->suffix3($cabang);
+
+        $items = SmhOnhandItem::query()
+            ->whereHas('pemeriksaan', fn($q) => $q->where('plan_audit_id', $plan->id))
+            ->get();
+
+        $hargaMap = DbHargaSmh::all()
+            ->keyBy(fn($r) => strtoupper(trim($r->kode_model ?? '')));
+
+        $plafonRow = null;
+        if ($cabangSfx) {
+            foreach (DbPlafon::all() as $p) {
+                foreach ([$p->nama, $p->kode] as $key) {
+                    if ($this->suffix3($key) === $cabangSfx) { $plafonRow = $p; break 2; }
+                }
+            }
+        }
+        $plafonNilai = $plafonRow ? (float) $plafonRow->nilai : null;
+
+        $unitRow = null;
+        if ($cabangSfx) {
+            foreach (DbUnitUsaha::all() as $u) {
+                if ($this->suffix3($u->unit_usaha) === $cabangSfx) { $unitRow = $u; break; }
+            }
+        }
+
+        $grouped = [];
+        foreach ($items as $item) {
+            $gudang    = trim($item->gudang ?? '-');
+            $kodeModel = strtoupper(trim($item->kode_model ?? ''));
+            $hargaRow  = $hargaMap[$kodeModel] ?? null;
+            $harga     = $hargaRow ? (float) $hargaRow->harga : null;
+
+            if (!isset($grouped[$gudang])) {
+                $grouped[$gudang] = ['gudang'=>$gudang,'totalUnit'=>0,'ditemukan'=>0,'tidakDitemukan'=>0,'totalNilai'=>0.0,'detail'=>[]];
+            }
+            $grouped[$gudang]['totalUnit']++;
+            if ($harga !== null) { $grouped[$gudang]['ditemukan']++; $grouped[$gudang]['totalNilai'] += $harga; }
+            else                 { $grouped[$gudang]['tidakDitemukan']++; }
+            $grouped[$gudang]['detail'][] = [
+                'noMesin'=>$item->no_mesin,'noRangka'=>$item->no_rangka,
+                'kodeModel'=>$item->kode_model,'namaSmh'=>$hargaRow?->nama_smh,
+                'harga'=>$harga,'gudang'=>$item->gudang,
+            ];
+        }
+
+        $totalUnit  = array_sum(array_column(array_values($grouped), 'totalUnit'));
+        $totalNilai = array_sum(array_column(array_values($grouped), 'totalNilai'));
+        $sisaTotal  = $plafonNilai !== null ? max(0, $plafonNilai - $totalNilai) : null;
+        $persen     = ($plafonNilai && $plafonNilai > 0) ? round($totalNilai / $plafonNilai * 100, 1) : null;
+
+        return [
+            'cabang'       => $cabang,
+            'namaUnit'     => $unitRow?->unit_usaha ?? $cabang,
+            'wilayah'      => $unitRow?->wilayah ?? '-',
+            'plafonNilai'  => $plafonNilai,
+            'plafonNama'   => $plafonRow?->nama ?? null,
+            'totalUnit'    => $totalUnit,
+            'totalNilai'   => $totalNilai,
+            'sisaTotal'    => $sisaTotal,
+            'persentase'   => $persen,
+            'perUnit'      => array_values($grouped),
+        ];
+    }
+
+    private function suffix3(?string $str): ?string
+    {
+        if (!$str) return null;
+        $clean = strtoupper(preg_replace('/[^A-Z0-9]/i', '', $str));
+        return strlen($clean) >= 3 ? substr($clean, -3) : null;
     }
 }

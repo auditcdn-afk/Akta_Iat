@@ -322,10 +322,158 @@
 </div>
 
 {{-- ═══════════════════════════════════════════════
-     2. PEMERIKSAAN SMH & PERLENGKAPAN
+     2. ANALISA PLAFON SMH
      ═══════════════════════════════════════════════ --}}
 <div class="section">
-  <div class="section-title">2. PEMERIKSAAN SMH (Stock Motor Honda) &amp; PERLENGKAPAN</div>
+  <div class="section-title">2. ANALISA PLAFON SMH</div>
+  <div class="section-body">
+  @php
+    $pl   = $plafon;
+    $fmt2 = fn($v) => 'Rp '.number_format((float)$v, 0, ',', '.');
+    $hasPl = $pl['totalUnit'] > 0 || $pl['plafonNilai'] !== null;
+  @endphp
+  @if(!$hasPl)
+    <p class="empty">Belum ada data onhand SMH untuk analisa plafon.</p>
+  @else
+
+    {{-- ── Ringkasan Plafon ── --}}
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px 14px;margin-bottom:16px;">
+      <div style="font-weight:700;font-size:12px;color:#14532d;margin-bottom:10px;">RINGKASAN ANALISA PLAFON</div>
+      <div class="kv-grid" style="margin-bottom:10px;">
+        <div class="kv"><span class="kv-label">Cabang:</span><span class="kv-val" style="font-weight:700">{{ $pl['cabang'] }}</span></div>
+        <div class="kv"><span class="kv-label">Nama Unit:</span><span class="kv-val">{{ $pl['namaUnit'] }}</span></div>
+        <div class="kv"><span class="kv-label">Wilayah:</span><span class="kv-val">{{ $pl['wilayah'] }}</span></div>
+        <div class="kv"><span class="kv-label">Nama Plafon:</span><span class="kv-val">{{ $pl['plafonNama'] ?? '-' }}</span></div>
+      </div>
+      <table style="font-size:10px;width:100%;">
+        <thead>
+          <tr style="background:#dcfce7;">
+            <th style="text-align:left;padding:5px 8px;border:1px solid #bbf7d0;">Keterangan</th>
+            <th style="text-align:right;padding:5px 8px;border:1px solid #bbf7d0;">Nilai</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding:4px 8px;border:1px solid #e5e7eb;">Total Unit SMH (Onhand)</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;font-weight:700;">{{ number_format($pl['totalUnit'], 0, ',', '.') }} unit</td>
+          </tr>
+          <tr style="background:#f9fafb;">
+            <td style="padding:4px 8px;border:1px solid #e5e7eb;">Total Nilai SMH (Harga Pokok)</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;font-weight:700;color:#1d4ed8;">{{ $fmt2($pl['totalNilai']) }}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 8px;border:1px solid #e5e7eb;">Nilai Plafon yang Ditetapkan</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;font-weight:700;color:#7c3aed;">{{ $pl['plafonNilai'] !== null ? $fmt2($pl['plafonNilai']) : 'Tidak ada data plafon' }}</td>
+          </tr>
+          @if($pl['sisaTotal'] !== null)
+          <tr style="background:{{ $pl['sisaTotal'] > 0 ? '#f0fdf4' : '#fff1f2' }};font-weight:700;">
+            <td style="padding:4px 8px;border:1px solid #e5e7eb;">Sisa Cover (Plafon − Nilai SMH)</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;color:{{ $pl['sisaTotal'] > 0 ? '#059669' : '#dc2626' }};">{{ $fmt2($pl['sisaTotal']) }}</td>
+          </tr>
+          @endif
+          @if($pl['persentase'] !== null)
+          <tr style="background:{{ $pl['persentase'] <= 100 ? '#f0fdf4' : '#fff1f2' }};">
+            <td style="padding:4px 8px;border:1px solid #e5e7eb;">Persentase Penggunaan Plafon</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;font-weight:700;font-size:13px;color:{{ $pl['persentase'] <= 80 ? '#059669' : ($pl['persentase'] <= 100 ? '#d97706' : '#dc2626') }};">
+              {{ $pl['persentase'] }}%
+            </td>
+          </tr>
+          @endif
+        </tbody>
+      </table>
+    </div>
+
+    {{-- ── Indikator visual persentase ── --}}
+    @if($pl['persentase'] !== null)
+    @php
+      $pct = min(100, $pl['persentase']);
+      $barColor = $pct <= 80 ? '#16a34a' : ($pct <= 100 ? '#d97706' : '#dc2626');
+    @endphp
+    <div style="margin-bottom:16px;">
+      <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:4px;">Tingkat Penggunaan Plafon: {{ $pl['persentase'] }}%</div>
+      <div style="background:#e5e7eb;border-radius:99px;height:14px;overflow:hidden;">
+        <div style="width:{{ $pct }}%;background:{{ $barColor }};height:14px;border-radius:99px;display:flex;align-items:center;justify-content:center;">
+          <span style="color:#fff;font-size:9px;font-weight:700;">{{ $pl['persentase'] }}%</span>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:#6b7280;margin-top:2px;">
+        <span>0%</span><span style="color:#d97706">80%</span><span style="color:#dc2626">100%</span>
+      </div>
+    </div>
+    @endif
+
+    {{-- ── Per Gudang / Sub-Unit ── --}}
+    @if(count($pl['perUnit']))
+    <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:6px;">Detail Per Gudang / Sub-Unit</div>
+    <table style="font-size:9.5px;">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Gudang / Sub-Unit</th>
+          <th style="text-align:center">Total Unit</th>
+          <th style="text-align:center">Ada Harga</th>
+          <th style="text-align:center">Tanpa Harga</th>
+          <th style="text-align:right">Total Nilai SMH</th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach($pl['perUnit'] as $gi => $gu)
+        <tr>
+          <td>{{ $gi + 1 }}</td>
+          <td style="font-weight:600">{{ $gu['gudang'] }}</td>
+          <td style="text-align:center">{{ $gu['totalUnit'] }}</td>
+          <td style="text-align:center;color:#059669;font-weight:700">{{ $gu['ditemukan'] }}</td>
+          <td style="text-align:center;color:{{ $gu['tidakDitemukan'] > 0 ? '#d97706' : '#059669' }};font-weight:700">{{ $gu['tidakDitemukan'] }}</td>
+          <td style="text-align:right;font-weight:700">{{ $fmt2($gu['totalNilai']) }}</td>
+        </tr>
+        @if(count($gu['detail']))
+        <tr style="background:#f8fafc;">
+          <td colspan="6" style="padding:4px 8px;">
+            <table style="width:100%;font-size:9px;border-collapse:collapse;">
+              <thead>
+                <tr style="background:#f1f5f9;">
+                  <th style="padding:2px 6px;border:1px solid #e2e8f0;">No Rangka</th>
+                  <th style="padding:2px 6px;border:1px solid #e2e8f0;">No Mesin</th>
+                  <th style="padding:2px 6px;border:1px solid #e2e8f0;">Kode Model</th>
+                  <th style="padding:2px 6px;border:1px solid #e2e8f0;">Nama SMH</th>
+                  <th style="text-align:right;padding:2px 6px;border:1px solid #e2e8f0;">Harga</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($gu['detail'] as $det)
+                <tr style="{{ $det['harga'] === null ? 'color:#d97706;' : '' }}">
+                  <td style="padding:2px 6px;border:1px solid #e2e8f0;font-family:monospace;">{{ $det['noRangka'] ?? '-' }}</td>
+                  <td style="padding:2px 6px;border:1px solid #e2e8f0;font-family:monospace;">{{ $det['noMesin'] ?? '-' }}</td>
+                  <td style="padding:2px 6px;border:1px solid #e2e8f0;">{{ $det['kodeModel'] ?? '-' }}</td>
+                  <td style="padding:2px 6px;border:1px solid #e2e8f0;">{{ $det['namaSmh'] ?? '— harga tidak ditemukan —' }}</td>
+                  <td style="text-align:right;padding:2px 6px;border:1px solid #e2e8f0;">{{ $det['harga'] !== null ? $fmt2($det['harga']) : '-' }}</td>
+                </tr>
+                @endforeach
+              </tbody>
+            </table>
+          </td>
+        </tr>
+        @endif
+        @endforeach
+        <tr style="background:#dcfce7;font-weight:700;">
+          <td colspan="2" style="text-align:right">TOTAL</td>
+          <td style="text-align:center">{{ $pl['totalUnit'] }}</td>
+          <td colspan="2"></td>
+          <td style="text-align:right">{{ $fmt2($pl['totalNilai']) }}</td>
+        </tr>
+      </tbody>
+    </table>
+    @endif
+
+  @endif
+  </div>
+</div>
+
+{{-- ═══════════════════════════════════════════════
+     3. PEMERIKSAAN SMH & PERLENGKAPAN
+     ═══════════════════════════════════════════════ --}}
+<div class="section">
+  <div class="section-title">3. PEMERIKSAAN SMH (Stock Motor Honda) &amp; PERLENGKAPAN</div>
   <div class="section-body">
 
     {{-- ── A. SMH Cek Fisik Per Unit ── --}}
