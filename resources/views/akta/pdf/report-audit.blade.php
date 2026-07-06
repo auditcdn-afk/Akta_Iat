@@ -1223,15 +1223,199 @@
     @if($bpkbInproses->isEmpty())
       <p class="empty">Belum ada data.</p>
     @else
-      @foreach($bpkbInproses as $b)
-      <div class="kv-grid" style="margin-bottom:8px;">
-        <div class="kv"><span class="kv-label">Tgl Awal:</span><span class="kv-val">{{ $b->tgl_awal ? \Carbon\Carbon::parse($b->tgl_awal)->format('d/m/Y') : '-' }}</span></div>
-        <div class="kv"><span class="kv-label">Fisik BPKB:</span><span class="kv-val">{{ $b->fisik_bpkb_hitung ?? '-' }}</span></div>
-        <div class="kv"><span class="kv-label">Fisik Inproses:</span><span class="kv-val">{{ $b->fisik_inproses_hitung ?? '-' }}</span></div>
-        <div class="kv"><span class="kv-label">Onhand BPKB:</span><span class="kv-val">{{ $b->onhand_bpkb ?? '-' }}</span></div>
-        <div class="kv"><span class="kv-label">Ket. Selisih:</span><span class="kv-val">{{ $b->keterangan_selisih ?? '-' }}</span></div>
+    @foreach($bpkbInproses as $b)
+    @php
+      $penFisik  = $b->penerimaan_fisik_json    ?? [];
+      $kelBpkb   = $b->pengeluaran_bpkb_json    ?? [];
+      $pendaftar = $b->pendaftaran_bpkb_json     ?? [];
+      $penyelesaian = $b->penyelesaian_inproses_json ?? [];
+      $ketSelisih   = $b->ket_selisih_inproses_json  ?? [];
+      $rincian      = $b->rincian_inproses_json       ?? [];
+      $blocks       = $b->inproses_blocks_json         ?? [];
+
+      $saldoAwalFisik  = (int)($b->saldo_awal_fisik ?? 0);
+      $totalPenFisik   = array_sum(array_column($penFisik, 'jumlah'));
+      $totalKelBpkb    = array_sum(array_column($kelBpkb, 'jumlah'));
+      $fisikBpkbHitung = (int)($b->fisik_bpkb_hitung ?? ($saldoAwalFisik + $totalPenFisik - $totalKelBpkb));
+      $onhandBpkb      = (int)($b->onhand_bpkb ?? 0);
+      $selisihBpkb     = $fisikBpkbHitung - $onhandBpkb;
+      $fmt = fn($v) => number_format((int)$v, 0, ',', '.');
+    @endphp
+
+    {{-- ── RINGKASAN ── --}}
+    <div style="background:#f0f4ff;border:1px solid #c7d2fe;border-radius:6px;padding:10px 14px;margin-bottom:16px;">
+      <div style="font-weight:700;font-size:12px;color:#1e3a8a;margin-bottom:8px;">RINGKASAN PEMERIKSAAN BPKB INPROSES</div>
+      <div class="kv-grid" style="margin-bottom:10px;">
+        <div class="kv"><span class="kv-label">Tgl Pemeriksaan:</span><span class="kv-val">{{ $b->tgl_awal ? \Carbon\Carbon::parse($b->tgl_awal)->format('d/m/Y') : '-' }}</span></div>
+        <div class="kv"><span class="kv-label">Onhand BPKB (Sistem):</span><span class="kv-val" style="font-weight:700">{{ $fmt($onhandBpkb) }}</span></div>
       </div>
-      @endforeach
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div style="background:#fff;border:1px solid #e0e7ff;border-radius:6px;padding:8px 14px;flex:1;min-width:180px;">
+          <div style="font-size:10px;font-weight:700;color:#1d4ed8;margin-bottom:6px;border-bottom:1px solid #e0e7ff;padding-bottom:3px;">FISIK BPKB</div>
+          <div style="font-size:10px;display:flex;justify-content:space-between;margin-bottom:3px;"><span>Saldo Awal Fisik</span><strong>{{ $fmt($saldoAwalFisik) }}</strong></div>
+          @if($totalPenFisik)<div style="font-size:10px;display:flex;justify-content:space-between;margin-bottom:3px;color:#059669;"><span>+ Penerimaan</span><strong>{{ $fmt($totalPenFisik) }}</strong></div>@endif
+          @if($totalKelBpkb)<div style="font-size:10px;display:flex;justify-content:space-between;margin-bottom:3px;color:#dc2626;"><span>− Pengeluaran</span><strong>{{ $fmt($totalKelBpkb) }}</strong></div>@endif
+          <div style="font-size:10px;display:flex;justify-content:space-between;margin-bottom:3px;border-top:1px solid #e0e7ff;padding-top:3px;font-weight:700;"><span>Fisik Buku</span><span>{{ $fmt($fisikBpkbHitung) }}</span></div>
+          <div style="font-size:10px;display:flex;justify-content:space-between;margin-bottom:3px;"><span>Onhand (Sistem)</span><strong>{{ $fmt($onhandBpkb) }}</strong></div>
+          <div style="font-size:10px;display:flex;justify-content:space-between;font-weight:700;color:{{ $selisihBpkb != 0 ? '#dc2626' : '#059669' }};background:{{ $selisihBpkb != 0 ? '#fee2e2' : '#f0fdf4' }};padding:3px 4px;border-radius:4px;">
+            <span>Selisih</span><span>{{ $selisihBpkb > 0 ? '+' : '' }}{{ $fmt($selisihBpkb) }}</span>
+          </div>
+          @if($b->keterangan_selisih)
+          <div style="margin-top:4px;font-size:9px;color:#6b7280;"><em>{{ $b->keterangan_selisih }}</em></div>
+          @endif
+        </div>
+        @if(count($blocks))
+        @foreach($blocks as $blk)
+        @php
+          $saldoBlk  = (int)($blk['saldoAwalInproses'] ?? 0);
+          $penyelBlk = $blk['penyelesaianInproses'] ?? [];
+          $totalPenyelBlk = array_sum(array_column($penyelBlk, 'jumlah'));
+          $fisikBlk  = (int)($blk['fisikInprosesHitung'] ?? ($saldoBlk - $totalPenyelBlk));
+          $selBlk    = 0; // inproses selisih: fisik vs fisik hitung
+        @endphp
+        <div style="background:#fff;border:1px solid #e0e7ff;border-radius:6px;padding:8px 14px;flex:1;min-width:180px;">
+          <div style="font-size:10px;font-weight:700;color:#7c3aed;margin-bottom:6px;border-bottom:1px solid #ede9fe;padding-bottom:3px;">
+            📋 {{ $blk['filterInproses'] ?? 'INPROSES' }}
+          </div>
+          <div style="font-size:10px;display:flex;justify-content:space-between;margin-bottom:3px;"><span>Saldo Awal Inproses</span><strong>{{ $fmt($saldoBlk) }}</strong></div>
+          @if($totalPenyelBlk)<div style="font-size:10px;display:flex;justify-content:space-between;margin-bottom:3px;color:#dc2626;"><span>− Penyelesaian</span><strong>{{ $fmt($totalPenyelBlk) }}</strong></div>@endif
+          <div style="font-size:10px;display:flex;justify-content:space-between;border-top:1px solid #ede9fe;padding-top:3px;font-weight:700;"><span>Fisik Inproses</span><span>{{ $fmt($fisikBlk) }}</span></div>
+        </div>
+        @endforeach
+        @endif
+      </div>
+    </div>
+
+    {{-- ── A. FISIK BPKB: Penerimaan ── --}}
+    @if(count($penFisik))
+    <div style="margin-bottom:14px;">
+      <div style="font-weight:700;font-size:11px;color:#1d4ed8;border-bottom:2px solid #1d4ed8;padding-bottom:3px;margin-bottom:8px;">A. PENERIMAAN FISIK BPKB</div>
+      <table style="font-size:9.5px;">
+        <thead><tr><th>#</th><th>Tanggal</th><th>Keterangan</th><th style="text-align:right">Jumlah</th></tr></thead>
+        <tbody>
+          @foreach($penFisik as $ii => $r)
+          <tr>
+            <td>{{ $ii+1 }}</td>
+            <td>{{ $r['tanggal'] ?? '-' }}</td>
+            <td>{{ $r['keterangan'] ?? '-' }}</td>
+            <td style="text-align:right;color:#059669;font-weight:700">{{ $fmt($r['jumlah'] ?? 0) }}</td>
+          </tr>
+          @endforeach
+          <tr style="background:#f0fdf4;font-weight:700;">
+            <td colspan="3" style="text-align:right">Total Penerimaan</td>
+            <td style="text-align:right;color:#059669">{{ $fmt($totalPenFisik) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    @endif
+
+    {{-- ── B. FISIK BPKB: Pengeluaran ── --}}
+    @if(count($kelBpkb))
+    <div style="margin-bottom:14px;">
+      <div style="font-weight:700;font-size:11px;color:#dc2626;border-bottom:2px solid #dc2626;padding-bottom:3px;margin-bottom:8px;">B. PENGELUARAN / PENGIRIMAN BPKB</div>
+      <table style="font-size:9.5px;">
+        <thead><tr><th>#</th><th>Tanggal</th><th>Keterangan</th><th style="text-align:right">Jumlah</th></tr></thead>
+        <tbody>
+          @foreach($kelBpkb as $ii => $r)
+          <tr>
+            <td>{{ $ii+1 }}</td>
+            <td>{{ $r['tanggal'] ?? '-' }}</td>
+            <td>{{ $r['keterangan'] ?? '-' }}</td>
+            <td style="text-align:right;color:#dc2626;font-weight:700">{{ $fmt($r['jumlah'] ?? 0) }}</td>
+          </tr>
+          @endforeach
+          <tr style="background:#fff1f2;font-weight:700;">
+            <td colspan="3" style="text-align:right">Total Pengeluaran</td>
+            <td style="text-align:right;color:#dc2626">{{ $fmt($totalKelBpkb) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    @endif
+
+    {{-- ── C. Detail Inproses Blocks ── --}}
+    @foreach($blocks as $bi => $blk)
+    @php
+      $penyelBlk = $blk['penyelesaianInproses'] ?? [];
+      $ketBlk    = $blk['ketSelisihInproses']   ?? [];
+      $rincBlk   = $blk['rincianInproses']       ?? [];
+      $saldoBlk  = (int)($blk['saldoAwalInproses'] ?? 0);
+      $totalPenyelBlk = array_sum(array_column($penyelBlk, 'jumlah'));
+      $fisikBlk  = (int)($blk['fisikInprosesHitung'] ?? ($saldoBlk - $totalPenyelBlk));
+    @endphp
+    <div style="margin-bottom:14px;border:1px solid #ede9fe;border-radius:6px;overflow:hidden;">
+      <div style="background:#7c3aed;color:#fff;padding:6px 12px;font-weight:700;font-size:10px;">
+        📋 {{ (int)$bi+1 }}. INPROSES: {{ $blk['filterInproses'] ?? '-' }}
+        &nbsp;|&nbsp; Saldo Awal: {{ $fmt($saldoBlk) }}
+        &nbsp;|&nbsp; Fisik: {{ $fmt($fisikBlk) }}
+      </div>
+      <div style="padding:8px 12px;">
+        @if(count($penyelBlk))
+        <div style="font-size:10px;font-weight:700;margin-bottom:4px;color:#374151;">Penyelesaian Inproses</div>
+        <table style="font-size:9.5px;margin-bottom:8px;">
+          <thead><tr><th>#</th><th>Tanggal</th><th>Keterangan</th><th style="text-align:right">Jumlah</th></tr></thead>
+          <tbody>
+            @foreach($penyelBlk as $ii => $r)
+            <tr>
+              <td>{{ $ii+1 }}</td>
+              <td>{{ $r['tanggal'] ?? '-' }}</td>
+              <td>{{ $r['keterangan'] ?? '-' }}</td>
+              <td style="text-align:right;color:#dc2626;font-weight:700">{{ $fmt($r['jumlah'] ?? 0) }}</td>
+            </tr>
+            @endforeach
+            <tr style="background:#fdf4ff;font-weight:700;">
+              <td colspan="3" style="text-align:right">Total Penyelesaian</td>
+              <td style="text-align:right;color:#dc2626">{{ $fmt($totalPenyelBlk) }}</td>
+            </tr>
+          </tbody>
+        </table>
+        @endif
+
+        @if(count($rincBlk))
+        <div style="font-size:10px;font-weight:700;margin-bottom:4px;color:#374151;">Rincian Inproses</div>
+        <table style="font-size:9.5px;margin-bottom:8px;">
+          <thead><tr><th>#</th><th>No BPKB</th><th>Keterangan</th><th>Status</th></tr></thead>
+          <tbody>
+            @foreach($rincBlk as $ii => $r)
+            <tr>
+              <td>{{ $ii+1 }}</td>
+              <td style="font-weight:600">{{ $r['noBpkb'] ?? $r['no_bpkb'] ?? '-' }}</td>
+              <td>{{ $r['keterangan'] ?? '-' }}</td>
+              <td>{{ $r['status'] ?? '-' }}</td>
+            </tr>
+            @endforeach
+          </tbody>
+        </table>
+        @endif
+
+        @if(count($ketBlk))
+        <div style="font-size:10px;font-weight:700;margin-bottom:4px;color:#374151;">Keterangan Selisih</div>
+        <table style="font-size:9.5px;">
+          <thead><tr><th>#</th><th>Keterangan</th><th>Jumlah</th></tr></thead>
+          <tbody>
+            @foreach($ketBlk as $ii => $r)
+            <tr>
+              <td>{{ $ii+1 }}</td>
+              <td>{{ $r['keterangan'] ?? '-' }}</td>
+              <td style="text-align:right">{{ $fmt($r['jumlah'] ?? 0) }}</td>
+            </tr>
+            @endforeach
+          </tbody>
+        </table>
+        @endif
+      </div>
+    </div>
+    @endforeach
+
+    {{-- Keterangan selisih onhand ── --}}
+    @if($b->keterangan_selisih_onhand)
+    <div style="margin-top:8px;padding:8px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:10px;">
+      <strong>Keterangan Selisih Onhand:</strong> {{ $b->keterangan_selisih_onhand }}
+    </div>
+    @endif
+
+    @endforeach
     @endif
   </div>
 </div>
