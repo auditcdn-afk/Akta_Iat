@@ -2133,8 +2133,12 @@
       @php
         $mtRaw     = $mt->data_json ?? [];
         $mtEntries = $mtRaw['entries'] ?? [];
-        // Group by mekanik
-        $mtByMekanik = collect($mtEntries)->groupBy('mekanik');
+        // Filter: only entries that have at least 1 tool in any category
+        $mtEntriesFiltered = collect($mtEntries)->filter(function($e) {
+            return collect(['bagus','rusak','skAudit','hilang'])->sum(fn($k) => count($e[$k] ?? [])) > 0;
+        });
+        // Group by mekanik (preserving only non-empty entries)
+        $mtByMekanik = $mtEntriesFiltered->groupBy('mekanik');
         $mtJenisLabel = ['baru' => 'Baru', 'lama' => 'Lama', 'fi' => 'FI'];
         $mtKatLabel   = ['bagus' => 'Bagus', 'rusak' => 'Rusak', 'skAudit' => 'SK Audit', 'hilang' => 'Hilang'];
         $mtKatColor   = ['bagus' => '#10b981', 'rusak' => '#ef4444', 'skAudit' => '#60a5fa', 'hilang' => '#f97316'];
@@ -2145,7 +2149,7 @@
       @else
         @foreach($mtByMekanik as $mekanik => $entries)
           {{-- Mekanik header --}}
-          <div style="margin-bottom:18px;">
+          <div style="margin-bottom:18px;page-break-inside:avoid;">
             <div style="font-size:13px;font-weight:700;padding:6px 12px;background:#1e3a5f;border-left:4px solid #3b82f6;margin-bottom:10px;border-radius:0 4px 4px 0;">
               Mekanik: {{ $mekanik }}
               <span style="font-size:10px;font-weight:400;color:#94a3b8;margin-left:8px;">{{ $entries->count() }} jenis diperiksa</span>
