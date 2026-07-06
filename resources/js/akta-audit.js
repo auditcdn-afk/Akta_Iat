@@ -6215,7 +6215,42 @@ async function rekomendasiLoadList() {
         }
         list.innerHTML = rows.map(r => {
             const prioBadge = { rendah: 'bg-slate-700 text-slate-300', sedang: 'bg-amber-900/60 text-amber-300', tinggi: 'bg-orange-900/60 text-orange-300', urgent: 'bg-red-900/60 text-red-300' }[r.prioritas] || 'bg-slate-700 text-slate-300';
-            const statusBadge = { draft: 'text-slate-400', open: 'text-blue-400', in_progress: 'text-amber-400', done: 'text-emerald-400', cancelled: 'text-red-400' }[r.status] || 'text-slate-400';
+            const statusBadge = { draft: 'text-slate-400', open: 'text-blue-400', in_progress: 'text-amber-400', done: 'text-emerald-400', approved: 'text-emerald-400', cancelled: 'text-red-400' }[r.status] || 'text-slate-400';
+
+            // Build birokrasi steps (skip first 'created' step)
+            const approvalSteps = (r.steps ?? []).filter(s => s.step !== 'created');
+            const birokrasiHtml = approvalSteps.length ? `
+                <div class="mt-3 rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3">
+                    <p class="mb-2 text-xs font-bold text-slate-400 uppercase tracking-wide">Birokrasi Persetujuan</p>
+                    <div class="flex flex-wrap items-center gap-0">
+                        ${approvalSteps.map((s, idx) => {
+                            const done = s.status === 'approved' || s.status === 'done';
+                            const isPending = s.status === 'pending';
+                            // next pending step index in full steps array (offset by 1 for 'created')
+                            const fullIdx = idx + 1;
+                            const prevDone = idx === 0 || (approvalSteps[idx - 1]?.status === 'approved' || approvalSteps[idx - 1]?.status === 'done');
+                            const canApprove = isPending && prevDone;
+                            const icon = done ? '✓' : (canApprove ? '●' : '○');
+                            const color = done ? 'text-emerald-400 border-emerald-600 bg-emerald-900/30'
+                                               : canApprove ? 'text-amber-300 border-amber-600 bg-amber-900/20'
+                                               : 'text-slate-500 border-slate-700 bg-slate-800/40';
+                            const approveBtn = canApprove
+                                ? `<button onclick="rekomendasiApproveStep(${r.id}, ${fullIdx})" class="mt-1 block rounded px-2 py-0.5 text-[10px] font-semibold bg-amber-600 hover:bg-amber-500 text-white transition">Setujui</button>`
+                                : '';
+                            const info = done ? `<span class="block text-[10px] text-slate-500">${s.user ?? ''} ${s.time ? s.time.substring(0,10) : ''}</span>` : '';
+                            return `<div class="flex items-center">
+                                <div class="flex flex-col items-center px-3 py-1.5 rounded-xl border text-center min-w-[80px] ${color}">
+                                    <span class="text-base leading-none">${icon}</span>
+                                    <span class="mt-0.5 text-xs font-semibold">${escapeHtml(s.step)}</span>
+                                    ${info}
+                                    ${approveBtn}
+                                </div>
+                                ${idx < approvalSteps.length - 1 ? '<span class="text-slate-600 px-1 text-lg">→</span>' : ''}
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>` : '';
+
             return `<div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4 space-y-2">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1">
@@ -6227,7 +6262,8 @@ async function rekomendasiLoadList() {
                         <span class="text-xs font-semibold ${statusBadge}">${r.status}</span>
                     </div>
                 </div>
-                <div class="flex flex-wrap gap-4 text-xs text-slate-500">
+                ${birokrasiHtml}
+                <div class="flex flex-wrap gap-4 text-xs text-slate-500 mt-1">
                     ${r.pic ? `<span>PIC: <span class="text-slate-300">${escapeHtml(r.pic)}</span></span>` : ''}
                     ${r.deadline ? `<span>Deadline: <span class="text-slate-300">${r.deadline}</span></span>` : ''}
                 </div>
@@ -6491,6 +6527,22 @@ async function rekomendasiEdit(id) {
         rekomendasiShowForm(id);
         document.getElementById('rekomendasiIsi').value      = r.deskripsi || r.judul || '';
         document.getElementById('rekomendasiTglAudit').value = r.tglAudit || document.getElementById('rekomendasiTglAudit').value;
+    } catch (e) {
+        rekomendasiAlert(e.message, 'error');
+    }
+}
+
+async function rekomendasiApproveStep(id, stepIndex) {
+    const note = prompt('Catatan persetujuan (opsional):') ?? '';
+    if (note === null) return; // cancelled
+    try {
+        await fetchJson(`/api/recommendations/${id}/approve-step`, {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ step_index: stepIndex, note: note || null }),
+        });
+        await rekomendasiLoadList();
+        rekomendasiAlert('Step berhasil disetujui.', 'success');
     } catch (e) {
         rekomendasiAlert(e.message, 'error');
     }

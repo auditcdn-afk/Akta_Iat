@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AuditRecommendation;
 use App\Services\ActivityLogger;
+use App\Services\BirokrasiResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -66,7 +67,7 @@ class AuditRecommendationController extends Controller
 
         $recommendation = AuditRecommendation::query()->create([
             ...$payload,
-            'steps' => $payload['steps'] ?? $this->defaultSteps($request->user()?->username),
+            'steps' => $payload['steps'] ?? $this->buildBirokrasiSteps((int) ($payload['plan_audit_id'] ?? 0), $request->user()?->username ?? ''),
             'created_by' => $request->user()?->username,
             'updated_by' => $request->user()?->username,
         ]);
@@ -226,15 +227,75 @@ class AuditRecommendationController extends Controller
         ]);
     }
 
+    public function approveStep(
+        Request $request,
+        AuditRecommendation $recommendation,
+        ActivityLogger $logger
+    ): JsonResponse {
+        $request->validate([
+            'step_index' => ['required', 'integer', 'min:0'],
+            'note'       => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $idx   = (int) $request->input('step_index');
+        $steps = $recommendation->steps ?: [];
+
+        if (!isset($steps[$idx])) {
+            return response()->json(['ok' => false, 'message' => 'Step tidak ditemukan.'], 404);
+        }
+        if ($steps[$idx]['status'] === 'done' || $steps[$idx]['status'] === 'approved') {
+            return response()->json(['ok' => false, 'message' => 'Step sudah disetujui.'], 422);
+        }
+
+        $steps[$idx]['status'] = 'approved';
+        $steps[$idx]['user']   = $request->user()?->username;
+        $steps[$idx]['time']   = now()->toDateTimeString();
+        $steps[$idx]['note']   = $request->input('note');
+
+        // Auto-approve overall recommendation when last step is approved
+        $allApproved = collect($steps)->every(fn($s) => in_array($s['status'], ['done', 'approved']));
+
+        $recommendation->steps = $steps;
+        if ($allApproved) {
+            $recommendation->status      = 'approved';
+            $recommendation->approved_by = $request->user()?->username;
+            $recommendation->approved_at = now();
+        }
+        $recommendation->updated_by = $request->user()?->username;
+        $recommendation->save();
+        $recommendation->load(['planAudit', 'auditTask']);
+
+        $logger->write($request, 'RECOMMENDATION_STEP_APPROVE', 'audit_recommendations',
+            'Approve step "' . ($steps[$idx]['step'] ?? $idx) . '" pada rekomendasi: ' . $recommendation->judul,
+            $request->user());
+
+        return response()->json([
+            'ok'      => true,
+            'message' => 'Step berhasil disetujui.',
+            'data'    => $recommendation->toAktaArray(),
+        ]);
+    }
+
+    private function buildBirokrasiSteps(int $planAuditId, string $username): array
+    {
+        $cabang = '';
+        if ($planAuditId) {
+            $plan   = \App\Models\PlanAudit::find($planAuditId);
+            $cabang = $plan?->cabang ?? '';
+        }
+        return BirokrasiResolver::buildSteps($cabang, $username);
+    }
+
     private function defaultSteps(?string $username): array
     {
         return [
             [
-                'step' => 'created',
+                'step'   => 'created',
+                'role'   => null,
                 'status' => 'done',
-                'user' => $username,
-                'time' => now()->toDateTimeString(),
-                'note' => 'Rekomendasi dibuat.',
+                'user'   => $username,
+                'time'   => now()->toDateTimeString(),
+                'note'   => 'Rekomendasi dibuat.',
             ],
         ];
     }
