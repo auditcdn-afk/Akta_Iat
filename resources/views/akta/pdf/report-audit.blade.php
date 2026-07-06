@@ -98,25 +98,225 @@
     @if($kas->isEmpty())
       <p class="empty">Belum ada data.</p>
     @else
-      <table>
-        <thead>
-          <tr>
-            <th>#</th><th>Nama Pos</th><th>Saldo Fisik</th><th>Saldo Buku</th><th>Selisih</th><th>Keterangan</th>
+      @foreach($kas as $k)
+      @php
+        $d   = $k->detail_json ?? [];
+        $kb  = $d['kas_besar'] ?? [];
+        $kk  = $d['kas_kecil'] ?? [];
+        $pcn = $d['pecahan']   ?? [];
+
+        $kbPenerimaan = $kb['penerimaan'] ?? [];
+        $kbPengeluaran = $kb['pengeluaran'] ?? [];
+        $kkBon = $kk['bon'] ?? [];
+
+        $kbSaldoAwal    = (float)($kb['saldo_awal'] ?? 0);
+        $kbTotalTerima  = array_sum(array_column($kbPenerimaan, 'jumlah'));
+        $kbTotalKeluar  = array_sum(array_column($kbPengeluaran, 'jumlah'));
+        $kbSaldoBuku    = $kbSaldoAwal + $kbTotalTerima - $kbTotalKeluar;
+        $kbSaldoFisik   = array_sum(array_map(fn($p) => ($p['nominal']??0)*($p['lembar_besar']??0), $pcn));
+        $kbSelisih      = $kbSaldoFisik - $kbSaldoBuku;
+
+        $kkCadangan  = (float)($kk['cadangan'] ?? 0);
+        $kkTotalBon  = array_sum(array_column($kkBon, 'jumlah'));
+        $kkSaldoBuku = $kkCadangan - $kkTotalBon;
+        $kkSaldoFisik = array_sum(array_map(fn($p) => ($p['nominal']??0)*($p['lembar_kecil']??0), $pcn));
+        $kkSelisih   = $kkSaldoFisik - $kkSaldoBuku;
+
+        $totalFisik  = (float)($k->saldo_fisik ?? ($kbSaldoFisik + $kkSaldoFisik));
+        $totalBuku   = (float)($k->saldo_buku  ?? ($kbSaldoBuku  + $kkSaldoBuku));
+        $totalSelisih = (float)($k->selisih    ?? ($kbSelisih    + $kkSelisih));
+
+        $fmt = fn($v) => 'Rp '.number_format((float)$v, 0, ',', '.');
+      @endphp
+
+      {{-- ── Ringkasan ── --}}
+      <div style="background:#f0f4ff;border:1px solid #c7d2fe;border-radius:6px;padding:10px 14px;margin-bottom:14px;">
+        <div style="font-weight:700;font-size:12px;color:#1e3a8a;margin-bottom:8px;">RINGKASAN PEMERIKSAAN KAS</div>
+        <table style="width:100%;font-size:10px;">
+          <thead>
+            <tr style="background:#e0e7ff;">
+              <th style="text-align:left;padding:4px 8px;border:1px solid #c7d2fe;">Pos Kas</th>
+              <th style="text-align:right;padding:4px 8px;border:1px solid #c7d2fe;">Saldo Buku</th>
+              <th style="text-align:right;padding:4px 8px;border:1px solid #c7d2fe;">Saldo Fisik</th>
+              <th style="text-align:right;padding:4px 8px;border:1px solid #c7d2fe;">Selisih</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:4px 8px;border:1px solid #e5e7eb;">Kas Besar</td>
+              <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;">{{ $fmt($kbSaldoBuku) }}</td>
+              <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;">{{ $fmt($kbSaldoFisik) }}</td>
+              <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;color:{{ $kbSelisih != 0 ? '#dc2626' : '#059669' }};">
+                {{ $fmt($kbSelisih) }}
+              </td>
+            </tr>
+            <tr style="background:#f9fafb;">
+              <td style="padding:4px 8px;border:1px solid #e5e7eb;">Kas Kecil</td>
+              <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;">{{ $fmt($kkSaldoBuku) }}</td>
+              <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;">{{ $fmt($kkSaldoFisik) }}</td>
+              <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;color:{{ $kkSelisih != 0 ? '#dc2626' : '#059669' }};">
+                {{ $fmt($kkSelisih) }}
+              </td>
+            </tr>
+            <tr style="background:#e0e7ff;font-weight:700;">
+              <td style="padding:4px 8px;border:1px solid #c7d2fe;">TOTAL</td>
+              <td style="text-align:right;padding:4px 8px;border:1px solid #c7d2fe;">{{ $fmt($totalBuku) }}</td>
+              <td style="text-align:right;padding:4px 8px;border:1px solid #c7d2fe;">{{ $fmt($totalFisik) }}</td>
+              <td style="text-align:right;padding:4px 8px;border:1px solid #c7d2fe;color:{{ $totalSelisih != 0 ? '#dc2626' : '#059669' }};">
+                {{ $fmt($totalSelisih) }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        @if($k->keterangan)
+        <div style="margin-top:6px;font-size:10px;"><strong>Keterangan:</strong> {{ $k->keterangan }}</div>
+        @endif
+      </div>
+
+      {{-- ── Kas Besar ── --}}
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:700;font-size:11px;color:#1d4ed8;border-bottom:2px solid #1d4ed8;padding-bottom:3px;margin-bottom:8px;">A. KAS BESAR</div>
+        <div style="display:flex;gap:20px;margin-bottom:8px;font-size:10px;">
+          <span><strong>Tgl H-1:</strong> {{ $kb['saldo_awal_tgl'] ?? '-' }}</span>
+          <span><strong>Saldo Awal (H-1):</strong> {{ $fmt($kbSaldoAwal) }}</span>
+          @if($kb['keterangan'] ?? null)<span><strong>Keterangan:</strong> {{ $kb['keterangan'] }}</span>@endif
+        </div>
+
+        @if(count($kbPenerimaan))
+        <div style="margin-bottom:6px;font-size:10px;font-weight:700;color:#374151;">Penerimaan</div>
+        <table style="margin-bottom:8px;">
+          <thead><tr><th>#</th><th>Tanggal</th><th>Keterangan</th><th style="text-align:right">Jumlah</th></tr></thead>
+          <tbody>
+            @foreach($kbPenerimaan as $ii => $r)
+            <tr>
+              <td>{{ $ii+1 }}</td>
+              <td>{{ $r['tanggal'] ?? '-' }}</td>
+              <td>{{ $r['keterangan'] ?? '-' }}</td>
+              <td style="text-align:right">{{ $fmt($r['jumlah'] ?? 0) }}</td>
+            </tr>
+            @endforeach
+            <tr style="font-weight:700;background:#f0fdf4;">
+              <td colspan="3" style="text-align:right">Total Penerimaan</td>
+              <td style="text-align:right;color:#059669;">{{ $fmt($kbTotalTerima) }}</td>
+            </tr>
+          </tbody>
+        </table>
+        @endif
+
+        @if(count($kbPengeluaran))
+        <div style="margin-bottom:6px;font-size:10px;font-weight:700;color:#374151;">Pengeluaran</div>
+        <table style="margin-bottom:8px;">
+          <thead><tr><th>#</th><th>Tanggal</th><th>Keterangan</th><th style="text-align:right">Jumlah</th></tr></thead>
+          <tbody>
+            @foreach($kbPengeluaran as $ii => $r)
+            <tr>
+              <td>{{ $ii+1 }}</td>
+              <td>{{ $r['tanggal'] ?? '-' }}</td>
+              <td>{{ $r['keterangan'] ?? '-' }}</td>
+              <td style="text-align:right">{{ $fmt($r['jumlah'] ?? 0) }}</td>
+            </tr>
+            @endforeach
+            <tr style="font-weight:700;background:#fff1f2;">
+              <td colspan="3" style="text-align:right">Total Pengeluaran</td>
+              <td style="text-align:right;color:#dc2626;">{{ $fmt($kbTotalKeluar) }}</td>
+            </tr>
+          </tbody>
+        </table>
+        @endif
+
+        <table style="width:200px;margin-left:auto;font-size:10px;border:1px solid #d1d5db;">
+          <tr><td style="padding:3px 8px;border:1px solid #d1d5db;">Saldo Buku</td><td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;font-weight:700;">{{ $fmt($kbSaldoBuku) }}</td></tr>
+          <tr><td style="padding:3px 8px;border:1px solid #d1d5db;">Saldo Fisik</td><td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;font-weight:700;">{{ $fmt($kbSaldoFisik) }}</td></tr>
+          <tr style="background:{{ $kbSelisih!=0 ? '#fee2e2' : '#f0fdf4' }};">
+            <td style="padding:3px 8px;border:1px solid #d1d5db;font-weight:700;">Selisih</td>
+            <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;font-weight:700;color:{{ $kbSelisih!=0 ? '#dc2626' : '#059669' }};">{{ $fmt($kbSelisih) }}</td>
           </tr>
-        </thead>
-        <tbody>
-          @foreach($kas as $i => $k)
-          <tr>
-            <td>{{ (int)$i+1 }}</td>
-            <td>{{ $k->nama_pos ?? '-' }}</td>
-            <td style="text-align:right">{{ number_format($k->saldo_fisik ?? 0, 0, ',', '.') }}</td>
-            <td style="text-align:right">{{ number_format($k->saldo_buku ?? 0, 0, ',', '.') }}</td>
-            <td style="text-align:right">{{ number_format($k->selisih ?? 0, 0, ',', '.') }}</td>
-            <td>{{ $k->keterangan ?? '-' }}</td>
+        </table>
+      </div>
+
+      {{-- ── Kas Kecil ── --}}
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:700;font-size:11px;color:#7c3aed;border-bottom:2px solid #7c3aed;padding-bottom:3px;margin-bottom:8px;">B. KAS KECIL</div>
+        <div style="display:flex;gap:20px;margin-bottom:8px;font-size:10px;">
+          <span><strong>Cadangan Kas Kecil:</strong> {{ $fmt($kkCadangan) }}</span>
+          @if($kk['keterangan'] ?? null)<span><strong>Keterangan:</strong> {{ $kk['keterangan'] }}</span>@endif
+        </div>
+
+        @if(count($kkBon))
+        <div style="margin-bottom:6px;font-size:10px;font-weight:700;color:#374151;">Bon / Pengeluaran</div>
+        <table style="margin-bottom:8px;">
+          <thead><tr><th>#</th><th>Tanggal</th><th>Keterangan</th><th style="text-align:right">Jumlah</th></tr></thead>
+          <tbody>
+            @foreach($kkBon as $ii => $r)
+            <tr>
+              <td>{{ $ii+1 }}</td>
+              <td>{{ $r['tanggal'] ?? '-' }}</td>
+              <td>{{ $r['keterangan'] ?? '-' }}</td>
+              <td style="text-align:right">{{ $fmt($r['jumlah'] ?? 0) }}</td>
+            </tr>
+            @endforeach
+            <tr style="font-weight:700;background:#fff1f2;">
+              <td colspan="3" style="text-align:right">Total Bon</td>
+              <td style="text-align:right;color:#dc2626;">{{ $fmt($kkTotalBon) }}</td>
+            </tr>
+          </tbody>
+        </table>
+        @endif
+
+        <table style="width:200px;margin-left:auto;font-size:10px;border:1px solid #d1d5db;">
+          <tr><td style="padding:3px 8px;border:1px solid #d1d5db;">Saldo Buku</td><td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;font-weight:700;">{{ $fmt($kkSaldoBuku) }}</td></tr>
+          <tr><td style="padding:3px 8px;border:1px solid #d1d5db;">Saldo Fisik</td><td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;font-weight:700;">{{ $fmt($kkSaldoFisik) }}</td></tr>
+          <tr style="background:{{ $kkSelisih!=0 ? '#fee2e2' : '#f0fdf4' }};">
+            <td style="padding:3px 8px;border:1px solid #d1d5db;font-weight:700;">Selisih</td>
+            <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;font-weight:700;color:{{ $kkSelisih!=0 ? '#dc2626' : '#059669' }};">{{ $fmt($kkSelisih) }}</td>
           </tr>
-          @endforeach
-        </tbody>
-      </table>
+        </table>
+      </div>
+
+      {{-- ── Tabel Pecahan Uang ── --}}
+      @if(count($pcn))
+      <div>
+        <div style="font-weight:700;font-size:11px;color:#374151;border-bottom:2px solid #d1d5db;padding-bottom:3px;margin-bottom:8px;">C. RINCIAN PECAHAN UANG</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Nominal</th>
+              <th style="text-align:center">Lembar Besar</th>
+              <th style="text-align:right">Jumlah Besar</th>
+              <th style="text-align:center">Lembar Kecil</th>
+              <th style="text-align:right">Jumlah Kecil</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach($pcn as $p)
+            @php
+              $nom = (float)($p['nominal'] ?? 0);
+              $lb  = (int)($p['lembar_besar'] ?? 0);
+              $lk  = (int)($p['lembar_kecil'] ?? 0);
+            @endphp
+            @if($lb > 0 || $lk > 0)
+            <tr>
+              <td>{{ number_format($nom, 0, ',', '.') }}</td>
+              <td style="text-align:center">{{ $lb }}</td>
+              <td style="text-align:right">{{ $fmt($nom * $lb) }}</td>
+              <td style="text-align:center">{{ $lk }}</td>
+              <td style="text-align:right">{{ $fmt($nom * $lk) }}</td>
+            </tr>
+            @endif
+            @endforeach
+            <tr style="font-weight:700;background:#f3f4f6;">
+              <td>TOTAL</td>
+              <td></td>
+              <td style="text-align:right;color:#1d4ed8;">{{ $fmt($kbSaldoFisik) }}</td>
+              <td></td>
+              <td style="text-align:right;color:#7c3aed;">{{ $fmt($kkSaldoFisik) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      @endif
+
+      @endforeach
     @endif
   </div>
 </div>
