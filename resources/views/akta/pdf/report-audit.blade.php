@@ -631,23 +631,164 @@
     @if($bank->isEmpty())
       <p class="empty">Belum ada data.</p>
     @else
-      <table>
-        <thead><tr><th>#</th><th>Nama Bank</th><th>No Rekening</th><th>Saldo Buku</th><th>Saldo Bank</th><th>Selisih</th><th>Tgl Periksa</th><th>Keterangan</th></tr></thead>
+
+    {{-- ── Ringkasan semua rekening ── --}}
+    @php
+      $bankTotalBuku   = $bank->sum('saldo_buku');
+      $bankTotalRK     = $bank->sum('saldo_bank');
+      $bankTotalSelisih= $bank->sum('selisih');
+      $fmt = fn($v) => 'Rp '.number_format((float)$v, 0, ',', '.');
+    @endphp
+    <div style="background:#f0f4ff;border:1px solid #c7d2fe;border-radius:6px;padding:10px 14px;margin-bottom:16px;">
+      <div style="font-weight:700;font-size:12px;color:#1e3a8a;margin-bottom:8px;">RINGKASAN PEMERIKSAAN BANK</div>
+      <table style="font-size:10px;">
+        <thead>
+          <tr style="background:#e0e7ff;">
+            <th style="text-align:left;padding:4px 8px;border:1px solid #c7d2fe;">#</th>
+            <th style="text-align:left;padding:4px 8px;border:1px solid #c7d2fe;">Nama Bank</th>
+            <th style="text-align:left;padding:4px 8px;border:1px solid #c7d2fe;">No Rekening</th>
+            <th style="text-align:left;padding:4px 8px;border:1px solid #c7d2fe;">Auditee</th>
+            <th style="text-align:left;padding:4px 8px;border:1px solid #c7d2fe;">Tgl Periksa</th>
+            <th style="text-align:right;padding:4px 8px;border:1px solid #c7d2fe;">Saldo Buku</th>
+            <th style="text-align:right;padding:4px 8px;border:1px solid #c7d2fe;">Saldo Rekening Koran</th>
+            <th style="text-align:right;padding:4px 8px;border:1px solid #c7d2fe;">Selisih</th>
+          </tr>
+        </thead>
         <tbody>
           @foreach($bank as $i => $b)
+          @php $sel = (float)($b->selisih ?? 0); @endphp
           <tr>
-            <td>{{ (int)$i+1 }}</td>
-            <td>{{ $b->nama_bank ?? '-' }}</td>
-            <td>{{ $b->no_rekening ?? '-' }}</td>
-            <td style="text-align:right">{{ number_format($b->saldo_buku ?? 0, 0, ',', '.') }}</td>
-            <td style="text-align:right">{{ number_format($b->saldo_bank ?? 0, 0, ',', '.') }}</td>
-            <td style="text-align:right">{{ number_format($b->selisih ?? 0, 0, ',', '.') }}</td>
-            <td>{{ $b->tgl_periksa ? \Carbon\Carbon::parse($b->tgl_periksa)->format('d/m/Y') : '-' }}</td>
-            <td>{{ $b->keterangan ?? '-' }}</td>
+            <td style="padding:4px 8px;border:1px solid #e5e7eb;">{{ (int)$i+1 }}</td>
+            <td style="padding:4px 8px;border:1px solid #e5e7eb;font-weight:700;">{{ $b->nama_bank ?? '-' }}</td>
+            <td style="padding:4px 8px;border:1px solid #e5e7eb;font-family:monospace;">{{ $b->no_rekening ?? '-' }}</td>
+            <td style="padding:4px 8px;border:1px solid #e5e7eb;">{{ $b->auditee ?? '-' }}</td>
+            <td style="padding:4px 8px;border:1px solid #e5e7eb;">{{ $b->tgl_periksa ? \Carbon\Carbon::parse($b->tgl_periksa)->format('d/m/Y') : '-' }}</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;">{{ $fmt($b->saldo_buku ?? 0) }}</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;">{{ $fmt($b->saldo_bank ?? 0) }}</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;font-weight:700;color:{{ $sel != 0 ? '#dc2626' : '#059669' }};">{{ $fmt($sel) }}</td>
           </tr>
           @endforeach
+          <tr style="background:#e0e7ff;font-weight:700;">
+            <td colspan="5" style="text-align:right;padding:4px 8px;border:1px solid #c7d2fe;">TOTAL</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #c7d2fe;">{{ $fmt($bankTotalBuku) }}</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #c7d2fe;">{{ $fmt($bankTotalRK) }}</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #c7d2fe;color:{{ $bankTotalSelisih != 0 ? '#dc2626' : '#059669' }};">{{ $fmt($bankTotalSelisih) }}</td>
+          </tr>
         </tbody>
       </table>
+    </div>
+
+    {{-- ── Detail per rekening ── --}}
+    @foreach($bank as $bi => $b)
+    @php
+      $d   = $b->detail_json ?? [];
+      $pen = $d['penerimaan']  ?? [];
+      $peng= $d['pengeluaran'] ?? [];
+      $saldoAwal    = (float)($d['saldo_awal'] ?? 0);
+      $totalPen     = array_sum(array_column($pen, 'jumlah'));
+      $totalPeng    = array_sum(array_column($peng, 'jumlah'));
+      $saldoBuku    = $saldoAwal + $totalPen - $totalPeng;
+      $saldoRK      = (float)($b->saldo_bank ?? $d['saldo_rk'] ?? 0);
+      $selisih      = (float)($b->selisih ?? ($saldoRK - $saldoBuku));
+    @endphp
+    <div style="margin-bottom:20px;border:1px solid #d1d5db;border-radius:6px;overflow:hidden;">
+      {{-- Header rekening --}}
+      <div style="background:#1d4ed8;color:#fff;padding:7px 12px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:700;font-size:11px;">🏦 {{ (int)$bi+1 }}. {{ $b->nama_bank ?? '-' }}</span>
+        <span style="font-size:10px;opacity:.85;">No. Rek: {{ $b->no_rekening ?? '-' }}</span>
+      </div>
+      <div style="padding:10px 12px;">
+
+        {{-- Info rekening --}}
+        <div class="kv-grid" style="margin-bottom:10px;">
+          <div class="kv"><span class="kv-label">Auditee:</span><span class="kv-val">{{ $b->auditee ?? '-' }}</span></div>
+          <div class="kv"><span class="kv-label">Tgl Periksa:</span><span class="kv-val">{{ $b->tgl_periksa ? \Carbon\Carbon::parse($b->tgl_periksa)->format('d/m/Y') : '-' }}</span></div>
+          <div class="kv"><span class="kv-label">Tgl Saldo Awal:</span><span class="kv-val">{{ $d['saldo_awal_tgl'] ?? '-' }}</span></div>
+          <div class="kv"><span class="kv-label">Saldo Awal:</span><span class="kv-val" style="font-weight:700;">{{ $fmt($saldoAwal) }}</span></div>
+        </div>
+
+        {{-- Penerimaan --}}
+        @if(count($pen))
+        <div style="margin-bottom:8px;">
+          <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:4px;">Penerimaan / Kredit</div>
+          <table style="font-size:9.5px;">
+            <thead><tr><th>#</th><th>Tanggal</th><th>Keterangan</th><th style="text-align:right">Jumlah</th></tr></thead>
+            <tbody>
+              @foreach($pen as $ii => $r)
+              <tr>
+                <td>{{ $ii+1 }}</td>
+                <td>{{ $r['tanggal'] ?? '-' }}</td>
+                <td>{{ $r['keterangan'] ?? '-' }}</td>
+                <td style="text-align:right">{{ $fmt($r['jumlah'] ?? 0) }}</td>
+              </tr>
+              @endforeach
+              <tr style="font-weight:700;background:#f0fdf4;">
+                <td colspan="3" style="text-align:right">Total Penerimaan</td>
+                <td style="text-align:right;color:#059669;">{{ $fmt($totalPen) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        @endif
+
+        {{-- Pengeluaran --}}
+        @if(count($peng))
+        <div style="margin-bottom:8px;">
+          <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:4px;">Pengeluaran / Debet</div>
+          <table style="font-size:9.5px;">
+            <thead><tr><th>#</th><th>Tanggal</th><th>Keterangan</th><th style="text-align:right">Jumlah</th></tr></thead>
+            <tbody>
+              @foreach($peng as $ii => $r)
+              <tr>
+                <td>{{ $ii+1 }}</td>
+                <td>{{ $r['tanggal'] ?? '-' }}</td>
+                <td>{{ $r['keterangan'] ?? '-' }}</td>
+                <td style="text-align:right">{{ $fmt($r['jumlah'] ?? 0) }}</td>
+              </tr>
+              @endforeach
+              <tr style="font-weight:700;background:#fff1f2;">
+                <td colspan="3" style="text-align:right">Total Pengeluaran</td>
+                <td style="text-align:right;color:#dc2626;">{{ $fmt($totalPeng) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        @endif
+
+        {{-- Rekonsiliasi --}}
+        <table style="width:280px;margin-left:auto;font-size:10px;border:1px solid #d1d5db;">
+          <tr><td style="padding:3px 8px;border:1px solid #d1d5db;">Saldo Awal</td>
+              <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;">{{ $fmt($saldoAwal) }}</td></tr>
+          <tr><td style="padding:3px 8px;border:1px solid #d1d5db;color:#059669;">+ Penerimaan</td>
+              <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;color:#059669;">{{ $fmt($totalPen) }}</td></tr>
+          <tr><td style="padding:3px 8px;border:1px solid #d1d5db;color:#dc2626;">− Pengeluaran</td>
+              <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;color:#dc2626;">{{ $fmt($totalPeng) }}</td></tr>
+          <tr style="background:#f0f4ff;font-weight:700;">
+            <td style="padding:3px 8px;border:1px solid #d1d5db;">Saldo Buku (Sistem)</td>
+            <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;">{{ $fmt($saldoBuku) }}</td></tr>
+          <tr><td style="padding:3px 8px;border:1px solid #d1d5db;">Saldo Rekening Koran</td>
+              <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;">{{ $fmt($saldoRK) }}</td></tr>
+          <tr style="background:{{ $selisih != 0 ? '#fee2e2' : '#f0fdf4' }};font-weight:700;">
+            <td style="padding:3px 8px;border:1px solid #d1d5db;">Selisih</td>
+            <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;color:{{ $selisih != 0 ? '#dc2626' : '#059669' }};">{{ $fmt($selisih) }}</td></tr>
+        </table>
+
+        @if($b->keterangan || ($d['keterangan_selisih'] ?? null))
+        <div style="margin-top:8px;font-size:10px;color:#374151;">
+          <strong>Keterangan Selisih:</strong> {{ $b->keterangan ?? $d['keterangan_selisih'] ?? '-' }}
+        </div>
+        @endif
+
+        @if($d['saldo_rk_tgl'] ?? null)
+        <div style="margin-top:4px;font-size:10px;color:#6b7280;">
+          <strong>Tgl Rekening Koran:</strong> {{ $d['saldo_rk_tgl'] }}
+        </div>
+        @endif
+
+      </div>
+    </div>
+    @endforeach
+
     @endif
   </div>
 </div>
