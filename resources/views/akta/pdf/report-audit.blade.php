@@ -2249,7 +2249,9 @@
         $hgpItems = $hgp->items_json ?? [];
         $hN = fn($v) => (float)($v ?? 0);
         $hgpTotalSaldo   = array_sum(array_map(fn($it) => $hN($it['saldoAkhir'] ?? $it['saldoAwal'] ?? 0), $hgpItems));
-        $hgpTotalFisik   = array_sum(array_map(fn($it) => $hN($it['fisik'] ?? 0) + $hN($it['wo'] ?? 0), $hgpItems));
+        $hgpTotalFisikOnly = array_sum(array_map(fn($it) => $hN($it['fisik'] ?? 0), $hgpItems));
+        $hgpTotalWo      = array_sum(array_map(fn($it) => $hN($it['wo'] ?? 0), $hgpItems));
+        $hgpTotalFisik   = $hgpTotalFisikOnly + $hgpTotalWo;
         $hgpTotalSelisih = array_sum(array_map(fn($it) => $hN($it['selisih'] ?? 0), $hgpItems));
         $hgpTotalJumlah  = array_sum(array_map(fn($it) => $hN($it['hargaHet'] ?? 0) * $hN($it['selisih'] ?? 0), $hgpItems));
         $hgpSelCount     = count(array_filter($hgpItems, fn($it) => ($it['selisih'] ?? 0) != 0));
@@ -2331,7 +2333,8 @@
           <tr style="background:#f3f4f6;font-weight:700;border-top:2px solid #d1d5db;">
             <td colspan="4" style="text-align:right;">TOTAL</td>
             <td style="text-align:right;">{{ $fmtN($hgpTotalSaldo) }}</td>
-            <td colspan="2" style="text-align:right;">{{ $fmtN($hgpTotalFisik) }}</td>
+            <td style="text-align:right;">{{ $fmtN($hgpTotalFisikOnly) }}</td>
+            <td style="text-align:right;background:#fffbeb;color:#92400e;">{{ $hgpTotalWo > 0 ? $fmtN($hgpTotalWo) : '—' }}</td>
             <td></td>
             <td style="text-align:right;color:{{ $hgpTotalSelisih < 0 ? '#dc2626' : ($hgpTotalSelisih > 0 ? '#d97706' : '#374151') }};">{{ $fmtSign($hgpTotalSelisih) }}</td>
             <td></td>
