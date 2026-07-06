@@ -1599,25 +1599,125 @@
     @if(!$piutangReguler)
       <p class="empty">Belum ada data.</p>
     @else
-      @php $prItems = $piutangReguler->piutang_json ?? []; @endphp
+      @php
+        $prItems       = $piutangReguler->piutang_json ?? [];
+        $prCust        = collect($prItems)->pluck('customer')->filter()->unique()->count();
+        $prBelumJto    = array_sum(array_column($prItems, 'belumJto'));
+        $prTung15      = array_sum(array_column($prItems, 'tung15'));
+        $prTung630     = array_sum(array_column($prItems, 'tung630'));
+        $prTung3160    = array_sum(array_column($prItems, 'tung3160'));
+        $prTung60      = array_sum(array_column($prItems, 'tung60'));
+        $prSaldoAkhir  = array_sum(array_column($prItems, 'saldoAkhir'));
+        $fmtPr = fn($v) => $v ? 'Rp '.number_format($v,0,',','.') : '-';
+      @endphp
+
+      {{-- Summary cards --}}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="card-stat" style="flex:1;min-width:80px;">
+          <div class="cs-val">{{ $prCust }}</div>
+          <div class="cs-lbl">Total Customer</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="font-size:11px;">{{ $fmtPr($prBelumJto) }}</div>
+          <div class="cs-lbl">Belum Jatuh Tempo</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="font-size:11px;color:#f59e0b;">{{ $fmtPr($prTung15) }}</div>
+          <div class="cs-lbl">Tunggakan 1–5</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="font-size:11px;color:#f97316;">{{ $fmtPr($prTung630) }}</div>
+          <div class="cs-lbl">Tunggakan 6–30</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="font-size:11px;color:#ef4444;">{{ $fmtPr($prTung3160) }}</div>
+          <div class="cs-lbl">Tunggakan 31–60</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="font-size:11px;color:#dc2626;">{{ $fmtPr($prTung60) }}</div>
+          <div class="cs-lbl">Tunggakan &gt;60</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:110px;">
+          <div class="cs-val" style="font-size:11px;">{{ $fmtPr($prSaldoAkhir) }}</div>
+          <div class="cs-lbl">Total Saldo Akhir</div>
+        </div>
+      </div>
+
       @if(count($prItems))
-      <table>
-        <thead><tr><th>#</th><th>Nama</th><th>No Kontrak</th><th>Tunggakan</th><th>Keterangan</th></tr></thead>
+      <div style="overflow-x:auto;">
+      <table style="font-size:9.5px;">
+        <thead>
+          <tr>
+            <th rowspan="2" style="vertical-align:middle;">#</th>
+            <th rowspan="2" style="vertical-align:middle;">Customer</th>
+            <th rowspan="2" style="vertical-align:middle;">No Faktur</th>
+            <th rowspan="2" style="vertical-align:middle;">Tanggal</th>
+            <th rowspan="2" style="vertical-align:middle;">Type</th>
+            <th rowspan="2" style="text-align:right;vertical-align:middle;">Saldo Awal</th>
+            <th colspan="3" style="text-align:center;">Debet</th>
+            <th colspan="3" style="text-align:center;">Kredit</th>
+            <th rowspan="2" style="text-align:right;vertical-align:middle;">Saldo Akhir</th>
+            <th rowspan="2" style="text-align:right;vertical-align:middle;">Belum JTO</th>
+            <th colspan="4" style="text-align:center;">Tunggakan</th>
+            <th rowspan="2" style="vertical-align:middle;">Keterangan</th>
+          </tr>
+          <tr>
+            <th style="text-align:right;">Pokok</th>
+            <th style="text-align:right;">PPN</th>
+            <th style="text-align:right;">Lain2</th>
+            <th style="text-align:right;">No Kwit</th>
+            <th style="text-align:right;">Tgl Kredit</th>
+            <th style="text-align:right;">Pembayaran</th>
+            <th style="text-align:right;">1–5</th>
+            <th style="text-align:right;">6–30</th>
+            <th style="text-align:right;">31–60</th>
+            <th style="text-align:right;">&gt;60</th>
+          </tr>
+        </thead>
         <tbody>
-          @foreach(array_slice($prItems, 0, 100) as $i => $pr)
+          @foreach($prItems as $i => $pr)
+          @php
+            $sa = $pr['saldoAkhir'] ?? 0;
+            $saCls = $sa > 0 ? 'color:#94a3b8;text-decoration:line-through;' : 'font-weight:600;';
+          @endphp
           <tr>
             <td>{{ (int)$i+1 }}</td>
-            <td>{{ $pr['nama'] ?? $pr['name'] ?? '-' }}</td>
-            <td>{{ $pr['no_kontrak'] ?? $pr['no'] ?? '-' }}</td>
-            <td style="text-align:right">{{ isset($pr['tunggakan']) ? number_format($pr['tunggakan'], 0, ',', '.') : '-' }}</td>
+            <td style="font-weight:500;color:#93c5fd;">{{ $pr['customer'] ?? '-' }}</td>
+            <td style="font-family:monospace;">{{ $pr['noFaktur'] ?? '-' }}</td>
+            <td>{{ $pr['tanggal'] ?? '-' }}</td>
+            <td style="font-weight:600;">{{ $pr['type'] ?? '-' }}</td>
+            <td style="text-align:right;">{{ $pr['saldoAwal'] ? number_format($pr['saldoAwal'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;">{{ $pr['pokok'] ? number_format($pr['pokok'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;">{{ $pr['ppn'] ? number_format($pr['ppn'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;">{{ $pr['lain2'] ? number_format($pr['lain2'],0,',','.') : '-' }}</td>
+            <td style="font-family:monospace;">{{ $pr['noKwit'] ?? '-' }}</td>
+            <td>{{ $pr['tglKredit'] ?? '-' }}</td>
+            <td style="text-align:right;color:#4ade80;">{{ $pr['pembayaran'] ? number_format($pr['pembayaran'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;{{ $saCls }}">{{ $sa ? number_format($sa,0,',','.') : '-' }}</td>
+            <td style="text-align:right;">{{ ($pr['belumJto'] ?? 0) ? number_format($pr['belumJto'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:{{ ($pr['tung15'] ?? 0) > 0 ? '#fbbf24' : '#6b7280' }};">{{ ($pr['tung15'] ?? 0) ? number_format($pr['tung15'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:{{ ($pr['tung630'] ?? 0) > 0 ? '#fb923c' : '#6b7280' }};">{{ ($pr['tung630'] ?? 0) ? number_format($pr['tung630'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:{{ ($pr['tung3160'] ?? 0) > 0 ? '#f87171' : '#6b7280' }};">{{ ($pr['tung3160'] ?? 0) ? number_format($pr['tung3160'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:{{ ($pr['tung60'] ?? 0) > 0 ? '#ef4444' : '#6b7280' }};font-weight:{{ ($pr['tung60'] ?? 0) > 0 ? '700' : '400' }};">{{ ($pr['tung60'] ?? 0) ? number_format($pr['tung60'],0,',','.') : '-' }}</td>
             <td>{{ $pr['keterangan'] ?? '-' }}</td>
           </tr>
           @endforeach
-          @if(count($prItems) > 100)
-          <tr><td colspan="5" style="font-style:italic;color:#6b7280">... dan {{ count($prItems)-100 }} item lainnya.</td></tr>
-          @endif
+          {{-- Total row --}}
+          <tr style="background:#1e293b;font-weight:700;font-size:9px;">
+            <td colspan="5" style="text-align:right;">TOTAL ({{ count($prItems) }} customer)</td>
+            <td style="text-align:right;">{{ $prSaldoAkhir ? number_format(array_sum(array_column($prItems,'saldoAwal')),0,',','.') : '-' }}</td>
+            <td colspan="6"></td>
+            <td style="text-align:right;">{{ $prSaldoAkhir ? number_format($prSaldoAkhir,0,',','.') : '-' }}</td>
+            <td style="text-align:right;">{{ $prBelumJto ? number_format($prBelumJto,0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:#fbbf24;">{{ $prTung15 ? number_format($prTung15,0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:#fb923c;">{{ $prTung630 ? number_format($prTung630,0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:#f87171;">{{ $prTung3160 ? number_format($prTung3160,0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:#ef4444;">{{ $prTung60 ? number_format($prTung60,0,',','.') : '-' }}</td>
+            <td></td>
+          </tr>
         </tbody>
       </table>
+      </div>
       @else
         <p class="empty">Tidak ada item.</p>
       @endif
@@ -1634,25 +1734,108 @@
     @if(!$piutangCdn)
       <p class="empty">Belum ada data.</p>
     @else
-      @php $cdnItems = $piutangCdn->piutang_json ?? []; @endphp
+      @php
+        $cdnItems    = $piutangCdn->piutang_json ?? [];
+        $cdnCust     = collect($cdnItems)->pluck('customer')->filter()->unique()->count();
+        $cdnSaldo    = array_sum(array_column($cdnItems, 'saldoPiutang'));
+        $cdnBelumJto = array_sum(array_column($cdnItems, 'belumJto'));
+        $cdnTung15   = array_sum(array_column($cdnItems, 'tung15'));
+        $cdnTung630  = array_sum(array_column($cdnItems, 'tung630'));
+        $cdnTung3160 = array_sum(array_column($cdnItems, 'tung3160'));
+        $cdnTung60   = array_sum(array_column($cdnItems, 'tung60'));
+        $fmtCdn = fn($v) => $v ? 'Rp '.number_format($v,0,',','.') : '-';
+      @endphp
+
+      {{-- Summary cards --}}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="card-stat" style="flex:1;min-width:80px;">
+          <div class="cs-val">{{ $cdnCust }}</div>
+          <div class="cs-lbl">Total Customer</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:110px;">
+          <div class="cs-val" style="font-size:11px;">{{ $fmtCdn($cdnSaldo) }}</div>
+          <div class="cs-lbl">Total Saldo Piutang</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="font-size:11px;">{{ $fmtCdn($cdnBelumJto) }}</div>
+          <div class="cs-lbl">Belum Jatuh Tempo</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="font-size:11px;color:#f59e0b;">{{ $fmtCdn($cdnTung15) }}</div>
+          <div class="cs-lbl">Tunggakan 1–5</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="font-size:11px;color:#f97316;">{{ $fmtCdn($cdnTung630) }}</div>
+          <div class="cs-lbl">Tunggakan 6–30</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="font-size:11px;color:#ef4444;">{{ $fmtCdn($cdnTung3160) }}</div>
+          <div class="cs-lbl">Tunggakan 31–60</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="font-size:11px;color:#dc2626;">{{ $fmtCdn($cdnTung60) }}</div>
+          <div class="cs-lbl">Tunggakan &gt;60</div>
+        </div>
+      </div>
+
       @if(count($cdnItems))
-      <table>
-        <thead><tr><th>#</th><th>Nama</th><th>No Kontrak</th><th>Jumlah</th><th>Keterangan</th></tr></thead>
+      <div style="overflow-x:auto;">
+      <table style="font-size:9.5px;">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>No Kontrak</th>
+            <th>Customer</th>
+            <th style="text-align:right;">Saldo Piutang</th>
+            <th style="text-align:right;">Belum JTO</th>
+            <th style="text-align:right;">Tung 1–5</th>
+            <th style="text-align:right;">Tung 6–30</th>
+            <th style="text-align:right;">Tung 31–60</th>
+            <th style="text-align:right;">Tung &gt;60</th>
+            <th style="text-align:right;">Analisa 0</th>
+            <th style="text-align:right;">Analisa 1</th>
+            <th style="text-align:right;">Analisa 2</th>
+            <th style="text-align:right;">Analisa 3</th>
+            <th style="text-align:right;">Analisa 4</th>
+            <th style="text-align:right;">Analisa 5</th>
+            <th>Keterangan</th>
+          </tr>
+        </thead>
         <tbody>
-          @foreach(array_slice($cdnItems, 0, 100) as $i => $cdn)
+          @foreach($cdnItems as $i => $cdn)
           <tr>
             <td>{{ (int)$i+1 }}</td>
-            <td>{{ $cdn['nama'] ?? $cdn['name'] ?? '-' }}</td>
-            <td>{{ $cdn['no_kontrak'] ?? $cdn['no'] ?? '-' }}</td>
-            <td style="text-align:right">{{ isset($cdn['jumlah']) ? number_format($cdn['jumlah'], 0, ',', '.') : (isset($cdn['tunggakan']) ? number_format($cdn['tunggakan'], 0, ',', '.') : '-') }}</td>
+            <td style="font-family:monospace;">{{ $cdn['noKontrak'] ?? '-' }}</td>
+            <td style="font-weight:500;">{{ $cdn['customer'] ?? '-' }}</td>
+            <td style="text-align:right;">{{ ($cdn['saldoPiutang'] ?? 0) ? number_format($cdn['saldoPiutang'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;">{{ ($cdn['belumJto'] ?? 0) ? number_format($cdn['belumJto'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:{{ ($cdn['tung15'] ?? 0) > 0 ? '#fbbf24' : '#6b7280' }};">{{ ($cdn['tung15'] ?? 0) ? number_format($cdn['tung15'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:{{ ($cdn['tung630'] ?? 0) > 0 ? '#fb923c' : '#6b7280' }};">{{ ($cdn['tung630'] ?? 0) ? number_format($cdn['tung630'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:{{ ($cdn['tung3160'] ?? 0) > 0 ? '#f87171' : '#6b7280' }};">{{ ($cdn['tung3160'] ?? 0) ? number_format($cdn['tung3160'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:{{ ($cdn['tung60'] ?? 0) > 0 ? '#ef4444' : '#6b7280' }};font-weight:{{ ($cdn['tung60'] ?? 0) > 0 ? '700' : '400' }};">{{ ($cdn['tung60'] ?? 0) ? number_format($cdn['tung60'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;">{{ ($cdn['analisa0'] ?? 0) ? number_format($cdn['analisa0'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;">{{ ($cdn['analisa1'] ?? 0) ? number_format($cdn['analisa1'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;">{{ ($cdn['analisa2'] ?? 0) ? number_format($cdn['analisa2'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;">{{ ($cdn['analisa3'] ?? 0) ? number_format($cdn['analisa3'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;">{{ ($cdn['analisa4'] ?? 0) ? number_format($cdn['analisa4'],0,',','.') : '-' }}</td>
+            <td style="text-align:right;">{{ ($cdn['analisa5'] ?? 0) ? number_format($cdn['analisa5'],0,',','.') : '-' }}</td>
             <td>{{ $cdn['keterangan'] ?? '-' }}</td>
           </tr>
           @endforeach
-          @if(count($cdnItems) > 100)
-          <tr><td colspan="5" style="font-style:italic;color:#6b7280">... dan {{ count($cdnItems)-100 }} item lainnya.</td></tr>
-          @endif
+          {{-- Total row --}}
+          <tr style="background:#1e293b;font-weight:700;font-size:9px;">
+            <td colspan="3" style="text-align:right;">TOTAL ({{ count($cdnItems) }} customer)</td>
+            <td style="text-align:right;">{{ $cdnSaldo ? number_format($cdnSaldo,0,',','.') : '-' }}</td>
+            <td style="text-align:right;">{{ $cdnBelumJto ? number_format($cdnBelumJto,0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:#fbbf24;">{{ $cdnTung15 ? number_format($cdnTung15,0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:#fb923c;">{{ $cdnTung630 ? number_format($cdnTung630,0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:#f87171;">{{ $cdnTung3160 ? number_format($cdnTung3160,0,',','.') : '-' }}</td>
+            <td style="text-align:right;color:#ef4444;">{{ $cdnTung60 ? number_format($cdnTung60,0,',','.') : '-' }}</td>
+            <td colspan="7"></td>
+          </tr>
         </tbody>
       </table>
+      </div>
       @else
         <p class="empty">Tidak ada item.</p>
       @endif
