@@ -2356,28 +2356,125 @@
      ═══════════════════════════════════════════════ --}}
 <div class="section">
   <div class="section-title">15. HGA (Accessories)</div>
-  <div class="section-body">
+  <div class="section-body" style="padding:0;">
     @if(!$hga)
-      <p class="empty">Belum ada data.</p>
+      <p class="empty" style="padding:12px;">Belum ada data.</p>
     @else
-      @php $hgaItems = $hga->items_json ?? []; @endphp
+      @php
+        $hgaItems = $hga->items_json ?? [];
+        $hgaN2 = fn($v) => (float)($v ?? 0);
+        $hgaTotalSaldo   = array_sum(array_map(fn($it) => $hgaN2($it['saldoAkhir'] ?? $it['saldoAwal'] ?? 0), $hgaItems));
+        $hgaTotalPts     = array_sum(array_map(fn($it) => isset($it['saldoPts']) ? $hgaN2($it['saldoPts']) : $hgaN2($it['saldoAkhir'] ?? 0), $hgaItems));
+        $hgaTotalScan    = array_sum(array_map(fn($it) => $hgaN2($it['fisik'] ?? 0), $hgaItems));
+        $hgaTotalTtp     = array_sum(array_map(fn($it) => $hgaN2($it['fisikTtp'] ?? 0), $hgaItems));
+        $hgaTotalFisik   = $hgaTotalScan + $hgaTotalTtp;
+        $hgaTotalSelisih = array_sum(array_map(fn($it) => $hgaN2($it['selisih'] ?? 0), $hgaItems));
+        $hgaTotalJumlah  = array_sum(array_map(fn($it) => $hgaN2($it['hargaHet'] ?? 0) * $hgaN2($it['selisih'] ?? 0), $hgaItems));
+        $hgaSelCount     = count(array_filter($hgaItems, fn($it) => ($it['selisih'] ?? 0) != 0));
+        $fmtHga  = fn($v) => number_format((float)$v, 0, ',', '.');
+        $signHga = fn($v) => ($v > 0 ? '+' : '') . number_format((float)$v, 0, ',', '.');
+      @endphp
+
+      {{-- Summary cards --}}
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:12px 14px;border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;text-align:center;">
+          <div style="font-size:20px;font-weight:800;color:#1e40af;">{{ count($hgaItems) }}</div>
+          <div style="font-size:9px;color:#6b7280;margin-top:2px;">Total Item</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;text-align:center;">
+          <div style="font-size:20px;font-weight:800;color:#059669;">{{ $fmtHga($hgaTotalScan) }}</div>
+          <div style="font-size:9px;color:#6b7280;margin-top:2px;">Total Fisik Scan</div>
+        </div>
+        <div style="background:#fff;border:1px solid #fef3c7;border-radius:8px;padding:8px 10px;text-align:center;">
+          <div style="font-size:20px;font-weight:800;color:#b45309;">{{ $fmtHga($hgaTotalTtp) }}</div>
+          <div style="font-size:9px;color:#6b7280;margin-top:2px;">Total Fisik TTP</div>
+        </div>
+        <div style="background:#fff;border:1px solid {{ $hgaSelCount > 0 ? '#fee2e2' : '#e5e7eb' }};border-radius:8px;padding:8px 10px;text-align:center;">
+          <div style="font-size:20px;font-weight:800;color:{{ $hgaSelCount > 0 ? '#dc2626' : '#059669' }};">{{ $hgaSelCount }}</div>
+          <div style="font-size:9px;color:#6b7280;margin-top:2px;">Item Selisih</div>
+        </div>
+        <div style="background:#fff;border:1px solid {{ $hgaTotalJumlah < 0 ? '#fee2e2' : '#e5e7eb' }};border-radius:8px;padding:8px 10px;text-align:center;">
+          <div style="font-size:13px;font-weight:800;color:{{ $hgaTotalJumlah < 0 ? '#dc2626' : ($hgaTotalJumlah > 0 ? '#d97706' : '#059669') }};">{{ $hgaTotalJumlah != 0 ? $signHga($hgaTotalJumlah) : '—' }}</div>
+          <div style="font-size:9px;color:#6b7280;margin-top:2px;">Nilai Selisih (Rp)</div>
+        </div>
+      </div>
+
       @if(count($hgaItems))
-      <table>
-        <thead><tr><th>#</th><th>Nama / Kode</th><th>Qty</th><th>Satuan</th><th>Keterangan</th></tr></thead>
-        <tbody>
-          @foreach(array_slice($hgaItems, 0, 100) as $i => $item)
+      <div style="overflow-x:auto;">
+      <table style="font-size:9.5px;min-width:900px;">
+        <thead>
           <tr>
-            <td>{{ (int)$i+1 }}</td>
-            <td>{{ is_array($item) ? ($item['nama'] ?? $item['kode'] ?? $item['name'] ?? '') : $item }}</td>
-            <td style="text-align:right">{{ is_array($item) ? ($item['qty'] ?? $item['jumlah'] ?? '') : '' }}</td>
-            <td>{{ is_array($item) ? ($item['satuan'] ?? '') : '' }}</td>
-            <td>{{ is_array($item) ? ($item['keterangan'] ?? $item['ket'] ?? '') : '' }}</td>
+            <th style="width:24px;">#</th>
+            <th style="width:85px;">No. HGA</th>
+            <th>Nama HGA</th>
+            <th style="width:68px;text-align:center;">Tgl Periksa</th>
+            <th style="width:46px;text-align:right;">Saldo Akhir</th>
+            <th style="width:42px;text-align:right;color:#7c3aed;">Akhir PTS</th>
+            <th style="width:38px;text-align:right;color:#059669;">Fisik Scan</th>
+            <th style="width:38px;text-align:right;color:#b45309;background:#fffbeb;">Fisik TTP</th>
+            <th style="width:36px;text-align:right;">Akhir</th>
+            <th style="width:44px;text-align:right;">Selisih</th>
+            <th style="width:70px;text-align:right;">Harga HET</th>
+            <th style="width:80px;text-align:right;">Jumlah (Rp)</th>
+            <th>Keterangan</th>
           </tr>
+        </thead>
+        <tbody>
+          @php $hgaGrandJumlah = 0; @endphp
+          @foreach($hgaItems as $i => $it)
+            @php
+              $saldo    = $hgaN2($it['saldoAkhir'] ?? $it['saldoAwal'] ?? 0);
+              $saldoPts = isset($it['saldoPts']) && $it['saldoPts'] !== null ? $hgaN2($it['saldoPts']) : null;
+              $refSaldo = $saldoPts !== null ? $saldoPts : $saldo;
+              $fisikScan= $hgaN2($it['fisik'] ?? 0);
+              $fisikTtp = $hgaN2($it['fisikTtp'] ?? 0);
+              $totalFisik = $fisikScan + $fisikTtp;
+              $akhir    = $hgaN2($it['akhir'] ?? ($refSaldo - $totalFisik));
+              $selisih  = $hgaN2($it['selisih'] ?? ($totalFisik - $refSaldo));
+              $harga    = $hgaN2($it['hargaHet'] ?? 0);
+              $jumlah   = $harga * $selisih;
+              $hgaGrandJumlah += $jumlah;
+              $selColor = $selisih < 0 ? '#dc2626' : ($selisih > 0 ? '#d97706' : '#374151');
+              $jmlColor = $jumlah < 0 ? '#dc2626' : ($jumlah > 0 ? '#d97706' : '#374151');
+              $isPtsOnly = !empty($it['_ptsOnly']);
+            @endphp
+            <tr>
+              <td>{{ (int)$i + 1 }}</td>
+              <td style="font-size:8.5px;color:#6b7280;">{{ $it['noPart'] ?? '-' }}</td>
+              <td style="font-weight:600;">{{ $it['sparepart'] ?? $it['nama'] ?? '-' }}</td>
+              <td style="text-align:center;color:#6b7280;">{{ $it['tgl'] ?? '—' }}</td>
+              <td style="text-align:right;">{{ $isPtsOnly ? '—' : $fmtHga($saldo) }}</td>
+              <td style="text-align:right;color:#7c3aed;font-weight:{{ $saldoPts !== null ? '700' : '400' }};">{{ $saldoPts !== null ? $fmtHga($saldoPts) : '—' }}</td>
+              <td style="text-align:right;font-weight:700;color:#059669;">{{ $fmtHga($fisikScan) }}</td>
+              <td style="text-align:right;background:#fffbeb;font-weight:{{ $fisikTtp > 0 ? '700' : '400' }};color:#b45309;">{{ $fisikTtp > 0 ? $fmtHga($fisikTtp) : '—' }}</td>
+              <td style="text-align:right;">{{ $fmtHga($akhir) }}</td>
+              <td style="text-align:right;font-weight:700;color:{{ $selColor }};">{{ $selisih >= 0 ? '+' : '' }}{{ $fmtHga($selisih) }}</td>
+              <td style="text-align:right;color:#6b7280;">{{ $harga > 0 ? $fmtHga($harga) : '—' }}</td>
+              <td style="text-align:right;font-weight:700;color:{{ $jmlColor }};">{{ $jumlah != 0 ? ($jumlah >= 0 ? '+' : '') . $fmtHga($jumlah) : '—' }}</td>
+              <td style="font-size:9px;">
+                @if(!empty($it['keterangan']))<div>Scan: {{ $it['keterangan'] }}</div>@endif
+                @if(!empty($it['keteranganTtp']))<div style="color:#b45309;">TTP: {{ $it['keteranganTtp'] }}</div>@endif
+              </td>
+            </tr>
           @endforeach
+          {{-- Total row --}}
+          <tr style="background:#f3f4f6;font-weight:700;border-top:2px solid #d1d5db;">
+            <td colspan="4" style="text-align:right;">TOTAL</td>
+            <td style="text-align:right;">{{ $fmtHga($hgaTotalSaldo) }}</td>
+            <td style="text-align:right;color:#7c3aed;">{{ $fmtHga($hgaTotalPts) }}</td>
+            <td style="text-align:right;color:#059669;">{{ $fmtHga($hgaTotalScan) }}</td>
+            <td style="text-align:right;background:#fffbeb;color:#b45309;">{{ $hgaTotalTtp > 0 ? $fmtHga($hgaTotalTtp) : '—' }}</td>
+            <td></td>
+            <td style="text-align:right;color:{{ $hgaTotalSelisih < 0 ? '#dc2626' : ($hgaTotalSelisih > 0 ? '#d97706' : '#374151') }};">{{ $signHga($hgaTotalSelisih) }}</td>
+            <td></td>
+            <td style="text-align:right;color:{{ $hgaGrandJumlah < 0 ? '#dc2626' : ($hgaGrandJumlah > 0 ? '#d97706' : '#374151') }};">{{ $hgaGrandJumlah != 0 ? $signHga($hgaGrandJumlah) : '—' }}</td>
+            <td></td>
+          </tr>
         </tbody>
       </table>
+      </div>
       @else
-        <p class="empty">Tidak ada item.</p>
+        <p class="empty" style="padding:12px;">Tidak ada item.</p>
       @endif
     @endif
   </div>
