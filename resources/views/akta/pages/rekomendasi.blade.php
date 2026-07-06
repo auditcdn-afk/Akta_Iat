@@ -208,6 +208,39 @@
 </div>
 @endsection
 
+{{-- Modal Isi Rekomendasi --}}
+<div id="isiModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
+    <div class="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+            <div>
+                <h3 class="text-base font-bold text-slate-100">Isi Rekomendasi</h3>
+                <p id="isiModalSubtitle" class="mt-0.5 text-xs text-slate-400">Tindak lanjut atas rekomendasi audit.</p>
+            </div>
+            <button id="closeIsiModalBtn" type="button"
+                class="rounded-xl border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800">Tutup</button>
+        </div>
+        <form id="isiForm" class="space-y-4 px-5 py-5">
+            <input type="hidden" id="isiRecommendationId">
+            <div>
+                <label class="mb-1 block text-sm font-medium text-slate-300">Tanggal Pengisian <span class="text-red-400">*</span></label>
+                <input id="isiTglPengisian" type="date" required
+                    class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-medium text-slate-300">Isi Rekomendasi <span class="text-red-400">*</span></label>
+                <textarea id="isiKonten" rows="6" required placeholder="Tuliskan tindak lanjut / tanggapan atas rekomendasi..."
+                    class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
+            </div>
+            <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
+                <button type="button" id="cancelIsiModalBtn"
+                    class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">Batal</button>
+                <button type="submit" id="saveIsiBtn"
+                    class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition">Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @push('scripts')
 @vite('resources/js/akta-rekomendasi.js')
 @endpush

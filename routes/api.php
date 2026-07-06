@@ -378,6 +378,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/recommendations/{recommendation}/approve-step', [AuditRecommendationController::class, 'approveStep'])
         ->middleware('akta.role:admin,manajer,auditor');
 
+    Route::post('/recommendations/{recommendation}/isi', [AuditRecommendationController::class, 'isi']);
+
     Route::middleware('akta.role:admin,manajer,auditor')->group(function () {
         Route::post('/tasks', [AuditTaskController::class, 'store']);
         Route::put('/tasks/{task}', [AuditTaskController::class, 'update']);

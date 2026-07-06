@@ -217,6 +217,12 @@ function renderRecommendations() {
             `
             : '';
 
+        // Check if this recommendation has been filled (has isi_rekomendasi step)
+        const isiStep = (item.steps ?? []).find(s => s.step === 'isi_rekomendasi');
+        const isiBtn = `<button type="button" class="isi-recommendation rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10 transition" data-id="${item.id}" data-judul="${escapeHtml(item.judul)}">
+                    ${isiStep ? 'Lihat / Edit Isian' : 'Isi'}
+                </button>`;
+
         const actions = canManageRecommendations()
             ? `
                 <button type="button" class="edit-recommendation rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${item.id}">
@@ -228,14 +234,16 @@ function renderRecommendations() {
                 </button>
 
                 ${approveButton}
+                ${isiBtn}
             `
-            : '<span class="text-xs text-slate-500">Read only</span>';
+            : isiBtn;
 
         return `
             <tr class="hover:bg-slate-950/50">
                 <td class="px-4 py-4">
                     <div class="font-semibold text-slate-100">${escapeHtml(item.judul || '-')}</div>
                     <div class="text-xs text-slate-500">${escapeHtml(item.kategori || '-')}</div>
+                    ${isiStep ? `<div class="mt-1 rounded-lg border border-blue-800/40 bg-blue-900/10 px-2 py-1 text-xs text-blue-300"><span class="font-semibold">Isian (${escapeHtml(isiStep.time || '')}):</span> ${escapeHtml((isiStep.note || '').substring(0, 120))}${(isiStep.note || '').length > 120 ? '…' : ''}</div>` : ''}
                 </td>
 
                 <td class="px-4 py-4">
@@ -371,6 +379,56 @@ async function deleteRecommendation(id) {
     await loadRecommendations();
 }
 
+function openIsiModal(id, judul) {
+    const item = recommendations.find(r => String(r.id) === String(id));
+    document.getElementById('isiRecommendationId').value = id;
+    document.getElementById('isiModalSubtitle').textContent = judul || 'Tindak lanjut atas rekomendasi audit.';
+
+    // Auto-fill today's date
+    const today = new Date().toISOString().substring(0, 10);
+    const existingIsi = (item?.steps ?? []).find(s => s.step === 'isi_rekomendasi');
+    document.getElementById('isiTglPengisian').value = existingIsi?.time || today;
+    document.getElementById('isiKonten').value = existingIsi?.note || '';
+
+    const modal = document.getElementById('isiModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.getElementById('isiKonten').focus();
+}
+
+function closeIsiModal() {
+    const modal = document.getElementById('isiModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+async function saveIsi(event) {
+    event.preventDefault();
+    const id    = document.getElementById('isiRecommendationId').value;
+    const tgl   = document.getElementById('isiTglPengisian').value;
+    const isi   = document.getElementById('isiKonten').value.trim();
+    const btn   = document.getElementById('saveIsiBtn');
+
+    if (!tgl || !isi) { showAlert('Tanggal dan isi wajib diisi.', 'error'); return; }
+
+    btn.textContent = 'Menyimpan...';
+    btn.disabled = true;
+    try {
+        const payload = await fetchJson(`/api/recommendations/${id}/isi`, {
+            method: 'POST',
+            body: JSON.stringify({ tgl_isi: tgl, isi }),
+        });
+        closeIsiModal();
+        showAlert(payload.message || 'Isian berhasil disimpan.');
+        await loadRecommendations();
+    } catch (e) {
+        showAlert(e.message || 'Gagal menyimpan isian.', 'error');
+    } finally {
+        btn.textContent = 'Simpan';
+        btn.disabled = false;
+    }
+}
+
 async function approveRecommendation(id) {
     const item = recommendations.find((row) => String(row.id) === String(id));
 
@@ -413,6 +471,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('openCreateRecommendationButton')?.addEventListener('click', () => openModal());
     document.getElementById('closeRecommendationModalButton')?.addEventListener('click', closeModal);
     document.getElementById('cancelRecommendationFormButton')?.addEventListener('click', closeModal);
+    document.getElementById('closeIsiModalBtn')?.addEventListener('click', closeIsiModal);
+    document.getElementById('cancelIsiModalBtn')?.addEventListener('click', closeIsiModal);
+    document.getElementById('isiForm')?.addEventListener('submit', async (e) => {
+        try { await saveIsi(e); } catch (err) { showAlert(err.message || 'Gagal menyimpan.', 'error'); }
+    });
 
     document.getElementById('recommendationForm')?.addEventListener('submit', async (event) => {
         try {
@@ -426,6 +489,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const editButton = event.target.closest('.edit-recommendation');
         const deleteButton = event.target.closest('.delete-recommendation');
         const approveButton = event.target.closest('.approve-recommendation');
+        const isiButton = event.target.closest('.isi-recommendation');
+
+        if (isiButton) {
+            openIsiModal(isiButton.dataset.id, isiButton.dataset.judul);
+            return;
+        }
 
         if (editButton) {
             const item = recommendations.find((row) => String(row.id) === String(editButton.dataset.id));

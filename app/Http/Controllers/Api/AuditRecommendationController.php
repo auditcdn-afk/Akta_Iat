@@ -227,6 +227,44 @@ class AuditRecommendationController extends Controller
         ]);
     }
 
+    public function isi(
+        Request $request,
+        AuditRecommendation $recommendation,
+        ActivityLogger $logger
+    ): JsonResponse {
+        $request->validate([
+            'tgl_isi' => ['required', 'date'],
+            'isi'     => ['required', 'string'],
+        ]);
+
+        $steps   = $recommendation->steps ?: [];
+        $steps[] = [
+            'step'   => 'isi_rekomendasi',
+            'role'   => 'unit_usaha',
+            'status' => 'done',
+            'user'   => $request->user()?->username,
+            'time'   => $request->input('tgl_isi'),
+            'note'   => $request->input('isi'),
+        ];
+
+        $recommendation->steps      = $steps;
+        $recommendation->updated_by = $request->user()?->username;
+        if ($recommendation->status === 'open') {
+            $recommendation->status = 'in_progress';
+        }
+        $recommendation->save();
+        $recommendation->load(['planAudit', 'auditTask']);
+
+        $logger->write($request, 'RECOMMENDATION_ISI', 'audit_recommendations',
+            'Isi rekomendasi: ' . $recommendation->judul, $request->user());
+
+        return response()->json([
+            'ok'      => true,
+            'message' => 'Isi rekomendasi berhasil disimpan.',
+            'data'    => $recommendation->toAktaArray(),
+        ]);
+    }
+
     public function approveStep(
         Request $request,
         AuditRecommendation $recommendation,
