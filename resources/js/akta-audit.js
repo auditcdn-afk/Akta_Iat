@@ -6404,15 +6404,27 @@ async function rekomendasiAutoFill() {
             }
         } catch {}
 
-        // ── 5. CEK FISIK ────────────────────────────────────
+        // ── 6. CEK FISIK ────────────────────────────────────
         try {
-            const cfRes   = await fetchJson(`/api/audit-detail/cek-fisik?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
-            const cf      = cfRes.data ?? cfRes ?? {};
-            const cfItems = cf.items_json ?? cf.itemsJson ?? cf.items ?? [];
-            let total = 0, tidakAda = 0;
-            for (const it of cfItems) { total++; if (!(it.ada ?? it.ditemukan ?? true)) tidakAda++; }
-            if (tidakAda > 0)
-                blocks.push(`6. CEK FISIK\n  • Tidak ditemukan: ${tidakAda} dari ${total} item`);
+            const cfRes = await fetchJson(`/api/audit-detail/cek-fisik?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const cfRaw = cfRes.data?.data ?? cfRes.data ?? cfRes ?? {};
+            const cfSel = cfRaw.selisih ?? {};
+            const cfSa  = cfRaw.saldoAkhir ?? {};
+            const cfFk  = cfRaw.fisik ?? {};
+            const items = [
+                { nama: 'CEK FISIK (CF)', saldoAkhir: Number(cfSa.cf ?? 0), fisik: Number(cfFk.cf ?? 0), selisih: Number(cfSel.cf ?? 0) },
+                { nama: 'STUJ',           saldoAkhir: Number(cfSa.stuj ?? 0), fisik: Number(cfFk.stuj ?? 0), selisih: Number(cfSel.stuj ?? 0) },
+                { nama: 'F. STNK',        saldoAkhir: Number(cfSa.fstnk ?? 0), fisik: Number(cfFk.fstnk ?? 0), selisih: Number(cfSel.fstnk ?? 0) },
+            ].filter(it => it.selisih !== 0);
+            if (items.length > 0) {
+                const rows = [];
+                rows.push(`  ${'Jenis'.padEnd(20)} ${'Saldo Akhir'.padStart(12)} ${'Fisik'.padStart(8)} ${'Selisih'.padStart(10)}`);
+                rows.push(`  ${'─'.repeat(52)}`);
+                for (const it of items) {
+                    rows.push(`  ${it.nama.padEnd(20)} ${String(it.saldoAkhir).padStart(12)} ${String(it.fisik).padStart(8)} ${((it.selisih > 0 ? '+' : '') + it.selisih).padStart(10)}`);
+                }
+                blocks.push(`6. CEK FISIK\n${rows.join('\n')}`);
+            }
         } catch {}
 
         // ── 6. HGP & AHM OILS ───────────────────────────────
