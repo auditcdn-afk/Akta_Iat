@@ -272,7 +272,8 @@ class AuditRecommendationController extends Controller
     ): JsonResponse {
         $request->validate([
             'step_index' => ['required', 'integer', 'min:0'],
-            'note'       => ['nullable', 'string', 'max:500'],
+            'note'       => ['nullable', 'string'],
+            'tgl_isi'    => ['nullable', 'date'],
         ]);
 
         $idx   = (int) $request->input('step_index');
@@ -285,9 +286,9 @@ class AuditRecommendationController extends Controller
             return response()->json(['ok' => false, 'message' => 'Step sudah disetujui.'], 422);
         }
 
-        $steps[$idx]['status'] = 'approved';
+        $steps[$idx]['status'] = 'done';
         $steps[$idx]['user']   = $request->user()?->username;
-        $steps[$idx]['time']   = now()->toDateTimeString();
+        $steps[$idx]['time']   = $request->input('tgl_isi') ?? now()->toDateString();
         $steps[$idx]['note']   = $request->input('note');
 
         // Auto-approve overall recommendation when last step is approved

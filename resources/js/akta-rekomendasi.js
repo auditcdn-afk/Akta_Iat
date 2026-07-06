@@ -243,7 +243,7 @@ function renderRecommendations() {
                 <td class="px-4 py-4">
                     <div class="font-semibold text-slate-100">${escapeHtml(item.judul || '-')}</div>
                     <div class="text-xs text-slate-500">${escapeHtml(item.kategori || '-')}</div>
-                    ${isiStep ? `<div class="mt-1 rounded-lg border border-blue-800/40 bg-blue-900/10 px-2 py-1 text-xs text-blue-300"><span class="font-semibold">Isian (${escapeHtml(isiStep.time || '')}):</span> ${escapeHtml((isiStep.note || '').substring(0, 120))}${(isiStep.note || '').length > 120 ? '…' : ''}</div>` : ''}
+                    ${buildBirokrasiCards(item)}
                 </td>
 
                 <td class="px-4 py-4">
@@ -379,20 +379,57 @@ async function deleteRecommendation(id) {
     await loadRecommendations();
 }
 
+function buildBirokrasiCards(item) {
+    const birokrasiSteps = (item.steps ?? []).filter(s => s.step !== 'created' && s.step !== 'isi_rekomendasi');
+    if (!birokrasiSteps.length) return '';
+    const cards = birokrasiSteps.map((s, idx) => {
+        const done = s.status === 'done' || s.status === 'approved';
+        const prevDone = idx === 0 || (() => { const p = birokrasiSteps[idx-1]; return p?.status === 'done' || p?.status === 'approved'; })();
+        const canIsi = !done && prevDone;
+        const fullIdx = (item.steps ?? []).findIndex((fs, fi) => fi > 0 && fs.step === s.step);
+        const bg = done ? 'bg-slate-50 border-slate-200' : canIsi ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100';
+        const content = done && s.note
+            ? `<p class="mt-1 text-xs text-slate-700">${escapeHtml(s.note)}</p><p class="mt-1 text-[10px] text-slate-400">${escapeHtml(s.user ?? '')}${s.time ? ' · ' + s.time.substring(0,10) : ''}</p>`
+            : `<p class="mt-1 text-xs text-slate-400 italic">${canIsi ? 'Giliran mengisi...' : 'Belum giliran'}</p>`;
+        const btn = canIsi
+            ? `<button onclick="openIsiStepFromReko(${item.id}, ${fullIdx < 0 ? idx+1 : fullIdx}, '${escapeHtml(s.step)}')" class="mt-2 rounded-lg bg-blue-600 hover:bg-blue-500 px-2 py-1 text-[11px] font-semibold text-white">Isi Keputusan</button>`
+            : '';
+        return `<div class="rounded-lg border p-2.5 ${bg}" style="min-width:160px;max-width:220px">
+            <p class="text-xs font-bold text-slate-800">${escapeHtml(s.step)}</p>
+            ${content}
+            ${btn}
+        </div>`;
+    }).join('');
+    return `<div class="mt-2 overflow-x-auto"><div class="flex gap-2 pb-1" style="min-width:max-content">${cards}</div></div>`;
+}
+
+function openIsiStepFromReko(rekId, stepIdx, roleName) {
+    const modal = document.getElementById('isiModal');
+    if (!modal) return;
+    modal.dataset.mode    = 'step';
+    modal.dataset.rekId   = rekId;
+    modal.dataset.stepIdx = stepIdx;
+    document.getElementById('isiModalSubtitle').textContent = 'Isi keputusan: ' + (roleName || '');
+    document.getElementById('isiTglPengisian').value = new Date().toISOString().substring(0, 10);
+    document.getElementById('isiKonten').value = '';
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.getElementById('isiKonten').focus();
+}
+
 function openIsiModal(id, judul) {
-    const item = recommendations.find(r => String(r.id) === String(id));
+    const item  = recommendations.find(r => String(r.id) === String(id));
+    const modal = document.getElementById('isiModal');
+    if (modal) modal.dataset.mode = 'isi';
     document.getElementById('isiRecommendationId').value = id;
     document.getElementById('isiModalSubtitle').textContent = judul || 'Tindak lanjut atas rekomendasi audit.';
 
-    // Auto-fill today's date
-    const today = new Date().toISOString().substring(0, 10);
+    const today       = new Date().toISOString().substring(0, 10);
     const existingIsi = (item?.steps ?? []).find(s => s.step === 'isi_rekomendasi');
     document.getElementById('isiTglPengisian').value = existingIsi?.time || today;
     document.getElementById('isiKonten').value = existingIsi?.note || '';
 
-    const modal = document.getElementById('isiModal');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
+    if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
     document.getElementById('isiKonten').focus();
 }
 
@@ -404,7 +441,8 @@ function closeIsiModal() {
 
 async function saveIsi(event) {
     event.preventDefault();
-    const id    = document.getElementById('isiRecommendationId').value;
+    const modal = document.getElementById('isiModal');
+    const mode  = modal?.dataset.mode;
     const tgl   = document.getElementById('isiTglPengisian').value;
     const isi   = document.getElementById('isiKonten').value.trim();
     const btn   = document.getElementById('saveIsiBtn');
@@ -414,10 +452,22 @@ async function saveIsi(event) {
     btn.textContent = 'Menyimpan...';
     btn.disabled = true;
     try {
-        const payload = await fetchJson(`/api/recommendations/${id}/isi`, {
-            method: 'POST',
-            body: JSON.stringify({ tgl_isi: tgl, isi }),
-        });
+        let payload;
+        if (mode === 'step') {
+            const rekId   = modal.dataset.rekId;
+            const stepIdx = modal.dataset.stepIdx;
+            payload = await fetchJson(`/api/recommendations/${rekId}/approve-step`, {
+                method: 'POST',
+                body: JSON.stringify({ step_index: Number(stepIdx), note: isi, tgl_isi: tgl }),
+            });
+        } else {
+            const id = document.getElementById('isiRecommendationId').value;
+            payload = await fetchJson(`/api/recommendations/${id}/isi`, {
+                method: 'POST',
+                body: JSON.stringify({ tgl_isi: tgl, isi }),
+            });
+        }
+        modal.dataset.mode = '';
         closeIsiModal();
         showAlert(payload.message || 'Isian berhasil disimpan.');
         await loadRecommendations();
