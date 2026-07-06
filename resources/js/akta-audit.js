@@ -3351,7 +3351,7 @@ let _ttpItems = [];
 
 async function loadTtpTab() {
     if (!activePlanId) { ttpRender(); return; }
-    const res = await fetchJson(`/api/audit-detail/ttp-gantung?plan_audit_id=${activePlanId}`);
+    const res = await fetchJson(`/api/audit-detail/ttp-gantung?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
     if (res.data && (res.data.ttp ?? []).length > 0) {
         _ttpItems = res.data.ttp;
         const el = document.getElementById('ttpTglAudit');
@@ -3470,9 +3470,11 @@ async function saveTtp() {
     if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
     const tglAudit = document.getElementById('ttpTglAudit')?.value || null;
     const res = await fetchJson('/api/audit-detail/ttp-gantung', {
-        method: 'POST',
-        body: JSON.stringify({ planAuditId: activePlanId, tglAudit, ttp: _ttpItems }),
+        method:  'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body:    JSON.stringify({ planAuditId: activePlanId, tglAudit, ttp: _ttpItems }),
     });
+    if (!res.message) throw new Error('Gagal menyimpan.');
     showAlert(res.message, 'success');
 }
 
