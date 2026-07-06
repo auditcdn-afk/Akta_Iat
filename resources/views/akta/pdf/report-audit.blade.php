@@ -76,11 +76,32 @@
   <span style="font-weight:700;font-size:13px;">📄 Laporan Audit – {{ $plan->no_spt ?? '-' }}</span>
   <div>
     <button onclick="window.print()">🖨️ Cetak / Save PDF</button>
-    <a href="{{ route('akta.report-audit.pdf.download', $plan->id) }}"
-       style="background:#22c55e;color:#fff;border:none;font-size:11px;font-weight:700;padding:4px 14px;border-radius:6px;cursor:pointer;text-decoration:none;display:inline-block;margin-left:6px;">⬇ Download PDF</a>
+    <button onclick="downloadPdf()" style="background:#22c55e;color:#fff;border:none;font-size:11px;font-weight:700;padding:4px 14px;border-radius:6px;cursor:pointer;margin-left:6px;">⬇ Download PDF</button>
     <button class="close-btn" onclick="window.close()">✕ Tutup</button>
   </div>
 </div>
+<script>
+function downloadPdf() {
+  var bar = document.querySelector('.print-bar');
+  var spacer = document.querySelector('.print-spacer');
+  if (bar) bar.style.display = 'none';
+  if (spacer) spacer.style.display = 'none';
+  window.print();
+  setTimeout(function() {
+    if (bar) bar.style.display = '';
+    if (spacer) spacer.style.display = '';
+  }, 1000);
+}
+@if(!empty($autoprint))
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    document.querySelector('.print-bar') && (document.querySelector('.print-bar').style.display = 'none');
+    document.querySelector('.print-spacer') && (document.querySelector('.print-spacer').style.display = 'none');
+    window.print();
+  }, 800);
+});
+@endif
+</script>
 <div class="print-spacer"></div>
 <div class="page-wrap">
 

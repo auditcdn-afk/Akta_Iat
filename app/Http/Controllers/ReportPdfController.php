@@ -24,8 +24,6 @@ use App\Models\PemeriksaanSmhTarikan;
 use App\Models\PemeriksaanTtpGantung;
 use App\Models\PlanAudit;
 use App\Models\SmhOnhandItem;
-use Dompdf\Dompdf;
-use Dompdf\Options;
 use Illuminate\Http\Response;
 use Illuminate\View\View;
 
@@ -36,35 +34,11 @@ class ReportPdfController extends Controller
         return view('akta.pdf.report-audit', $this->buildViewData($plan));
     }
 
-    public function download(PlanAudit $plan): Response
+    public function download(PlanAudit $plan): \Illuminate\View\View
     {
         $viewData = $this->buildViewData($plan);
-        foreach ($viewData['lampiranEmbeds'] as &$embed) {
-            if ($embed['type'] === 'pdf') {
-                $embed['data'] = null;
-            }
-        }
-        unset($embed);
-
-        $html = view('akta.pdf.report-audit', $viewData)->render();
-
-        $options = new Options();
-        $options->set('isHtml5ParserEnabled', true);
-        $options->set('isPhpEnabled', true);
-        $options->set('defaultFont', 'Arial');
-        $options->set('dpi', 110);
-
-        $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($html);
-        $dompdf->setPaper('A4', 'portrait');
-        $dompdf->render();
-
-        $filename = 'Laporan-Audit-' . ($plan->no_spt ? str_replace('/', '-', $plan->no_spt) : $plan->id) . '.pdf';
-
-        return response($dompdf->output(), 200, [
-            'Content-Type'        => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-        ]);
+        $viewData['autoprint'] = true;
+        return view('akta.pdf.report-audit', $viewData);
     }
 
     private function buildViewData(PlanAudit $plan): array
