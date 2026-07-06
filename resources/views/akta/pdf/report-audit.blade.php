@@ -1101,26 +1101,115 @@
     @if($bpkbOnhand->isEmpty())
       <p class="empty">Belum ada data.</p>
     @else
-      <table>
-        <thead><tr><th>#</th><th>No BPKB</th><th>No Polisi</th><th>Nama Pemilik</th><th>No Mesin</th><th>Jenis</th><th>Tgl Terima</th><th>Scan</th></tr></thead>
+    @php
+      $bpkbReg90 = $bpkbOnhand->filter(fn($b) => strtoupper($b->jenis ?? '') === 'REG' && ($b->umur ?? 0) > 90)->sortByDesc('umur');
+      $bpkbByJenis = $bpkbOnhand->groupBy(fn($b) => strtoupper($b->jenis ?? '-'));
+    @endphp
+
+    {{-- ── Ringkasan per Jenis ── --}}
+    <div style="background:#f0f4ff;border:1px solid #c7d2fe;border-radius:6px;padding:10px 14px;margin-bottom:14px;">
+      <div style="font-weight:700;font-size:12px;color:#1e3a8a;margin-bottom:8px;">RINGKASAN ONHAND BPKB</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+        @foreach($bpkbByJenis as $jenis => $items)
+        @php $sudahScan = $items->where('sudah_scan', true)->count(); @endphp
+        <div style="background:#fff;border:1px solid #e0e7ff;border-radius:6px;padding:8px 14px;min-width:130px;">
+          <div style="font-weight:700;font-size:11px;color:#1d4ed8;margin-bottom:4px;">{{ $jenis }}</div>
+          <div style="font-size:10px;color:#374151;">Total: <strong>{{ $items->count() }}</strong></div>
+          <div style="font-size:10px;color:#059669;">Sudah Scan: <strong>{{ $sudahScan }}</strong></div>
+          <div style="font-size:10px;color:#dc2626;">Belum Scan: <strong>{{ $items->count() - $sudahScan }}</strong></div>
+          @php $avg = $items->avg('umur'); @endphp
+          @if($avg)<div style="font-size:10px;color:#6b7280;">Rata-rata umur: {{ round($avg) }} hari</div>@endif
+        </div>
+        @endforeach
+        <div style="background:#1e40af;border-radius:6px;padding:8px 14px;min-width:130px;">
+          <div style="font-weight:700;font-size:11px;color:#fff;margin-bottom:4px;">TOTAL</div>
+          <div style="font-size:10px;color:#bfdbfe;">Semua BPKB: <strong style="color:#fff">{{ $bpkbOnhand->count() }}</strong></div>
+          <div style="font-size:10px;color:#fca5a5;">REG &gt; 90 hari: <strong style="color:#fca5a5">{{ $bpkbReg90->count() }}</strong></div>
+        </div>
+      </div>
+    </div>
+
+    {{-- ── ALERT: REG > 90 hari ── --}}
+    @if($bpkbReg90->count())
+    <div style="background:#fff7ed;border:2px solid #fed7aa;border-radius:6px;padding:10px 14px;margin-bottom:16px;">
+      <div style="font-weight:700;font-size:11px;color:#c2410c;margin-bottom:8px;">
+        ⚠️ BPKB REG UMUR &gt; 90 HARI — {{ $bpkbReg90->count() }} item
+      </div>
+      <table style="font-size:9.5px;">
+        <thead>
+          <tr style="background:#ffedd5;">
+            <th>#</th>
+            <th>No BPKB</th>
+            <th>No Polisi</th>
+            <th>Nama Pemilik</th>
+            <th>No Mesin</th>
+            <th>Tgl Terima</th>
+            <th style="text-align:center">Umur (hari)</th>
+            <th style="text-align:center">Scan</th>
+            <th>Keterangan</th>
+          </tr>
+        </thead>
         <tbody>
-          @foreach($bpkbOnhand->take(100) as $i => $b)
-          <tr>
-            <td>{{ (int)$i+1 }}</td>
-            <td>{{ $b->no_bpkb ?? '-' }}</td>
+          @foreach($bpkbReg90 as $ri => $b)
+          @php $umur = (int)($b->umur ?? 0); @endphp
+          <tr style="{{ $umur > 180 ? 'background:#fee2e2;' : ($umur > 90 ? 'background:#fff7ed;' : '') }}">
+            <td>{{ $ri + 1 }}</td>
+            <td style="font-weight:700">{{ $b->no_bpkb ?? '-' }}</td>
             <td>{{ $b->no_polisi ?? '-' }}</td>
             <td>{{ $b->nama_pemilik ?? '-' }}</td>
-            <td>{{ $b->no_mesin ?? '-' }}</td>
-            <td>{{ $b->jenis ?? '-' }}</td>
+            <td style="font-size:9px">{{ $b->no_mesin ?? '-' }}</td>
             <td>{{ $b->tgl_terima ? \Carbon\Carbon::parse($b->tgl_terima)->format('d/m/Y') : '-' }}</td>
-            <td>{{ $b->sudah_scan ? '✓' : '-' }}</td>
+            <td style="text-align:center;font-weight:700;color:{{ $umur > 180 ? '#dc2626' : '#d97706' }}">{{ $umur }}</td>
+            <td style="text-align:center">{{ $b->sudah_scan ? '✓' : '✗' }}</td>
+            <td style="font-size:9px">{{ $b->keterangan ?? '-' }}</td>
           </tr>
           @endforeach
-          @if($bpkbOnhand->count() > 100)
-          <tr><td colspan="8" style="font-style:italic;color:#6b7280">... dan {{ $bpkbOnhand->count()-100 }} item lainnya.</td></tr>
-          @endif
         </tbody>
       </table>
+    </div>
+    @endif
+
+    {{-- ── Daftar Lengkap Onhand BPKB ── --}}
+    <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:6px;">Daftar Lengkap Onhand BPKB</div>
+    <table style="font-size:9.5px;">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>No BPKB</th>
+          <th>No Polisi</th>
+          <th>Nama Pemilik</th>
+          <th>No Mesin</th>
+          <th style="text-align:center">Jenis</th>
+          <th>Tgl Terima</th>
+          <th style="text-align:center">Umur (hari)</th>
+          <th style="text-align:center">Scan</th>
+          <th>Keterangan</th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach($bpkbOnhand->take(200) as $i => $b)
+        @php $umur = (int)($b->umur ?? 0); $isReg90 = strtoupper($b->jenis ?? '') === 'REG' && $umur > 90; @endphp
+        <tr style="{{ $isReg90 ? 'background:#fff7ed;' : '' }}">
+          <td>{{ (int)$i+1 }}</td>
+          <td style="font-weight:{{ $isReg90 ? '700' : '400' }}">{{ $b->no_bpkb ?? '-' }}</td>
+          <td>{{ $b->no_polisi ?? '-' }}</td>
+          <td>{{ $b->nama_pemilik ?? '-' }}</td>
+          <td style="font-size:9px">{{ $b->no_mesin ?? '-' }}</td>
+          <td style="text-align:center;font-weight:700">{{ strtoupper($b->jenis ?? '-') }}</td>
+          <td>{{ $b->tgl_terima ? \Carbon\Carbon::parse($b->tgl_terima)->format('d/m/Y') : '-' }}</td>
+          <td style="text-align:center;font-weight:700;color:{{ $isReg90 ? ($umur > 180 ? '#dc2626' : '#d97706') : '#374151' }}">
+            {{ $umur ?: '-' }}
+          </td>
+          <td style="text-align:center;color:{{ $b->sudah_scan ? '#059669' : '#9ca3af' }}">{{ $b->sudah_scan ? '✓' : '✗' }}</td>
+          <td style="font-size:9px">{{ $b->keterangan ?? '-' }}</td>
+        </tr>
+        @endforeach
+        @if($bpkbOnhand->count() > 200)
+        <tr><td colspan="10" style="font-style:italic;color:#6b7280;text-align:center">... dan {{ $bpkbOnhand->count()-200 }} item lainnya.</td></tr>
+        @endif
+      </tbody>
+    </table>
+
     @endif
   </div>
 </div>
