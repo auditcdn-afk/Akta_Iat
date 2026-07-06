@@ -201,6 +201,8 @@ function closePemeriksaan() {
     activePlan = null;
     _gradingData = null;
     _gradingLoadedPlanId = null;
+    _mtData = null;
+    _mtActiveMekanik = null;
 }
 
 function switchTab(tab) {
@@ -3824,8 +3826,9 @@ function initCfForm() {
 // MT — Pemeriksaan MT (Lama / FI / Baru)
 // ══════════════════════════════════════════════════════════════════
 
-let _mtData       = null;
-let _mtToolsCache = {};
+let _mtData           = null;
+let _mtToolsCache     = {};
+let _mtActiveMekanik  = null; // currently selected mechanic name
 
 const MT_KATEGORI = ['bagus', 'rusak', 'skAudit', 'hilang'];
 const MT_LABEL    = { bagus: 'Bagus', rusak: 'Rusak', skAudit: 'SK Audit', hilang: 'Hilang' };
@@ -3833,7 +3836,64 @@ const MT_COLOR    = { bagus: 'emerald', rusak: 'red', skAudit: 'blue', hilang: '
 
 function mtEmptyData() { return { entries: [] }; }
 function mtActiveJenis()   { return document.querySelector('.mt-jenis-btn.active')?.dataset.mtJenis || 'baru'; }
-function mtActiveMekanik() { return (document.getElementById('mtMekanik')?.value || '').trim(); }
+function mtActiveMekanik() { return _mtActiveMekanik; }
+
+// Returns unique mechanic names from entries
+function mtMekanikList() {
+    if (!_mtData?.entries) return [];
+    return [...new Set(_mtData.entries.map(e => e.mekanik).filter(Boolean))];
+}
+
+function mtSelectMekanik(name) {
+    _mtActiveMekanik = name;
+    const label = document.getElementById('mtActiveMekanikLabel');
+    if (label) label.textContent = name || '';
+    const jenisPanel = document.getElementById('mtJenisPanel');
+    if (jenisPanel) jenisPanel.classList.toggle('hidden', !name);
+    mtRenderMekanikList();
+    mtRenderKategori();
+}
+
+function mtRenderMekanikList() {
+    const list = document.getElementById('mtMekanikList');
+    if (!list) return;
+    const mechanics = mtMekanikList();
+    if (mechanics.length === 0) {
+        list.innerHTML = `<p class="text-xs text-slate-500 italic">Belum ada mekanik. Klik "+ Tambah Mekanik".</p>`;
+        return;
+    }
+    list.innerHTML = mechanics.map(name => {
+        const isActive = name === _mtActiveMekanik;
+        return `<div class="mt-mekanik-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold cursor-pointer transition
+            ${isActive ? 'bg-blue-600 text-white border border-blue-500' : 'bg-slate-800 text-slate-300 border border-slate-600 hover:border-blue-500 hover:text-blue-300'}"
+            data-mekanik="${escHtml(name)}">
+            ${escHtml(name)}
+            <button class="mt-mekanik-del ml-1 text-xs opacity-60 hover:opacity-100 leading-none" data-mekanik="${escHtml(name)}" title="Hapus mekanik ini">✕</button>
+        </div>`;
+    }).join('');
+
+    list.querySelectorAll('.mt-mekanik-chip').forEach(chip => {
+        chip.addEventListener('click', (e) => {
+            if (e.target.classList.contains('mt-mekanik-del')) return;
+            mtSelectMekanik(chip.dataset.mekanik);
+        });
+    });
+    list.querySelectorAll('.mt-mekanik-del').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const name = btn.dataset.mekanik;
+            if (!confirm(`Hapus semua data mekanik "${name}"?`)) return;
+            _mtData.entries = (_mtData.entries || []).filter(e => e.mekanik !== name);
+            if (_mtActiveMekanik === name) {
+                const remaining = mtMekanikList();
+                mtSelectMekanik(remaining[0] || null);
+            } else {
+                mtRenderMekanikList();
+            }
+            _doSaveMt().catch(() => {});
+        });
+    });
+}
 
 function mtGetEntry(mekanik, jenis) {
     if (!_mtData) _mtData = mtEmptyData();
@@ -3860,6 +3920,7 @@ async function mtLoadTools(jenis) {
 }
 
 async function loadMtTab() {
+    _mtActiveMekanik = null;
     if (!activePlanId) { mtInitForm(); return; }
     const res = await fetchJson(`/api/audit-detail/mt?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
     if (res.data && res.data.data && !Array.isArray(res.data.data)) {
@@ -3870,10 +3931,21 @@ async function loadMtTab() {
 
 function mtInitForm() {
     if (!_mtData) _mtData = mtEmptyData();
+    // Auto-select first jenis button if none active
     if (!document.querySelector('.mt-jenis-btn.active')) {
         const first = document.querySelector('.mt-jenis-btn');
         if (first) first.classList.add('active', 'bg-blue-600', 'text-white', 'border-blue-600');
     }
+    // Auto-select first mechanic if none selected
+    const mechanics = mtMekanikList();
+    if (!_mtActiveMekanik && mechanics.length > 0) {
+        _mtActiveMekanik = mechanics[0];
+    }
+    mtRenderMekanikList();
+    const jenisPanel = document.getElementById('mtJenisPanel');
+    if (jenisPanel) jenisPanel.classList.toggle('hidden', !_mtActiveMekanik);
+    const label = document.getElementById('mtActiveMekanikLabel');
+    if (label && _mtActiveMekanik) label.textContent = _mtActiveMekanik;
     mtRenderKategori();
 }
 
@@ -4007,9 +4079,43 @@ function initMtForm() {
         });
     });
 
-    document.getElementById('mtMekanik')?.addEventListener('blur', () => {
-        mtRenderKategori();
+    // Add mechanic flow
+    const addBtn     = document.getElementById('mtAddMekanikBtn');
+    const addForm    = document.getElementById('mtAddForm');
+    const confirmBtn = document.getElementById('mtConfirmAddBtn');
+    const cancelBtn  = document.getElementById('mtCancelAddBtn');
+    const nameInput  = document.getElementById('mtNewMekanikInput');
+
+    addBtn?.addEventListener('click', () => {
+        addForm?.classList.remove('hidden');
+        nameInput?.focus();
     });
+    cancelBtn?.addEventListener('click', () => {
+        addForm?.classList.add('hidden');
+        if (nameInput) nameInput.value = '';
+    });
+    const confirmAdd = () => {
+        const name = nameInput?.value.trim();
+        if (!name) { showAlert('Nama mekanik tidak boleh kosong.', 'error'); return; }
+        if (mtMekanikList().includes(name)) { showAlert('Mekanik dengan nama ini sudah ada.', 'error'); return; }
+        // Create a default entry so the mechanic appears in the list
+        if (!_mtData) _mtData = mtEmptyData();
+        _mtData.entries.push({ mekanik: name, jenis: 'baru', bagus: [], rusak: [], skAudit: [], hilang: [] });
+        addForm?.classList.add('hidden');
+        if (nameInput) nameInput.value = '';
+        mtSelectMekanik(name);
+        // Set jenis to baru
+        document.querySelectorAll('.mt-jenis-btn').forEach(b => {
+            b.classList.remove('active', 'bg-blue-600', 'text-white', 'border-blue-600');
+            b.classList.add('text-slate-300');
+        });
+        const baruBtn = document.querySelector('.mt-jenis-btn[data-mt-jenis="baru"]');
+        if (baruBtn) { baruBtn.classList.add('active', 'bg-blue-600', 'text-white', 'border-blue-600'); baruBtn.classList.remove('text-slate-300'); }
+        mtAutoLoadTools();
+        _doSaveMt().catch(() => {});
+    };
+    confirmBtn?.addEventListener('click', confirmAdd);
+    nameInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmAdd(); });
 
     document.getElementById('mtSaveBtn')?.addEventListener('click', () => {
         saveMt().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
