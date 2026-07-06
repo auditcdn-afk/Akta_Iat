@@ -4158,9 +4158,11 @@ function hgpSaldo(item) {
 
 function hgpCalcItem(item) {
     const fisik   = hgpN(item.fisik);
+    const wo      = hgpN(item.wo);           // WO menambah fisik
+    const total   = fisik + wo;
     const saldo   = hgpSaldo(item);
-    item.akhir    = saldo - fisik;  // Akhir = sisa stok = saldo akhir - fisik
-    item.selisih  = fisik - saldo;  // Selisih = fisik - saldo akhir
+    item.akhir    = saldo - total;           // Akhir = saldo - (fisik + wo)
+    item.selisih  = total - saldo;           // Selisih = (fisik + wo) - saldo
 }
 
 function hgpUpdateStats() {
@@ -4193,6 +4195,7 @@ function hgpRenderItems() {
         const jumlah   = harga * selisih;   // negatif = kekurangan, positif = kelebihan
         const jumlahFmt = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
         const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
+        const wo = hgpN(it.wo);
         return `<tr class="hover:bg-slate-800/40">
             <td class="px-3 py-2 text-slate-400">${i + 1}</td>
             <td class="px-3 py-2 text-slate-400 text-xs">${it.noPart || ''}</td>
@@ -4200,6 +4203,11 @@ function hgpRenderItems() {
             <td class="px-3 py-2 text-center text-slate-300">${it.tgl || '<span class="text-slate-600">—</span>'}</td>
             <td class="px-3 py-2 text-right text-slate-300">${hgpSaldo(it)}</td>
             <td class="px-3 py-2 text-right text-slate-100 font-semibold">${hgpN(it.fisik)}</td>
+            <td class="px-3 py-2 text-right">
+                <input type="number" min="0" data-hgp-i="${i}" data-hgp-f="wo"
+                    value="${wo || ''}" placeholder="0"
+                    class="hgp-inp w-16 rounded border border-amber-700/50 bg-amber-900/20 px-2 py-1 text-xs text-amber-300 text-right focus:border-amber-500 focus:outline-none">
+            </td>
             <td class="px-3 py-2 text-right text-slate-300">${hgpN(it.akhir)}</td>
             <td class="px-3 py-2 text-right ${selClass}">${selSign}${selisih}</td>
             <td class="px-3 py-2 text-right text-slate-300">${harga > 0 ? harga.toLocaleString('id-ID') : '<span class="text-slate-600">—</span>'}</td>
@@ -4220,12 +4228,18 @@ function hgpRenderItems() {
         </tr>`;
     }).join('');
 
-    // Input change — hanya keterangan (fisik hanya bisa via scan)
+    // Input change — keterangan (text) dan wo (number → recalc)
     tbody.querySelectorAll('.hgp-inp').forEach(inp => {
         inp.addEventListener('input', () => {
             const i = parseInt(inp.dataset.hgpI);
             const f = inp.dataset.hgpF;
-            _hgpData.items[i][f] = inp.value;
+            if (f === 'wo') {
+                _hgpData.items[i].wo = hgpN(inp.value);
+                hgpCalcItem(_hgpData.items[i]);
+                hgpRenderItems();   // re-render untuk update Akhir & Selisih
+            } else {
+                _hgpData.items[i][f] = inp.value;
+            }
         });
         inp.addEventListener('blur', () => { _doSaveHgp().catch(() => {}); });
     });
@@ -4571,7 +4585,7 @@ function initHgpForm() {
         if (exists) { showAddMsg(`No. Part "${noPart}" sudah ada dalam daftar.`, false); return; }
         const newItem = {
             noPart, sparepart: nama || noPart,
-            saldoAkhir: 0, fisik: 0, akhir: 0, selisih: 0,
+            saldoAkhir: 0, fisik: 0, wo: 0, akhir: 0, selisih: 0,
             keterangan: '', tgl: new Date().toISOString().slice(0, 10), logScan: [],
             _manual: true,
         };

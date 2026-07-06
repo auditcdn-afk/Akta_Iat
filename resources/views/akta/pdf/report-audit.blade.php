@@ -2241,28 +2241,108 @@
      ═══════════════════════════════════════════════ --}}
 <div class="section">
   <div class="section-title">14. HGP &amp; AHM OILS</div>
-  <div class="section-body">
+  <div class="section-body" style="padding:0;">
     @if(!$hgp)
-      <p class="empty">Belum ada data.</p>
+      <p class="empty" style="padding:12px;">Belum ada data.</p>
     @else
-      @php $hgpItems = $hgp->items_json ?? []; @endphp
+      @php
+        $hgpItems = $hgp->items_json ?? [];
+        $hN = fn($v) => (float)($v ?? 0);
+        $hgpTotalSaldo   = array_sum(array_map(fn($it) => $hN($it['saldoAkhir'] ?? $it['saldoAwal'] ?? 0), $hgpItems));
+        $hgpTotalFisik   = array_sum(array_map(fn($it) => $hN($it['fisik'] ?? 0) + $hN($it['wo'] ?? 0), $hgpItems));
+        $hgpTotalSelisih = array_sum(array_map(fn($it) => $hN($it['selisih'] ?? 0), $hgpItems));
+        $hgpTotalJumlah  = array_sum(array_map(fn($it) => $hN($it['hargaHet'] ?? 0) * $hN($it['selisih'] ?? 0), $hgpItems));
+        $hgpSelCount     = count(array_filter($hgpItems, fn($it) => ($it['selisih'] ?? 0) != 0));
+        $fmtN = fn($v) => number_format((float)$v, 0, ',', '.');
+        $fmtSign = fn($v) => ($v > 0 ? '+' : '') . number_format((float)$v, 0, ',', '.');
+      @endphp
+
+      {{-- Summary cards --}}
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:12px 14px;border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:#1e40af;">{{ count($hgpItems) }}</div>
+          <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">Total Item</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:#059669;">{{ $fmtN($hgpTotalFisik) }}</div>
+          <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">Total Fisik + WO</div>
+        </div>
+        <div style="background:#fff;border:1px solid {{ $hgpTotalSelisih < 0 ? '#fee2e2' : '#e5e7eb' }};border-radius:8px;padding:10px 12px;text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:{{ $hgpTotalSelisih < 0 ? '#dc2626' : ($hgpTotalSelisih > 0 ? '#d97706' : '#059669') }};">{{ $fmtSign($hgpTotalSelisih) }}</div>
+          <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">Total Selisih Qty</div>
+        </div>
+        <div style="background:#fff;border:1px solid {{ $hgpTotalJumlah < 0 ? '#fee2e2' : '#e5e7eb' }};border-radius:8px;padding:10px 12px;text-align:center;">
+          <div style="font-size:14px;font-weight:800;color:{{ $hgpTotalJumlah < 0 ? '#dc2626' : ($hgpTotalJumlah > 0 ? '#d97706' : '#059669') }};">{{ $fmtSign($hgpTotalJumlah) }}</div>
+          <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">Nilai Selisih (Rp)</div>
+        </div>
+      </div>
+
       @if(count($hgpItems))
-      <table>
-        <thead><tr><th>#</th><th>Nama / Kode</th><th>Qty</th><th>Satuan</th><th>Keterangan</th></tr></thead>
-        <tbody>
-          @foreach(array_slice($hgpItems, 0, 100) as $i => $item)
+      <div style="overflow-x:auto;">
+      <table style="font-size:9.5px;min-width:800px;">
+        <thead>
           <tr>
-            <td>{{ (int)$i+1 }}</td>
-            <td>{{ is_array($item) ? ($item['nama'] ?? $item['kode'] ?? $item['name'] ?? '') : $item }}</td>
-            <td style="text-align:right">{{ is_array($item) ? ($item['qty'] ?? $item['jumlah'] ?? '') : '' }}</td>
-            <td>{{ is_array($item) ? ($item['satuan'] ?? '') : '' }}</td>
-            <td>{{ is_array($item) ? ($item['keterangan'] ?? $item['ket'] ?? '') : '' }}</td>
+            <th style="width:28px;">#</th>
+            <th style="width:80px;">No. Part</th>
+            <th>Nama Part</th>
+            <th style="width:70px;text-align:center;">Tgl Periksa</th>
+            <th style="width:50px;text-align:right;">Saldo Akhir</th>
+            <th style="width:40px;text-align:right;">Fisik</th>
+            <th style="width:36px;text-align:right;color:#92400e;background:#fffbeb;">WO</th>
+            <th style="width:50px;text-align:right;">Akhir</th>
+            <th style="width:46px;text-align:right;">Selisih</th>
+            <th style="width:70px;text-align:right;">Harga HET</th>
+            <th style="width:80px;text-align:right;">Jumlah (Rp)</th>
+            <th>Keterangan</th>
           </tr>
+        </thead>
+        <tbody>
+          @php $hgpGrandJumlah = 0; @endphp
+          @foreach($hgpItems as $i => $it)
+            @php
+              $saldo   = $hN($it['saldoAkhir'] ?? $it['saldoAwal'] ?? 0);
+              $fisik   = $hN($it['fisik'] ?? 0);
+              $wo      = $hN($it['wo'] ?? 0);
+              $totalFisik = $fisik + $wo;
+              $akhir   = $hN($it['akhir'] ?? ($saldo - $totalFisik));
+              $selisih = $hN($it['selisih'] ?? ($totalFisik - $saldo));
+              $harga   = $hN($it['hargaHet'] ?? 0);
+              $jumlah  = $harga * $selisih;
+              $hgpGrandJumlah += $jumlah;
+              $selColor = $selisih < 0 ? '#dc2626' : ($selisih > 0 ? '#d97706' : '#374151');
+              $jmlColor = $jumlah < 0 ? '#dc2626' : ($jumlah > 0 ? '#d97706' : '#374151');
+            @endphp
+            <tr>
+              <td>{{ (int)$i + 1 }}</td>
+              <td style="font-size:8.5px;color:#6b7280;">{{ $it['noPart'] ?? '-' }}</td>
+              <td style="font-weight:600;">{{ $it['sparepart'] ?? $it['nama'] ?? '-' }}</td>
+              <td style="text-align:center;color:#6b7280;">{{ $it['tgl'] ?? '-' }}</td>
+              <td style="text-align:right;">{{ $saldo > 0 ? $fmtN($saldo) : '0' }}</td>
+              <td style="text-align:right;font-weight:700;">{{ $fmtN($fisik) }}</td>
+              <td style="text-align:right;background:#fffbeb;color:#92400e;font-weight:{{ $wo > 0 ? '700' : '400' }};">{{ $wo > 0 ? $fmtN($wo) : '—' }}</td>
+              <td style="text-align:right;">{{ $fmtN($akhir) }}</td>
+              <td style="text-align:right;font-weight:700;color:{{ $selColor }};">{{ $selisih >= 0 ? '+' : '' }}{{ $fmtN($selisih) }}</td>
+              <td style="text-align:right;color:#6b7280;">{{ $harga > 0 ? $fmtN($harga) : '—' }}</td>
+              <td style="text-align:right;font-weight:700;color:{{ $jmlColor }};">{{ $jumlah != 0 ? ($jumlah >= 0 ? '+' : '') . $fmtN($jumlah) : '—' }}</td>
+              <td style="font-size:9px;color:#6b7280;">{{ $it['keterangan'] ?? '' }}</td>
+            </tr>
           @endforeach
+          {{-- Total row --}}
+          <tr style="background:#f3f4f6;font-weight:700;border-top:2px solid #d1d5db;">
+            <td colspan="4" style="text-align:right;">TOTAL</td>
+            <td style="text-align:right;">{{ $fmtN($hgpTotalSaldo) }}</td>
+            <td colspan="2" style="text-align:right;">{{ $fmtN($hgpTotalFisik) }}</td>
+            <td></td>
+            <td style="text-align:right;color:{{ $hgpTotalSelisih < 0 ? '#dc2626' : ($hgpTotalSelisih > 0 ? '#d97706' : '#374151') }};">{{ $fmtSign($hgpTotalSelisih) }}</td>
+            <td></td>
+            <td style="text-align:right;color:{{ $hgpGrandJumlah < 0 ? '#dc2626' : ($hgpGrandJumlah > 0 ? '#d97706' : '#374151') }};">{{ $hgpGrandJumlah != 0 ? $fmtSign($hgpGrandJumlah) : '—' }}</td>
+            <td></td>
+          </tr>
         </tbody>
       </table>
+      </div>
       @else
-        <p class="empty">Tidak ada item.</p>
+        <p class="empty" style="padding:12px;">Tidak ada item.</p>
       @endif
     @endif
   </div>

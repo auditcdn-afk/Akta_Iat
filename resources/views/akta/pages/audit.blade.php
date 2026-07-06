@@ -1744,7 +1744,7 @@
                     <span id="hgpTableCount" class="rounded-full bg-blue-600/20 px-3 py-1 text-xs font-bold text-blue-300">0 Item</span>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-[1400px] text-xs">
+                    <table class="w-full min-w-[1500px] text-xs">
                         <thead class="border-b border-slate-700 bg-slate-800">
                             <tr>
                                 <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400 w-8">No.</th>
@@ -1753,6 +1753,7 @@
                                 <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400 w-24">Tgl. Periksa</th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20">Saldo Akhir</th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Fisik (Qty)</th>
+                                <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16 text-amber-400" title="Work Order — menambah Fisik Qty">WO</th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Akhir</th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Selisih</th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-24">Harga HET</th>
