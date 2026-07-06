@@ -2126,78 +2126,108 @@
      ═══════════════════════════════════════════════ --}}
 <div class="section">
   <div class="section-title">13. MT (Mechanic Truster Tools)</div>
-  <div class="section-body">
+  <div class="section-body" style="padding:0;">
     @if(!$mt)
-      <p class="empty">Belum ada data.</p>
+      <p class="empty" style="padding:12px;">Belum ada data.</p>
     @else
       @php
-        $mtRaw               = $mt->data_json ?? [];
-        $mtEntries           = $mtRaw['entries'] ?? [];
-        $mtSelectedJenis     = $mtRaw['mekanikSelectedJenis'] ?? [];
-        // For each mechanic, only show the entry matching their selected jenis
+        $mtRaw           = $mt->data_json ?? [];
+        $mtEntries       = $mtRaw['entries'] ?? [];
+        $mtSelectedJenis = $mtRaw['mekanikSelectedJenis'] ?? [];
         $mtEntriesFiltered = collect($mtEntries)->filter(function($e) use ($mtSelectedJenis) {
-            $mekanik = $e['mekanik'] ?? '';
+            $mekanik  = $e['mekanik'] ?? '';
             $selected = $mtSelectedJenis[$mekanik] ?? 'baru';
             return ($e['jenis'] ?? '') === $selected;
         });
-        // Group by mekanik
-        $mtByMekanik = $mtEntriesFiltered->groupBy('mekanik');
+        $mtByMekanik  = $mtEntriesFiltered->groupBy('mekanik');
         $mtJenisLabel = ['baru' => 'Baru', 'lama' => 'Lama', 'fi' => 'FI'];
         $mtKatLabel   = ['bagus' => 'Bagus', 'rusak' => 'Rusak', 'skAudit' => 'SK Audit', 'hilang' => 'Hilang'];
-        $mtKatColor   = ['bagus' => '#10b981', 'rusak' => '#ef4444', 'skAudit' => '#60a5fa', 'hilang' => '#f97316'];
+        $mtKatBg      = ['bagus' => '#d1fae5', 'rusak' => '#fee2e2', 'skAudit' => '#dbeafe', 'hilang' => '#ffedd5'];
+        $mtKatText    = ['bagus' => '#065f46', 'rusak' => '#991b1b', 'skAudit' => '#1e40af', 'hilang' => '#9a3412'];
+        $mtKatBorder  = ['bagus' => '#6ee7b7', 'rusak' => '#fca5a5', 'skAudit' => '#93c5fd', 'hilang' => '#fdba74'];
+        $mtKatIcon    = ['bagus' => '✔', 'rusak' => '✘', 'skAudit' => '⚑', 'hilang' => '!'];
       @endphp
 
       @if($mtByMekanik->isEmpty())
-        <p class="empty">Tidak ada data.</p>
+        <p class="empty" style="padding:12px;">Tidak ada data MT.</p>
       @else
         @foreach($mtByMekanik as $mekanik => $entries)
-          {{-- Mekanik header --}}
-          <div style="margin-bottom:18px;page-break-inside:avoid;">
-            <div style="font-size:13px;font-weight:700;padding:6px 12px;background:#1e3a5f;border-left:4px solid #3b82f6;margin-bottom:10px;border-radius:0 4px 4px 0;">
-              Mekanik: {{ $mekanik }}
-              <span style="font-size:10px;font-weight:400;color:#94a3b8;margin-left:8px;">{{ $entries->count() }} jenis diperiksa</span>
+          @php
+            $mekanikIdx = $loop->index + 1;
+          @endphp
+          {{-- ── Mechanic card ── --}}
+          <div style="border-bottom:{{ $loop->last ? 'none' : '2px solid #e5e7eb' }};padding:16px 16px 20px;">
+
+            {{-- Mechanic header bar --}}
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+              <div style="width:32px;height:32px;border-radius:50%;background:#1e40af;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                {{ $mekanikIdx }}
+              </div>
+              <div>
+                <div style="font-size:14px;font-weight:700;color:#111827;line-height:1.2;">{{ $mekanik }}</div>
+                <div style="font-size:10px;color:#6b7280;">Mechanic Truster Tools – Pemeriksaan Alat</div>
+              </div>
+              @foreach($entries as $entry)
+                @php
+                  $jenisKey = $entry['jenis'] ?? 'baru';
+                  $jenisLbl = $mtJenisLabel[$jenisKey] ?? strtoupper($jenisKey);
+                  $jenisBg  = $jenisKey === 'fi' ? '#7c3aed' : ($jenisKey === 'lama' ? '#0369a1' : '#1e40af');
+                  $totalAll = collect(['bagus','rusak','skAudit','hilang'])->sum(fn($k) => count($entry[$k] ?? []));
+                @endphp
+                <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+                  <span style="background:{{ $jenisBg }};color:#fff;font-size:11px;font-weight:700;padding:3px 14px;border-radius:999px;letter-spacing:.5px;">
+                    Jenis: {{ $jenisLbl }}
+                  </span>
+                  <span style="background:#f3f4f6;color:#374151;font-size:10px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid #d1d5db;">
+                    {{ $totalAll }} Tools
+                  </span>
+                </div>
+              @endforeach
             </div>
 
             @foreach($entries as $entry)
               @php
-                $jenis    = $entry['jenis'] ?? '-';
-                $jenisLbl = $mtJenisLabel[$jenis] ?? strtoupper($jenis);
-                $totalTools = collect(['bagus','rusak','skAudit','hilang'])
-                    ->sum(fn($k) => count($entry[$k] ?? []));
+                $bagus   = $entry['bagus']   ?? [];
+                $rusak   = $entry['rusak']   ?? [];
+                $skAudit = $entry['skAudit'] ?? [];
+                $hilang  = $entry['hilang']  ?? [];
               @endphp
-              <div style="margin-bottom:12px;padding:10px 14px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;">
-                {{-- Jenis header with summary --}}
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-                  <span style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;background:#1d4ed8;color:#fff;">{{ $jenisLbl }}</span>
-                  <span style="font-size:10px;color:#94a3b8;">{{ $totalTools }} tools</span>
-                  {{-- Summary per kategori --}}
-                  @foreach(['bagus','rusak','skAudit','hilang'] as $kat)
-                    @php $cnt = count($entry[$kat] ?? []); @endphp
-                    @if($cnt > 0)
-                      <span style="font-size:10px;font-weight:600;color:{{ $mtKatColor[$kat] }};">{{ $mtKatLabel[$kat] }}: {{ $cnt }}</span>
-                    @endif
-                  @endforeach
-                </div>
 
-                {{-- Per-kategori detail --}}
+              {{-- Summary stat row --}}
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
                 @foreach(['bagus','rusak','skAudit','hilang'] as $kat)
-                  @php $tools = $entry[$kat] ?? []; @endphp
-                  @if(count($tools))
-                  <div style="margin-bottom:6px;">
-                    <div style="font-size:10px;font-weight:600;color:{{ $mtKatColor[$kat] }};margin-bottom:3px;">
-                      {{ $mtKatLabel[$kat] }} ({{ count($tools) }})
-                    </div>
-                    <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                  @php $cnt = count($entry[$kat] ?? []); @endphp
+                  <div style="border:1px solid {{ $mtKatBorder[$kat] }};border-radius:8px;padding:8px 10px;background:{{ $mtKatBg[$kat] }};text-align:center;">
+                    <div style="font-size:20px;font-weight:800;color:{{ $mtKatText[$kat] }};line-height:1;">{{ $cnt }}</div>
+                    <div style="font-size:9.5px;font-weight:600;color:{{ $mtKatText[$kat] }};margin-top:2px;opacity:.85;">{{ $mtKatIcon[$kat] }} {{ $mtKatLabel[$kat] }}</div>
+                  </div>
+                @endforeach
+              </div>
+
+              {{-- Detail table per kategori --}}
+              @foreach(['bagus','rusak','skAudit','hilang'] as $kat)
+                @php $tools = $entry[$kat] ?? []; @endphp
+                @if(count($tools))
+                <div style="margin-bottom:10px;">
+                  {{-- Kategori header --}}
+                  <div style="background:{{ $mtKatBg[$kat] }};border:1px solid {{ $mtKatBorder[$kat] }};border-bottom:none;padding:5px 10px;border-radius:6px 6px 0 0;display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:11px;font-weight:700;color:{{ $mtKatText[$kat] }};">{{ $mtKatIcon[$kat] }} {{ $mtKatLabel[$kat] }}</span>
+                    <span style="font-size:10px;color:{{ $mtKatText[$kat] }};opacity:.7;">({{ count($tools) }} item)</span>
+                  </div>
+                  {{-- Tool grid --}}
+                  <div style="border:1px solid {{ $mtKatBorder[$kat] }};border-radius:0 0 6px 6px;padding:8px 10px;background:#fff;">
+                    <div style="display:flex;flex-wrap:wrap;gap:5px;">
                       @foreach($tools as $tool)
-                      <span style="font-size:9.5px;padding:2px 8px;border-radius:999px;border:1px solid {{ $mtKatColor[$kat] }}33;color:{{ $mtKatColor[$kat] }};background:{{ $mtKatColor[$kat] }}11;">
+                      <span style="font-size:9.5px;font-weight:500;padding:3px 9px;border-radius:4px;background:{{ $mtKatBg[$kat] }};color:{{ $mtKatText[$kat] }};border:1px solid {{ $mtKatBorder[$kat] }};">
                         {{ $tool }}
                       </span>
                       @endforeach
                     </div>
                   </div>
-                  @endif
-                @endforeach
-              </div>
+                </div>
+                @endif
+              @endforeach
+
             @endforeach
           </div>
         @endforeach
