@@ -4228,7 +4228,7 @@ function hgpRenderItems() {
         </tr>`;
     }).join('');
 
-    // Input change — keterangan (text) dan wo (number → recalc)
+    // Input change — keterangan (text) dan wo (number → recalc in-place)
     tbody.querySelectorAll('.hgp-inp').forEach(inp => {
         inp.addEventListener('input', () => {
             const i = parseInt(inp.dataset.hgpI);
@@ -4236,7 +4236,23 @@ function hgpRenderItems() {
             if (f === 'wo') {
                 _hgpData.items[i].wo = hgpN(inp.value);
                 hgpCalcItem(_hgpData.items[i]);
-                hgpRenderItems();   // re-render untuk update Akhir & Selisih
+                // Update only the affected cells in-place (no full re-render)
+                const row = inp.closest('tr');
+                if (row) {
+                    const it = _hgpData.items[i];
+                    const sel = hgpN(it.selisih);
+                    const selSign = sel >= 0 ? '+' : '';
+                    const selClass = sel < 0 ? 'text-red-400 font-bold' : sel > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
+                    const harga = hgpN(it.hargaHet);
+                    const jumlah = harga * sel;
+                    const jumlahFmt = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
+                    const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
+                    const cells = row.querySelectorAll('td');
+                    // col indices: 0=no,1=noPart,2=nama,3=tgl,4=saldo,5=fisik,6=wo-input,7=akhir,8=selisih,9=harga,10=jumlah,11=ket,12=log
+                    if (cells[7]) cells[7].textContent = hgpN(it.akhir);
+                    if (cells[8]) { cells[8].textContent = `${selSign}${sel}`; cells[8].className = `px-3 py-2 text-right ${selClass}`; }
+                    if (cells[10]) { cells[10].textContent = jumlahFmt; cells[10].className = `px-3 py-2 text-right ${jumlahClass}`; }
+                }
             } else {
                 _hgpData.items[i][f] = inp.value;
             }
