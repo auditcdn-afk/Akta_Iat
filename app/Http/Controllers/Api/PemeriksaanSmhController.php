@@ -330,6 +330,61 @@ class PemeriksaanSmhController extends Controller
         }
     }
 
+    // ── POST /api/audit-detail/smh/manual ────────────────────────────────────
+
+    public function storeManual(Request $request): JsonResponse
+    {
+        $this->ensureCanWrite($request);
+
+        $data = $request->validate([
+            'plan_audit_id' => ['required', 'integer', 'exists:plan_audits,id'],
+            'no_mesin'      => ['required', 'string', 'max:80'],
+            'no_rangka'     => ['required', 'string', 'max:80'],
+            'gudang'        => ['nullable', 'string', 'max:80'],
+        ]);
+
+        $planId = (int) $data['plan_audit_id'];
+        $plan   = PlanAudit::findOrFail($planId);
+
+        // Ambil atau buat record PemeriksaanSmh untuk plan ini
+        $smh = PemeriksaanSmh::firstOrCreate(
+            ['plan_audit_id' => $planId],
+            [
+                'no_spt'     => $plan->no_spt,
+                'cabang'     => $plan->cabang,
+                'created_by' => $this->who($request),
+            ]
+        );
+
+        $item = SmhOnhandItem::create([
+            'pemeriksaan_smh_id' => $smh->id,
+            'no_mesin'           => strtoupper(trim($data['no_mesin'])),
+            'no_rangka'          => strtoupper(trim($data['no_rangka'])),
+            'gudang'             => $data['gudang'] ?? null,
+            'status_fisik'       => 'ada',
+            'keterangan_fisik'   => 'Input Manual',
+        ]);
+
+        // Update total_unit di SMH header
+        $smh->total_unit      = $smh->items()->count();
+        $smh->total_ditemukan = $smh->items()->whereNotNull('status_fisik')->where('status_fisik', 'ada')->count();
+        $smh->updated_by      = $this->who($request);
+        $smh->save();
+
+        // Auto-sync perlengkapan untuk item ini
+        $prefix  = strtoupper(substr(str_replace(' ', '', $item->no_mesin), 0, 5));
+        $wilayah = $this->wilayahFromPlan((string) $planId);
+        $plRow   = $this->findPerlengkapan($prefix, $wilayah);
+        $perlengkapan = $plRow ? $plRow->itemList() : [];
+
+        return response()->json([
+            'message'      => 'Unit berhasil ditambahkan secara manual.',
+            'item'         => $this->formatItem($item),
+            'perlengkapan' => $perlengkapan,
+            'smh'          => $this->format($smh->load('items')),
+        ], 201);
+    }
+
     private function ensureCanWrite(Request $request): void
     {
         abort_unless(in_array($this->role($request), $this->writeRoles, true), 403, 'Role tidak diizinkan.');

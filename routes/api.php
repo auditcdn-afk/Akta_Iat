@@ -273,6 +273,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/audit-detail/smh/perlengkapan', [PemeriksaanSmhController::class, 'perlengkapan']);
     Route::post('/audit-detail/smh/upload', [PemeriksaanSmhController::class, 'upload'])
         ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/smh/manual', [PemeriksaanSmhController::class, 'storeManual'])
+        ->middleware('akta.role:admin,manajer,auditor');
     Route::get('/audit-detail/smh/{pemeriksaanSmh}/sync-perlengkapan', [PemeriksaanSmhController::class, 'syncPerlengkapan']);
     Route::put('/audit-detail/smh/items/{item}', [PemeriksaanSmhController::class, 'checkItem'])
         ->middleware('akta.role:admin,manajer,auditor');

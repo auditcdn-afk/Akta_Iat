@@ -1570,6 +1570,72 @@ document.addEventListener("DOMContentLoaded", async () => {
         smhScanUnit(q).catch((e) => showAlert(e.message, 'error'));
     });
 
+    // ── Tambah Manual SMH ─────────────────────────────────────────────────────
+    const smhManualModal  = document.getElementById('smhManualModal');
+    const smhManualAlert  = document.getElementById('smhManualAlert');
+
+    function openSmhManual() {
+        document.getElementById('smhManualNoMesin').value  = '';
+        document.getElementById('smhManualNoRangka').value = '';
+        document.getElementById('smhManualGudang').value   = '';
+        smhManualAlert.classList.add('hidden');
+        smhManualModal.classList.remove('hidden');
+        smhManualModal.classList.add('flex');
+        document.getElementById('smhManualNoMesin').focus();
+    }
+
+    function closeSmhManual() {
+        smhManualModal.classList.add('hidden');
+        smhManualModal.classList.remove('flex');
+    }
+
+    document.getElementById('smhManualBtn')?.addEventListener('click', openSmhManual);
+    document.getElementById('smhManualClose')?.addEventListener('click', closeSmhManual);
+    document.getElementById('smhManualCancel')?.addEventListener('click', closeSmhManual);
+
+    document.getElementById('smhManualSave')?.addEventListener('click', async () => {
+        const noMesin  = document.getElementById('smhManualNoMesin').value.trim().toUpperCase();
+        const noRangka = document.getElementById('smhManualNoRangka').value.trim().toUpperCase();
+        const gudang   = document.getElementById('smhManualGudang').value.trim();
+
+        if (!noMesin || !noRangka) {
+            smhManualAlert.textContent = 'No. Mesin dan No. Rangka wajib diisi.';
+            smhManualAlert.className = 'rounded-lg px-3 py-2 text-xs bg-red-900/40 text-red-300';
+            return;
+        }
+
+        const saveBtn = document.getElementById('smhManualSave');
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Menyimpan...';
+
+        try {
+            const res = await fetchJson('/api/audit-detail/smh/manual', {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({
+                    plan_audit_id: activePlanId,
+                    no_mesin:  noMesin,
+                    no_rangka: noRangka,
+                    gudang:    gudang || null,
+                }),
+            });
+
+            smhManualAlert.textContent = res.message || 'Berhasil ditambahkan.';
+            smhManualAlert.className = 'rounded-lg px-3 py-2 text-xs bg-emerald-900/40 text-emerald-300';
+
+            // Refresh daftar SMH
+            await loadSmhForm();
+
+            setTimeout(closeSmhManual, 800);
+        } catch (err) {
+            smhManualAlert.textContent = err.message || 'Gagal menyimpan.';
+            smhManualAlert.className = 'rounded-lg px-3 py-2 text-xs bg-red-900/40 text-red-300';
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Simpan';
+        }
+    });
+
     document.getElementById('smhScanInput')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             const q = e.target.value.trim();
