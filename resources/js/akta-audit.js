@@ -6258,167 +6258,149 @@ async function rekomendasiAutoFill() {
     if (!activePlanId) return;
     const isiEl = document.getElementById('rekomendasiIsi');
     if (!isiEl) return;
-    isiEl.value = 'Memuat data...';
-    const fmtRp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
-    const lines = [];
+    isiEl.value = '⏳ Memuat data pemeriksaan...';
+
+    const fmtRp  = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+    const sep    = '─'.repeat(48);
+    const blocks = [];
+
     try {
-        // 1. KAS
+        // ── 1. PEMERIKSAAN KAS ──────────────────────────────
         try {
-            const kasRes = await fetchJson(`/api/audit-detail/kas?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const kasRes  = await fetchJson(`/api/audit-detail/kas?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
             const kasRows = kasRes.data ?? kasRes ?? [];
             let selBesar = 0, selKecil = 0;
             for (const k of kasRows) {
-                const items = k.items_json ?? k.itemsJson ?? [];
-                let sb = 0, sf = 0, sBuku = 0, sFisik = 0;
-                for (const it of items) {
-                    if ((it.kategori || it.jenis || '').toLowerCase().includes('besar')) {
-                        sBuku += Number(it.saldoBuku ?? it.saldo_buku ?? 0);
-                        sFisik += Number(it.saldoFisik ?? it.saldo_fisik ?? 0);
-                    } else if ((it.kategori || it.jenis || '').toLowerCase().includes('kecil')) {
-                        sb += Number(it.saldoBuku ?? it.saldo_buku ?? 0);
-                        sf += Number(it.saldoFisik ?? it.saldo_fisik ?? 0);
-                    }
+                selBesar += Number(k.selisihBesar ?? k.selisih_besar ?? 0);
+                selKecil += Number(k.selisihKecil ?? k.selisih_kecil ?? 0);
+                for (const it of (k.items_json ?? k.itemsJson ?? [])) {
+                    const kat = (it.kategori || it.jenis || '').toLowerCase();
+                    if (kat.includes('besar')) selBesar += Number(it.saldoFisik ?? 0) - Number(it.saldoBuku ?? 0);
+                    else if (kat.includes('kecil')) selKecil += Number(it.saldoFisik ?? 0) - Number(it.saldoBuku ?? 0);
                 }
-                selBesar += (sFisik - sBuku) || (Number(k.selisihBesar ?? k.selisih_besar ?? 0));
-                selKecil += (sf - sb) || (Number(k.selisihKecil ?? k.selisih_kecil ?? 0));
             }
-            // fallback: gunakan data in-memory dari tampilan kas jika tersedia
-            const kasBesarEl = document.querySelector('[data-kas-selisih-besar]');
-            const kasKecilEl = document.querySelector('[data-kas-selisih-kecil]');
-            const items = [];
-            if (selBesar !== 0) items.push(`Kas Besar: selisih ${fmtRp(selBesar)}`);
-            if (selKecil !== 0) items.push(`Kas Kecil: selisih ${fmtRp(selKecil)}`);
-            if (items.length) lines.push('1. PEMERIKSAAN KAS\n   ' + items.join('\n   '));
+            const rows = [];
+            if (selBesar !== 0) rows.push(`  • Kas Besar : selisih ${fmtRp(Math.abs(selBesar))} (${selBesar < 0 ? 'kurang' : 'lebih'})`);
+            if (selKecil !== 0) rows.push(`  • Kas Kecil : selisih ${fmtRp(Math.abs(selKecil))} (${selKecil < 0 ? 'kurang' : 'lebih'})`);
+            if (rows.length) blocks.push(`1. PEMERIKSAAN KAS\n${rows.join('\n')}`);
         } catch {}
 
-        // 2. Fisik SMH
+        // ── 2. CEK FISIK SMH ────────────────────────────────
         try {
-            const smhRes = await fetchJson(`/api/audit-detail/smh?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const smhRes  = await fetchJson(`/api/audit-detail/smh?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
             const smhRows = smhRes.data ?? smhRes ?? [];
             let totalUnit = 0, totalTemukan = 0;
             for (const s of smhRows) {
-                totalUnit += Number(s.totalUnit ?? s.total_unit ?? 0);
+                totalUnit    += Number(s.totalUnit ?? s.total_unit ?? 0);
                 totalTemukan += Number(s.ditemukan ?? s.totalDitemukan ?? 0);
             }
             if (totalUnit > 0) {
                 const tidakTemukan = totalUnit - totalTemukan;
-                lines.push(`2. CEK FISIK SMH\n   Total unit: ${totalUnit}, Ditemukan: ${totalTemukan}${tidakTemukan > 0 ? `, Tidak ditemukan: ${tidakTemukan}` : ''}`);
+                const rows = [`  • Total unit diperiksa : ${totalUnit}`,
+                              `  • Ditemukan           : ${totalTemukan}`];
+                if (tidakTemukan > 0) rows.push(`  • Tidak ditemukan     : ${tidakTemukan} unit`);
+                blocks.push(`2. CEK FISIK SMH\n${rows.join('\n')}`);
             }
         } catch {}
 
-        // 3. Perlengkapan SMH — rekap gabungan per jenis (SMH cek fisik + luar SMH)
+        // ── 3. PERLENGKAPAN SMH — rekap gabungan per jenis ──
         try {
             const [smhSumRes, luarRes] = await Promise.all([
                 fetchJson(`/api/audit-detail/perlengkapan/smh-summary?plan_audit_id=${activePlanId}`, { headers: authHeaders() }),
                 fetchJson(`/api/audit-detail/perlengkapan?plan_audit_id=${activePlanId}`, { headers: authHeaders() }),
             ]);
-            // SMH cek fisik: { nama, ada (fisik), total (saldo) }
             const smhMap = {};
             for (const r of (smhSumRes.data ?? [])) {
                 const nm = (r.nama || '').trim();
-                if (!nm) continue;
-                smhMap[nm] = { smhSaldo: Number(r.total ?? 0), smhFisik: Number(r.ada ?? 0) };
+                if (nm) smhMap[nm] = { smhSaldo: Number(r.total ?? 0), smhFisik: Number(r.ada ?? 0) };
             }
-            // Perlengkapan luar SMH
             const luarMap = {};
             for (const p of (luarRes.data ?? [])) {
                 const nm = (p.jenisPerlengkapan ?? p.jenis_perlengkapan ?? p.jenis ?? '').trim();
                 if (!nm) continue;
-                if (!luarMap[nm]) luarMap[nm] = { luarSaldo: 0, luarFisik: 0, luarSelisih: 0 };
-                luarMap[nm].luarSaldo   += Number(p.saldo ?? 0);
-                luarMap[nm].luarFisik   += Number(p.fisik ?? 0);
+                if (!luarMap[nm]) luarMap[nm] = { luarSelisih: 0 };
                 luarMap[nm].luarSelisih += Number(p.selisih ?? 0);
             }
-            // Gabungkan semua jenis
             const allJenis = [...new Set([...Object.keys(smhMap), ...Object.keys(luarMap)])].sort();
-            const selisihRows = [];
-            let grandTotalSel = 0;
+            const rows = [];
+            let grandSel = 0;
             for (const jenis of allJenis) {
                 const smhD  = smhMap[jenis]  ?? { smhSaldo: 0, smhFisik: 0 };
-                const luarD = luarMap[jenis] ?? { luarSaldo: 0, luarFisik: 0, luarSelisih: 0 };
-                const smhSel    = smhD.smhFisik - smhD.smhSaldo;
-                const totalSel  = smhSel + luarD.luarSelisih;
-                grandTotalSel  += totalSel;
-                if (totalSel !== 0) {
-                    selisihRows.push(`${jenis}: total selisih ${totalSel}`);
-                }
+                const luarD = luarMap[jenis] ?? { luarSelisih: 0 };
+                const totalSel = (smhD.smhFisik - smhD.smhSaldo) + luarD.luarSelisih;
+                grandSel += totalSel;
+                if (totalSel !== 0) rows.push(`  • ${jenis.padEnd(26)} selisih: ${totalSel}`);
             }
-            if (selisihRows.length > 0) {
-                lines.push(`3. PERLENGKAPAN SMH\n   Grand total selisih: ${grandTotalSel}\n   ` + selisihRows.join('\n   '));
-            }
+            if (rows.length) blocks.push(`3. PERLENGKAPAN SMH\n${rows.join('\n')}\n  ${'─'.repeat(40)}\n  Total selisih: ${grandSel}`);
         } catch {}
 
-        // 4. Materai
+        // ── 4. MATERAI ──────────────────────────────────────
         try {
-            const matRes = await fetchJson(`/api/audit-detail/materai?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const matRes  = await fetchJson(`/api/audit-detail/materai?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
             const matRows = matRes.data ?? matRes ?? [];
             let selMaterai = 0;
-            for (const m of matRows) {
-                selMaterai += Number(m.selisih ?? 0);
-            }
-            if (selMaterai !== 0) lines.push(`4. MATERAI\n   Selisih: ${selMaterai} lembar`);
+            for (const m of matRows) selMaterai += Number(m.selisih ?? 0);
+            if (selMaterai !== 0)
+                blocks.push(`4. MATERAI\n  • Selisih: ${Math.abs(selMaterai)} lembar (${selMaterai < 0 ? 'kurang' : 'lebih'})`);
         } catch {}
 
-        // 5. Cek Fisik (CF/BPKB)
+        // ── 5. CEK FISIK ────────────────────────────────────
         try {
-            const cfRes = await fetchJson(`/api/audit-detail/cek-fisik?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
-            const cf = cfRes.data ?? cfRes ?? {};
+            const cfRes   = await fetchJson(`/api/audit-detail/cek-fisik?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const cf      = cfRes.data ?? cfRes ?? {};
             const cfItems = cf.items_json ?? cf.itemsJson ?? cf.items ?? [];
-            let totalCf = 0, tidakAda = 0;
-            for (const it of cfItems) {
-                totalCf++;
-                if (!(it.ada ?? it.ditemukan ?? true)) tidakAda++;
-            }
-            if (tidakAda > 0) lines.push(`5. CEK FISIK\n   Tidak ditemukan: ${tidakAda} dari ${totalCf} item`);
+            let total = 0, tidakAda = 0;
+            for (const it of cfItems) { total++; if (!(it.ada ?? it.ditemukan ?? true)) tidakAda++; }
+            if (tidakAda > 0)
+                blocks.push(`5. CEK FISIK\n  • Tidak ditemukan: ${tidakAda} dari ${total} item`);
         } catch {}
 
-        // 6. HGP & AHM Oils
+        // ── 6. HGP & AHM OILS ───────────────────────────────
         try {
-            const hgpRes = await fetchJson(`/api/audit-detail/hgp?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
-            const hgp = hgpRes.data ?? hgpRes ?? {};
+            const hgpRes   = await fetchJson(`/api/audit-detail/hgp?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const hgp      = hgpRes.data ?? hgpRes ?? {};
             const hgpItems = hgp.items_json ?? hgp.itemsJson ?? hgp.items ?? [];
-            let hgpTotalSel = 0, hgpTotalNilai = 0;
-            const hgpSelisihRows = [];
+            let cntSel = 0, totalNilai = 0;
+            const rows = [];
             for (const it of hgpItems) {
-                const sel = Number(it.selisih ?? 0);
+                const sel   = Number(it.selisih ?? 0);
                 const harga = Number(it.hargaHet ?? it.harga_het ?? 0);
-                const nilaiSel = Math.abs(sel) * harga;
                 if (sel !== 0) {
-                    hgpTotalSel++;
-                    hgpTotalNilai += nilaiSel;
-                    hgpSelisihRows.push(`${it.sparepart || it.noPart || '-'}: selisih ${sel} (${fmtRp(nilaiSel)})`);
+                    cntSel++;
+                    totalNilai += Math.abs(sel) * harga;
+                    const nama = (it.sparepart || it.noPart || '-').substring(0, 28);
+                    rows.push(`  • ${nama.padEnd(30)} sel: ${sel}  nilai: ${fmtRp(Math.abs(sel) * harga)}`);
                 }
             }
-            if (hgpTotalSel > 0) {
-                lines.push(`6. HGP & AHM OILS\n   Item selisih: ${hgpTotalSel}, Total nilai: ${fmtRp(hgpTotalNilai)}\n   ` + hgpSelisihRows.slice(0, 10).join('\n   '));
+            if (cntSel > 0) {
+                blocks.push(`6. HGP & AHM OILS\n  • Item selisih : ${cntSel}\n  • Total nilai  : ${fmtRp(totalNilai)}\n${rows.slice(0, 12).join('\n')}`);
             }
         } catch {}
 
-        // 7. MT - rusak dan hilang
+        // ── 7. MEKANIK TOOLS (MT) ───────────────────────────
         try {
-            const mtRes = await fetchJson(`/api/audit-detail/mt?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
-            const mt = mtRes.data ?? mtRes ?? {};
+            const mtRes     = await fetchJson(`/api/audit-detail/mt?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const mt        = mtRes.data ?? mtRes ?? {};
             const mtEntries = mt.entries ?? mt.items_json ?? mt.itemsJson ?? [];
-            const mtMekanikSel = mt.mekanikSelectedJenis ?? {};
-            const mtLines = [];
+            const mtSel     = mt.mekanikSelectedJenis ?? {};
+            const rows = [];
             for (const entry of mtEntries) {
                 const mekanik = entry.mekanik || '-';
-                const jenis = entry.jenis || '';
-                const selectedJenis = mtMekanikSel[mekanik] || 'baru';
-                if (jenis !== selectedJenis) continue;
-                const rusak = (entry.rusak ?? []).length;
-                const hilang = (entry.hilang ?? []).length;
-                if (rusak > 0 || hilang > 0) {
-                    mtLines.push(`${mekanik}: rusak ${rusak}${hilang > 0 ? `, hilang ${hilang}` : ''}`);
-                }
+                if ((entry.jenis || '') !== (mtSel[mekanik] || 'baru')) continue;
+                const rusak  = (entry.rusak  ?? []);
+                const hilang = (entry.hilang ?? []);
+                if (!rusak.length && !hilang.length) continue;
+                rows.push(`  • ${mekanik}`);
+                if (rusak.length)  rows.push(`    Rusak  (${rusak.length})  : ${rusak.map(t => t.nama || t).join(', ')}`);
+                if (hilang.length) rows.push(`    Hilang (${hilang.length}) : ${hilang.map(t => t.nama || t).join(', ')}`);
             }
-            if (mtLines.length) lines.push('7. MEKANIK TOOLS (MT)\n   ' + mtLines.join('\n   '));
+            if (rows.length) blocks.push(`7. MEKANIK TOOLS (MT)\n${rows.join('\n')}`);
         } catch {}
 
-        isiEl.value = lines.length
-            ? lines.join('\n\n')
+        isiEl.value = blocks.length
+            ? blocks.join('\n\n' + sep + '\n\n')
             : '(Tidak ada temuan signifikan dari data pemeriksaan)';
-    } catch (e) {
+    } catch {
         isiEl.value = '';
     }
 }

@@ -2423,23 +2423,26 @@
                 </div>
 
                 <div>
-                    <label class="mb-1 block text-xs font-semibold text-blue-400">Isi Rekomendasi <span class="text-red-400">*</span></label>
-                    <textarea id="rekomendasiIsi" rows="4" placeholder="Tuliskan rekomendasi..."
-                        class="w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 resize-none"></textarea>
+                    <div class="mb-1 flex items-center justify-between">
+                        <label class="text-xs font-semibold text-blue-400">Isi Rekomendasi <span class="text-red-400">*</span></label>
+                        <span class="text-xs text-slate-500 italic">Auto-filled dari data pemeriksaan · dapat diedit</span>
+                    </div>
+                    <textarea id="rekomendasiIsi" rows="14" placeholder="Tuliskan rekomendasi..."
+                        class="w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-3 text-xs text-slate-100 outline-none focus:border-blue-500 resize-y font-mono leading-relaxed"></textarea>
                 </div>
 
-                <div>
-                    <label class="mb-1 block text-xs font-semibold text-blue-400">Upload File</label>
-                    <div id="rekomendasiDropzone"
-                        class="cursor-pointer rounded-xl border-2 border-dashed border-slate-600/60 bg-slate-800/30 p-6 text-center transition hover:border-blue-400 hover:bg-blue-900/10">
-                        <div class="text-3xl mb-2">📄</div>
-                        <p class="text-xs text-slate-400 mb-3">Drag &amp; drop file ke sini atau klik untuk pilih</p>
-                        <label class="inline-block cursor-pointer rounded-lg bg-slate-700 px-4 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-600 transition">
-                            Pilih File
-                            <input id="rekomendasiFileInput" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="hidden">
-                        </label>
-                        <p id="rekomendasiFileName" class="mt-2 text-xs text-blue-400 hidden"></p>
+                <div class="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800/40 px-4 py-2">
+                    <span class="text-lg">📎</span>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-semibold text-blue-400">Upload File Lampiran</p>
+                        <p id="rekomendasiFileName" class="text-xs text-blue-300 truncate hidden"></p>
+                        <p class="text-xs text-slate-500" id="rekomendasiFileHint">PDF, JPG, PNG, DOC (opsional)</p>
                     </div>
+                    <label class="cursor-pointer rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-600 transition shrink-0">
+                        Pilih File
+                        <input id="rekomendasiFileInput" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="hidden">
+                    </label>
+                    <div id="rekomendasiDropzone" class="hidden"></div>
                 </div>
 
                 <div class="flex gap-3 justify-end pt-2">
