@@ -950,23 +950,144 @@
     @if($materai->isEmpty())
       <p class="empty">Belum ada data.</p>
     @else
-      <table>
-        <thead><tr><th>#</th><th>Jenis Materai</th><th>Saldo Awal</th><th>Total Debet</th><th>Total Kredit</th><th>Saldo Akhir</th><th>Fisik</th><th>Selisih</th></tr></thead>
+
+    {{-- ── Ringkasan semua jenis materai ── --}}
+    <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;padding:10px 14px;margin-bottom:16px;">
+      <div style="font-weight:700;font-size:12px;color:#4c1d95;margin-bottom:8px;">RINGKASAN PEMERIKSAAN MATERAI</div>
+      <table style="font-size:10px;">
+        <thead>
+          <tr style="background:#ede9fe;">
+            <th style="text-align:left;padding:4px 8px;border:1px solid #ddd6fe;">#</th>
+            <th style="text-align:left;padding:4px 8px;border:1px solid #ddd6fe;">Jenis Materai</th>
+            <th style="text-align:right;padding:4px 8px;border:1px solid #ddd6fe;">Saldo Awal</th>
+            <th style="text-align:right;padding:4px 8px;border:1px solid #ddd6fe;">Total Debet (+)</th>
+            <th style="text-align:right;padding:4px 8px;border:1px solid #ddd6fe;">Total Kredit (−)</th>
+            <th style="text-align:right;padding:4px 8px;border:1px solid #ddd6fe;">Saldo Buku</th>
+            <th style="text-align:right;padding:4px 8px;border:1px solid #ddd6fe;">Fisik</th>
+            <th style="text-align:right;padding:4px 8px;border:1px solid #ddd6fe;">Uang (Rp 10rb)</th>
+            <th style="text-align:right;padding:4px 8px;border:1px solid #ddd6fe;">Selisih</th>
+          </tr>
+        </thead>
         <tbody>
           @foreach($materai as $i => $m)
+          @php $sel = (int)($m->selisih ?? 0); @endphp
           <tr>
-            <td>{{ (int)$i+1 }}</td>
-            <td>{{ $m->jenis_materai ?? '-' }}</td>
-            <td style="text-align:right">{{ number_format($m->saldo_awal ?? 0, 0, ',', '.') }}</td>
-            <td style="text-align:right">{{ number_format($m->total_debet ?? 0, 0, ',', '.') }}</td>
-            <td style="text-align:right">{{ number_format($m->total_kredit ?? 0, 0, ',', '.') }}</td>
-            <td style="text-align:right">{{ number_format($m->saldo_akhir ?? 0, 0, ',', '.') }}</td>
-            <td style="text-align:right">{{ number_format($m->fisik ?? 0, 0, ',', '.') }}</td>
-            <td style="text-align:right">{{ number_format($m->selisih ?? 0, 0, ',', '.') }}</td>
+            <td style="padding:4px 8px;border:1px solid #e5e7eb;">{{ (int)$i+1 }}</td>
+            <td style="padding:4px 8px;border:1px solid #e5e7eb;font-weight:700;">{{ $m->jenis_materai ?? '-' }}</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;">{{ number_format($m->saldo_awal ?? 0, 0, ',', '.') }}</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;color:#059669;">{{ number_format($m->total_debet ?? 0, 0, ',', '.') }}</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;color:#dc2626;">{{ number_format($m->total_kredit ?? 0, 0, ',', '.') }}</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;font-weight:700;">{{ number_format($m->saldo_akhir ?? 0, 0, ',', '.') }}</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;font-weight:700;">{{ number_format($m->fisik ?? 0, 0, ',', '.') }}</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;">{{ $m->uang_10000 ? 'Rp '.number_format($m->uang_10000 * 10000, 0, ',', '.') : '-' }}</td>
+            <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;font-weight:700;color:{{ $sel != 0 ? '#dc2626' : '#059669' }};">{{ number_format($sel, 0, ',', '.') }}</td>
           </tr>
           @endforeach
         </tbody>
       </table>
+    </div>
+
+    {{-- ── Detail per jenis materai ── --}}
+    @foreach($materai as $mi => $m)
+    @php
+      $trx     = $m->transaksi_json ?? [];
+      $trxDebet  = array_filter($trx, fn($t) => ($t['debet'] ?? 0) > 0);
+      $trxKredit = array_filter($trx, fn($t) => ($t['kredit'] ?? 0) > 0);
+      $sel       = (int)($m->selisih ?? 0);
+    @endphp
+    <div style="margin-bottom:16px;border:1px solid #d1d5db;border-radius:6px;overflow:hidden;">
+      <div style="background:#7c3aed;color:#fff;padding:7px 12px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:700;font-size:11px;">🏷️ {{ (int)$mi+1 }}. {{ $m->jenis_materai ?? '-' }}</span>
+        <span style="font-size:10px;opacity:.85;">Selisih: <strong style="color:{{ $sel != 0 ? '#fca5a5' : '#6ee7b7' }}">{{ number_format($sel, 0, ',', '.') }}</strong></span>
+      </div>
+      <div style="padding:10px 12px;">
+
+        {{-- Rekap saldo ── --}}
+        <table style="width:260px;margin-bottom:12px;font-size:10px;border:1px solid #d1d5db;">
+          <tr style="background:#f5f3ff;">
+            <td style="padding:3px 8px;border:1px solid #d1d5db;font-weight:700;">Saldo Awal (Buku)</td>
+            <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;">{{ number_format($m->saldo_awal ?? 0, 0, ',', '.') }}</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 8px;border:1px solid #d1d5db;color:#059669;">+ Total Debet (masuk)</td>
+            <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;color:#059669;">{{ number_format($m->total_debet ?? 0, 0, ',', '.') }}</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 8px;border:1px solid #d1d5db;color:#dc2626;">− Total Kredit (keluar)</td>
+            <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;color:#dc2626;">{{ number_format($m->total_kredit ?? 0, 0, ',', '.') }}</td>
+          </tr>
+          <tr style="background:#ede9fe;font-weight:700;">
+            <td style="padding:3px 8px;border:1px solid #d1d5db;">Saldo Buku (Akhir)</td>
+            <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;">{{ number_format($m->saldo_akhir ?? 0, 0, ',', '.') }}</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 8px;border:1px solid #d1d5db;">Fisik (lembar)</td>
+            <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;font-weight:700;">{{ number_format($m->fisik ?? 0, 0, ',', '.') }}</td>
+          </tr>
+          @if($m->uang_10000)
+          <tr>
+            <td style="padding:3px 8px;border:1px solid #d1d5db;">Uang Rp 10.000 (pengganti)</td>
+            <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;">Rp {{ number_format($m->uang_10000 * 10000, 0, ',', '.') }}</td>
+          </tr>
+          @endif
+          <tr style="background:{{ $sel != 0 ? '#fee2e2' : '#f0fdf4' }};font-weight:700;">
+            <td style="padding:3px 8px;border:1px solid #d1d5db;">Selisih (Fisik − Buku)</td>
+            <td style="text-align:right;padding:3px 8px;border:1px solid #d1d5db;color:{{ $sel != 0 ? '#dc2626' : '#059669' }};">{{ number_format($sel, 0, ',', '.') }}</td>
+          </tr>
+        </table>
+
+        {{-- Transaksi ── --}}
+        @if(count($trx))
+        <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:6px;">Riwayat Transaksi</div>
+        <table style="font-size:9.5px;">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Tanggal</th>
+              <th>Keterangan</th>
+              <th style="text-align:right;color:#059669">Debet (+)</th>
+              <th style="text-align:right;color:#dc2626">Kredit (−)</th>
+              <th style="text-align:right">Saldo</th>
+            </tr>
+          </thead>
+          <tbody>
+            @php $runSaldo = (int)($m->saldo_awal ?? 0); @endphp
+            <tr style="background:#f5f3ff;font-weight:700;">
+              <td colspan="2">Saldo Awal</td>
+              <td colspan="3"></td>
+              <td style="text-align:right">{{ number_format($runSaldo, 0, ',', '.') }}</td>
+            </tr>
+            @foreach($trx as $ti => $t)
+            @php
+              $dbt = (int)($t['debet'] ?? 0);
+              $krd = (int)($t['kredit'] ?? 0);
+              $runSaldo += $dbt - $krd;
+            @endphp
+            <tr>
+              <td>{{ $ti + 1 }}</td>
+              <td>{{ $t['tanggal'] ?? '-' }}</td>
+              <td>{{ $t['keterangan'] ?? '-' }}</td>
+              <td style="text-align:right;color:#059669;font-weight:{{ $dbt ? '700' : '400' }}">{{ $dbt ? number_format($dbt, 0, ',', '.') : '-' }}</td>
+              <td style="text-align:right;color:#dc2626;font-weight:{{ $krd ? '700' : '400' }}">{{ $krd ? number_format($krd, 0, ',', '.') : '-' }}</td>
+              <td style="text-align:right;font-weight:700">{{ number_format($runSaldo, 0, ',', '.') }}</td>
+            </tr>
+            @endforeach
+            <tr style="background:#ede9fe;font-weight:700;">
+              <td colspan="3" style="text-align:right">Total</td>
+              <td style="text-align:right;color:#059669">{{ number_format($m->total_debet ?? 0, 0, ',', '.') }}</td>
+              <td style="text-align:right;color:#dc2626">{{ number_format($m->total_kredit ?? 0, 0, ',', '.') }}</td>
+              <td style="text-align:right">{{ number_format($m->saldo_akhir ?? 0, 0, ',', '.') }}</td>
+            </tr>
+          </tbody>
+        </table>
+        @else
+          <p style="color:#9ca3af;font-size:10px;font-style:italic;">Tidak ada riwayat transaksi.</p>
+        @endif
+
+      </div>
+    </div>
+    @endforeach
+
     @endif
   </div>
 </div>
