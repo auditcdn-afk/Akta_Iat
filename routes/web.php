@@ -32,6 +32,7 @@ Route::prefix('akta')->name('akta.')->group(function () {
 
     Route::view('/report-audit', 'akta.pages.report-audit')->name('report-audit');
     Route::get('/report-audit/pdf/{plan}', [\App\Http\Controllers\ReportPdfController::class, 'show'])->name('report-audit.pdf');
+    Route::get('/report-audit/pdf/{plan}/download', [\App\Http\Controllers\ReportPdfController::class, 'download'])->name('report-audit.pdf.download');
     Route::view('/audit', 'akta.pages.audit')->name('audit');
     Route::view('/grading', 'akta.pages.grading')->name('grading');
     Route::view('/audit-detail/kas', 'akta.pages.audit-detail-kas')->name('audit-detail.kas');

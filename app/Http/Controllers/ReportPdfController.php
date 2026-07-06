@@ -24,11 +24,41 @@ use App\Models\PemeriksaanSmhTarikan;
 use App\Models\PemeriksaanTtpGantung;
 use App\Models\PlanAudit;
 use App\Models\SmhOnhandItem;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 
 class ReportPdfController extends Controller
 {
     public function show(PlanAudit $plan): View
+    {
+        return view('akta.pdf.report-audit', $this->buildViewData($plan));
+    }
+
+    public function download(PlanAudit $plan): Response
+    {
+        $viewData = $this->buildViewData($plan);
+        // For PDF download: replace PDF embeds with placeholder (DomPDF cannot render <embed>)
+        foreach ($viewData['lampiranEmbeds'] as &$embed) {
+            if ($embed['type'] === 'pdf') {
+                $embed['data'] = null; // will show fallback in blade
+            }
+        }
+        unset($embed);
+
+        $pdf = Pdf::loadView('akta.pdf.report-audit', $viewData)
+            ->setPaper('a4', 'portrait')
+            ->setOption('isHtml5ParserEnabled', true)
+            ->setOption('isPhpEnabled', true)
+            ->setOption('defaultFont', 'Arial')
+            ->setOption('dpi', 110);
+
+        $filename = 'Laporan-Audit-' . ($plan->no_spt ? str_replace('/', '-', $plan->no_spt) : $plan->id) . '.pdf';
+
+        return $pdf->download($filename);
+    }
+
+    private function buildViewData(PlanAudit $plan): array
     {
         $id = $plan->id;
 
@@ -50,7 +80,6 @@ class ReportPdfController extends Controller
         $smhTarikan = PemeriksaanSmhTarikan::where('plan_audit_id', $id)->first();
         $lampiran   = PemeriksaanLampiran::where('plan_audit_id', $id)->first();
 
-        // ── Lampiran: embed images as base64 for inline display ──
         $lampiranEmbeds = [];
         if ($lampiran) {
             foreach ($lampiran->files_json ?? [] as $f) {
@@ -70,15 +99,14 @@ class ReportPdfController extends Controller
             }
         }
 
-        // ── Analisa Plafon (computed) ──
         $plafon = $this->buildPlafonAnalisa($plan);
 
-        return view('akta.pdf.report-audit', compact(
+        return compact(
             'plan', 'plafon', 'kas', 'smh', 'perlengkapan', 'bank', 'materai',
             'bpkbOnhand', 'bpkbInproses', 'kwitansi', 'piutangReguler',
             'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'hga',
             'smhTarikan', 'lampiran', 'lampiranEmbeds'
-        ));
+        );
     }
 
     private function buildPlafonAnalisa(PlanAudit $plan): array
