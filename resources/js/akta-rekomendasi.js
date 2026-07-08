@@ -438,7 +438,7 @@ function buildBirokrasiCards(item) {
             : '<p style="margin:4px 0 0;font-size:11px;color:' + statusColor + ';font-style:italic">' + statusLabel + '</p>';
 
         const btn = canIsi && canIsiStep(s.step)
-            ? '<button onclick="window.openIsiStepFromReko(' + item.id + ',' + s.realIdx + ',\'' + escapeHtml(s.step) + '\')" style="margin-top:6px;width:100%;border-radius:6px;background:#2563eb;border:none;padding:4px 8px;font-size:11px;font-weight:600;color:#fff;cursor:pointer">Isi Keputusan</button>'
+            ? '<button onclick="window.openIsiStepFromReko(' + item.id + ',' + s.realIdx + ',\'' + escapeHtml(s.step) + '\')" style="margin-top:6px;width:100%;border-radius:6px;background:#2563eb;border:none;padding:4px 8px;font-size:11px;font-weight:600;color:#fff;cursor:pointer">Isi Rekomendasi</button>'
             : '';
 
         return '<div style="min-width:150px;max-width:200px;border-radius:8px;padding:10px;flex-shrink:0;' + bgStyle + '">'
@@ -457,7 +457,7 @@ window.openIsiStepFromReko = function openIsiStepFromReko(rekId, stepIdx, roleNa
     modal.dataset.mode    = 'step';
     modal.dataset.rekId   = rekId;
     modal.dataset.stepIdx = stepIdx;
-    document.getElementById('isiModalSubtitle').textContent = 'Isi keputusan: ' + (roleName || '');
+    document.getElementById('isiModalSubtitle').textContent = 'Isi rekomendasi: ' + (roleName || '');
     document.getElementById('isiTglPengisian').value = new Date().toISOString().substring(0, 10);
     document.getElementById('isiKonten').value = '';
     modal.classList.remove('hidden');
