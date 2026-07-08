@@ -14,17 +14,20 @@ class AuditRecommendationController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $user       = $request->user();
-        $isInternal = $user && in_array($user->role, ['admin', 'manajer', 'auditor']);
-        $unitUsaha  = $user?->unit_usaha;
+        $user          = $request->user();
+        $isInternal    = $user && in_array($user->role, ['admin', 'manajer', 'auditor']);
+        $unitUsaha     = $user?->unit_usaha;
+        $userRoleUpper = strtoupper($user?->role ?? '');
 
-        // Collect all cabang names reachable by this user via birokrasi
+        // Collect all cabang names reachable by this user:
+        // - unit_usaha matches a unit in birokrasi (cabang staff)
+        // - role (case-insensitive) matches an approver in birokrasi (SO, RSS, Manajer IAT DEPT, etc.)
         $allowedCabang = [];
-        if (!$isInternal && $unitUsaha) {
+        if (!$isInternal) {
             foreach (config('birokrasi', []) as $group) {
-                // User's unit_usaha is either a direct unit OR matches a birokrasi role name
-                $inUnits     = in_array($unitUsaha, $group['units']);
-                $inApprovers = in_array($unitUsaha, $group['approvers']);
+                $approversUpper = array_map('strtoupper', $group['approvers']);
+                $inUnits        = $unitUsaha && in_array($unitUsaha, $group['units']);
+                $inApprovers    = $userRoleUpper && in_array($userRoleUpper, $approversUpper);
                 if ($inUnits || $inApprovers) {
                     $allowedCabang = array_merge($allowedCabang, $group['units']);
                 }
@@ -34,11 +37,13 @@ class AuditRecommendationController extends Controller
 
         $recommendations = AuditRecommendation::query()
             ->with(['planAudit', 'auditTask'])
-            // Non-internal users only see recs for their own cabang or birokrasi-related cabang
-            ->when(!$isInternal && $unitUsaha, function ($query) use ($allowedCabang, $unitUsaha) {
+            // Non-internal users only see recs for cabang they are responsible for via birokrasi
+            ->when(!$isInternal, function ($query) use ($allowedCabang, $unitUsaha) {
                 $query->whereHas('planAudit', function ($q) use ($allowedCabang, $unitUsaha) {
-                    $q->where('cabang', $unitUsaha)
-                      ->orWhereIn('cabang', $allowedCabang);
+                    $q->whereIn('cabang', $allowedCabang);
+                    if ($unitUsaha) {
+                        $q->orWhere('cabang', $unitUsaha);
+                    }
                 });
             })
             ->when($request->filled('q'), function ($query) use ($request) {
@@ -320,12 +325,14 @@ class AuditRecommendationController extends Controller
             return response()->json(['ok' => false, 'message' => 'Step sudah diisi.'], 422);
         }
 
-        // Authorization: internal roles can fill any step; others must match role name
+        // Authorization: internal roles can fill any step; others must match by role or unit_usaha
         $user       = $request->user();
         $isInternal = $user && in_array($user->role, ['admin', 'manajer', 'auditor']);
         if (!$isInternal) {
-            $stepRole = $steps[$idx]['role'] ?? $steps[$idx]['step'] ?? '';
-            if ($user?->unit_usaha !== $stepRole) {
+            $stepRole      = strtoupper($steps[$idx]['role'] ?? $steps[$idx]['step'] ?? '');
+            $userRoleUpper = strtoupper($user?->role ?? '');
+            $userUnitUpper = strtoupper($user?->unit_usaha ?? '');
+            if ($stepRole && $userRoleUpper !== $stepRole && $userUnitUpper !== $stepRole) {
                 return response()->json(['ok' => false, 'message' => 'Anda tidak berwenang mengisi step ini.'], 403);
             }
         }

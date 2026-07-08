@@ -47,12 +47,14 @@ function canIsiRekomendasi(item) {
 // Returns true if current user can fill a specific birokrasi step role
 function canIsiStep(roleName) {
     if (isInternal()) return true;
-    const myUnit = currentUser?.unitUsaha ?? '';
-    if (!myUnit) return false;
-    // Direct match: role name matches unit usaha (e.g. user unit_usaha = "SO" matches step "SO")
-    if (myUnit === roleName) return true;
-    // Prefix match: user "SO TDB" matches role "SO" — NO, this is wrong.
-    // Only exact match or admin/manajer/auditor can fill steps.
+    const stepRole = (roleName ?? '').toUpperCase();
+    if (!stepRole) return false;
+    // Match by role (e.g. user.role = "rss" matches step "RSS")
+    const myRole = (currentUser?.role ?? '').toUpperCase();
+    if (myRole && myRole === stepRole) return true;
+    // Match by unit_usaha (e.g. user.unitUsaha = "SO ALB" matches step "SO ALB")
+    const myUnit = (currentUser?.unitUsaha ?? '').toUpperCase();
+    if (myUnit && myUnit === stepRole) return true;
     return false;
 }
 
@@ -407,26 +409,50 @@ async function deleteRecommendation(id) {
 }
 
 function buildBirokrasiCards(item) {
-    const birokrasiSteps = (item.steps ?? []).filter(s => s.step !== 'created' && s.step !== 'isi_rekomendasi');
+    const allSteps = item.steps ?? [];
+    // Only show pending birokrasi steps (not 'created', not 'isi_rekomendasi')
+    const birokrasiSteps = allSteps
+        .map((s, realIdx) => ({ ...s, realIdx }))
+        .filter(s => s.step !== 'created' && s.step !== 'isi_rekomendasi');
     if (!birokrasiSteps.length) return '';
+
     const cards = birokrasiSteps.map((s, idx) => {
-        const done = s.status === 'done' || s.status === 'approved';
-        const prevDone = idx === 0 || (() => { const p = birokrasiSteps[idx-1]; return p?.status === 'done' || p?.status === 'approved'; })();
+        const done     = s.status === 'done' || s.status === 'approved';
+        const prevDone = idx === 0 || (() => {
+            const p = birokrasiSteps[idx - 1];
+            return p?.status === 'done' || p?.status === 'approved';
+        })();
         const canIsi = !done && prevDone;
-        const fullIdx = (item.steps ?? []).findIndex((fs, fi) => fi > 0 && fs.step === s.step);
-        const bg = done ? 'bg-slate-50 border-slate-200' : canIsi ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100';
+
+        const bg = done
+            ? 'bg-slate-800/60 border-slate-700'
+            : canIsi
+                ? 'bg-amber-900/20 border-amber-700/50'
+                : 'bg-slate-800/30 border-slate-700/40';
+
+        const textColor   = done ? 'text-slate-100' : canIsi ? 'text-amber-100' : 'text-slate-400';
+        const labelColor  = done ? 'text-emerald-400' : canIsi ? 'text-amber-300' : 'text-slate-500';
+        const statusLabel = done ? '✓ Sudah diisi' : canIsi ? '⏳ Giliran mengisi' : '— Menunggu';
+
         const content = done && s.note
-            ? `<p class="mt-1 text-xs text-slate-700">${escapeHtml(s.note)}</p><p class="mt-1 text-[10px] text-slate-400">${escapeHtml(s.user ?? '')}${s.time ? ' · ' + s.time.substring(0,10) : ''}</p>`
-            : `<p class="mt-1 text-xs text-slate-400 italic">${canIsi ? 'Giliran mengisi...' : 'Belum giliran'}</p>`;
+            ? `<p class="mt-1 text-xs ${textColor} whitespace-pre-line line-clamp-3">${escapeHtml(s.note)}</p>
+               <p class="mt-1 text-[10px] text-slate-500">${escapeHtml(s.user ?? '')}${s.time ? ' · ' + String(s.time).substring(0, 10) : ''}</p>`
+            : `<p class="mt-1 text-[11px] ${labelColor} italic">${statusLabel}</p>`;
+
         const btn = canIsi && canIsiStep(s.step)
-            ? `<button onclick="openIsiStepFromReko(${item.id}, ${fullIdx < 0 ? idx+1 : fullIdx}, '${escapeHtml(s.step)}')" class="mt-2 rounded-lg bg-blue-600 hover:bg-blue-500 px-2 py-1 text-[11px] font-semibold text-white">Isi Keputusan</button>`
-            : (canIsi ? `<p class="mt-1 text-[10px] text-amber-400 italic">Giliran pihak ini</p>` : '');
+            ? `<button onclick="openIsiStepFromReko(${item.id}, ${s.realIdx}, '${escapeHtml(s.step)}')"
+                class="mt-2 w-full rounded-lg bg-blue-600 hover:bg-blue-500 px-2 py-1 text-[11px] font-semibold text-white transition">
+                Isi Keputusan
+               </button>`
+            : '';
+
         return `<div class="rounded-lg border p-2.5 ${bg}" style="min-width:160px;max-width:220px">
-            <p class="text-xs font-bold text-slate-800">${escapeHtml(s.step)}</p>
+            <p class="text-xs font-bold text-slate-300">${escapeHtml(s.step)}</p>
             ${content}
             ${btn}
         </div>`;
     }).join('');
+
     return `<div class="mt-2 overflow-x-auto"><div class="flex gap-2 pb-1" style="min-width:max-content">${cards}</div></div>`;
 }
 
