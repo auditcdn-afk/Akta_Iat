@@ -243,14 +243,21 @@ function renderRecommendations() {
             `
             : '';
 
-        // Check if this recommendation has been filled (has isi_rekomendasi step)
-        const isiStep = (item.steps ?? []).find(s => s.step === 'isi_rekomendasi');
-        const userCanIsi = canIsiRekomendasi(item);
-        const isiBtn = userCanIsi
-            ? `<button type="button" class="isi-recommendation rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10 transition" data-id="${item.id}" data-judul="${escapeHtml(item.judul)}">
-                    ${isiStep ? 'Lihat / Edit Isian' : 'Isi'}
-                </button>`
-            : '';
+        // Satu tombol aksi tersinkron:
+        // - jika giliran user pada step birokrasi → "Isi Rekomendasi" (step)
+        // - jika user adalah unit usaha cabang → "Isi Rekomendasi" / "Lihat Isian"
+        const isiStep   = (item.steps ?? []).find(s => s.step === 'isi_rekomendasi');
+        const myStep    = findMyPendingStep(item);
+        let isiBtn = '';
+        if (myStep) {
+            isiBtn = `<button type="button" onclick="window.openIsiStepFromReko(${item.id}, ${myStep.realIdx}, '${escapeHtml(myStep.step)}')" class="rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white transition">
+                    Isi Rekomendasi
+                </button>`;
+        } else if (canIsiRekomendasi(item)) {
+            isiBtn = `<button type="button" class="isi-recommendation rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10 transition" data-id="${item.id}" data-judul="${escapeHtml(item.judul)}">
+                    ${isiStep ? 'Lihat Isian' : 'Isi Rekomendasi'}
+                </button>`;
+        }
 
         const actions = canManageRecommendations()
             ? `
@@ -408,56 +415,94 @@ async function deleteRecommendation(id) {
     await loadRecommendations();
 }
 
-function buildBirokrasiCards(item) {
-    const allSteps = item.steps ?? [];
-    const birokrasiSteps = allSteps
+// Ambil daftar step birokrasi (tanpa step teknis) dengan index aslinya
+function birokrasiStepsOf(item) {
+    return (item.steps ?? [])
         .map((s, realIdx) => ({ ...s, realIdx }))
         .filter(s => s.step !== 'created' && s.step !== 'isi_rekomendasi');
-    if (!birokrasiSteps.length) return '';
+}
 
-    const cards = birokrasiSteps.map((s, idx) => {
+// Step pending pertama yang merupakan giliran user saat ini (atau null)
+function findMyPendingStep(item) {
+    const steps = birokrasiStepsOf(item);
+    for (let i = 0; i < steps.length; i++) {
+        const s    = steps[i];
+        const done = s.status === 'done' || s.status === 'approved';
+        if (done) continue;
+        const prevDone = i === 0 || ['done', 'approved'].includes(steps[i - 1]?.status);
+        // Hanya step pertama yang belum selesai yang bisa diisi
+        return (prevDone && canIsiStep(s.step)) ? s : null;
+    }
+    return null;
+}
+
+// Timeline ringkas status birokrasi: ● SO ALB → ● Retail Aceh → ○ Manajer IAT DEPT
+function buildBirokrasiCards(item) {
+    const steps = birokrasiStepsOf(item);
+    if (!steps.length) return '';
+
+    const chips = steps.map((s, idx) => {
         const done     = s.status === 'done' || s.status === 'approved';
-        const prevDone = idx === 0 || (() => {
-            const p = birokrasiSteps[idx - 1];
-            return p?.status === 'done' || p?.status === 'approved';
-        })();
-        const canIsi = !done && prevDone;
+        const prevDone = idx === 0 || ['done', 'approved'].includes(steps[idx - 1]?.status);
+        const active   = !done && prevDone;
 
-        const bgStyle = done
-            ? 'background:#1e293b;border:1px solid #334155'
-            : canIsi
-                ? 'background:#1c1008;border:1px solid #92400e'
-                : 'background:#0f172a;border:1px solid #1e293b';
+        const dotColor  = done ? '#34d399' : active ? '#fbbf24' : '#475569';
+        const textColor = done ? '#cbd5e1' : active ? '#fbbf24' : '#64748b';
+        const title     = done
+            ? escapeHtml((s.note || '').substring(0, 120)) + (s.user ? ' — ' + escapeHtml(s.user) : '')
+            : (active ? 'Giliran mengisi' : 'Menunggu giliran');
 
-        const statusLabel = done ? '✓ Sudah diisi' : canIsi ? '⏳ Giliran mengisi' : '— Menunggu';
-        const statusColor = done ? '#34d399' : canIsi ? '#fbbf24' : '#64748b';
+        const chip = '<span title="' + title + '" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:' + textColor + ';white-space:nowrap">'
+            + '<span style="width:8px;height:8px;border-radius:50%;background:' + dotColor + ';display:inline-block"></span>'
+            + escapeHtml(s.step)
+            + (done ? ' ✓' : '')
+            + '</span>';
 
-        const content = done && s.note
-            ? '<p style="margin:4px 0 0;font-size:11px;color:#e2e8f0;white-space:pre-line;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical">' + escapeHtml(s.note) + '</p>'
-              + '<p style="margin:2px 0 0;font-size:10px;color:#64748b">' + escapeHtml(s.user ?? '') + (s.time ? ' · ' + String(s.time).substring(0, 10) : '') + '</p>'
-            : '<p style="margin:4px 0 0;font-size:11px;color:' + statusColor + ';font-style:italic">' + statusLabel + '</p>';
-
-        const btn = canIsi && canIsiStep(s.step)
-            ? '<button onclick="window.openIsiStepFromReko(' + item.id + ',' + s.realIdx + ',\'' + escapeHtml(s.step) + '\')" style="margin-top:6px;width:100%;border-radius:6px;background:#2563eb;border:none;padding:4px 8px;font-size:11px;font-weight:600;color:#fff;cursor:pointer">Isi Rekomendasi</button>'
+        const arrow = idx < steps.length - 1
+            ? '<span style="color:#334155;font-size:11px">→</span>'
             : '';
 
-        return '<div style="min-width:150px;max-width:200px;border-radius:8px;padding:10px;flex-shrink:0;' + bgStyle + '">'
-            + '<p style="margin:0;font-size:11px;font-weight:700;color:#cbd5e1">' + escapeHtml(s.step) + '</p>'
-            + content
-            + btn
-            + '</div>';
+        return chip + arrow;
     }).join('');
 
-    return '<div style="margin-top:8px;overflow-x:auto"><div style="display:flex;gap:8px;padding-bottom:4px;min-width:max-content">' + cards + '</div></div>';
+    return '<div style="margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">' + chips + '</div>';
 }
 
 window.openIsiStepFromReko = function openIsiStepFromReko(rekId, stepIdx, roleName) {
     const modal = document.getElementById('isiModal');
     if (!modal) return;
+    const item = recommendations.find(r => String(r.id) === String(rekId));
     modal.dataset.mode    = 'step';
     modal.dataset.rekId   = rekId;
     modal.dataset.stepIdx = stepIdx;
     document.getElementById('isiModalSubtitle').textContent = 'Isi rekomendasi: ' + (roleName || '');
+
+    // Rekomendasi awal auditor
+    const awalEl = document.getElementById('isiModalRekomendasiAwal');
+    const metaEl = document.getElementById('isiModalRekomendasiMeta');
+    if (awalEl) awalEl.textContent = item?.deskripsi || item?.judul || '-';
+    if (metaEl) metaEl.textContent = item?.createdBy ? `Dibuat oleh: ${item.createdBy}` : '';
+
+    // Riwayat pengisian sebelumnya
+    const histSteps = (item?.steps ?? []).filter(s => s.step !== 'created' && s.note);
+    const histEl    = document.getElementById('isiModalHistori');
+    const histList  = document.getElementById('isiModalHistoriList');
+    if (histEl && histList) {
+        if (histSteps.length) {
+            histList.innerHTML = histSteps.map(s => `
+                <div class="rounded-xl border border-slate-700 bg-slate-800/60 px-4 py-3">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-bold text-slate-300">${escapeHtml(s.step === 'isi_rekomendasi' ? 'Isian Unit Usaha' : s.step)}</span>
+                        <span class="text-[10px] text-slate-500">${escapeHtml(s.user ?? '')}${s.time ? ' · ' + String(s.time).substring(0,10) : ''}</span>
+                    </div>
+                    <p class="text-sm text-slate-200 whitespace-pre-wrap">${escapeHtml(s.note)}</p>
+                </div>`).join('');
+            histEl.classList.remove('hidden');
+        } else {
+            histEl.classList.add('hidden');
+        }
+    }
+
     document.getElementById('isiTglPengisian').value = new Date().toISOString().substring(0, 10);
     document.getElementById('isiKonten').value = '';
     modal.classList.remove('hidden');
