@@ -261,7 +261,8 @@ function renderRecommendations() {
                 </button>`;
         }
 
-        const actions = canManageRecommendations()
+        // Edit & Hapus hanya untuk admin
+        const actions = currentUser?.role === 'admin'
             ? `
                 <button type="button" class="edit-recommendation rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${item.id}">
                     Edit
@@ -274,7 +275,7 @@ function renderRecommendations() {
                 ${approveButton}
                 ${isiBtn}
             `
-            : isiBtn;
+            : `${approveButton} ${isiBtn}`;
 
         return `
             <tr class="hover:bg-slate-950/50">

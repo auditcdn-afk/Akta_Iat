@@ -366,8 +366,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/recommendations', [AuditRecommendationController::class, 'index']);
     Route::get('/recommendations/{recommendation}', [AuditRecommendationController::class, 'show']);
 
-    Route::middleware('akta.role:admin,manajer,auditor')->group(function () {
-        Route::post('/recommendations', [AuditRecommendationController::class, 'store']);
+    Route::post('/recommendations', [AuditRecommendationController::class, 'store'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // Edit & hapus rekomendasi hanya admin
+    Route::middleware('akta.role:admin')->group(function () {
         Route::put('/recommendations/{recommendation}', [AuditRecommendationController::class, 'update']);
         Route::delete('/recommendations/{recommendation}', [AuditRecommendationController::class, 'destroy']);
     });
