@@ -254,8 +254,10 @@ function renderRecommendations() {
                     Isi Rekomendasi
                 </button>`;
         } else if (canIsiRekomendasi(item)) {
-            isiBtn = `<button type="button" class="isi-recommendation rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10 transition" data-id="${item.id}" data-judul="${escapeHtml(item.judul)}">
-                    ${isiStep ? 'Lihat Isian' : 'Isi Rekomendasi'}
+            // Setelah tersimpan: hanya admin yang boleh mengedit isian; user lain hanya melihat
+            const readOnly = isiStep && currentUser?.role !== 'admin';
+            isiBtn = `<button type="button" class="isi-recommendation rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10 transition" data-id="${item.id}" data-judul="${escapeHtml(item.judul)}" data-readonly="${readOnly ? '1' : ''}">
+                    ${isiStep ? (readOnly ? 'Lihat Isian' : 'Lihat / Edit Isian') : 'Isi Rekomendasi'}
                 </button>`;
         }
 
@@ -475,6 +477,8 @@ window.openIsiStepFromReko = function openIsiStepFromReko(rekId, stepIdx, roleNa
     modal.dataset.mode    = 'step';
     modal.dataset.rekId   = rekId;
     modal.dataset.stepIdx = stepIdx;
+    const stepFormEl = document.getElementById('isiForm');
+    if (stepFormEl) stepFormEl.style.display = '';
     document.getElementById('isiModalSubtitle').textContent = 'Isi rekomendasi: ' + (roleName || '');
 
     // Rekomendasi awal auditor
@@ -510,10 +514,14 @@ window.openIsiStepFromReko = function openIsiStepFromReko(rekId, stepIdx, roleNa
     document.getElementById('isiKonten').focus();
 }
 
-function openIsiModal(id, judul) {
+function openIsiModal(id, judul, readOnly = false) {
     const item  = recommendations.find(r => String(r.id) === String(id));
     const modal = document.getElementById('isiModal');
     if (modal) modal.dataset.mode = 'isi';
+
+    // Mode lihat saja: sembunyikan form pengisian
+    const formEl = document.getElementById('isiForm');
+    if (formEl) formEl.style.display = readOnly ? 'none' : '';
     document.getElementById('isiRecommendationId').value = id;
     document.getElementById('isiModalSubtitle').textContent = judul || '';
 
@@ -660,7 +668,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const isiButton = event.target.closest('.isi-recommendation');
 
         if (isiButton) {
-            openIsiModal(isiButton.dataset.id, isiButton.dataset.judul);
+            openIsiModal(isiButton.dataset.id, isiButton.dataset.judul, isiButton.dataset.readonly === '1');
             return;
         }
 

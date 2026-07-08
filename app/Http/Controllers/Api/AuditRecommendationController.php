@@ -278,6 +278,12 @@ class AuditRecommendationController extends Controller
             }
         }
 
+        // Isian yang sudah tersimpan hanya boleh diubah oleh admin
+        $sudahDiisi = collect($recommendation->steps ?: [])->contains(fn($s) => ($s['step'] ?? '') === 'isi_rekomendasi');
+        if ($sudahDiisi && $user?->role !== 'admin') {
+            return response()->json(['ok' => false, 'message' => 'Isian sudah tersimpan. Perubahan hanya dapat dilakukan oleh admin.'], 403);
+        }
+
         $steps   = $recommendation->steps ?: [];
         $steps[] = [
             'step'   => 'isi_rekomendasi',
