@@ -410,7 +410,6 @@ async function deleteRecommendation(id) {
 
 function buildBirokrasiCards(item) {
     const allSteps = item.steps ?? [];
-    // Only show pending birokrasi steps (not 'created', not 'isi_rekomendasi')
     const birokrasiSteps = allSteps
         .map((s, realIdx) => ({ ...s, realIdx }))
         .filter(s => s.step !== 'created' && s.step !== 'isi_rekomendasi');
@@ -424,39 +423,35 @@ function buildBirokrasiCards(item) {
         })();
         const canIsi = !done && prevDone;
 
-        const bg = done
-            ? 'bg-slate-800/60 border-slate-700'
+        const bgStyle = done
+            ? 'background:#1e293b;border:1px solid #334155'
             : canIsi
-                ? 'bg-amber-900/20 border-amber-700/50'
-                : 'bg-slate-800/30 border-slate-700/40';
+                ? 'background:#1c1008;border:1px solid #92400e'
+                : 'background:#0f172a;border:1px solid #1e293b';
 
-        const textColor   = done ? 'text-slate-100' : canIsi ? 'text-amber-100' : 'text-slate-400';
-        const labelColor  = done ? 'text-emerald-400' : canIsi ? 'text-amber-300' : 'text-slate-500';
         const statusLabel = done ? '✓ Sudah diisi' : canIsi ? '⏳ Giliran mengisi' : '— Menunggu';
+        const statusColor = done ? '#34d399' : canIsi ? '#fbbf24' : '#64748b';
 
         const content = done && s.note
-            ? `<p class="mt-1 text-xs ${textColor} whitespace-pre-line line-clamp-3">${escapeHtml(s.note)}</p>
-               <p class="mt-1 text-[10px] text-slate-500">${escapeHtml(s.user ?? '')}${s.time ? ' · ' + String(s.time).substring(0, 10) : ''}</p>`
-            : `<p class="mt-1 text-[11px] ${labelColor} italic">${statusLabel}</p>`;
+            ? '<p style="margin:4px 0 0;font-size:11px;color:#e2e8f0;white-space:pre-line;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical">' + escapeHtml(s.note) + '</p>'
+              + '<p style="margin:2px 0 0;font-size:10px;color:#64748b">' + escapeHtml(s.user ?? '') + (s.time ? ' · ' + String(s.time).substring(0, 10) : '') + '</p>'
+            : '<p style="margin:4px 0 0;font-size:11px;color:' + statusColor + ';font-style:italic">' + statusLabel + '</p>';
 
         const btn = canIsi && canIsiStep(s.step)
-            ? `<button onclick="openIsiStepFromReko(${item.id}, ${s.realIdx}, '${escapeHtml(s.step)}')"
-                class="mt-2 w-full rounded-lg bg-blue-600 hover:bg-blue-500 px-2 py-1 text-[11px] font-semibold text-white transition">
-                Isi Keputusan
-               </button>`
+            ? '<button onclick="window.openIsiStepFromReko(' + item.id + ',' + s.realIdx + ',\'' + escapeHtml(s.step) + '\')" style="margin-top:6px;width:100%;border-radius:6px;background:#2563eb;border:none;padding:4px 8px;font-size:11px;font-weight:600;color:#fff;cursor:pointer">Isi Keputusan</button>'
             : '';
 
-        return `<div class="rounded-lg border p-2.5 ${bg}" style="min-width:160px;max-width:220px">
-            <p class="text-xs font-bold text-slate-300">${escapeHtml(s.step)}</p>
-            ${content}
-            ${btn}
-        </div>`;
+        return '<div style="min-width:150px;max-width:200px;border-radius:8px;padding:10px;flex-shrink:0;' + bgStyle + '">'
+            + '<p style="margin:0;font-size:11px;font-weight:700;color:#cbd5e1">' + escapeHtml(s.step) + '</p>'
+            + content
+            + btn
+            + '</div>';
     }).join('');
 
-    return `<div class="mt-2 overflow-x-auto"><div class="flex gap-2 pb-1" style="min-width:max-content">${cards}</div></div>`;
+    return '<div style="margin-top:8px;overflow-x:auto"><div style="display:flex;gap:8px;padding-bottom:4px;min-width:max-content">' + cards + '</div></div>';
 }
 
-function openIsiStepFromReko(rekId, stepIdx, roleName) {
+window.openIsiStepFromReko = function openIsiStepFromReko(rekId, stepIdx, roleName) {
     const modal = document.getElementById('isiModal');
     if (!modal) return;
     modal.dataset.mode    = 'step';
