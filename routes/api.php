@@ -375,8 +375,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/recommendations/{recommendation}/approve', [AuditRecommendationController::class, 'approve'])
         ->middleware('akta.role:admin,manajer');
 
-    Route::post('/recommendations/{recommendation}/approve-step', [AuditRecommendationController::class, 'approveStep'])
-        ->middleware('akta.role:admin,manajer,auditor');
+    // Otorisasi per-step ditangani di controller (role/unit_usaha vs step birokrasi)
+    Route::post('/recommendations/{recommendation}/approve-step', [AuditRecommendationController::class, 'approveStep']);
 
     Route::post('/recommendations/{recommendation}/isi', [AuditRecommendationController::class, 'isi']);
 
