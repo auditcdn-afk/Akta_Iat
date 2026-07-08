@@ -3,8 +3,19 @@
 /**
  * Birokrasi approval chain per unit usaha.
  *
- * Each entry: 'approvers' => ordered list of roles that must approve.
- *             'units'     => list of cabang names belonging to this group.
+ * Alur pengisian rekomendasi:
+ *   Auditor (buat) → [approvers berurutan] → selesai
+ *
+ * Setiap entry:
+ *   'approvers' => daftar berurutan pihak yang harus mengisi keputusan.
+ *                  Nilai cocok ke: role user (case-insensitive) ATAU unit_usaha user.
+ *   'units'     => daftar nama cabang yang termasuk grup ini.
+ *
+ * Wilayah:
+ *   RAC  = Retail Aceh
+ *   RRI  = Retail Riau
+ *   RKR  = Retail Riau (sub-wilayah)
+ *   HO   = Head Office
  */
 return [
 
@@ -63,8 +74,12 @@ return [
     ],
 
     // ── SO / H1 ─────────────────────────────────────────────────────────
+    // Alur: Auditor → SO → Retail [wilayah] → Manajer IAT DEPT
+    // SO  : diisi oleh user dengan role "so"
+    // Retail [wilayah] : diisi oleh user dengan unit_usaha sesuai wilayah
+    // ─────────────────────────────────────────────────────────────────────
     'SO / H1 - RRI' => [
-        'approvers' => ['SO', 'RSS', 'Manajer IAT DEPT'],
+        'approvers' => ['SO', 'Retail Riau', 'Manajer IAT DEPT'],
         'units'     => [
             'SO ARK', 'SO SDR', 'SO TBS', 'SO SKH', 'SO BKN', 'SO KPR', 'SO UBT', 'SO SRM',
             'SO LPK', 'SO FLB', 'POS PKC', 'SO AMK', 'SO DRI', 'SO GRG', 'SO PGR', 'SO SLP',
@@ -73,11 +88,11 @@ return [
         ],
     ],
     'SO / H1 - RKR' => [
-        'approvers' => ['SO', 'RSS', 'Manajer IAT DEPT'],
+        'approvers' => ['SO', 'Retail Riau', 'Manajer IAT DEPT'],
         'units'     => ['SO BKG', 'SO NGY', 'SO MKG', 'SO BTC', 'POS TBN', 'SO TPI', 'POS NTN', 'DIP H1'],
     ],
     'SO / H1 - RAC' => [
-        'approvers' => ['SO', 'RSS', 'Manajer IAT DEPT'],
+        'approvers' => ['SO', 'Retail Aceh', 'Manajer IAT DEPT'],
         'units'     => [
             'SO TPP', 'SO TDB', 'SO SGL', 'SO BNN', 'SO TKN', 'SO LSM', 'SO LGS', 'SO MBO',
             'SO ALB', 'SO SPP', 'SO KTC', 'POS JNB', 'POS BKJ', 'POS SML', 'POS TTN',
@@ -85,11 +100,11 @@ return [
         ],
     ],
     'SO / H1 - AFFCO RAC' => [
-        'approvers' => ['SO', 'RSS', 'Manajer IAT DEPT'],
+        'approvers' => ['SO', 'Retail Aceh', 'Manajer IAT DEPT'],
         'units'     => ['HM CND', 'HM TKU', 'SBG MTR', 'KPM MBO', 'KPM SUO', 'KPM RMO', 'LBS H1'],
     ],
     'SO / H1 - AFFCO RRI' => [
-        'approvers' => ['SO', 'RSS', 'Manajer IAT DEPT'],
+        'approvers' => ['SO', 'Retail Riau', 'Manajer IAT DEPT'],
         'units'     => [
             'HM PKU', 'HM MPY', 'HM PKC', 'HM UKI', 'HM LBD',
             'KPM PBR', 'KPM SRK', 'KPM SIK', 'CVKJ H1', 'CVSK H1', 'TUKJY H1',
@@ -97,8 +112,10 @@ return [
     ],
 
     // ── CSC / H2 ────────────────────────────────────────────────────────
+    // Alur: Auditor → CSC → SO → Retail [wilayah] → Manajer IAT DEPT
+    // ─────────────────────────────────────────────────────────────────────
     'CSC / H2 - RRI' => [
-        'approvers' => ['CSC', 'SO', 'RSS', 'Manajer IAT DEPT'],
+        'approvers' => ['CSC', 'SO', 'Retail Riau', 'Manajer IAT DEPT'],
         'units'     => [
             'CSC ARK', 'CSC SDR', 'CSC TBS', 'CSC SKH', 'CSC BKN', 'CSC LPK', 'CSC FLB',
             'CSC KPR', 'CSC UBT', 'CSC PKC', 'CSC DRI', 'CSC GRG', 'CSC PGR', 'CSC SLP',
@@ -107,22 +124,22 @@ return [
         ],
     ],
     'CSC / H2 - RKR' => [
-        'approvers' => ['CSC', 'SO', 'RSS', 'Manajer IAT DEPT'],
+        'approvers' => ['CSC', 'SO', 'Retail Riau', 'Manajer IAT DEPT'],
         'units'     => ['DIP H2', 'CSC BKG', 'CSC NGY', 'CSC MKG', 'CSC BTC', 'CSC TPI', 'CSC TBN', 'CSC NTN'],
     ],
     'CSC / H2 - RAC' => [
-        'approvers' => ['CSC', 'SO', 'RSS', 'Manajer IAT DEPT'],
+        'approvers' => ['CSC', 'SO', 'Retail Aceh', 'Manajer IAT DEPT'],
         'units'     => [
             'CSC TPP', 'CSC TDB', 'CSC SGL', 'CSC LGS', 'CSC MBO', 'CSC ALB', 'CSC SPP',
             'CSC BKJ', 'CSC SML', 'CSC BNN', 'CSC TKN', 'CSC LSM', 'CSC TTN', 'CSC AGL', 'CSC SBS',
         ],
     ],
     'CSC / H2 - AFFCO RAC' => [
-        'approvers' => ['CSC', 'SO', 'RSS', 'Manajer IAT DEPT'],
+        'approvers' => ['CSC', 'SO', 'Retail Aceh', 'Manajer IAT DEPT'],
         'units'     => ['HMS CND', 'KMS RMO', 'KMS MBO', 'LBS H2', 'SBG SRV'],
     ],
     'CSC / H2 - AFFCO RRI' => [
-        'approvers' => ['CSC', 'SO', 'RSS', 'Manajer IAT DEPT'],
+        'approvers' => ['CSC', 'SO', 'Retail Riau', 'Manajer IAT DEPT'],
         'units'     => [
             'HMS MPY', 'KMS PBR', 'KMS SRK', 'KMS SIK', 'CVKJ H2', 'CVSK H2',
             'HMS PKC', 'HMS LBD', 'TUKJY H2', 'DIP H2', 'HMS KSP',
