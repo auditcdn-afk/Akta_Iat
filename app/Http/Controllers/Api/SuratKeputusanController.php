@@ -7,6 +7,7 @@ use App\Models\PlanAudit;
 use App\Models\SuratKeputusan;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -73,6 +74,10 @@ class SuratKeputusanController extends Controller
             $this->fillFromPlan($data, (int) $data['plan_audit_id']);
         }
 
+        if ($request->hasFile('file')) {
+            $data['file_sk'] = $this->storeFile($request);
+        }
+
         $data['status'] = $data['status'] ?? 'pending_manajer';
         $data['steps'] = $data['steps'] ?? [];
 
@@ -101,6 +106,10 @@ class SuratKeputusanController extends Controller
 
         if (!empty($data['plan_audit_id'])) {
             $this->fillFromPlan($data, (int) $data['plan_audit_id']);
+        }
+
+        if ($request->hasFile('file')) {
+            $data['file_sk'] = $this->storeFile($request);
         }
 
         if (($data['status'] ?? null) === 'pending_afd') {
@@ -204,6 +213,22 @@ class SuratKeputusanController extends Controller
             ],
             'steps' => ['nullable', 'array'],
         ])->validate();
+    }
+
+    private function storeFile(Request $request): array
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:pdf', 'max:10240'],
+        ]);
+
+        $file = $request->file('file');
+        $path = $file->store('sk', 'public');
+
+        return [
+            'name' => $file->getClientOriginalName(),
+            'type' => 'application/pdf',
+            'url'  => Storage::url($path),
+        ];
     }
 
     private function normalizePayload(Request $request): array

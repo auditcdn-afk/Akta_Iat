@@ -262,6 +262,39 @@
     </div>
 </div>
 
+<div id="buatSkModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
+    <div class="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+            <div>
+                <h3 class="text-lg font-bold">Buat Surat Keputusan</h3>
+                <p id="buatSkSubtitle" class="text-sm text-slate-400"></p>
+            </div>
+            <button type="button" id="closeBuatSkModalBtn"
+                class="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">Tutup</button>
+        </div>
+
+        <form id="buatSkForm" class="space-y-4 px-5 py-5">
+            <input type="hidden" id="buatSkPlanId">
+            <div>
+                <label class="mb-1 block text-sm font-medium text-slate-300">No SK <span class="text-red-400">*</span></label>
+                <input id="buatSkNo" type="text" required
+                    class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-medium text-slate-300">Surat Keputusan (PDF) <span class="text-red-400">*</span></label>
+                <input id="buatSkFile" type="file" accept="application/pdf" required
+                    class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-white file:text-xs file:font-semibold">
+            </div>
+            <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
+                <button type="button" id="cancelBuatSkBtn"
+                    class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">Batal</button>
+                <button type="submit" id="saveBuatSkBtn"
+                    class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition">Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @push('scripts')
 @vite('resources/js/akta-rekomendasi.js')
 @endpush

@@ -378,14 +378,18 @@ function openModal(item = null) {
         document.getElementById("jenisAudit").value =
             item.jenis_audit || item.jenisAudit || "";
 
-        document.getElementById("fileName").value = file.name || "";
-        document.getElementById("fileType").value = file.type || "";
-        document.getElementById("fileUrl").value = file.url || "";
+        const existingEl = document.getElementById("skFileExisting");
+        if (existingEl) {
+            existingEl.textContent = file.name
+                ? `File saat ini: ${file.name}`
+                : "";
+        }
     } else {
         title.textContent = "Tambah SK";
 
         document.getElementById("skId").value = "";
-        document.getElementById("fileType").value = "application/pdf";
+        const existingEl = document.getElementById("skFileExisting");
+        if (existingEl) existingEl.textContent = "";
     }
 
     modal.classList.remove("hidden");
@@ -402,26 +406,12 @@ function closeModal() {
 function getFormPayload() {
     const planAuditId = document.getElementById("planAuditId").value;
 
-    const fileName = emptyToNull(document.getElementById("fileName").value);
-    const fileType = emptyToNull(document.getElementById("fileType").value);
-    const fileUrl = emptyToNull(document.getElementById("fileUrl").value);
-
-    const fileSk =
-        fileName || fileType || fileUrl
-            ? {
-                  name: fileName,
-                  type: fileType,
-                  url: fileUrl,
-              }
-            : null;
-
     return {
         plan_audit_id: planAuditId ? Number(planAuditId) : null,
         no_sk: document.getElementById("noSk").value.trim(),
         no_spt: emptyToNull(document.getElementById("noSpt").value),
         unit_usaha: emptyToNull(document.getElementById("unitUsaha").value),
         jenis_audit: emptyToNull(document.getElementById("jenisAudit").value),
-        file_sk: fileSk,
     };
 }
 
@@ -435,11 +425,38 @@ async function saveSk(event) {
 
     const id = document.getElementById("skId").value;
     const isEdit = Boolean(id);
+    const fileInput = document.getElementById("skFile");
+    const fields = getFormPayload();
 
-    const payload = await fetchJson(isEdit ? `/api/sk/${id}` : "/api/sk", {
-        method: isEdit ? "PUT" : "POST",
-        body: JSON.stringify(getFormPayload()),
+    const formData = new FormData();
+    Object.entries(fields).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) formData.append(key, value);
     });
+    if (fileInput?.files?.[0]) {
+        formData.append("file", fileInput.files[0]);
+    }
+    if (isEdit) {
+        formData.append("_method", "PUT");
+    }
+
+    const session = getSession();
+    const response = await fetch(isEdit ? `/api/sk/${id}` : "/api/sk", {
+        method: "POST",
+        headers: {
+            Accept: "application/json",
+            Authorization: `${session?.tokenType || "Bearer"} ${session?.token}`,
+        },
+        body: formData,
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        const firstError = payload.errors
+            ? Object.values(payload.errors).flat()[0]
+            : null;
+        throw new Error(firstError || payload.message || "Request gagal.");
+    }
 
     closeModal();
     showAlert(payload.message || "SK berhasil disimpan.");

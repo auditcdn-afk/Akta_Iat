@@ -262,6 +262,17 @@ function renderRecommendations() {
                 </button>`;
         }
 
+        // Tombol "Buat SK": muncul untuk auditor pembuat setelah step terakhir (Keputusan AFD) selesai
+        const birokrasiAll = birokrasiStepsOf(item);
+        const lastStep      = birokrasiAll[birokrasiAll.length - 1];
+        const semuaSelesai  = lastStep && ['done', 'approved'].includes(lastStep.status);
+        const isCreator     = item.createdBy && currentUser?.username && item.createdBy === currentUser.username;
+        const skBtn = (semuaSelesai && (isCreator || currentUser?.role === 'admin'))
+            ? `<button type="button" class="buat-sk ml-2 rounded-lg border border-emerald-500/40 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/10 transition" data-plan-id="${item.planAuditId || ''}" data-no-spt="${escapeHtml(plan.noSpt || '')}" data-unit="${escapeHtml(plan.cabang || '')}">
+                    Buat SK
+                </button>`
+            : '';
+
         // Edit & Hapus hanya untuk admin
         const actions = currentUser?.role === 'admin'
             ? `
@@ -275,8 +286,9 @@ function renderRecommendations() {
 
                 ${approveButton}
                 ${isiBtn}
+                ${skBtn}
             `
-            : `${approveButton} ${isiBtn}`;
+            : `${approveButton} ${isiBtn} ${skBtn}`;
 
         return `
             <tr class="hover:bg-slate-950/50">
@@ -650,7 +662,72 @@ function setupFilters() {
     });
 }
 
+function openBuatSkModal(planId, noSpt, unit) {
+    const modal = document.getElementById('buatSkModal');
+    if (!modal) return;
+    document.getElementById('buatSkPlanId').value = planId || '';
+    document.getElementById('buatSkNo').value = '';
+    document.getElementById('buatSkFile').value = '';
+    document.getElementById('buatSkSubtitle').textContent = [noSpt, unit].filter(Boolean).join(' • ');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeBuatSkModal() {
+    const modal = document.getElementById('buatSkModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+async function saveBuatSk(event) {
+    event.preventDefault();
+    const planId = document.getElementById('buatSkPlanId').value;
+    const noSk   = document.getElementById('buatSkNo').value.trim();
+    const file   = document.getElementById('buatSkFile').files?.[0];
+    const btn    = document.getElementById('saveBuatSkBtn');
+
+    if (!noSk || !file) {
+        showAlert('No SK dan file PDF wajib diisi.', 'error');
+        return;
+    }
+
+    const formData = new FormData();
+    if (planId) formData.append('plan_audit_id', planId);
+    formData.append('no_sk', noSk);
+    formData.append('file', file);
+
+    btn.textContent = 'Menyimpan...';
+    btn.disabled = true;
+    try {
+        const session = getSession();
+        const response = await fetch('/api/sk', {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                Authorization: `${session?.tokenType || 'Bearer'} ${session?.token}`,
+            },
+            body: formData,
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            const firstError = payload.errors ? Object.values(payload.errors).flat()[0] : null;
+            throw new Error(firstError || payload.message || 'Request gagal.');
+        }
+        closeBuatSkModal();
+        showAlert(payload.message || 'SK berhasil dibuat.');
+    } catch (e) {
+        showAlert(e.message || 'Gagal membuat SK.', 'error');
+    } finally {
+        btn.textContent = 'Simpan';
+        btn.disabled = false;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+    document.getElementById('closeBuatSkModalBtn')?.addEventListener('click', closeBuatSkModal);
+    document.getElementById('cancelBuatSkBtn')?.addEventListener('click', closeBuatSkModal);
+    document.getElementById('buatSkForm')?.addEventListener('submit', saveBuatSk);
+
     document.getElementById('openCreateRecommendationButton')?.addEventListener('click', () => openModal());
     document.getElementById('closeRecommendationModalButton')?.addEventListener('click', closeModal);
     document.getElementById('cancelRecommendationFormButton')?.addEventListener('click', closeModal);
@@ -673,9 +750,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const deleteButton = event.target.closest('.delete-recommendation');
         const approveButton = event.target.closest('.approve-recommendation');
         const isiButton = event.target.closest('.isi-recommendation');
+        const skButton  = event.target.closest('.buat-sk');
 
         if (isiButton) {
             openIsiModal(isiButton.dataset.id, isiButton.dataset.judul, isiButton.dataset.readonly === '1');
+            return;
+        }
+
+        if (skButton) {
+            openBuatSkModal(skButton.dataset.planId, skButton.dataset.noSpt, skButton.dataset.unit);
             return;
         }
 

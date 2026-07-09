@@ -155,26 +155,15 @@
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
                 </div>
 
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Nama File SK</label>
-                    <input id="fileName" type="text" placeholder="contoh: sk-audit-001.pdf"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                </div>
-
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Tipe File</label>
-                    <input id="fileType" type="text" placeholder="application/pdf"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                </div>
-
                 <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-slate-300">URL File</label>
-                    <input id="fileUrl" type="text" placeholder="/storage/sk/sk-audit-001.pdf"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Surat Keputusan (PDF)</label>
+                    <input id="skFile" type="file" accept="application/pdf"
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-white file:text-xs file:font-semibold">
+                    <p id="skFileExisting" class="mt-1 text-xs text-slate-500"></p>
                 </div>
             </div>
 
-            <div class="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-xs text-slate-400">
+            <div class="hidden rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-xs text-slate-400">
                 Upload file fisik belum dibuat pada tahap ini. Field file SK masih mengikuti backend saat ini:
                 <span class="font-semibold text-slate-300">file_sk sebagai JSON</span>.
             </div>
