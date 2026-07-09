@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditRecommendation;
 use App\Models\PlanAudit;
 use App\Models\PlanAuditMandiriCrosscheck;
+use App\Services\BirokrasiResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -72,6 +73,9 @@ class PlanAuditMandiriCrosscheckController extends Controller
                 'status' => 'open',
                 'pic' => $rek['pic'] ?? null,
                 'deadline' => $rek['deadline'] ?? null,
+                // Alur birokrasi rekomendasi disamakan dengan plan Audit biasa,
+                // mengikuti unit usaha (cabang) plan Audit Mandiri ini.
+                'steps' => BirokrasiResolver::buildSteps($plan->cabang ?? '', $user->username),
                 'created_by' => $user->username,
                 'updated_by' => $user->username,
             ]);
