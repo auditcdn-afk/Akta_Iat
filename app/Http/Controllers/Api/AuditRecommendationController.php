@@ -333,13 +333,16 @@ class AuditRecommendationController extends Controller
             return response()->json(['ok' => false, 'message' => 'Step sudah diisi.'], 422);
         }
 
-        // Authorization: internal roles can fill any step; others must match by role or unit_usaha
-        $user       = $request->user();
-        $isInternal = $user && in_array($user->role, ['admin', 'manajer', 'auditor']);
-        if (!$isInternal) {
-            $stepRole      = strtoupper($steps[$idx]['role'] ?? $steps[$idx]['step'] ?? '');
-            $userRoleUpper = strtoupper($user?->role ?? '');
-            $userUnitUpper = strtoupper($user?->unit_usaha ?? '');
+        // Authorization: internal roles (manajer/auditor) can fill any step kecuali step "AFD"
+        // yang khusus hanya boleh diisi role/unit_usaha AFD. Admin tetap bisa override semua step.
+        $user          = $request->user();
+        $stepRole      = strtoupper($steps[$idx]['role'] ?? $steps[$idx]['step'] ?? '');
+        $userRoleUpper = strtoupper($user?->role ?? '');
+        $userUnitUpper = strtoupper($user?->unit_usaha ?? '');
+        $isAdmin       = $user?->role === 'admin';
+        $isInternal    = $user && in_array($user->role, ['admin', 'manajer', 'auditor']);
+        $bypass        = $isAdmin || ($isInternal && $stepRole !== 'AFD');
+        if (!$bypass) {
             if ($stepRole && $userRoleUpper !== $stepRole && $userUnitUpper !== $stepRole) {
                 return response()->json(['ok' => false, 'message' => 'Anda tidak berwenang mengisi step ini.'], 403);
             }
