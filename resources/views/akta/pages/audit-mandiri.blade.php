@@ -60,6 +60,25 @@
         </form>
     </div>
 
+    <div id="amPemeriksaanSection" class="hidden rounded-2xl border border-slate-700 bg-slate-900 p-5 space-y-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="font-bold text-slate-100">Pemeriksaan: <span id="amPemeriksaanLabel" class="text-blue-300">-</span></h3>
+                <p class="mt-0.5 text-xs text-slate-500">Tool yang tampil mengikuti konfigurasi admin di menu Database &rarr; Jenis Audit &amp; Tools.</p>
+            </div>
+            <button type="button" id="amClosePemeriksaanBtn"
+                class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+                Tutup
+            </button>
+        </div>
+
+        <div id="amToolTabBar" class="flex flex-wrap gap-2"></div>
+
+        <div id="amToolPanel" class="rounded-xl border border-slate-800 bg-slate-950/60 p-5 text-sm text-slate-400">
+            Pilih salah satu tool di atas.
+        </div>
+    </div>
+
     <div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
         <div class="flex items-center justify-between border-b border-slate-800 p-5">
             <h3 class="font-bold text-slate-100">Daftar Plan Audit Mandiri</h3>

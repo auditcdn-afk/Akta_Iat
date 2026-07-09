@@ -98,9 +98,21 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('amSearch')?.addEventListener('input', renderTable);
 
     document.getElementById('amTableBody')?.addEventListener('click', (e) => {
-        const btn = e.target.closest('.am-delete-btn');
-        if (!btn) return;
-        deletePlan(btn.dataset.id).catch((err) => showAlert(err.message, 'error'));
+        const delBtn = e.target.closest('.am-delete-btn');
+        if (delBtn) {
+            deletePlan(delBtn.dataset.id).catch((err) => showAlert(err.message, 'error'));
+            return;
+        }
+        const openBtn = e.target.closest('.am-open-btn');
+        if (openBtn) {
+            const plan = _plans.find((p) => String(p.id) === String(openBtn.dataset.id));
+            if (plan) openPemeriksaan(plan).catch((err) => showAlert(err.message, 'error'));
+        }
+    });
+
+    document.getElementById('amClosePemeriksaanBtn')?.addEventListener('click', () => {
+        document.getElementById('amPemeriksaanSection')?.classList.add('hidden');
+        _amActivePlan = null;
     });
 });
 
@@ -180,8 +192,86 @@ function renderTable() {
             <td class="px-4 py-4 text-sm text-slate-300">${escapeHtml(p.cabang || '-')}</td>
             <td class="px-4 py-4 text-sm text-slate-300">${escapeHtml(p.tglPlan || '-')}</td>
             <td class="px-4 py-4 text-right">
-                <button type="button" class="am-delete-btn rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${p.id}">Hapus</button>
+                <div class="flex justify-end gap-2">
+                    <button type="button" class="am-open-btn rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10" data-id="${p.id}">Buka</button>
+                    <button type="button" class="am-delete-btn rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${p.id}">Hapus</button>
+                </div>
             </td>
         </tr>
     `).join('');
+}
+
+// ─── Pemeriksaan (tool sesuai konfigurasi admin) ──────────────────────────────
+let _amTabList = [];
+let _amActivePlan = null;
+
+async function openPemeriksaan(plan) {
+    _amActivePlan = plan;
+
+    const section = document.getElementById('amPemeriksaanSection');
+    section?.classList.remove('hidden');
+    setTimeout(() => section?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+
+    document.getElementById('amPemeriksaanLabel').textContent = `${plan.noPlan} • ${plan.jenisAudit}`;
+
+    const tabBar = document.getElementById('amToolTabBar');
+    const panel = document.getElementById('amToolPanel');
+    tabBar.innerHTML = '<span class="text-xs text-slate-500">Memuat tool...</span>';
+    panel.innerHTML = 'Memuat...';
+
+    try {
+        if (!_amTabList.length) {
+            const tabsRes = await fetchJson('/api/audit-tab-configs/tabs', { headers: authHeaders() });
+            _amTabList = tabsRes.data ?? [];
+        }
+
+        const cfgRes = await fetchJson(
+            `/api/audit-tab-configs/show?modul=${encodeURIComponent(plan.jenisPemeriksaan)}&jenis_audit=${encodeURIComponent(plan.jenisAudit)}`,
+            { headers: authHeaders() }
+        );
+        const tabsConfig = cfgRes.tabs || {};
+        const visibleTabs = _amTabList.filter((t) => tabsConfig[t.key] !== false);
+
+        if (!visibleTabs.length) {
+            tabBar.innerHTML = '';
+            panel.innerHTML = 'Belum ada tool pemeriksaan yang diaktifkan untuk jenis ini. Atur di menu Database &rarr; Jenis Audit &amp; Tools.';
+            return;
+        }
+
+        tabBar.innerHTML = visibleTabs.map((t, idx) => `
+            <button type="button" data-key="${t.key}"
+                class="am-tool-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition ${idx === 0 ? 'bg-blue-600 text-white' : 'border border-slate-700 text-slate-300 hover:bg-slate-800'}">
+                ${escapeHtml(t.label)}
+            </button>
+        `).join('');
+
+        renderToolPanel(visibleTabs[0]);
+
+        tabBar.querySelectorAll('.am-tool-tab-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                tabBar.querySelectorAll('.am-tool-tab-btn').forEach((b) => {
+                    const active = b === btn;
+                    b.classList.toggle('bg-blue-600', active);
+                    b.classList.toggle('text-white', active);
+                    b.classList.toggle('border', !active);
+                    b.classList.toggle('border-slate-700', !active);
+                    b.classList.toggle('text-slate-300', !active);
+                });
+                const tab = visibleTabs.find((t) => t.key === btn.dataset.key);
+                if (tab) renderToolPanel(tab);
+            });
+        });
+    } catch (e) {
+        tabBar.innerHTML = '';
+        panel.innerHTML = `<span class="text-red-400">Gagal memuat tool: ${escapeHtml(e.message)}</span>`;
+    }
+}
+
+function renderToolPanel(tab) {
+    const panel = document.getElementById('amToolPanel');
+    if (!panel) return;
+    panel.innerHTML = `
+        <div class="font-semibold text-slate-200 mb-1">${escapeHtml(tab.label)}</div>
+        <p>Form pengisian detail untuk tool ini untuk modul Audit Mandiri/Sertijab akan dibangun pada tahap berikutnya.</p>
+    `;
 }
