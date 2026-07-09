@@ -42,7 +42,7 @@ class PlanPenilaianController extends Controller
         $data = $request->validate([
             'plan_audit_id' => ['required', 'integer', 'exists:plan_audits,id'],
             'hasil' => ['required', 'string', 'in:ok,not_ok'],
-            'catatan' => ['required', 'string', 'max:2000'],
+            'catatan' => ['required_if:hasil,not_ok', 'nullable', 'string', 'max:2000'],
         ]);
 
         $plan = PlanAudit::query()->findOrFail($data['plan_audit_id']);

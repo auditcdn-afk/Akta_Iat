@@ -230,6 +230,7 @@ async function openPenilaian(planId) {
             const textarea = document.getElementById("penilaianCatatan");
             if (textarea) textarea.value = "";
             document.querySelectorAll(".penilaian-hasil-radio").forEach((r) => (r.checked = false));
+            document.getElementById("penilaianCatatanWrap")?.classList.add("hidden");
         }
     } catch (e) {
         document.getElementById("penilaianLoading")?.classList.add("hidden");
@@ -254,8 +255,8 @@ async function savePenilaian(event) {
         showAlert("Pilih hasil penilaian: OK atau Not OK.", "error");
         return;
     }
-    if (!catatan) {
-        showAlert("Catatan penilaian wajib diisi.", "error");
+    if (hasil === "not_ok" && !catatan) {
+        showAlert("Catatan penilaian wajib diisi jika hasilnya Not OK.", "error");
         return;
     }
 
@@ -529,6 +530,11 @@ function setupTableActions() {
     document.getElementById("cancelPenilaianBtn")?.addEventListener("click", closePenilaian);
     document.getElementById("penilaianForm")?.addEventListener("submit", (event) => {
         savePenilaian(event).catch((error) => showAlert(error.message || "Gagal menyimpan penilaian.", "error"));
+    });
+    document.querySelectorAll(".penilaian-hasil-radio").forEach((radio) => {
+        radio.addEventListener("change", () => {
+            document.getElementById("penilaianCatatanWrap")?.classList.toggle("hidden", radio.value === "ok" && radio.checked);
+        });
     });
 }
 

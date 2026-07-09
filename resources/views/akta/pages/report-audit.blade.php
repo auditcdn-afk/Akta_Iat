@@ -247,9 +247,9 @@
                         </label>
                     </div>
                 </div>
-                <div>
+                <div id="penilaianCatatanWrap" class="hidden">
                     <label class="mb-1 block text-sm font-medium text-slate-300">Catatan Penilaian <span class="text-red-400">*</span></label>
-                    <textarea id="penilaianCatatan" rows="5" required
+                    <textarea id="penilaianCatatan" rows="5"
                         class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
                 </div>
                 <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
