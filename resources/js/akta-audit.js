@@ -217,10 +217,40 @@ async function openPemeriksaan(plan) {
 
     setText("pemeriksaanPlanLabel", `${plan.noSpt || "-"} • ${plan.cabang || "-"}`);
 
+    const revisiBanner = document.getElementById("revisiPemeriksaanBanner");
+    const showRevisi = plan.status === "revisi" && ["auditor", "admin"].includes(currentUser?.role);
+    revisiBanner?.classList.toggle("hidden", !showRevisi);
+    if (showRevisi) {
+        const catatanEl = document.getElementById("revisiPemeriksaanCatatan");
+        if (catatanEl) catatanEl.value = "";
+    }
+
     const firstTab = await applyAuditTabVisibility(plan.jenisAudit);
     switchTab(firstTab);
     if (firstTab === "kas") {
         loadKasForm().catch((e) => showAlert(e.message, "error"));
+    }
+}
+
+async function selesaiRevisiPemeriksaan() {
+    if (!activePlanId) return;
+    const catatan = document.getElementById("revisiPemeriksaanCatatan")?.value?.trim() || "";
+    if (!catatan) {
+        showAlert("Tanggapan perbaikan wajib diisi.", "error");
+        return;
+    }
+    if (!confirm("Nyatakan perbaikan pemeriksaan ini selesai?")) return;
+    try {
+        const payload = await fetchJson(`/api/plans/${activePlanId}/advance`, {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ catatan }),
+        });
+        showAlert(payload.message || "Perbaikan dinyatakan selesai.");
+        closePemeriksaan();
+        await loadPlans();
+    } catch (err) {
+        showAlert(err.message || "Gagal menyelesaikan perbaikan.", "error");
     }
 }
 
@@ -1493,6 +1523,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     document.getElementById("closePemeriksaanBtn")?.addEventListener("click", closePemeriksaan);
+    document.getElementById("revisiPemeriksaanSelesaiBtn")?.addEventListener("click", () => {
+        selesaiRevisiPemeriksaan().catch((err) => showAlert(err.message, "error"));
+    });
 
     document.getElementById("auditTableBody")?.addEventListener("click", (e) => {
         const btn = e.target.closest(".open-audit-btn");
