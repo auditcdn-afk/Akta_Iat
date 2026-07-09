@@ -189,6 +189,94 @@ class SuratKeputusanController extends Controller
         ]);
     }
 
+    public function rejectManajer(Request $request, SuratKeputusan $suratKeputusan): JsonResponse
+    {
+        $this->ensureCanApproveManajer($request);
+
+        if ($suratKeputusan->status !== 'pending_manajer') {
+            abort(422, 'SK tidak berada pada status pending_manajer.');
+        }
+
+        $request->validate(['reason' => ['nullable', 'string', 'max:500']]);
+
+        $steps = $suratKeputusan->steps ?? [];
+        $steps['manajer'] = [
+            'by' => $this->userIdentifier($request),
+            'byName' => $this->userDisplayName($request),
+            'rejectedAt' => now()->toDateTimeString(),
+            'reason' => $request->input('reason'),
+        ];
+
+        $suratKeputusan->status = 'ditolak';
+        $suratKeputusan->steps = $steps;
+        $suratKeputusan->save();
+
+        return response()->json([
+            'message' => 'SK ditolak oleh manajer.',
+            'data' => $suratKeputusan->load('planAudit'),
+        ]);
+    }
+
+    public function rejectAfd(Request $request, SuratKeputusan $suratKeputusan): JsonResponse
+    {
+        $this->ensureCanApproveAfd($request);
+
+        if ($suratKeputusan->status !== 'pending_afd') {
+            abort(422, 'SK tidak berada pada status pending_afd.');
+        }
+
+        $request->validate(['reason' => ['nullable', 'string', 'max:500']]);
+
+        $steps = $suratKeputusan->steps ?? [];
+        $steps['afd'] = [
+            'by' => $this->userIdentifier($request),
+            'byName' => $this->userDisplayName($request),
+            'rejectedAt' => now()->toDateTimeString(),
+            'reason' => $request->input('reason'),
+        ];
+
+        $suratKeputusan->status = 'ditolak';
+        $suratKeputusan->steps = $steps;
+        $suratKeputusan->save();
+
+        return response()->json([
+            'message' => 'SK ditolak oleh AFD.',
+            'data' => $suratKeputusan->load('planAudit'),
+        ]);
+    }
+
+    // Auditor pengunggah (atau admin) mengunggah ulang SK setelah ditolak; kembali ke antrian manajer.
+    public function resubmit(Request $request, SuratKeputusan $suratKeputusan): JsonResponse
+    {
+        if ($suratKeputusan->status !== 'ditolak') {
+            abort(422, 'SK tidak berada pada status ditolak.');
+        }
+
+        $user = $request->user();
+        $isUploader = $user && $this->userIdentifier($request) === $suratKeputusan->uploaded_by;
+        abort_unless($isUploader || $this->role($request) === 'admin', 403, 'Hanya pengunggah SK atau admin yang boleh mengunggah ulang.');
+
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:pdf', 'max:10240'],
+            'no_sk' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $suratKeputusan->file_sk = $this->storeFile($request);
+        if ($request->filled('no_sk')) {
+            $suratKeputusan->no_sk = $request->input('no_sk');
+        }
+        $suratKeputusan->status = 'pending_manajer';
+        $suratKeputusan->uploaded_by = $this->userIdentifier($request);
+        $suratKeputusan->uploaded_by_name = $this->userDisplayName($request);
+        $suratKeputusan->uploaded_at = now();
+        $suratKeputusan->save();
+
+        return response()->json([
+            'message' => 'SK berhasil diunggah ulang, menunggu approval manajer.',
+            'data' => $suratKeputusan->load('planAudit'),
+        ]);
+    }
+
     private function validatePayload(array $payload, bool $isCreate): array
     {
         return Validator::make($payload, [
@@ -201,7 +289,7 @@ class SuratKeputusanController extends Controller
             'status' => [
                 'nullable',
                 'string',
-                Rule::in(['pending_manajer', 'pending_afd', 'selesai']),
+                Rule::in(['pending_manajer', 'pending_afd', 'selesai', 'ditolak']),
             ],
             'steps' => ['nullable', 'array'],
         ])->validate();

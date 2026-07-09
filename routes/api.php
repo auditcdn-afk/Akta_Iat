@@ -78,16 +78,25 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,manajer,auditor');
 
     Route::put('/sk/{suratKeputusan}', [SuratKeputusanController::class, 'update'])
-        ->middleware('akta.role:admin,manajer,auditor');
+        ->middleware('akta.role:admin');
 
     Route::delete('/sk/{suratKeputusan}', [SuratKeputusanController::class, 'destroy'])
-        ->middleware('akta.role:admin,manajer,auditor');
+        ->middleware('akta.role:admin');
 
     Route::post('/sk/{suratKeputusan}/approve-manajer', [SuratKeputusanController::class, 'approveManajer'])
         ->middleware('akta.role:admin,manajer');
 
+    Route::post('/sk/{suratKeputusan}/reject-manajer', [SuratKeputusanController::class, 'rejectManajer'])
+        ->middleware('akta.role:admin,manajer');
+
     Route::post('/sk/{suratKeputusan}/approve-afd', [SuratKeputusanController::class, 'approveAfd'])
-        ->middleware('akta.role:admin');
+        ->middleware('akta.role:admin,afd');
+
+    Route::post('/sk/{suratKeputusan}/reject-afd', [SuratKeputusanController::class, 'rejectAfd'])
+        ->middleware('akta.role:admin,afd');
+
+    // Upload ulang setelah ditolak: dibatasi ke pengunggah asli/admin di dalam controller
+    Route::post('/sk/{suratKeputusan}/resubmit', [SuratKeputusanController::class, 'resubmit']);
 
     Route::get('/report-audit', [ReportAuditController::class, 'index']);
     Route::get('/report-audit/summary', [ReportAuditController::class, 'summary']);

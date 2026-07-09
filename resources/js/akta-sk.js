@@ -40,7 +40,13 @@ function canApproveManajer() {
 }
 
 function canApproveAfd() {
-    return currentUser?.role === "admin";
+    return ["admin", "afd"].includes(currentUser?.role);
+}
+
+function canResubmitSk(item) {
+    if (item.status !== "ditolak") return false;
+    if (currentUser?.role === "admin") return true;
+    return currentUser?.username && currentUser.username === (item.uploaded_by || item.uploadedBy);
 }
 
 function canEditSk(item) {
@@ -106,6 +112,7 @@ function statusBadge(status) {
         pending_manajer: "bg-blue-500/10 text-blue-300 border-blue-500/20",
         pending_afd: "bg-amber-500/10 text-amber-300 border-amber-500/20",
         selesai: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
+        ditolak: "bg-red-500/10 text-red-300 border-red-500/20",
     };
 
     return map[status] || map.pending_manajer;
@@ -116,6 +123,7 @@ function statusLabel(status) {
         pending_manajer: "Pending Manajer",
         pending_afd: "Pending AFD",
         selesai: "Selesai",
+        ditolak: "Ditolak",
     };
 
     return map[status] || status || "-";
@@ -267,6 +275,32 @@ function renderSkItems() {
                     `
                     : "";
 
+            const rejectManajerButton =
+                canApproveManajer() && item.status === "pending_manajer"
+                    ? `
+                        <button type="button" class="reject-manajer-sk ml-2 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${item.id}">
+                            Reject
+                        </button>
+                    `
+                    : "";
+
+            const rejectAfdButton =
+                canApproveAfd() && item.status === "pending_afd"
+                    ? `
+                        <button type="button" class="reject-afd-sk ml-2 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${item.id}">
+                            Reject
+                        </button>
+                    `
+                    : "";
+
+            const resubmitButton = canResubmitSk(item)
+                ? `
+                    <button type="button" class="resubmit-sk ml-2 rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white transition" data-id="${item.id}">
+                        Upload Ulang
+                    </button>
+                `
+                : "";
+
             const editButton = canEditSk(item)
                 ? `
                     <button type="button" class="edit-sk rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${item.id}">
@@ -287,7 +321,10 @@ function renderSkItems() {
                 editButton,
                 deleteButton,
                 approveManajerButton,
+                rejectManajerButton,
                 approveAfdButton,
+                rejectAfdButton,
+                resubmitButton,
             ]
                 .filter(Boolean)
                 .join("");
@@ -524,6 +561,82 @@ async function approveAfd(id) {
     await loadSkItems();
 }
 
+async function rejectSk(id, stage) {
+    const item = skItems.find((row) => String(row.id) === String(id));
+    if (!item) return;
+
+    const reason = prompt(
+        `Alasan penolakan SK "${item.no_sk || item.noSk || item.id}" (opsional):`,
+        "",
+    );
+    if (reason === null) return; // dibatalkan
+
+    const payload = await fetchJson(`/api/sk/${id}/reject-${stage}`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+    });
+
+    showAlert(payload.message || "SK ditolak.");
+    await loadSkItems();
+}
+
+function openResubmitModal(id) {
+    const modal = document.getElementById("resubmitSkModal");
+    if (!modal) return;
+    document.getElementById("resubmitSkId").value = id;
+    document.getElementById("resubmitSkFile").value = "";
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+
+function closeResubmitModal() {
+    const modal = document.getElementById("resubmitSkModal");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+}
+
+async function saveResubmitSk(event) {
+    event.preventDefault();
+    const id = document.getElementById("resubmitSkId").value;
+    const file = document.getElementById("resubmitSkFile").files?.[0];
+    const btn = document.getElementById("saveResubmitSkBtn");
+
+    if (!file) {
+        showAlert("File PDF wajib diisi.", "error");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    btn.textContent = "Mengunggah...";
+    btn.disabled = true;
+    try {
+        const session = getSession();
+        const response = await fetch(`/api/sk/${id}/resubmit`, {
+            method: "POST",
+            headers: {
+                Accept: "application/json",
+                Authorization: `${session?.tokenType || "Bearer"} ${session?.token}`,
+            },
+            body: formData,
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            const firstError = payload.errors ? Object.values(payload.errors).flat()[0] : null;
+            throw new Error(firstError || payload.message || "Request gagal.");
+        }
+        closeResubmitModal();
+        showAlert(payload.message || "SK berhasil diunggah ulang.");
+        await loadSkItems();
+    } catch (e) {
+        showAlert(e.message || "Gagal mengunggah ulang SK.", "error");
+    } finally {
+        btn.textContent = "Simpan";
+        btn.disabled = false;
+    }
+}
+
 function setupFilters() {
     let timer = null;
 
@@ -587,6 +700,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
     document
+        .getElementById("closeResubmitSkModalBtn")
+        ?.addEventListener("click", closeResubmitModal);
+    document
+        .getElementById("cancelResubmitSkBtn")
+        ?.addEventListener("click", closeResubmitModal);
+    document
+        .getElementById("resubmitSkForm")
+        ?.addEventListener("submit", saveResubmitSk);
+
+    document
         .getElementById("skTableBody")
         ?.addEventListener("click", async (event) => {
             const editButton = event.target.closest(".edit-sk");
@@ -595,6 +718,32 @@ document.addEventListener("DOMContentLoaded", async () => {
                 ".approve-manajer-sk",
             );
             const approveAfdButton = event.target.closest(".approve-afd-sk");
+            const rejectManajerButton = event.target.closest(".reject-manajer-sk");
+            const rejectAfdButton = event.target.closest(".reject-afd-sk");
+            const resubmitButton = event.target.closest(".resubmit-sk");
+
+            if (resubmitButton) {
+                openResubmitModal(resubmitButton.dataset.id);
+                return;
+            }
+
+            if (rejectManajerButton) {
+                try {
+                    await rejectSk(rejectManajerButton.dataset.id, "manajer");
+                } catch (error) {
+                    showAlert(error.message || "Gagal menolak SK.", "error");
+                }
+                return;
+            }
+
+            if (rejectAfdButton) {
+                try {
+                    await rejectSk(rejectAfdButton.dataset.id, "afd");
+                } catch (error) {
+                    showAlert(error.message || "Gagal menolak SK.", "error");
+                }
+                return;
+            }
 
             if (editButton) {
                 const item = skItems.find(
