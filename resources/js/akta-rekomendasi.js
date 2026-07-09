@@ -59,9 +59,11 @@ function canIsiRekomendasi(item) {
 // planCabang: cabang milik plan rekomendasi ini (untuk mencocokkan step generik
 // seperti "SO"/"WHS"/"CSC" yang mewakili JENIS unit usaha, bukan role akun).
 function canIsiStep(roleName, planCabang) {
-    if (isInternal()) return true;
     const stepRole = (roleName ?? '').toUpperCase();
     if (!stepRole) return false;
+    // Step "AFD" (Keputusan AFD) khusus untuk role/unit_usaha AFD atau admin —
+    // manajer/auditor (internal non-admin) tidak boleh melewatinya.
+    if (isInternal()) return currentUser?.role === 'admin' || stepRole !== 'AFD';
     // Match by role (e.g. user.role = "rss" matches step "RSS")
     const myRole = (currentUser?.role ?? '').toUpperCase();
     if (myRole && myRole === stepRole) return true;
