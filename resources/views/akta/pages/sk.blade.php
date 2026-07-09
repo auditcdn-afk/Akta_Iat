@@ -115,6 +115,7 @@
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">No SK</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Unit Usaha</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">File</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Memutuskan</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Status</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Tanggapan</th>
                         <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Aksi</th>
@@ -183,11 +184,13 @@
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-white file:text-xs file:font-semibold">
                     <p id="skFileExisting" class="mt-1 text-xs text-slate-500"></p>
                 </div>
-            </div>
 
-            <div class="hidden rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-xs text-slate-400">
-                Upload file fisik belum dibuat pada tahap ini. Field file SK masih mengikuti backend saat ini:
-                <span class="font-semibold text-slate-300">file_sk sebagai JSON</span>.
+                <div class="sm:col-span-2">
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Memutuskan</label>
+                    <textarea id="skMemutuskan" rows="6" placeholder="Salin poin-poin &quot;Memutuskan&quot; dari dokumen SK di sini..."
+                        class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
+                    <p class="mt-1 text-xs text-slate-500">Poin ini akan ditampilkan kepada pihak-pihak yang menerima distribusi SK.</p>
+                </div>
             </div>
 
             <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">

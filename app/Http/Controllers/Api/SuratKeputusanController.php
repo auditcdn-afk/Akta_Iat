@@ -378,6 +378,7 @@ class SuratKeputusanController extends Controller
             'jenis_audit' => ['nullable', 'string', 'max:80'],
             'no_sk' => [$isCreate ? 'required' : 'sometimes', 'string', 'max:120'],
             'file_sk' => ['nullable', 'array'],
+            'memutuskan' => ['nullable', 'string', 'max:5000'],
             'status' => [
                 'nullable',
                 'string',

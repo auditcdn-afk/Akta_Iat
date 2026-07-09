@@ -353,6 +353,7 @@ function renderSkItems() {
                         <div class="text-xs text-slate-500">
                             Jenis Audit: ${escapeHtml(item.jenis_audit || item.jenisAudit || "-")}
                         </div>
+                        ${item.memutuskan ? `<details class="mt-1"><summary class="cursor-pointer text-xs font-semibold text-violet-300">Memutuskan</summary><p class="mt-1 whitespace-pre-wrap text-xs text-slate-400">${escapeHtml(item.memutuskan)}</p></details>` : ""}
                     </td>
 
                     <td class="px-4 py-4 text-sm text-slate-300">
@@ -416,6 +417,7 @@ function openModal(item = null) {
             item.unit_usaha || item.unitUsaha || "";
         document.getElementById("jenisAudit").value =
             item.jenis_audit || item.jenisAudit || "";
+        document.getElementById("skMemutuskan").value = item.memutuskan || "";
 
         const existingEl = document.getElementById("skFileExisting");
         if (existingEl) {
@@ -451,6 +453,7 @@ function getFormPayload() {
         no_spt: emptyToNull(document.getElementById("noSpt").value),
         unit_usaha: emptyToNull(document.getElementById("unitUsaha").value),
         jenis_audit: emptyToNull(document.getElementById("jenisAudit").value),
+        memutuskan: emptyToNull(document.getElementById("skMemutuskan").value),
     };
 }
 
@@ -744,6 +747,7 @@ async function loadMyDistribusi() {
                 <td class="px-4 py-3 text-sm text-slate-200">${escapeHtml(sk.no_sk || sk.noSk || "-")}</td>
                 <td class="px-4 py-3 text-sm text-slate-300">${escapeHtml(sk.unit_usaha || sk.unitUsaha || "-")}</td>
                 <td class="px-4 py-3 text-sm">${file.url ? `<a href="${escapeAttr(file.url)}" target="_blank" class="text-blue-400 hover:underline">${escapeHtml(file.name || "Buka File")}</a>` : "-"}</td>
+                <td class="px-4 py-3 text-sm text-slate-300 max-w-xs whitespace-pre-wrap">${escapeHtml(sk.memutuskan || "-")}</td>
                 <td class="px-4 py-3"><span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${badge}">${label}</span></td>
                 <td class="px-4 py-3 text-sm text-slate-400">${escapeHtml(item.tanggapan || "-")}</td>
                 <td class="px-4 py-3 text-right">${btn}</td>

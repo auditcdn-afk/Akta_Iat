@@ -20,6 +20,7 @@ class SuratKeputusan extends Model
         'jenis_audit',
         'no_sk',
         'file_sk',
+        'memutuskan',
         'status',
         'steps',
         'uploaded_by',
