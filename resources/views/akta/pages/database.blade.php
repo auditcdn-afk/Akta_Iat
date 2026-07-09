@@ -194,9 +194,28 @@
             <div class="grid gap-3 sm:grid-cols-2">
                 <div>
                     <label class="mb-1 block text-xs font-semibold text-slate-400">Jenis Audit</label>
-                    <input id="atcJenisAuditInput" list="atcJenisAuditOptions" type="text" placeholder="Pilih atau ketik jenis audit..."
+                    <select id="atcJenisAuditInput"
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                    <datalist id="atcJenisAuditOptions"></datalist>
+                        <option value="Audit">Audit</option>
+                        <option value="Audit Online Kas + Unit SMH">Audit Online Kas + Unit SMH</option>
+                        <option value="Audit Online Kas + HGP & AHM Oils">Audit Online Kas + HGP & AHM Oils</option>
+                        <option value="Audit Verifikasi HO">Audit Verifikasi HO</option>
+                        <option value="Audit Verifikasi Lapangan">Audit Verifikasi Lapangan</option>
+                        <option value="Audit Serah Terima Sales Office Head">Audit Serah Terima Sales Office Head</option>
+                        <option value="Audit Serah Terima Warehouse">Audit Serah Terima Warehouse</option>
+                        <option value="Audit Kas + HGP & AHM Oils">Audit Kas + HGP & AHM Oils</option>
+                        <option value="Audit Kas + Unit SMH">Audit Kas + Unit SMH</option>
+                        <option value="Audit Kas + BPKB">Audit Kas + BPKB</option>
+                        <option value="Audit Serah Terima Partkeeper">Audit Serah Terima Partkeeper</option>
+                        <option value="Audit Serah Terima Workshop Head">Audit Serah Terima Workshop Head</option>
+                        <option value="Audit PJS SO HEAD">Audit PJS SO HEAD</option>
+                        <option value="Audit PJS SO ADH">Audit PJS SO ADH</option>
+                        <option value="Audit CHTC">Audit CHTC</option>
+                        <option value="Audit PAV/HC3/HOHO MDN">Audit PAV/HC3/HOHO MDN</option>
+                        <option value="Faktur">Faktur</option>
+                        <option value="Audit Serah Terima Kasir">Audit Serah Terima Kasir</option>
+                        <option value="Audit Serah Terima Pos Head">Audit Serah Terima Pos Head</option>
+                    </select>
                 </div>
             </div>
 

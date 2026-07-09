@@ -327,19 +327,8 @@ async function initAuditToolsTab() {
     _atcInitDone = true;
 
     try {
-        const [tabsRes, optsRes] = await Promise.all([
-            fetchJson("/api/audit-tab-configs/tabs", { headers: authHeaders() }),
-            fetchJson("/api/audit-tab-configs/jenis-audit-options", { headers: authHeaders() }),
-        ]);
+        const tabsRes = await fetchJson("/api/audit-tab-configs/tabs", { headers: authHeaders() });
         _atcTabList = tabsRes.data ?? [];
-        renderAtcChecklist(_atcTabList.reduce((acc, t) => ({ ...acc, [t.key]: true }), {}));
-
-        const datalist = document.getElementById("atcJenisAuditOptions");
-        if (datalist) {
-            datalist.innerHTML = (optsRes.data ?? [])
-                .map((v) => `<option value="${escHtml(v)}"></option>`)
-                .join("");
-        }
     } catch (e) {
         showAlert("Gagal memuat konfigurasi tab audit: " + e.message, "error");
     }
@@ -350,6 +339,8 @@ async function initAuditToolsTab() {
     document.getElementById("atcSelectAllBtn")?.addEventListener("click", () => setAllAtcCheckboxes(true));
     document.getElementById("atcSelectNoneBtn")?.addEventListener("click", () => setAllAtcCheckboxes(false));
 
+    // Muat konfigurasi untuk jenis audit yang sedang terpilih (default: opsi pertama "Audit")
+    loadAtcForJenisAudit();
     loadAtcConfiguredList();
 }
 
