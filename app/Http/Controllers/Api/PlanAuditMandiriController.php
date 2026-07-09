@@ -42,12 +42,12 @@ class PlanAuditMandiriController extends Controller
         // Nomor urut plan reset tiap tahun berbeda.
         $urutan = PlanAuditMandiri::query()->where('tahun_plan', $tahun)->count() + 1;
 
-        $identitas = $data['jenis_pemeriksaan'] === 'sertijab' ? 'ST' : 'AM';
+        $identitas = $data['jenis_pemeriksaan'] === 'sertijab' ? 'STB' : 'AM';
         $noPlan = sprintf(
             '%04d/%s/%s-%s',
             $urutan,
             $tanggal->format('d/m/Y'),
-            strtoupper($data['jenis_audit']),
+            $data['jenis_audit'],
             $identitas
         );
 

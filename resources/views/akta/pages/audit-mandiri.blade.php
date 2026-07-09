@@ -32,15 +32,9 @@
 
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
-                    <label for="amJenisAudit" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis Audit <span class="text-red-400">*</span></label>
+                    <label id="amJenisAuditLabel" for="amJenisAudit" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis Audit <span class="text-red-400">*</span></label>
                     <select id="amJenisAudit" required
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        <option value="">— Pilih Jenis Audit —</option>
-                        <option value="SMH">SMH</option>
-                        <option value="Sparepart">Sparepart</option>
-                        <option value="KAS">KAS</option>
-                        <option value="BPKB">BPKB</option>
-                        <option value="MT">MT</option>
                     </select>
                 </div>
                 <div>

@@ -35,6 +35,25 @@ const JENIS_PEMERIKSAAN_LABEL = {
     sertijab: 'Sertijab',
 };
 
+const JENIS_AUDIT_OPTIONS = {
+    audit_mandiri: ['SMH', 'Sparepart', 'KAS', 'BPKB', 'MT'],
+    sertijab: ['Kasir', 'ADH', 'Mekanik', 'Partkeeper', 'PDI', 'Perlengkapan'],
+};
+
+function renderJenisAuditOptions() {
+    const select = document.getElementById('amJenisAudit');
+    const label = document.getElementById('amJenisAuditLabel');
+    if (!select) return;
+
+    const options = JENIS_AUDIT_OPTIONS[_jenisPemeriksaan] || [];
+    const placeholder = _jenisPemeriksaan === 'sertijab' ? '— Pilih Jenis Sertijab —' : '— Pilih Jenis Audit —';
+    select.innerHTML = `<option value="">${placeholder}</option>` + options.map((o) => `<option value="${o}">${o}</option>`).join('');
+
+    if (label) {
+        label.innerHTML = (_jenisPemeriksaan === 'sertijab' ? 'Jenis Sertijab' : 'Jenis Audit') + ' <span class="text-red-400">*</span>';
+    }
+}
+
 function todayLocal() {
     const d = new Date();
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
@@ -54,6 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('amTglPlan').textContent = todayLocal();
     loadCurrentUser().catch((e) => showAlert(e.message, 'error'));
     loadPlans();
+    renderJenisAuditOptions();
 
     document.querySelectorAll('.am-jenis-pemeriksaan-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -67,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 b.classList.toggle('border-slate-700', !active);
                 b.classList.toggle('text-slate-300', !active);
             });
+            renderJenisAuditOptions();
         });
     });
 
