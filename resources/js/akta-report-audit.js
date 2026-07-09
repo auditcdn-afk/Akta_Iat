@@ -215,6 +215,13 @@ async function openCrosscheck(planId) {
     document.getElementById("crosscheckForm")?.reset();
     document.getElementById("crosscheckRekomendasiWrap")?.classList.add("hidden");
     document.getElementById("crosscheckExisting")?.classList.add("hidden");
+    document.getElementById("crosscheckRekFileName")?.classList.add("hidden");
+
+    const item = reportItems.find((it) => String(it.plan?.id) === String(planId));
+    const plan = item?.plan || {};
+    document.getElementById("crosscheckRekNoSpt").value = plan.no_spt || "";
+    document.getElementById("crosscheckRekCabang").value = plan.cabang || plan.unit_usaha || "";
+    document.getElementById("crosscheckRekTglAudit").value = new Date().toISOString().slice(0, 10);
 
     modal.classList.remove("hidden");
     modal.classList.add("flex");
@@ -255,18 +262,23 @@ async function saveCrosscheck(event) {
     };
 
     if (hasil === "selisih") {
-        const judul = document.getElementById("crosscheckRekJudul")?.value?.trim();
-        if (!judul) {
-            showAlert("Judul rekomendasi wajib diisi jika hasil Selisih.", "error");
+        const isi = (document.getElementById("crosscheckRekIsi")?.value || "").trim();
+        if (!isi) {
+            showAlert("Isi Rekomendasi wajib diisi jika hasil Selisih.", "error");
             return;
         }
+
+        const file = document.getElementById("crosscheckRekFileInput")?.files?.[0] || null;
+        const fileName = file ? file.name : null;
+
+        const firstLine = isi.split("\n").find((l) => l.trim()) ?? "";
+        const judul = firstLine.trim().substring(0, 250) || "Rekomendasi Audit";
+        const deskripsi = isi + (fileName ? "\n\nLampiran: " + fileName : "");
+
         body.rekomendasi = {
             judul,
-            deskripsi: document.getElementById("crosscheckRekDeskripsi")?.value || null,
-            kategori: document.getElementById("crosscheckRekKategori")?.value || null,
-            pic: document.getElementById("crosscheckRekPic")?.value || null,
-            deadline: document.getElementById("crosscheckRekDeadline")?.value || null,
-            prioritas: document.getElementById("crosscheckRekPrioritas")?.value || "sedang",
+            deskripsi,
+            prioritas: "sedang",
         };
     }
 
@@ -644,6 +656,16 @@ function setupTableActions() {
         radio.addEventListener("change", () => {
             document.getElementById("crosscheckRekomendasiWrap")?.classList.toggle("hidden", radio.value !== "selisih");
         });
+    });
+    document.getElementById("crosscheckRekFileInput")?.addEventListener("change", function () {
+        const nameEl = document.getElementById("crosscheckRekFileName");
+        if (!nameEl) return;
+        if (this.files?.[0]) {
+            nameEl.textContent = this.files[0].name;
+            nameEl.classList.remove("hidden");
+        } else {
+            nameEl.classList.add("hidden");
+        }
     });
 }
 

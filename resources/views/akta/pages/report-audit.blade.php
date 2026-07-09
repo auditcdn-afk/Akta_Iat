@@ -306,62 +306,47 @@
                         class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
                 </div>
 
-                <div id="crosscheckRekomendasiWrap" class="hidden rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
-                    <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-amber-300">Rekomendasi (karena hasil Selisih)</p>
+                <div id="crosscheckRekomendasiWrap" class="hidden rounded-2xl border border-slate-700 bg-slate-800/60 p-5 space-y-4">
+                    <h4 class="text-sm font-bold text-slate-200">Rekomendasi Form</h4>
 
                     <div class="grid gap-4 sm:grid-cols-2">
-                        <div class="sm:col-span-2">
-                            <label class="mb-1 block text-sm font-medium text-slate-300">Judul <span class="text-red-400">*</span></label>
-                            <input id="crosscheckRekJudul" type="text" required
-                                class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        </div>
-
-                        <div class="sm:col-span-2">
-                            <label class="mb-1 block text-sm font-medium text-slate-300">Deskripsi</label>
-                            <textarea id="crosscheckRekDeskripsi" rows="3"
-                                class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
-                        </div>
-
                         <div>
-                            <label class="mb-1 block text-sm font-medium text-slate-300">Kategori</label>
-                            <select id="crosscheckRekKategori"
-                                class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                                <option value="">Pilih Kategori</option>
-                                <option value="Kas">Kas</option>
-                                <option value="Bank">Bank</option>
-                                <option value="Piutang">Piutang</option>
-                                <option value="BPKB">BPKB</option>
-                                <option value="HGP">HGP</option>
-                                <option value="KWT">KWT</option>
-                                <option value="MT">MT</option>
-                                <option value="Grading">Grading</option>
-                                <option value="Administrasi">Administrasi</option>
-                                <option value="Lainnya">Lainnya</option>
-                            </select>
+                            <label class="mb-1 block text-xs font-semibold text-blue-400">Audit ID <span class="text-red-400">*</span></label>
+                            <input id="crosscheckRekNoSpt" type="text" readonly
+                                class="w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-300 outline-none cursor-not-allowed">
                         </div>
-
                         <div>
-                            <label class="mb-1 block text-sm font-medium text-slate-300">PIC</label>
-                            <input id="crosscheckRekPic" type="text"
-                                class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                            <label class="mb-1 block text-xs font-semibold text-blue-400">Nama Unit Usaha</label>
+                            <input id="crosscheckRekCabang" type="text" readonly
+                                class="w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-300 outline-none cursor-not-allowed">
                         </div>
+                    </div>
 
-                        <div>
-                            <label class="mb-1 block text-sm font-medium text-slate-300">Prioritas</label>
-                            <select id="crosscheckRekPrioritas"
-                                class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                                <option value="rendah">Rendah</option>
-                                <option value="sedang" selected>Sedang</option>
-                                <option value="tinggi">Tinggi</option>
-                                <option value="urgent">Urgent</option>
-                            </select>
-                        </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold text-blue-400">Tanggal Audit</label>
+                        <input id="crosscheckRekTglAudit" type="date"
+                            class="w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    </div>
 
-                        <div>
-                            <label class="mb-1 block text-sm font-medium text-slate-300">Deadline</label>
-                            <input id="crosscheckRekDeadline" type="date"
-                                class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    <div>
+                        <div class="mb-1 flex items-center justify-between">
+                            <label class="text-xs font-semibold text-blue-400">Isi Rekomendasi <span class="text-red-400">*</span></label>
                         </div>
+                        <textarea id="crosscheckRekIsi" rows="10" placeholder="Tuliskan rekomendasi..."
+                            class="w-full rounded-xl border border-slate-600 bg-slate-900 px-4 py-3 text-xs text-slate-100 outline-none focus:border-blue-500 resize-y font-mono leading-relaxed"></textarea>
+                    </div>
+
+                    <div class="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800/40 px-4 py-2">
+                        <span class="text-lg">📎</span>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs font-semibold text-blue-400">Upload File Lampiran</p>
+                            <p id="crosscheckRekFileName" class="text-xs text-blue-300 truncate hidden"></p>
+                            <p class="text-xs text-slate-500">PDF, JPG, PNG, DOC (opsional)</p>
+                        </div>
+                        <label class="cursor-pointer rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-600 transition shrink-0">
+                            Pilih File
+                            <input id="crosscheckRekFileInput" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="hidden">
+                        </label>
                     </div>
                 </div>
 
