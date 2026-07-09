@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\PlanAudit;
+use App\Models\SkDistribusi;
 use App\Models\SuratKeputusan;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -60,6 +62,96 @@ class SuratKeputusanController extends Controller
     {
         return response()->json([
             'data' => $suratKeputusan->load('planAudit'),
+        ]);
+    }
+
+    // Auditor/admin mendistribusikan SK yang sudah selesai ke satu atau lebih pengguna.
+    public function distribute(Request $request, SuratKeputusan $suratKeputusan): JsonResponse
+    {
+        abort_unless(
+            in_array($this->role($request), ['admin', 'auditor'], true),
+            403,
+            'Hanya admin/auditor yang boleh mendistribusikan SK.'
+        );
+
+        if ($suratKeputusan->status !== 'selesai') {
+            abort(422, 'SK belum selesai, belum dapat didistribusikan.');
+        }
+
+        $data = $request->validate([
+            'usernames' => ['required', 'array', 'min:1'],
+            'usernames.*' => ['string'],
+        ]);
+
+        $users = User::query()->whereIn('username', $data['usernames'])->get(['username', 'name', 'display_name']);
+        abort_if($users->isEmpty(), 422, 'Tidak ada pengguna valid yang dipilih.');
+
+        foreach ($users as $user) {
+            SkDistribusi::query()->updateOrCreate(
+                [
+                    'surat_keputusan_id' => $suratKeputusan->id,
+                    'user_username' => $user->username,
+                ],
+                [
+                    'user_name' => $user->display_name ?: $user->name ?: $user->username,
+                    'status' => 'pending',
+                    'tanggapan' => null,
+                    'responded_at' => null,
+                    'distributed_by' => $this->userIdentifier($request),
+                    'distributed_by_name' => $this->userDisplayName($request),
+                    'distributed_at' => now(),
+                ]
+            );
+        }
+
+        return response()->json([
+            'message' => 'SK berhasil didistribusikan ke ' . $users->count() . ' pengguna.',
+            'data' => $suratKeputusan->load('distribusi'),
+        ]);
+    }
+
+    public function distribusiList(SuratKeputusan $suratKeputusan): JsonResponse
+    {
+        return response()->json([
+            'data' => $suratKeputusan->distribusi()->latest('id')->get(),
+        ]);
+    }
+
+    // SK yang didistribusikan ke pengguna yang sedang login
+    public function myDistribusi(Request $request): JsonResponse
+    {
+        $username = $this->userIdentifier($request);
+
+        $data = SkDistribusi::query()
+            ->with('suratKeputusan.planAudit')
+            ->where('user_username', $username)
+            ->latest('id')
+            ->get();
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function tanggapi(Request $request, SkDistribusi $distribusi): JsonResponse
+    {
+        $username = $this->userIdentifier($request);
+        abort_unless(
+            $username === $distribusi->user_username || $this->role($request) === 'admin',
+            403,
+            'Anda tidak berwenang menanggapi distribusi SK ini.'
+        );
+
+        $data = $request->validate([
+            'tanggapan' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $distribusi->tanggapan = $data['tanggapan'];
+        $distribusi->status = 'ditanggapi';
+        $distribusi->responded_at = now();
+        $distribusi->save();
+
+        return response()->json([
+            'message' => 'Tanggapan berhasil disimpan.',
+            'data' => $distribusi,
         ]);
     }
 

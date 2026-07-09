@@ -98,6 +98,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Upload ulang setelah ditolak: dibatasi ke pengunggah asli/admin di dalam controller
     Route::post('/sk/{suratKeputusan}/resubmit', [SuratKeputusanController::class, 'resubmit']);
 
+    Route::post('/sk/{suratKeputusan}/distribute', [SuratKeputusanController::class, 'distribute'])
+        ->middleware('akta.role:admin,auditor');
+
+    Route::get('/sk/{suratKeputusan}/distribusi', [SuratKeputusanController::class, 'distribusiList']);
+
+    // SK yang didistribusikan ke akun yang sedang login + aksi tanggapan
+    Route::get('/sk-distribusi/saya', [SuratKeputusanController::class, 'myDistribusi']);
+    Route::post('/sk-distribusi/{distribusi}/tanggapi', [SuratKeputusanController::class, 'tanggapi']);
+
     Route::get('/report-audit', [ReportAuditController::class, 'index']);
     Route::get('/report-audit/summary', [ReportAuditController::class, 'summary']);
     Route::get('/report-audit/plans/{plan}', [ReportAuditController::class, 'show']);
@@ -345,6 +354,20 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return response()->json([
             'data' => $users->map(fn($u) => [
                 'label' => ($u->name ?: $u->username) . ($u->unit_usaha ? ' (' . $u->unit_usaha . ')' : ''),
+            ]),
+        ]);
+    });
+
+    // Daftar pengguna (username + label) untuk pemilihan distribusi SK dll
+    Route::get('/users/options', function () {
+        $users = \App\Models\User::where('is_disabled', false)
+            ->orderBy('name')
+            ->get(['username', 'name', 'display_name', 'role', 'unit_usaha']);
+        return response()->json([
+            'data' => $users->map(fn($u) => [
+                'username' => $u->username,
+                'label' => ($u->display_name ?: $u->name ?: $u->username)
+                    . ' (' . ($u->role ?: '-') . ($u->unit_usaha ? ' • ' . $u->unit_usaha : '') . ')',
             ]),
         ]);
     });

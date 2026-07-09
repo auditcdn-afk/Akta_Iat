@@ -25,6 +25,7 @@
                 <option value="pending_manajer">Pending Manajer</option>
                 <option value="pending_afd">Pending AFD</option>
                 <option value="selesai">Selesai</option>
+                <option value="ditolak">Ditolak</option>
             </select>
 
             <button id="openCreateSkButton" type="button"
@@ -99,6 +100,27 @@
                         </td>
                     </tr>
                 </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="myDistribusiSection" class="hidden rounded-2xl border border-slate-800 bg-slate-900 p-5">
+        <h3 class="text-lg font-bold">SK Diterima Saya</h3>
+        <p class="mt-1 text-sm text-slate-400">Surat Keputusan yang didistribusikan kepada Anda — berikan tanggapan bila diperlukan.</p>
+
+        <div class="mt-4 overflow-x-auto">
+            <table class="w-full min-w-[720px] text-left">
+                <thead>
+                    <tr class="border-b border-slate-800">
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">No SK</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Unit Usaha</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">File</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Status</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Tanggapan</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="myDistribusiTableBody" class="divide-y divide-slate-800"></tbody>
             </table>
         </div>
     </div>
@@ -205,6 +227,58 @@
                 <button type="button" id="cancelResubmitSkBtn"
                     class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">Batal</button>
                 <button type="submit" id="saveResubmitSkBtn"
+                    class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition">Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="distributeSkModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
+    <div class="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+            <div>
+                <h3 class="text-lg font-bold">Distribusikan SK</h3>
+                <p class="text-sm text-slate-400">Pilih satu atau lebih pengguna penerima.</p>
+            </div>
+            <button type="button" id="closeDistributeSkModalBtn"
+                class="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">Tutup</button>
+        </div>
+
+        <form id="distributeSkForm" class="space-y-4 px-5 py-5">
+            <input type="hidden" id="distributeSkId">
+            <div id="distributeSkUserList" class="max-h-72 space-y-2 overflow-y-auto pr-1"></div>
+            <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
+                <button type="button" id="cancelDistributeSkBtn"
+                    class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">Batal</button>
+                <button type="submit" id="saveDistributeSkBtn"
+                    class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition">Distribusikan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="tanggapiSkModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
+    <div class="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+            <div>
+                <h3 class="text-lg font-bold">Tanggapan SK</h3>
+                <p class="text-sm text-slate-400">Berikan tanggapan atas Surat Keputusan yang diterima.</p>
+            </div>
+            <button type="button" id="closeTanggapiSkModalBtn"
+                class="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">Tutup</button>
+        </div>
+
+        <form id="tanggapiSkForm" class="space-y-4 px-5 py-5">
+            <input type="hidden" id="tanggapiSkId">
+            <div>
+                <label class="mb-1 block text-sm font-medium text-slate-300">Tanggapan <span class="text-red-400">*</span></label>
+                <textarea id="tanggapiSkText" rows="5" required
+                    class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
+            </div>
+            <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
+                <button type="button" id="cancelTanggapiSkBtn"
+                    class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">Batal</button>
+                <button type="submit" id="saveTanggapiSkBtn"
                     class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition">Simpan</button>
             </div>
         </form>

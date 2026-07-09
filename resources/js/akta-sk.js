@@ -301,6 +301,15 @@ function renderSkItems() {
                 `
                 : "";
 
+            const distributeButton =
+                item.status === "selesai" && ["admin", "auditor"].includes(currentUser?.role)
+                    ? `
+                        <button type="button" class="distribute-sk ml-2 rounded-lg border border-violet-500/40 px-3 py-1.5 text-xs font-semibold text-violet-300 hover:bg-violet-500/10" data-id="${item.id}">
+                            Distribusikan
+                        </button>
+                    `
+                    : "";
+
             const editButton = canEditSk(item)
                 ? `
                     <button type="button" class="edit-sk rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${item.id}">
@@ -325,6 +334,7 @@ function renderSkItems() {
                 approveAfdButton,
                 rejectAfdButton,
                 resubmitButton,
+                distributeButton,
             ]
                 .filter(Boolean)
                 .join("");
@@ -637,6 +647,155 @@ async function saveResubmitSk(event) {
     }
 }
 
+let allUserOptions = [];
+
+async function loadUserOptions() {
+    const payload = await fetchJson("/api/users/options");
+    allUserOptions = payload.data || [];
+}
+
+function openDistributeModal(id) {
+    const modal = document.getElementById("distributeSkModal");
+    if (!modal) return;
+    document.getElementById("distributeSkId").value = id;
+
+    const list = document.getElementById("distributeSkUserList");
+    if (list) {
+        list.innerHTML = allUserOptions.map((u) => `
+            <label class="flex items-center gap-2 rounded-lg border border-slate-800 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800/60 cursor-pointer">
+                <input type="checkbox" value="${escapeAttr(u.username)}" class="distribute-user-checkbox">
+                ${escapeAttr(u.label)}
+            </label>
+        `).join("");
+    }
+
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+
+function closeDistributeModal() {
+    const modal = document.getElementById("distributeSkModal");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+}
+
+function escapeAttr(value) {
+    return String(value ?? "").replaceAll('"', "&quot;");
+}
+
+async function saveDistributeSk(event) {
+    event.preventDefault();
+    const id = document.getElementById("distributeSkId").value;
+    const checked = Array.from(document.querySelectorAll(".distribute-user-checkbox:checked")).map((el) => el.value);
+    const btn = document.getElementById("saveDistributeSkBtn");
+
+    if (!checked.length) {
+        showAlert("Pilih minimal satu pengguna.", "error");
+        return;
+    }
+
+    btn.textContent = "Mendistribusikan...";
+    btn.disabled = true;
+    try {
+        const payload = await fetchJson(`/api/sk/${id}/distribute`, {
+            method: "POST",
+            body: JSON.stringify({ usernames: checked }),
+        });
+        closeDistributeModal();
+        showAlert(payload.message || "SK berhasil didistribusikan.");
+    } catch (e) {
+        showAlert(e.message || "Gagal mendistribusikan SK.", "error");
+    } finally {
+        btn.textContent = "Distribusikan";
+        btn.disabled = false;
+    }
+}
+
+let myDistribusiItems = [];
+
+async function loadMyDistribusi() {
+    const section = document.getElementById("myDistribusiSection");
+    const body = document.getElementById("myDistribusiTableBody");
+    if (!section || !body) return;
+
+    const payload = await fetchJson("/api/sk-distribusi/saya");
+    myDistribusiItems = payload.data || [];
+
+    if (!myDistribusiItems.length) {
+        section.classList.add("hidden");
+        return;
+    }
+    section.classList.remove("hidden");
+
+    body.innerHTML = myDistribusiItems.map((item) => {
+        const sk = item.surat_keputusan || item.suratKeputusan || {};
+        const file = sk.file_sk || sk.fileSk || {};
+        const done = item.status === "ditanggapi";
+        const badge = done
+            ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20"
+            : "bg-amber-500/10 text-amber-300 border-amber-500/20";
+        const label = done ? "Sudah Ditanggapi" : "Menunggu Tanggapan";
+        const btn = done
+            ? ""
+            : `<button type="button" class="tanggapi-sk rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white transition" data-id="${item.id}">Tanggapan</button>`;
+
+        return `
+            <tr class="hover:bg-slate-950/50">
+                <td class="px-4 py-3 text-sm text-slate-200">${escapeHtml(sk.no_sk || sk.noSk || "-")}</td>
+                <td class="px-4 py-3 text-sm text-slate-300">${escapeHtml(sk.unit_usaha || sk.unitUsaha || "-")}</td>
+                <td class="px-4 py-3 text-sm">${file.url ? `<a href="${escapeAttr(file.url)}" target="_blank" class="text-blue-400 hover:underline">${escapeHtml(file.name || "Buka File")}</a>` : "-"}</td>
+                <td class="px-4 py-3"><span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${badge}">${label}</span></td>
+                <td class="px-4 py-3 text-sm text-slate-400">${escapeHtml(item.tanggapan || "-")}</td>
+                <td class="px-4 py-3 text-right">${btn}</td>
+            </tr>
+        `;
+    }).join("");
+}
+
+function openTanggapiModal(id) {
+    const modal = document.getElementById("tanggapiSkModal");
+    if (!modal) return;
+    document.getElementById("tanggapiSkId").value = id;
+    document.getElementById("tanggapiSkText").value = "";
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+
+function closeTanggapiModal() {
+    const modal = document.getElementById("tanggapiSkModal");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+}
+
+async function saveTanggapiSk(event) {
+    event.preventDefault();
+    const id = document.getElementById("tanggapiSkId").value;
+    const tanggapan = document.getElementById("tanggapiSkText").value.trim();
+    const btn = document.getElementById("saveTanggapiSkBtn");
+
+    if (!tanggapan) {
+        showAlert("Tanggapan wajib diisi.", "error");
+        return;
+    }
+
+    btn.textContent = "Menyimpan...";
+    btn.disabled = true;
+    try {
+        const payload = await fetchJson(`/api/sk-distribusi/${id}/tanggapi`, {
+            method: "POST",
+            body: JSON.stringify({ tanggapan }),
+        });
+        closeTanggapiModal();
+        showAlert(payload.message || "Tanggapan berhasil disimpan.");
+        await loadMyDistribusi();
+    } catch (e) {
+        showAlert(e.message || "Gagal menyimpan tanggapan.", "error");
+    } finally {
+        btn.textContent = "Simpan";
+        btn.disabled = false;
+    }
+}
+
 function setupFilters() {
     let timer = null;
 
@@ -721,9 +880,15 @@ document.addEventListener("DOMContentLoaded", async () => {
             const rejectManajerButton = event.target.closest(".reject-manajer-sk");
             const rejectAfdButton = event.target.closest(".reject-afd-sk");
             const resubmitButton = event.target.closest(".resubmit-sk");
+            const distributeButton = event.target.closest(".distribute-sk");
 
             if (resubmitButton) {
                 openResubmitModal(resubmitButton.dataset.id);
+                return;
+            }
+
+            if (distributeButton) {
+                openDistributeModal(distributeButton.dataset.id);
                 return;
             }
 
@@ -786,6 +951,45 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         });
 
+    document
+        .getElementById("closeDistributeSkModalBtn")
+        ?.addEventListener("click", closeDistributeModal);
+    document
+        .getElementById("cancelDistributeSkBtn")
+        ?.addEventListener("click", closeDistributeModal);
+    document
+        .getElementById("distributeSkForm")
+        ?.addEventListener("submit", async (event) => {
+            try {
+                await saveDistributeSk(event);
+            } catch (error) {
+                showAlert(error.message || "Gagal mendistribusikan SK.", "error");
+            }
+        });
+
+    document
+        .getElementById("closeTanggapiSkModalBtn")
+        ?.addEventListener("click", closeTanggapiModal);
+    document
+        .getElementById("cancelTanggapiSkBtn")
+        ?.addEventListener("click", closeTanggapiModal);
+    document
+        .getElementById("tanggapiSkForm")
+        ?.addEventListener("submit", async (event) => {
+            try {
+                await saveTanggapiSk(event);
+            } catch (error) {
+                showAlert(error.message || "Gagal menyimpan tanggapan.", "error");
+            }
+        });
+
+    document
+        .getElementById("myDistribusiTableBody")
+        ?.addEventListener("click", (event) => {
+            const btn = event.target.closest(".tanggapi-sk");
+            if (btn) openTanggapiModal(btn.dataset.id);
+        });
+
     setupFilters();
 
     try {
@@ -798,7 +1002,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         await loadPlans();
+        await loadUserOptions();
         await loadSkItems();
+        await loadMyDistribusi();
     } catch (error) {
         showAlert(error.message || "Gagal memuat SK.", "error");
     }
