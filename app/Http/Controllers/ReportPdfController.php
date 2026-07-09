@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditTabConfig;
 use App\Models\BpkbOnhandItem;
 use App\Models\DbHargaSmh;
 use App\Models\DbPlafon;
 use App\Models\DbUnitUsaha;
+use App\Models\PlanAuditMandiri;
 use App\Models\PemeriksaanBank;
 use App\Models\PemeriksaanBpkbInproses;
 use App\Models\PemeriksaanCekFisik;
@@ -82,7 +84,7 @@ class ReportPdfController extends Controller
             }
         }
 
-        $plafon = $this->buildPlafonAnalisa($plan);
+        $plafon = $this->isTabVisible($plan, 'plafon') ? $this->buildPlafonAnalisa($plan) : $this->emptyPlafonAnalisa($plan);
 
         return compact(
             'plan', 'plafon', 'kas', 'smh', 'perlengkapan', 'bank', 'materai',
@@ -90,6 +92,41 @@ class ReportPdfController extends Controller
             'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'hga',
             'smhTarikan', 'lampiran', 'lampiranEmbeds'
         );
+    }
+
+    // Cek apakah tab/tool tertentu diaktifkan untuk plan ini (mengikuti konfigurasi
+    // admin di Database -> Jenis Audit & Tools). Default tampil jika belum dikonfigurasi.
+    private function isTabVisible(PlanAudit $plan, string $tabKey): bool
+    {
+        $modul = 'audit';
+        if ($plan->is_mandiri) {
+            $mandiri = PlanAuditMandiri::query()->where('plan_audit_id', $plan->id)->first();
+            $modul = $mandiri?->jenis_pemeriksaan ?? 'audit_mandiri';
+        }
+
+        $override = AuditTabConfig::query()
+            ->where('modul', $modul)
+            ->where('jenis_audit', $plan->jenis_audit)
+            ->where('tab_key', $tabKey)
+            ->value('visible');
+
+        return $override === null ? true : (bool) $override;
+    }
+
+    private function emptyPlafonAnalisa(PlanAudit $plan): array
+    {
+        return [
+            'cabang' => $plan->cabang ?? '',
+            'namaUnit' => $plan->cabang ?? '',
+            'wilayah' => '-',
+            'plafonNilai' => null,
+            'plafonNama' => null,
+            'totalUnit' => 0,
+            'totalNilai' => 0,
+            'sisaTotal' => null,
+            'persentase' => null,
+            'perUnit' => [],
+        ];
     }
 
     private function buildPlafonAnalisa(PlanAudit $plan): array
