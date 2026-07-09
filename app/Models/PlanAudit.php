@@ -87,9 +87,9 @@ class PlanAudit extends Model
     }
 
     /**
-     * Syarat cabang boleh menyatakan pemeriksaan selesai (status cabang_active -> done):
+     * Syarat boleh menyatakan pemeriksaan selesai (status cabang_active -> done):
+     * - Plan sudah berada di cabang (status cabang_active, cabang sudah mulai).
      * - BU Performance untuk unit usaha ini sudah ada.
-     * - Birokrasi rekomendasi sudah dimulai dari cabang (step isi_rekomendasi berstatus done).
      */
     public function canMarkSelesai(): bool
     {
@@ -97,15 +97,6 @@ class PlanAudit extends Model
             return false;
         }
 
-        $buOk = BuPerformance::query()->where('unit_usaha', $this->cabang)->exists();
-
-        if (!$buOk) {
-            return false;
-        }
-
-        return $this->recommendations()
-            ->get()
-            ->contains(fn(AuditRecommendation $r) => collect($r->steps ?: [])
-                ->contains(fn($s) => ($s['step'] ?? '') === 'isi_rekomendasi' && ($s['status'] ?? '') === 'done'));
+        return BuPerformance::query()->where('unit_usaha', $this->cabang)->exists();
     }
 }

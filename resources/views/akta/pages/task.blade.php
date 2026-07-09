@@ -247,13 +247,13 @@
                 </div>
             </div>
 
-            {{-- ── Selesai Pemeriksaan (cabang, setelah BU Performance & Rekomendasi cabang ada) ── --}}
+            {{-- ── Selesai Pemeriksaan (cabang, setelah BU Performance ada) ── --}}
             <div id="selesaiCabangSection" class="hidden">
                 <div id="selesaiCabangInfo" class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-emerald-200">
-                    Pemeriksaan sudah lengkap (BU Performance dan Rekomendasi sudah diisi). Tekan <strong>Selesai</strong> untuk menutup pemeriksaan ini.
+                    Pemeriksaan sudah lengkap (BU Performance sudah diisi). Tekan <strong>Selesai</strong> untuk menutup pemeriksaan ini.
                 </div>
                 <div id="selesaiCabangBelumLengkap" class="hidden rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
-                    Belum bisa dinyatakan selesai. Pastikan <strong>BU Performance</strong> dan <strong>Rekomendasi</strong> (isian cabang) sudah diisi terlebih dahulu.
+                    Belum bisa dinyatakan selesai. Pastikan <strong>BU Performance</strong> untuk unit usaha ini sudah diisi terlebih dahulu.
                 </div>
                 <div class="flex justify-end gap-3 border-t border-slate-800 pt-4 mt-4">
                     <button type="button" id="cancelSelesaiCabangButton"

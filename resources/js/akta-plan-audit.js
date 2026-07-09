@@ -171,13 +171,13 @@ function actionButtons(plan) {
             slate:   "border-slate-500/40 text-slate-300 hover:bg-slate-800",
         };
 
-        // Untuk transisi cabang_active -> done, syarat BU Performance & Rekomendasi wajib lengkap.
+        // Untuk transisi cabang_active -> done, syarat BU Performance wajib lengkap.
         const belumLengkap = plan.status === "cabang_active" && !plan.canMarkSelesai;
         const btnClass = belumLengkap
             ? "border-slate-700 text-slate-600 cursor-not-allowed opacity-50"
             : colors[c] || colors.slate;
         const title = belumLengkap
-            ? 'title="Belum bisa: BU Performance dan Rekomendasi (isi cabang) belum lengkap"'
+            ? 'title="Belum bisa: BU Performance untuk unit usaha ini belum diisi"'
             : "";
 
         buttons.push(

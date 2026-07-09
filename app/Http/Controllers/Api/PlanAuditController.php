@@ -178,11 +178,11 @@ class PlanAuditController extends Controller
         }
 
         // Semua role (termasuk admin/HO) hanya boleh menyatakan pemeriksaan selesai jika
-        // BU Performance dan birokrasi rekomendasi (isi oleh cabang) sudah ada — tidak ada yang bisa melewati syarat ini.
+        // BU Performance untuk unit usaha ini sudah ada — tidak ada yang bisa melewati syarat ini.
         if ($status === 'cabang_active' && !$plan->canMarkSelesai()) {
             return response()->json([
                 'ok' => false,
-                'message' => 'Belum bisa menyatakan selesai: pastikan BU Performance dan Rekomendasi (isi oleh cabang) sudah diisi.',
+                'message' => 'Belum bisa menyatakan selesai: pastikan BU Performance untuk unit usaha ini sudah diisi.',
             ], 422);
         }
 
