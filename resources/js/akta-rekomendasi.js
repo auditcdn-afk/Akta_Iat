@@ -250,8 +250,9 @@ function renderRecommendations() {
         const myStep    = findMyPendingStep(item);
         let isiBtn = '';
         if (myStep) {
+            const btnLabel = myStep.step === 'AFD' ? 'Keputusan AFD' : 'Isi Rekomendasi';
             isiBtn = `<button type="button" onclick="window.openIsiStepFromReko(${item.id}, ${myStep.realIdx}, '${escapeHtml(myStep.step)}')" class="rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white transition">
-                    Isi Rekomendasi
+                    ${btnLabel}
                 </button>`;
         } else if (canIsiRekomendasi(item)) {
             // Setelah tersimpan: hanya admin yang boleh mengedit isian; user lain hanya melihat
