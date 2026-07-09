@@ -7,6 +7,7 @@ use App\Models\PlanAudit;
 use App\Models\SkDistribusi;
 use App\Models\SuratKeputusan;
 use App\Models\User;
+use App\Services\SkMemutuskanExtractor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -177,6 +178,9 @@ class SuratKeputusanController extends Controller
 
         if ($request->hasFile('file')) {
             $data['file_sk'] = $this->storeFile($request);
+            if (empty($data['memutuskan'])) {
+                $data['memutuskan'] = $this->extractMemutuskanFromUpload($data['file_sk']);
+            }
         }
 
         $data['status'] = $data['status'] ?? 'pending_manajer';
@@ -207,6 +211,9 @@ class SuratKeputusanController extends Controller
 
         if ($request->hasFile('file')) {
             $data['file_sk'] = $this->storeFile($request);
+            if (empty($data['memutuskan']) && empty($suratKeputusan->memutuskan)) {
+                $data['memutuskan'] = $this->extractMemutuskanFromUpload($data['file_sk']);
+            }
         }
 
         if (($data['status'] ?? null) === 'pending_afd') {
@@ -362,7 +369,11 @@ class SuratKeputusanController extends Controller
             'no_sk' => ['nullable', 'string', 'max:120'],
         ]);
 
-        $suratKeputusan->file_sk = $this->storeFile($request);
+        $fileSk = $this->storeFile($request);
+        $suratKeputusan->file_sk = $fileSk;
+        if (empty($suratKeputusan->memutuskan)) {
+            $suratKeputusan->memutuskan = $this->extractMemutuskanFromUpload($fileSk);
+        }
         if ($request->filled('no_sk')) {
             $suratKeputusan->no_sk = $request->input('no_sk');
         }
@@ -410,7 +421,20 @@ class SuratKeputusanController extends Controller
             'name' => $file->getClientOriginalName(),
             'type' => 'application/pdf',
             'url'  => Storage::url($path),
+            'path' => $path,
         ];
+    }
+
+    // Ekstrak poin "Memutuskan" dari PDF yang baru diupload (jika belum diisi manual).
+    private function extractMemutuskanFromUpload(array $fileSk): ?string
+    {
+        if (empty($fileSk['path'])) {
+            return null;
+        }
+
+        $absolutePath = Storage::disk('public')->path($fileSk['path']);
+
+        return SkMemutuskanExtractor::extractFromPath($absolutePath);
     }
 
     private function normalizePayload(Request $request): array
