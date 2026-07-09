@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\AuditTaskController;
 use App\Http\Controllers\Api\AuditRecommendationController;
 use App\Http\Controllers\Api\PicaController;
 use App\Http\Controllers\Api\AuditTabConfigController;
+use App\Http\Controllers\Api\PlanPenilaianController;
 use App\Http\Controllers\Api\SkPembebananController;
 use App\Http\Controllers\Api\SuratKeputusanController;
 use App\Http\Controllers\Api\ReportAuditController;
@@ -127,6 +128,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin');
     Route::post('/audit-tab-configs/reset', [AuditTabConfigController::class, 'reset'])
         ->middleware('akta.role:admin');
+
+    Route::get('/plan-penilaian', [PlanPenilaianController::class, 'index']);
+    Route::post('/plan-penilaian', [PlanPenilaianController::class, 'store'])
+        ->middleware('akta.role:koordinator,manajer');
 
     Route::get('/report-audit', [ReportAuditController::class, 'index']);
     Route::get('/report-audit/summary', [ReportAuditController::class, 'summary']);

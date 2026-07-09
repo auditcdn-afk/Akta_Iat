@@ -173,6 +173,11 @@ function renderReportItems() {
                             <button type="button" class="view-report-detail rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-plan-id="${plan.id}">
                                 Detail
                             </button>
+                            ${canShowPenilaianButton(plan) ? `
+                                <button type="button" class="open-penilaian rounded-lg border border-emerald-500/40 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/10" data-plan-id="${plan.id}">
+                                    Penilaian
+                                </button>
+                            ` : ""}
                             <a href="/akta/report-audit/pdf/${plan.id}" target="_blank"
                                class="rounded-lg border border-blue-600 bg-blue-600/10 px-3 py-1.5 text-xs font-semibold text-blue-400 hover:bg-blue-600/20">
                                 📄 Cetak PDF
@@ -183,6 +188,80 @@ function renderReportItems() {
             `;
         })
         .join("");
+}
+
+// Tombol Penilaian hanya untuk koordinator/manajer, dan hanya saat plan sudah done.
+function canShowPenilaianButton(plan) {
+    return ["koordinator", "manajer"].includes(currentUser?.role) && plan.status === "done";
+}
+
+async function openPenilaian(planId) {
+    const modal = document.getElementById("penilaianModal");
+    if (!modal) return;
+
+    document.getElementById("penilaianPlanId").value = planId;
+    document.getElementById("penilaianViewWrap")?.classList.add("hidden");
+    document.getElementById("penilaianForm")?.classList.add("hidden");
+    document.getElementById("penilaianLoading")?.classList.remove("hidden");
+
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+
+    try {
+        const res = await fetchJson(`/api/plan-penilaian?plan_audit_id=${planId}`);
+        const rows = res.data || [];
+        const mine = rows.find((r) => r.role === currentUser?.role);
+
+        document.getElementById("penilaianLoading")?.classList.add("hidden");
+
+        if (mine) {
+            document.getElementById("penilaianViewWrap")?.classList.remove("hidden");
+            setText("penilaianViewTgl", mine.tglPemeriksaan || "-");
+            setText("penilaianViewCatatan", mine.catatan || "-");
+        } else {
+            document.getElementById("penilaianForm")?.classList.remove("hidden");
+            setText("penilaianFormTgl", new Date().toLocaleString("id-ID"));
+            const textarea = document.getElementById("penilaianCatatan");
+            if (textarea) textarea.value = "";
+        }
+    } catch (e) {
+        document.getElementById("penilaianLoading")?.classList.add("hidden");
+        showAlert(e.message || "Gagal memuat penilaian.", "error");
+    }
+}
+
+function closePenilaian() {
+    const modal = document.getElementById("penilaianModal");
+    modal?.classList.add("hidden");
+    modal?.classList.remove("flex");
+}
+
+async function savePenilaian(event) {
+    event.preventDefault();
+    const planId = document.getElementById("penilaianPlanId").value;
+    const catatan = document.getElementById("penilaianCatatan")?.value.trim();
+    const btn = document.getElementById("savePenilaianBtn");
+
+    if (!catatan) {
+        showAlert("Catatan penilaian wajib diisi.", "error");
+        return;
+    }
+
+    btn.textContent = "Menyimpan...";
+    btn.disabled = true;
+    try {
+        const payload = await fetchJson("/api/plan-penilaian", {
+            method: "POST",
+            body: JSON.stringify({ plan_audit_id: planId, catatan }),
+        });
+        showAlert(payload.message || "Penilaian berhasil disimpan.");
+        closePenilaian();
+    } catch (e) {
+        showAlert(e.message || "Gagal menyimpan penilaian.", "error");
+    } finally {
+        btn.textContent = "Simpan";
+        btn.disabled = false;
+    }
 }
 
 async function openDetail(planId) {
@@ -411,6 +490,14 @@ function setupTableActions() {
         .getElementById("reportAuditTableBody")
         ?.addEventListener("click", async (event) => {
             const detailButton = event.target.closest(".view-report-detail");
+            const penilaianButton = event.target.closest(".open-penilaian");
+
+            if (penilaianButton) {
+                openPenilaian(penilaianButton.dataset.planId).catch((error) =>
+                    showAlert(error.message || "Gagal membuka penilaian.", "error")
+                );
+                return;
+            }
 
             if (!detailButton) {
                 return;
@@ -425,6 +512,12 @@ function setupTableActions() {
                 );
             }
         });
+
+    document.getElementById("closePenilaianBtn")?.addEventListener("click", closePenilaian);
+    document.getElementById("cancelPenilaianBtn")?.addEventListener("click", closePenilaian);
+    document.getElementById("penilaianForm")?.addEventListener("submit", (event) => {
+        savePenilaian(event).catch((error) => showAlert(error.message || "Gagal menyimpan penilaian.", "error"));
+    });
 }
 
 function setText(id, value) {

@@ -194,6 +194,57 @@
         </div>
     </div>
 </div>
+
+<div id="penilaianModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
+    <div class="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+            <div>
+                <h3 class="text-lg font-bold">Penilaian Plan Audit</h3>
+                <p class="text-sm text-slate-400">Penilaian dari koordinator/manajer setelah pemeriksaan selesai.</p>
+            </div>
+            <button type="button" id="closePenilaianBtn"
+                class="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">Tutup</button>
+        </div>
+
+        <div class="space-y-4 px-5 py-5">
+            <input type="hidden" id="penilaianPlanId">
+
+            <p id="penilaianLoading" class="text-sm text-slate-400">Memuat...</p>
+
+            <div id="penilaianViewWrap" class="hidden space-y-3">
+                <div class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-200">
+                    Penilaian Anda untuk plan ini sudah tersimpan.
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs font-semibold text-slate-400">Tgl Pemeriksaan</label>
+                    <p id="penilaianViewTgl" class="text-sm text-slate-200">-</p>
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs font-semibold text-slate-400">Catatan Penilaian</label>
+                    <p id="penilaianViewCatatan" class="whitespace-pre-wrap rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200">-</p>
+                </div>
+            </div>
+
+            <form id="penilaianForm" class="hidden space-y-4">
+                <div>
+                    <label class="mb-1 block text-xs font-semibold text-slate-400">Tgl Pemeriksaan</label>
+                    <p id="penilaianFormTgl" class="rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-400">-</p>
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Catatan Penilaian <span class="text-red-400">*</span></label>
+                    <textarea id="penilaianCatatan" rows="5" required
+                        class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
+                </div>
+                <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
+                    <button type="button" id="cancelPenilaianBtn"
+                        class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">Batal</button>
+                    <button type="submit" id="savePenilaianBtn"
+                        class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
