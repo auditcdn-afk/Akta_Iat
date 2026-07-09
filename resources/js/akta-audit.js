@@ -56,7 +56,8 @@ async function fetchJson(url, options = {}) {
 }
 
 function canManageKas() {
-    return ["admin", "manajer", "auditor"].includes(currentUser?.role);
+    const role = String(currentUser?.role || "").trim().toLowerCase();
+    return ["admin", "manajer", "auditor"].includes(role);
 }
 
 async function loadCurrentUser() {
