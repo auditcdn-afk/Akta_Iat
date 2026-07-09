@@ -296,6 +296,78 @@
         </form>
     </div>
 </div>
+
+<div id="pembebananSkModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
+    <div class="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+            <div>
+                <h3 class="text-lg font-bold">Pembebanan SK</h3>
+                <p class="text-sm text-slate-400">Rincian pembebanan personil berdasarkan Surat Keputusan.</p>
+            </div>
+            <button type="button" id="closePembebananSkModalBtn"
+                class="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">Tutup</button>
+        </div>
+
+        <form id="pembebananSkForm" class="space-y-4 px-5 py-5">
+            <input type="hidden" id="pembebananSkId">
+            <input type="hidden" id="pembebananPlanId">
+
+            <div class="grid gap-4 sm:grid-cols-3">
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Tgl Audit</label>
+                    <input id="pembebananTglAudit" type="date"
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">No SK</label>
+                    <input id="pembebananNoSk" type="text" readonly
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-400 outline-none">
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Unit Usaha</label>
+                    <input id="pembebananUnitUsaha" type="text" readonly
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-400 outline-none">
+                </div>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Nama Pimpinan SO</label>
+                    <input id="pembebananPimpinanSo" type="text"
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Nama Pimpinan CSC</label>
+                    <input id="pembebananPimpinanCsc" type="text"
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <div>
+                <div class="flex items-center justify-between">
+                    <label class="block text-sm font-medium text-slate-300">Personil Kena Beban</label>
+                    <button type="button" id="tambahPersonilBtn"
+                        class="rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10">
+                        + Tambah Personil
+                    </button>
+                </div>
+                <div id="personilList" class="mt-3 space-y-4"></div>
+            </div>
+
+            <div class="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3">
+                <span class="text-sm font-semibold text-slate-300">Total Pembebanan</span>
+                <span id="pembebananTotalDisplay" class="text-lg font-bold text-emerald-300">Rp 0</span>
+            </div>
+
+            <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
+                <button type="button" id="cancelPembebananSkBtn"
+                    class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">Batal</button>
+                <button type="submit" id="savePembebananSkBtn"
+                    class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition">Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
 @endsection
 
 @push('scripts')

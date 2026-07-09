@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\PlanAuditController;
 use App\Http\Controllers\Api\AuditTaskController;
 use App\Http\Controllers\Api\AuditRecommendationController;
 use App\Http\Controllers\Api\PicaController;
+use App\Http\Controllers\Api\SkPembebananController;
 use App\Http\Controllers\Api\SuratKeputusanController;
 use App\Http\Controllers\Api\ReportAuditController;
 use App\Http\Controllers\Api\PemeriksaanKasController;
@@ -106,6 +107,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // SK yang didistribusikan ke akun yang sedang login + aksi tanggapan
     Route::get('/sk-distribusi/saya', [SuratKeputusanController::class, 'myDistribusi']);
     Route::post('/sk-distribusi/{distribusi}/tanggapi', [SuratKeputusanController::class, 'tanggapi']);
+
+    Route::get('/sk-pembebanan', [SkPembebananController::class, 'index']);
+    Route::get('/sk-pembebanan/kategori', [SkPembebananController::class, 'kategori']);
+    Route::get('/sk-pembebanan/{skPembebanan}', [SkPembebananController::class, 'show']);
+    Route::post('/sk-pembebanan', [SkPembebananController::class, 'store'])
+        ->middleware('akta.role:admin,auditor');
+    Route::delete('/sk-pembebanan/{skPembebanan}', [SkPembebananController::class, 'destroy'])
+        ->middleware('akta.role:admin');
 
     Route::get('/report-audit', [ReportAuditController::class, 'index']);
     Route::get('/report-audit/summary', [ReportAuditController::class, 'summary']);
