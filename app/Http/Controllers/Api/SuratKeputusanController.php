@@ -163,6 +163,9 @@ class SuratKeputusanController extends Controller
         $data = $this->validatePayload($payload, true);
 
         if (!empty($data['plan_audit_id'])) {
+            $exists = SuratKeputusan::query()->where('plan_audit_id', $data['plan_audit_id'])->exists();
+            abort_if($exists, 422, 'Plan audit ini sudah memiliki SK. Satu plan audit hanya boleh memiliki satu SK.');
+
             $this->fillFromPlan($data, (int) $data['plan_audit_id']);
         }
 

@@ -4,6 +4,17 @@ let recommendations = [];
 let plans = [];
 let tasks = [];
 let currentUser = null;
+let planIdsWithSk = new Set();
+
+async function loadPlanIdsWithSk() {
+    try {
+        const payload = await fetchJson('/api/sk');
+        const items = payload.data || [];
+        planIdsWithSk = new Set(items.map(sk => String(sk.plan_audit_id ?? sk.planAuditId ?? '')).filter(Boolean));
+    } catch {
+        planIdsWithSk = new Set();
+    }
+}
 
 function getSession() {
     try {
@@ -266,12 +277,15 @@ function renderRecommendations() {
         const birokrasiAll = birokrasiStepsOf(item);
         const lastStep      = birokrasiAll[birokrasiAll.length - 1];
         const semuaSelesai  = lastStep && ['done', 'approved'].includes(lastStep.status);
-        const isAuditor     = ['admin', 'auditor'].includes(currentUser?.role);
-        const skBtn = (semuaSelesai && isAuditor)
+        const isAuditor    = ['admin', 'auditor'].includes(currentUser?.role);
+        const skSudahAda   = item.planAuditId && planIdsWithSk.has(String(item.planAuditId));
+        const skBtn = (semuaSelesai && isAuditor && !skSudahAda)
             ? `<button type="button" class="buat-sk ml-2 rounded-lg border border-emerald-500/40 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/10 transition" data-plan-id="${item.planAuditId || ''}" data-no-spt="${escapeHtml(plan.noSpt || '')}" data-unit="${escapeHtml(plan.cabang || '')}">
                     Buat SK
                 </button>`
-            : '';
+            : (semuaSelesai && isAuditor && skSudahAda)
+                ? `<span class="ml-2 text-xs text-slate-500 italic">SK sudah dibuat</span>`
+                : '';
 
         // Edit & Hapus hanya untuk admin
         const actions = currentUser?.role === 'admin'
@@ -718,6 +732,8 @@ async function saveBuatSk(event) {
         }
         closeBuatSkModal();
         showAlert(payload.message || 'SK berhasil dibuat.');
+        await loadPlanIdsWithSk();
+        renderRecommendations();
     } catch (e) {
         showAlert(e.message || 'Gagal membuat SK.', 'error');
     } finally {
@@ -800,6 +816,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         await loadPlans();
         await loadTasks();
+        await loadPlanIdsWithSk();
         await loadRecommendations();
     } catch (error) {
         showAlert(error.message || 'Gagal memuat rekomendasi.', 'error');
