@@ -231,7 +231,7 @@
 </div>
 
 <div id="distributeSkModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
-    <div class="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+    <div class="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
         <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
             <div>
                 <h3 class="text-lg font-bold">Distribusikan SK</h3>
@@ -245,11 +245,11 @@
             <input type="hidden" id="distributeSkId">
             <div>
                 <label class="mb-1 block text-sm font-medium text-slate-300">Memutuskan</label>
-                <textarea id="distributeSkMemutuskan" rows="6" placeholder="Salin poin-poin &quot;Memutuskan&quot; dari dokumen SK di sini..."
-                    class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
+                <textarea id="distributeSkMemutuskan" rows="16" placeholder="Salin poin-poin &quot;Memutuskan&quot; dari dokumen SK di sini..."
+                    class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm leading-relaxed text-slate-100 outline-none focus:border-blue-500"></textarea>
                 <p class="mt-1 text-xs text-slate-500">Poin ini akan ditampilkan kepada pengguna yang dipilih di bawah.</p>
             </div>
-            <div id="distributeSkUserList" class="max-h-72 space-y-2 overflow-y-auto pr-1"></div>
+            <div id="distributeSkUserList" class="max-h-56 space-y-2 overflow-y-auto pr-1"></div>
             <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
                 <button type="button" id="cancelDistributeSkBtn"
                     class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">Batal</button>
