@@ -79,6 +79,9 @@ class SkPembebananController extends Controller
         return $plan?->tgl_mulai ? $plan->tgl_mulai->format('Y-m-d') : null;
     }
 
+    // Simpan satu personil sekaligus (append ke SkPembebanan milik SK yang sama).
+    // Header (tgl_audit, no_sk, unit_usaha, pimpinan_so, pimpinan_csc) diperbarui setiap kali,
+    // sehingga auditor bisa menyimpan personil satu per satu tanpa kehilangan data header.
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -96,51 +99,50 @@ class SkPembebananController extends Controller
             'unit_usaha' => ['nullable', 'string', 'max:150'],
             'pimpinan_so' => ['nullable', 'string', 'max:150'],
             'pimpinan_csc' => ['nullable', 'string', 'max:150'],
-            'personil' => ['required', 'array', 'min:1'],
-            'personil.*.nama' => ['required', 'string', 'max:150'],
-            'personil.*.jabatan' => ['nullable', 'string', 'max:150'],
-            'personil.*.rincian' => ['required', 'array', 'min:1'],
-            'personil.*.rincian.*.kategori' => ['required', 'string', 'max:100'],
-            'personil.*.rincian.*.nilai' => ['required', 'numeric', 'min:0'],
+            'personil' => ['required', 'array'],
+            'personil.nama' => ['required', 'string', 'max:150'],
+            'personil.jabatan' => ['nullable', 'string', 'max:150'],
+            'personil.rincian' => ['required', 'array', 'min:1'],
+            'personil.rincian.*.kategori' => ['required', 'string', 'max:100'],
+            'personil.rincian.*.nilai' => ['required', 'numeric', 'min:0'],
         ]);
 
         $sk = SuratKeputusan::query()->findOrFail($data['surat_keputusan_id']);
-
         $jenis = $this->classifyUnit($data['unit_usaha'] ?? $sk->unit_usaha ?? '');
 
-        $totalKeseluruhan = 0;
-        $personil = array_map(function ($p) use (&$totalKeseluruhan) {
-            $subtotal = array_reduce($p['rincian'], fn($carry, $r) => $carry + (float) $r['nilai'], 0);
-            $totalKeseluruhan += $subtotal;
+        $p = $data['personil'];
+        $subtotal = array_reduce($p['rincian'], fn($carry, $r) => $carry + (float) $r['nilai'], 0);
+        $entry = [
+            'nama' => $p['nama'],
+            'jabatan' => $p['jabatan'] ?? null,
+            'rincian' => array_map(fn($r) => [
+                'kategori' => $r['kategori'],
+                'nilai' => (float) $r['nilai'],
+            ], $p['rincian']),
+            'subtotal' => $subtotal,
+        ];
 
-            return [
-                'nama' => $p['nama'],
-                'jabatan' => $p['jabatan'] ?? null,
-                'rincian' => array_map(fn($r) => [
-                    'kategori' => $r['kategori'],
-                    'nilai' => (float) $r['nilai'],
-                ], $p['rincian']),
-                'subtotal' => $subtotal,
-            ];
-        }, $data['personil']);
+        $pembebanan = SkPembebanan::query()->firstOrNew(['surat_keputusan_id' => $sk->id]);
+        $personilList = $pembebanan->personil ?? [];
+        $personilList[] = $entry;
 
-        $pembebanan = SkPembebanan::query()->create([
-            'surat_keputusan_id' => $sk->id,
+        $pembebanan->fill([
             'plan_audit_id' => $data['plan_audit_id'] ?? $sk->plan_audit_id,
-            'tgl_audit' => $data['tgl_audit'] ?? null,
+            'tgl_audit' => $data['tgl_audit'] ?? $pembebanan->tgl_audit,
             'no_sk' => $data['no_sk'] ?? $sk->no_sk,
             'unit_usaha' => $data['unit_usaha'] ?? $sk->unit_usaha,
             'jenis_unit' => $jenis,
-            'pimpinan_so' => $data['pimpinan_so'] ?? null,
-            'pimpinan_csc' => $data['pimpinan_csc'] ?? null,
-            'personil' => $personil,
-            'total_pembebanan' => $totalKeseluruhan,
-            'created_by' => $user->username,
-            'created_by_name' => $user->display_name ?? $user->name ?? $user->username,
+            'pimpinan_so' => $data['pimpinan_so'] ?? $pembebanan->pimpinan_so,
+            'pimpinan_csc' => $data['pimpinan_csc'] ?? $pembebanan->pimpinan_csc,
+            'personil' => $personilList,
+            'total_pembebanan' => array_sum(array_column($personilList, 'subtotal')),
+            'created_by' => $pembebanan->created_by ?? $user->username,
+            'created_by_name' => $pembebanan->created_by_name ?? ($user->display_name ?? $user->name ?? $user->username),
         ]);
+        $pembebanan->save();
 
         return response()->json([
-            'message' => 'Pembebanan SK berhasil disimpan.',
+            'message' => 'Personil berhasil ditambahkan ke pembebanan SK.',
             'data' => $pembebanan->load(['suratKeputusan', 'planAudit']),
         ], 201);
     }

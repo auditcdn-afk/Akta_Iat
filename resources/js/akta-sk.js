@@ -917,7 +917,6 @@ async function saveTanggapiSk(event) {
 }
 
 let pembebananKategoriList = [];
-let pembebananPersonilCount = 0;
 let pembebananCurrentSkId = null;
 
 function formatRupiah(value) {
@@ -925,26 +924,46 @@ function formatRupiah(value) {
     return "Rp " + n.toLocaleString("id-ID");
 }
 
-function recalcPembebananTotal() {
-    let total = 0;
-    document.querySelectorAll("#personilList .personil-block").forEach((block) => {
-        let subtotal = 0;
-        block.querySelectorAll(".rincian-nilai").forEach((input) => {
-            const checkbox = input.closest(".rincian-row")?.querySelector(".rincian-checkbox");
-            if (checkbox?.checked) {
-                subtotal += Number(input.value) || 0;
-            }
-        });
-        const subtotalEl = block.querySelector(".personil-subtotal");
-        if (subtotalEl) subtotalEl.textContent = formatRupiah(subtotal);
-        total += subtotal;
-    });
+function renderSudahDisimpan(pembebanan) {
+    const wrap = document.getElementById("pembebananSudahDisimpanWrap");
+    const list = document.getElementById("pembebananSudahDisimpanList");
     const totalEl = document.getElementById("pembebananTotalDisplay");
-    if (totalEl) totalEl.textContent = formatRupiah(total);
+    if (!wrap || !list) return;
+
+    const personil = pembebanan?.personil || [];
+    if (!personil.length) {
+        wrap.classList.add("hidden");
+        return;
+    }
+    wrap.classList.remove("hidden");
+
+    list.innerHTML = personil.map((p) => `
+        <div class="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm">
+            <div class="flex items-center justify-between">
+                <span class="font-semibold text-slate-200">${escapeHtml(p.nama)}${p.jabatan ? ` <span class="text-xs text-slate-500">(${escapeHtml(p.jabatan)})</span>` : ""}</span>
+                <span class="font-semibold text-emerald-300">${formatRupiah(p.subtotal)}</span>
+            </div>
+            <div class="mt-1 text-xs text-slate-400">${(p.rincian || []).map((r) => `${escapeHtml(r.kategori)}: ${formatRupiah(r.nilai)}`).join(" • ")}</div>
+        </div>
+    `).join("");
+
+    if (totalEl) totalEl.textContent = formatRupiah(pembebanan.total_pembebanan);
+}
+
+function recalcPersonilSubtotal() {
+    const block = document.querySelector("#personilList .personil-block");
+    if (!block) return;
+    let subtotal = 0;
+    block.querySelectorAll(".rincian-nilai").forEach((input) => {
+        const checkbox = input.closest(".rincian-row")?.querySelector(".rincian-checkbox");
+        if (checkbox?.checked) subtotal += Number(input.value) || 0;
+    });
+    const subtotalEl = block.querySelector(".personil-subtotal");
+    if (subtotalEl) subtotalEl.textContent = formatRupiah(subtotal);
 }
 
 function buildRincianRowsHtml() {
-    return pembebananKategoriList.map((kategori, idx) => `
+    return pembebananKategoriList.map((kategori) => `
         <div class="rincian-row flex items-center gap-2">
             <label class="flex flex-1 items-center gap-2 text-xs text-slate-300">
                 <input type="checkbox" class="rincian-checkbox" data-kategori="${escapeAttr(kategori)}">
@@ -955,37 +974,33 @@ function buildRincianRowsHtml() {
     `).join("");
 }
 
-function addPersonilRow() {
+function renderPersonilEntryBlock() {
     const list = document.getElementById("personilList");
     if (!list) return;
-    const idx = pembebananPersonilCount++;
 
     const block = document.createElement("div");
     block.className = "personil-block rounded-xl border border-slate-800 bg-slate-950/60 p-3 space-y-3";
-    block.dataset.personilIndex = idx;
     block.innerHTML = `
-        <div class="flex items-start justify-between gap-2">
-            <div class="grid flex-1 gap-2 sm:grid-cols-2">
-                <input type="text" placeholder="Nama Personil" class="personil-nama rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                <input type="text" placeholder="Jabatan" class="personil-jabatan rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-            </div>
-            <button type="button" class="hapus-personil-btn rounded-lg border border-red-500/40 px-2 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/10">Hapus</button>
+        <div class="grid gap-2 sm:grid-cols-2">
+            <input type="text" placeholder="Nama Personil" class="personil-nama rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+            <input type="text" placeholder="Jabatan" class="personil-jabatan rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
         </div>
         <div class="rincian-rows grid gap-1.5 sm:grid-cols-2">${buildRincianRowsHtml()}</div>
-        <div class="flex justify-end text-xs text-slate-400">
-            Subtotal: <span class="personil-subtotal ml-1 font-semibold text-slate-200">Rp 0</span>
+        <div class="flex items-center justify-between">
+            <span class="text-xs text-slate-400">Subtotal: <span class="personil-subtotal font-semibold text-slate-200">Rp 0</span></span>
+            <button type="button" id="simpanPersonilBtn" class="rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition">
+                Simpan Personil
+            </button>
         </div>
     `;
+    list.innerHTML = "";
     list.appendChild(block);
 
-    block.querySelector(".hapus-personil-btn")?.addEventListener("click", () => {
-        block.remove();
-        recalcPembebananTotal();
-    });
     block.querySelectorAll(".rincian-nilai, .rincian-checkbox").forEach((el) => {
-        el.addEventListener("input", recalcPembebananTotal);
-        el.addEventListener("change", recalcPembebananTotal);
+        el.addEventListener("input", recalcPersonilSubtotal);
+        el.addEventListener("change", recalcPersonilSubtotal);
     });
+    block.querySelector("#simpanPersonilBtn")?.addEventListener("click", saveOnePersonil);
 }
 
 async function openPembebananModal(id) {
@@ -1004,9 +1019,7 @@ async function openPembebananModal(id) {
     document.getElementById("pembebananPimpinanSo").value = "";
     document.getElementById("pembebananPimpinanCsc").value = "";
     document.getElementById("pembebananTglAudit").value = "";
-
-    document.getElementById("personilList").innerHTML = "";
-    pembebananPersonilCount = 0;
+    document.getElementById("pembebananSudahDisimpanWrap")?.classList.add("hidden");
 
     try {
         const qs = new URLSearchParams({ unit_usaha: unitUsaha });
@@ -1020,8 +1033,23 @@ async function openPembebananModal(id) {
         pembebananKategoriList = [];
     }
 
-    addPersonilRow();
-    recalcPembebananTotal();
+    // Muat data pembebanan yang sudah tersimpan untuk SK ini (jika ada) agar bisa dilihat/dilanjutkan
+    try {
+        const existing = await fetchJson(`/api/sk-pembebanan?surat_keputusan_id=${id}`);
+        const record = (existing.data || [])[0];
+        if (record) {
+            document.getElementById("pembebananPimpinanSo").value = record.pimpinan_so || "";
+            document.getElementById("pembebananPimpinanCsc").value = record.pimpinan_csc || "";
+            if (record.tgl_audit) {
+                document.getElementById("pembebananTglAudit").value = String(record.tgl_audit).substring(0, 10);
+            }
+            renderSudahDisimpan(record);
+        }
+    } catch {
+        // belum ada pembebanan tersimpan, biarkan kosong
+    }
+
+    renderPersonilEntryBlock();
 
     modal.classList.remove("hidden");
     modal.classList.add("flex");
@@ -1033,26 +1061,22 @@ function closePembebananModal() {
     modal.classList.remove("flex");
 }
 
-async function savePembebananSk(event) {
-    event.preventDefault();
-    const btn = document.getElementById("savePembebananSkBtn");
+async function saveOnePersonil() {
+    const btn = document.getElementById("simpanPersonilBtn");
+    const block = document.querySelector("#personilList .personil-block");
+    if (!block) return;
 
-    const personil = Array.from(document.querySelectorAll("#personilList .personil-block")).map((block) => {
-        const rincian = Array.from(block.querySelectorAll(".rincian-row"))
-            .filter((row) => row.querySelector(".rincian-checkbox")?.checked)
-            .map((row) => ({
-                kategori: row.querySelector(".rincian-checkbox").dataset.kategori,
-                nilai: Number(row.querySelector(".rincian-nilai").value) || 0,
-            }));
-        return {
-            nama: block.querySelector(".personil-nama").value.trim(),
-            jabatan: block.querySelector(".personil-jabatan").value.trim(),
-            rincian,
-        };
-    }).filter((p) => p.nama && p.rincian.length);
+    const nama = block.querySelector(".personil-nama").value.trim();
+    const jabatan = block.querySelector(".personil-jabatan").value.trim();
+    const rincian = Array.from(block.querySelectorAll(".rincian-row"))
+        .filter((row) => row.querySelector(".rincian-checkbox")?.checked)
+        .map((row) => ({
+            kategori: row.querySelector(".rincian-checkbox").dataset.kategori,
+            nilai: Number(row.querySelector(".rincian-nilai").value) || 0,
+        }));
 
-    if (!personil.length) {
-        showAlert("Minimal satu personil dengan nama dan rincian pembebanan wajib diisi.", "error");
+    if (!nama || !rincian.length) {
+        showAlert("Nama personil dan minimal satu rincian pembebanan wajib diisi.", "error");
         return;
     }
 
@@ -1064,7 +1088,7 @@ async function savePembebananSk(event) {
         unit_usaha: document.getElementById("pembebananUnitUsaha").value,
         pimpinan_so: document.getElementById("pembebananPimpinanSo").value.trim() || null,
         pimpinan_csc: document.getElementById("pembebananPimpinanCsc").value.trim() || null,
-        personil,
+        personil: { nama, jabatan, rincian },
     };
 
     btn.textContent = "Menyimpan...";
@@ -1074,13 +1098,18 @@ async function savePembebananSk(event) {
             method: "POST",
             body: JSON.stringify(payload),
         });
-        closePembebananModal();
-        showAlert(result.message || "Pembebanan SK berhasil disimpan.");
+        showAlert(result.message || "Personil berhasil disimpan.");
+        renderSudahDisimpan(result.data);
+        // Header (tgl audit, no sk, unit usaha, pimpinan) tetap; hanya blok personil yang direset
+        renderPersonilEntryBlock();
     } catch (e) {
-        showAlert(e.message || "Gagal menyimpan pembebanan SK.", "error");
+        showAlert(e.message || "Gagal menyimpan personil.", "error");
     } finally {
-        btn.textContent = "Simpan";
-        btn.disabled = false;
+        const newBtn = document.getElementById("simpanPersonilBtn");
+        if (newBtn) {
+            newBtn.textContent = "Simpan Personil";
+            newBtn.disabled = false;
+        }
     }
 }
 
@@ -1291,17 +1320,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         .getElementById("cancelPembebananSkBtn")
         ?.addEventListener("click", closePembebananModal);
     document
-        .getElementById("tambahPersonilBtn")
-        ?.addEventListener("click", addPersonilRow);
-    document
         .getElementById("pembebananSkForm")
-        ?.addEventListener("submit", async (event) => {
-            try {
-                await savePembebananSk(event);
-            } catch (error) {
-                showAlert(error.message || "Gagal menyimpan pembebanan SK.", "error");
-            }
-        });
+        ?.addEventListener("submit", (event) => event.preventDefault());
 
     setupFilters();
 
