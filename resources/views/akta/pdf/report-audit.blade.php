@@ -124,6 +124,7 @@ window.addEventListener('load', function() {
 {{-- ═══════════════════════════════════════════════
      1. PEMERIKSAAN KAS
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['kas'] ?? true))
 <div class="section">
   <div class="section-title">1. PEMERIKSAAN KAS</div>
   <div class="section-body">
@@ -352,10 +353,12 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      2. ANALISA PLAFON SMH
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['plafon'] ?? true))
 <div class="section">
   <div class="section-title">2. ANALISA PLAFON SMH</div>
   <div class="section-body">
@@ -500,10 +503,12 @@ window.addEventListener('load', function() {
   @endif
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      3. PEMERIKSAAN SMH & PERLENGKAPAN
      ═══════════════════════════════════════════════ --}}
+@if((($visibleTabs['smh'] ?? true) || ($visibleTabs['perlengkapan'] ?? true)))
 <div class="section">
   <div class="section-title">3. PEMERIKSAAN SMH (Stock Motor Honda) &amp; PERLENGKAPAN</div>
   <div class="section-body">
@@ -801,10 +806,12 @@ window.addEventListener('load', function() {
 
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      4. PEMERIKSAAN BANK
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['bank'] ?? true))
 <div class="section">
   <div class="section-title">4. PEMERIKSAAN BANK</div>
   <div class="section-body">
@@ -972,10 +979,12 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      5. PEMERIKSAAN MATERAI
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['materai'] ?? true))
 <div class="section">
   <div class="section-title">5. PEMERIKSAAN MATERAI</div>
   <div class="section-body">
@@ -1123,10 +1132,12 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      6. ONHAND BPKB
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['bpkb'] ?? true))
 <div class="section">
   <div class="section-title">6. ONHAND BPKB</div>
   <div class="section-body">
@@ -1245,10 +1256,12 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      7. BPKB INPROSES
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['bpkb-inproses'] ?? true))
 <div class="section">
   <div class="section-title">7. BPKB INPROSES</div>
   <div class="section-body">
@@ -1494,10 +1507,12 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      8. KWITANSI GANTUNG
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['kwitansi'] ?? true))
 <div class="section">
   <div class="section-title">8. KWITANSI GANTUNG</div>
   <div class="section-body">
@@ -1621,10 +1636,12 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      9. PIUTANG REGULER
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['piutang-reguler'] ?? true))
 <div class="section">
   <div class="section-title">9. PIUTANG REGULER</div>
   <div class="section-body">
@@ -1756,10 +1773,12 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      10. PIUTANG CDN
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['piutang-cdn'] ?? true))
 <div class="section">
   <div class="section-title">10. PIUTANG CDN</div>
   <div class="section-body">
@@ -1874,10 +1893,12 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      11. TTP GANTUNG
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['ttp-gantung'] ?? true))
 <div class="section">
   <div class="section-title">11. TTP GANTUNG</div>
   <div class="section-body">
@@ -2019,10 +2040,12 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      12. CEK FISIK
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['cek-fisik'] ?? true))
 <div class="section">
   <div class="section-title">12. CEK FISIK (Blangko Cek Fisik &amp; STUJ)</div>
   <div class="section-body">
@@ -2152,10 +2175,12 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      13. MT (Mechanic Truster Tools)
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['mt'] ?? true))
 <div class="section">
   <div class="section-title">13. MT (Mechanic Truster Tools)</div>
   <div class="section-body" style="padding:0;">
@@ -2267,10 +2292,12 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      14. HGP & AHM OILS
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['hgp'] ?? true))
 <div class="section">
   <div class="section-title">14. HGP &amp; AHM OILS</div>
   <div class="section-body" style="padding:0;">
@@ -2382,10 +2409,12 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      15. HGA (ACCESSORIES)
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['hga'] ?? true))
 <div class="section">
   <div class="section-title">15. HGA (Accessories)</div>
   <div class="section-body" style="padding:0;">
@@ -2511,10 +2540,12 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      16. SMH TARIKAN
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['smh-tarikan'] ?? true))
 <div class="section">
   <div class="section-title">16. SMH TARIKAN</div>
   <div class="section-body" style="padding:0;">
@@ -2618,10 +2649,12 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      17. LAMPIRAN
      ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['lampiran'] ?? true))
 <div class="section">
   <div class="section-title">17. LAMPIRAN AUDIT</div>
   <div class="section-body" style="padding:0;">
@@ -2709,6 +2742,7 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+@endif
 
 <div style="text-align:center;color:#9ca3af;font-size:8px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:8px;">
   Laporan ini digenerate secara otomatis oleh sistem AKTA IAT pada {{ now()->format('d/m/Y H:i:s') }}.

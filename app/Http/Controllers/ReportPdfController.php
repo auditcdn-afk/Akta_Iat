@@ -84,19 +84,20 @@ class ReportPdfController extends Controller
             }
         }
 
-        $plafon = $this->isTabVisible($plan, 'plafon') ? $this->buildPlafonAnalisa($plan) : $this->emptyPlafonAnalisa($plan);
+        $visibleTabs = $this->buildVisibleTabs($plan);
+        $plafon = ($visibleTabs['plafon'] ?? true) ? $this->buildPlafonAnalisa($plan) : $this->emptyPlafonAnalisa($plan);
 
         return compact(
             'plan', 'plafon', 'kas', 'smh', 'perlengkapan', 'bank', 'materai',
             'bpkbOnhand', 'bpkbInproses', 'kwitansi', 'piutangReguler',
             'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'hga',
-            'smhTarikan', 'lampiran', 'lampiranEmbeds'
+            'smhTarikan', 'lampiran', 'lampiranEmbeds', 'visibleTabs'
         );
     }
 
-    // Cek apakah tab/tool tertentu diaktifkan untuk plan ini (mengikuti konfigurasi
-    // admin di Database -> Jenis Audit & Tools). Default tampil jika belum dikonfigurasi.
-    private function isTabVisible(PlanAudit $plan, string $tabKey): bool
+    // Bangun peta tab_key => tampil/tidak, mengikuti konfigurasi admin di
+    // Database -> Jenis Audit & Tools. Default tampil jika belum dikonfigurasi.
+    private function buildVisibleTabs(PlanAudit $plan): array
     {
         $modul = 'audit';
         if ($plan->is_mandiri) {
@@ -104,13 +105,14 @@ class ReportPdfController extends Controller
             $modul = $mandiri?->jenis_pemeriksaan ?? 'audit_mandiri';
         }
 
-        $override = AuditTabConfig::query()
+        $allTabs = array_keys(config('audit_tabs', []));
+
+        $overrides = AuditTabConfig::query()
             ->where('modul', $modul)
             ->where('jenis_audit', $plan->jenis_audit)
-            ->where('tab_key', $tabKey)
-            ->value('visible');
+            ->pluck('visible', 'tab_key');
 
-        return $override === null ? true : (bool) $override;
+        return collect($allTabs)->mapWithKeys(fn($key) => [$key => $overrides->has($key) ? (bool) $overrides[$key] : true])->all();
     }
 
     private function emptyPlafonAnalisa(PlanAudit $plan): array
