@@ -25,7 +25,7 @@ class PlanAuditController extends Controller
         'pending_coo'         => ['next' => 'scheduled',           'roles' => ['coo', 'admin']],
         'scheduled'           => ['next' => 'running',             'roles' => ['auditor', 'admin']],
         'running'             => ['next' => 'cabang_active',       'roles' => ['__branch__', 'admin']],
-        'cabang_active'       => ['next' => 'done',                'roles' => ['auditor', 'manajer', 'admin']],
+        'cabang_active'       => ['next' => 'done',                'roles' => ['auditor', 'manajer', 'admin', '__branch__']],
     ];
 
     // Status yang boleh ditolak (kembali ke draft).
@@ -175,6 +175,15 @@ class PlanAuditController extends Controller
 
         if (! $canAdvance) {
             return response()->json(['ok' => false, 'message' => 'Role kamu tidak bisa melakukan aksi ini.'], 403);
+        }
+
+        // Cabang hanya boleh menyatakan pemeriksaan selesai jika BU Performance dan
+        // birokrasi rekomendasi (isi oleh cabang) sudah ada. HO tetap bebas tanpa syarat ini.
+        if ($status === 'cabang_active' && $isBranch && !$plan->canMarkSelesai()) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Belum bisa menyatakan selesai: pastikan BU Performance dan Rekomendasi (isi oleh cabang) sudah diisi.',
+            ], 422);
         }
 
         $plan->status = $transition['next'];
