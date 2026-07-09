@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\Admin\MenuController;
 use App\Http\Controllers\Api\Admin\RoleController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\PlanAuditController;
+use App\Http\Controllers\Api\PlanAuditMandiriController;
 use App\Http\Controllers\Api\AuditTaskController;
 use App\Http\Controllers\Api\AuditRecommendationController;
 use App\Http\Controllers\Api\PicaController;
@@ -413,6 +414,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
     Route::get('/plans', [PlanAuditController::class, 'index']);
     Route::get('/plans/{plan}', [PlanAuditController::class, 'show']);
+
+    Route::get('/plan-audit-mandiri', [PlanAuditMandiriController::class, 'index']);
+    Route::post('/plan-audit-mandiri', [PlanAuditMandiriController::class, 'store']);
+    Route::delete('/plan-audit-mandiri/{planAuditMandiri}', [PlanAuditMandiriController::class, 'destroy']);
 
     Route::get('/tasks', [AuditTaskController::class, 'index']);
     Route::get('/tasks/{task}', [AuditTaskController::class, 'show']);

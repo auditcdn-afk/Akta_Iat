@@ -18,6 +18,7 @@ export default defineConfig({
                 'resources/js/akta-sk.js',
                 'resources/js/akta-pica.js',
                 'resources/js/akta-rekomendasi.js',
+                'resources/js/akta-audit-mandiri.js',
                 'resources/js/akta-audit-detail-kas.js',
                 'resources/js/akta-report-audit.js',
                 'resources/js/akta-users.js',

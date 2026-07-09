@@ -17,12 +17,7 @@ Route::prefix('akta')->name('akta.')->group(function () {
 
     Route::view('/task', 'akta.pages.task')->name('task');
 
-    Route::get('/audit-mandiri', function () {
-        return view('akta.pages.placeholder', [
-            'title' => 'Audit Mandiri',
-            'description' => 'Modul BU Performance, pengecekan audit mandiri, dan sertijab.',
-        ]);
-    })->name('audit-mandiri');
+    Route::view('/audit-mandiri', 'akta.pages.audit-mandiri')->name('audit-mandiri');
 
     Route::view('/rekomendasi', 'akta.pages.rekomendasi')->name('rekomendasi');
 
