@@ -95,11 +95,7 @@ class SuratKeputusanController extends Controller
 
     public function update(Request $request, SuratKeputusan $suratKeputusan): JsonResponse
     {
-        $this->ensureCanWrite($request);
-
-        if ($suratKeputusan->status === 'selesai' && !$this->canApproveAfd($request)) {
-            abort(403, 'SK sudah selesai. Hanya admin/AFD yang boleh mengubah.');
-        }
+        $this->ensureIsAdmin($request);
 
         $payload = $this->normalizePayload($request);
         $data = $this->validatePayload($payload, false);
@@ -131,11 +127,7 @@ class SuratKeputusanController extends Controller
 
     public function destroy(Request $request, SuratKeputusan $suratKeputusan): JsonResponse
     {
-        $this->ensureCanWrite($request);
-
-        if ($suratKeputusan->status === 'selesai' && !$this->canApproveAfd($request)) {
-            abort(403, 'SK selesai hanya boleh dihapus oleh admin/AFD.');
-        }
+        $this->ensureIsAdmin($request);
 
         $suratKeputusan->delete();
 
@@ -287,6 +279,11 @@ class SuratKeputusanController extends Controller
             403,
             'Role tidak diizinkan mengubah SK.'
         );
+    }
+
+    private function ensureIsAdmin(Request $request): void
+    {
+        abort_unless($this->role($request) === 'admin', 403, 'Hanya admin yang boleh mengedit/menghapus SK.');
     }
 
     private function ensureCanApproveManajer(Request $request): void

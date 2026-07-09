@@ -44,19 +44,11 @@ function canApproveAfd() {
 }
 
 function canEditSk(item) {
-    if (!canManageSk()) {
-        return false;
-    }
-
-    if (item.status === "selesai") {
-        return currentUser?.role === "admin";
-    }
-
-    return true;
+    return currentUser?.role === "admin";
 }
 
 function canDeleteSk(item) {
-    if (!canManageSk()) {
+    if (currentUser?.role !== "admin") {
         return false;
     }
 
