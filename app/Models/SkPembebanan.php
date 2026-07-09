@@ -20,6 +20,10 @@ class SkPembebanan extends Model
         'pimpinan_csc',
         'personil',
         'total_pembebanan',
+        'status',
+        'finalized_by',
+        'finalized_by_name',
+        'finalized_at',
         'created_by',
         'created_by_name',
     ];
@@ -28,6 +32,7 @@ class SkPembebanan extends Model
         'tgl_audit' => 'date',
         'personil' => 'array',
         'total_pembebanan' => 'decimal:2',
+        'finalized_at' => 'datetime',
     ];
 
     public function suratKeputusan(): BelongsTo

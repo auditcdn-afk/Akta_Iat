@@ -350,9 +350,10 @@
                     <span class="text-sm font-semibold text-slate-300">Total Pembebanan</span>
                     <span id="pembebananTotalDisplay" class="text-lg font-bold text-emerald-300">Rp 0</span>
                 </div>
+                <div id="pembebananFinalizeWrap" class="mt-2"></div>
             </div>
 
-            <div>
+            <div id="personilEntrySection">
                 <label class="mb-2 block text-sm font-medium text-slate-300">Tambah Personil</label>
                 <div id="personilList"></div>
             </div>

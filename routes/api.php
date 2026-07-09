@@ -113,6 +113,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/sk-pembebanan/{skPembebanan}', [SkPembebananController::class, 'show']);
     Route::post('/sk-pembebanan', [SkPembebananController::class, 'store'])
         ->middleware('akta.role:admin,auditor');
+    Route::post('/sk-pembebanan/{skPembebanan}/finalize', [SkPembebananController::class, 'finalize'])
+        ->middleware('akta.role:admin,auditor');
     Route::delete('/sk-pembebanan/{skPembebanan}', [SkPembebananController::class, 'destroy'])
         ->middleware('akta.role:admin');
 

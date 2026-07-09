@@ -110,6 +110,9 @@ class SkPembebananController extends Controller
         $sk = SuratKeputusan::query()->findOrFail($data['surat_keputusan_id']);
         $jenis = $this->classifyUnit($data['unit_usaha'] ?? $sk->unit_usaha ?? '');
 
+        $existing = SkPembebanan::query()->where('surat_keputusan_id', $sk->id)->first();
+        abort_if($existing?->status === 'final', 422, 'Pembebanan SK sudah final, tidak bisa ditambah personil lagi.');
+
         $p = $data['personil'];
         $subtotal = array_reduce($p['rincian'], fn($carry, $r) => $carry + (float) $r['nilai'], 0);
         $entry = [
@@ -145,6 +148,31 @@ class SkPembebananController extends Controller
             'message' => 'Personil berhasil ditambahkan ke pembebanan SK.',
             'data' => $pembebanan->load(['suratKeputusan', 'planAudit']),
         ], 201);
+    }
+
+    // Kunci pembebanan agar tidak bisa ditambah/diubah lagi.
+    public function finalize(Request $request, SkPembebanan $skPembebanan): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless(
+            $user && in_array($user->role, ['admin', 'auditor'], true),
+            403,
+            'Hanya admin/auditor yang boleh menyelesaikan pembebanan SK.'
+        );
+
+        abort_if($skPembebanan->status === 'final', 422, 'Pembebanan SK sudah final.');
+        abort_if(empty($skPembebanan->personil), 422, 'Belum ada personil yang diisi.');
+
+        $skPembebanan->status = 'final';
+        $skPembebanan->finalized_by = $user->username;
+        $skPembebanan->finalized_by_name = $user->display_name ?? $user->name ?? $user->username;
+        $skPembebanan->finalized_at = now();
+        $skPembebanan->save();
+
+        return response()->json([
+            'message' => 'Pembebanan SK berhasil diselesaikan dan dikunci.',
+            'data' => $skPembebanan->load(['suratKeputusan', 'planAudit']),
+        ]);
     }
 
     public function destroy(Request $request, SkPembebanan $skPembebanan): JsonResponse

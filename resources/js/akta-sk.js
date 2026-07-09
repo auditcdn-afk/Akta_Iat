@@ -918,6 +918,8 @@ async function saveTanggapiSk(event) {
 
 let pembebananKategoriList = [];
 let pembebananCurrentSkId = null;
+let pembebananRecordId = null;
+let pembebananIsFinal = false;
 
 function formatRupiah(value) {
     const n = Number(value) || 0;
@@ -929,6 +931,9 @@ function renderSudahDisimpan(pembebanan) {
     const list = document.getElementById("pembebananSudahDisimpanList");
     const totalEl = document.getElementById("pembebananTotalDisplay");
     if (!wrap || !list) return;
+
+    pembebananRecordId = pembebanan?.id ?? null;
+    pembebananIsFinal = pembebanan?.status === "final";
 
     const personil = pembebanan?.personil || [];
     if (!personil.length) {
@@ -948,6 +953,49 @@ function renderSudahDisimpan(pembebanan) {
     `).join("");
 
     if (totalEl) totalEl.textContent = formatRupiah(pembebanan.total_pembebanan);
+
+    const actionWrap = document.getElementById("pembebananFinalizeWrap");
+    if (actionWrap) {
+        if (pembebananIsFinal) {
+            actionWrap.innerHTML = `
+                <div class="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+                    <span>✓ Pembebanan sudah final dan terkunci${pembebanan.finalized_by_name ? ` oleh ${escapeHtml(pembebanan.finalized_by_name)}` : ""}.</span>
+                </div>
+            `;
+        } else {
+            actionWrap.innerHTML = `
+                <button type="button" id="finalisasiPembebananBtn" class="w-full rounded-xl border border-emerald-500/40 px-4 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/10 transition">
+                    Selesai Pengisian — Kunci Pembebanan
+                </button>
+            `;
+            document.getElementById("finalisasiPembebananBtn")?.addEventListener("click", finalisasiPembebanan);
+        }
+    }
+
+    // Sembunyikan form tambah personil bila sudah final
+    const entrySection = document.getElementById("personilEntrySection");
+    if (entrySection) entrySection.classList.toggle("hidden", pembebananIsFinal);
+}
+
+async function finalisasiPembebanan() {
+    if (!pembebananRecordId) return;
+    const confirmed = confirm("Selesaikan pengisian pembebanan SK? Setelah ini tidak bisa ditambah/diubah lagi.");
+    if (!confirmed) return;
+
+    const btn = document.getElementById("finalisasiPembebananBtn");
+    if (btn) {
+        btn.textContent = "Memproses...";
+        btn.disabled = true;
+    }
+    try {
+        const result = await fetchJson(`/api/sk-pembebanan/${pembebananRecordId}/finalize`, {
+            method: "POST",
+        });
+        showAlert(result.message || "Pembebanan SK berhasil diselesaikan.");
+        renderSudahDisimpan(result.data);
+    } catch (e) {
+        showAlert(e.message || "Gagal menyelesaikan pembebanan SK.", "error");
+    }
 }
 
 function recalcPersonilSubtotal() {
@@ -1020,6 +1068,9 @@ async function openPembebananModal(id) {
     document.getElementById("pembebananPimpinanCsc").value = "";
     document.getElementById("pembebananTglAudit").value = "";
     document.getElementById("pembebananSudahDisimpanWrap")?.classList.add("hidden");
+    document.getElementById("personilEntrySection")?.classList.remove("hidden");
+    pembebananRecordId = null;
+    pembebananIsFinal = false;
 
     try {
         const qs = new URLSearchParams({ unit_usaha: unitUsaha });
@@ -1062,6 +1113,10 @@ function closePembebananModal() {
 }
 
 async function saveOnePersonil() {
+    if (pembebananIsFinal) {
+        showAlert("Pembebanan SK sudah final, tidak bisa ditambah personil lagi.", "error");
+        return;
+    }
     const btn = document.getElementById("simpanPersonilBtn");
     const block = document.querySelector("#personilList .personil-block");
     if (!block) return;
