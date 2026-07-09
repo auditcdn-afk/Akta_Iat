@@ -148,12 +148,40 @@ class SuratKeputusanController extends Controller
         );
 
         $data = $request->validate([
-            'tanggapan' => ['required', 'string', 'max:1000'],
+            'tanggapan' => ['nullable', 'string', 'max:1000'],
+            'poin' => ['nullable', 'string'],
             'file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
         ]);
 
-        $distribusi->tanggapan = $data['tanggapan'];
-        $distribusi->status = 'ditanggapi';
+        $poin = null;
+        if (!empty($data['poin'])) {
+            $decoded = json_decode($data['poin'], true);
+            if (is_array($decoded)) {
+                $poin = array_map(fn($p) => [
+                    'index' => (int) ($p['index'] ?? 0),
+                    'text' => (string) ($p['text'] ?? ''),
+                    'checked' => (bool) ($p['checked'] ?? false),
+                    'note' => (string) ($p['note'] ?? ''),
+                ], $decoded);
+            }
+        }
+
+        abort_if(empty($data['tanggapan']) && empty($poin), 422, 'Tanggapan atau centang poin wajib diisi.');
+
+        if ($poin !== null) {
+            $total = count($poin);
+            $checked = count(array_filter($poin, fn($p) => $p['checked']));
+            $distribusi->status = $total > 0 && $checked === $total
+                ? 'ditanggapi'
+                : ($checked > 0 ? 'sebagian' : 'pending');
+            $distribusi->tanggapan_poin = $poin;
+        } else {
+            $distribusi->status = 'ditanggapi';
+        }
+
+        if (!empty($data['tanggapan'])) {
+            $distribusi->tanggapan = $data['tanggapan'];
+        }
         $distribusi->responded_at = now();
 
         if ($request->hasFile('file')) {

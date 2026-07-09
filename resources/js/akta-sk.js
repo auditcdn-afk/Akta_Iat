@@ -719,6 +719,34 @@ async function saveDistributeSk(event) {
 
 let myDistribusiItems = [];
 
+// Pecah teks "Memutuskan" menjadi poin-poin bernomor (1. ... 2. ... dst)
+function splitMemutuskanPoints(text) {
+    if (!text) return [];
+    const lines = String(text).split(/\n+/);
+    const points = [];
+    let current = null;
+    for (const raw of lines) {
+        const line = raw.trim();
+        if (!line) continue;
+        if (/^\d+\.\s*/.test(line)) {
+            if (current) points.push(current);
+            current = { text: line };
+        } else if (current) {
+            current.text += "\n" + line;
+        }
+    }
+    if (current) points.push(current);
+    return points;
+}
+
+function progressOfDistribusi(item) {
+    const points = splitMemutuskanPoints((item.surat_keputusan || item.suratKeputusan || {}).memutuskan);
+    if (!points.length) return null;
+    const saved = item.tanggapan_poin || item.tanggapanPoin || [];
+    const checkedCount = saved.filter((p) => p.checked).length;
+    return { total: points.length, checked: checkedCount };
+}
+
 async function loadMyDistribusi() {
     const section = document.getElementById("myDistribusiSection");
     const body = document.getElementById("myDistribusiTableBody");
@@ -737,18 +765,25 @@ async function loadMyDistribusi() {
         const sk = item.surat_keputusan || item.suratKeputusan || {};
         const file = sk.file_sk || sk.fileSk || {};
         const done = item.status === "ditanggapi";
+        const progress = progressOfDistribusi(item);
         const badge = done
             ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20"
-            : "bg-amber-500/10 text-amber-300 border-amber-500/20";
-        const label = done ? "Sudah Ditanggapi" : "Menunggu Tanggapan";
+            : item.status === "sebagian"
+                ? "bg-blue-500/10 text-blue-300 border-blue-500/20"
+                : "bg-amber-500/10 text-amber-300 border-amber-500/20";
+        const label = done
+            ? "Selesai"
+            : progress
+                ? `${progress.checked}/${progress.total} Poin Selesai`
+                : "Menunggu Tanggapan";
         const btn = done
             ? ""
-            : `<button type="button" class="tanggapi-sk rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white transition" data-id="${item.id}">Tanggapan</button>`;
+            : `<button type="button" class="tanggapi-sk rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white transition" data-id="${item.id}">${progress ? "Isi Tanggapan" : "Tanggapan"}</button>`;
 
         const fileTanggapan = item.file_tanggapan || item.fileTanggapan || null;
         const tanggapanHtml = item.tanggapan
             ? escapeHtml(item.tanggapan) + (fileTanggapan?.url ? `<br><a href="${escapeAttr(fileTanggapan.url)}" target="_blank" class="text-blue-400 hover:underline text-xs">${escapeHtml(fileTanggapan.name || "Lampiran")}</a>` : "")
-            : "-";
+            : (fileTanggapan?.url ? `<a href="${escapeAttr(fileTanggapan.url)}" target="_blank" class="text-blue-400 hover:underline text-xs">${escapeHtml(fileTanggapan.name || "Lampiran")}</a>` : "-");
 
         return `
             <tr class="hover:bg-slate-950/50">
@@ -767,10 +802,42 @@ async function loadMyDistribusi() {
 function openTanggapiModal(id) {
     const modal = document.getElementById("tanggapiSkModal");
     if (!modal) return;
+    const item = myDistribusiItems.find((row) => String(row.id) === String(id));
+    const sk = item?.surat_keputusan || item?.suratKeputusan || {};
+    const points = splitMemutuskanPoints(sk.memutuskan);
+    const saved = item?.tanggapan_poin || item?.tanggapanPoin || [];
+
     document.getElementById("tanggapiSkId").value = id;
-    document.getElementById("tanggapiSkText").value = "";
+    document.getElementById("tanggapiSkText").value = item?.tanggapan || "";
     const fileEl = document.getElementById("tanggapiSkFile");
     if (fileEl) fileEl.value = "";
+
+    const pointsWrap = document.getElementById("tanggapiSkPoinList");
+    const overallWrap = document.getElementById("tanggapiSkOverallWrap");
+    if (pointsWrap) {
+        if (points.length) {
+            pointsWrap.classList.remove("hidden");
+            if (overallWrap) overallWrap.classList.add("hidden");
+            pointsWrap.innerHTML = points.map((p, idx) => {
+                const prev = saved.find((s) => s.index === idx) || {};
+                return `
+                    <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-3" data-poin-index="${idx}">
+                        <label class="flex items-start gap-2 text-sm text-slate-200 cursor-pointer">
+                            <input type="checkbox" class="poin-checkbox mt-1" ${prev.checked ? "checked" : ""}>
+                            <span class="whitespace-pre-wrap">${escapeHtml(p.text)}</span>
+                        </label>
+                        <textarea rows="2" placeholder="Catatan / penjelasan untuk poin ini (opsional)..."
+                            class="poin-note mt-2 w-full resize-y rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 outline-none focus:border-blue-500">${escapeHtml(prev.note || "")}</textarea>
+                    </div>
+                `;
+            }).join("");
+        } else {
+            pointsWrap.classList.add("hidden");
+            pointsWrap.innerHTML = "";
+            if (overallWrap) overallWrap.classList.remove("hidden");
+        }
+    }
+
     modal.classList.remove("hidden");
     modal.classList.add("flex");
 }
@@ -784,17 +851,31 @@ function closeTanggapiModal() {
 async function saveTanggapiSk(event) {
     event.preventDefault();
     const id = document.getElementById("tanggapiSkId").value;
-    const tanggapan = document.getElementById("tanggapiSkText").value.trim();
     const file = document.getElementById("tanggapiSkFile")?.files?.[0];
     const btn = document.getElementById("saveTanggapiSkBtn");
 
-    if (!tanggapan) {
-        showAlert("Tanggapan wajib diisi.", "error");
-        return;
-    }
+    const pointsWrap = document.getElementById("tanggapiSkPoinList");
+    const hasPoints = pointsWrap && !pointsWrap.classList.contains("hidden") && pointsWrap.children.length;
 
     const formData = new FormData();
-    formData.append("tanggapan", tanggapan);
+
+    if (hasPoints) {
+        const poin = Array.from(pointsWrap.querySelectorAll("[data-poin-index]")).map((el) => ({
+            index: Number(el.dataset.poinIndex),
+            text: el.querySelector(".poin-checkbox")?.closest("label")?.querySelector("span")?.textContent || "",
+            checked: el.querySelector(".poin-checkbox")?.checked || false,
+            note: el.querySelector(".poin-note")?.value.trim() || "",
+        }));
+        formData.append("poin", JSON.stringify(poin));
+    } else {
+        const tanggapan = document.getElementById("tanggapiSkText").value.trim();
+        if (!tanggapan) {
+            showAlert("Tanggapan wajib diisi.", "error");
+            return;
+        }
+        formData.append("tanggapan", tanggapan);
+    }
+
     if (file) formData.append("file", file);
 
     btn.textContent = "Menyimpan...";

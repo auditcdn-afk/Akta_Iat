@@ -261,11 +261,11 @@
 </div>
 
 <div id="tanggapiSkModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
-    <div class="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+    <div class="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
         <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
             <div>
                 <h3 class="text-lg font-bold">Tanggapan SK</h3>
-                <p class="text-sm text-slate-400">Berikan tanggapan atas Surat Keputusan yang diterima.</p>
+                <p class="text-sm text-slate-400">Centang setiap poin yang sudah diselesaikan, beri catatan bila perlu.</p>
             </div>
             <button type="button" id="closeTanggapiSkModalBtn"
                 class="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">Tutup</button>
@@ -273,11 +273,15 @@
 
         <form id="tanggapiSkForm" class="space-y-4 px-5 py-5">
             <input type="hidden" id="tanggapiSkId">
-            <div>
+
+            <div id="tanggapiSkPoinList" class="hidden space-y-3 max-h-96 overflow-y-auto pr-1"></div>
+
+            <div id="tanggapiSkOverallWrap" class="hidden">
                 <label class="mb-1 block text-sm font-medium text-slate-300">Tanggapan <span class="text-red-400">*</span></label>
-                <textarea id="tanggapiSkText" rows="5" required
+                <textarea id="tanggapiSkText" rows="5"
                     class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
             </div>
+
             <div>
                 <label class="mb-1 block text-sm font-medium text-slate-300">Lampiran File (opsional)</label>
                 <input id="tanggapiSkFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
