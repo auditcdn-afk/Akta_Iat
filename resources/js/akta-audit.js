@@ -351,9 +351,9 @@ function switchTab(tab) {
 function trxRow(item = {}) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-        <td class="px-3 py-1.5"><input type="date" class="trx-tanggal w-full rounded border border-slate-300 px-2 py-1 text-sm" value="${escapeHtml(item.tanggal || "")}"></td>
-        <td class="px-3 py-1.5"><input type="text" class="trx-ket w-full rounded border border-slate-300 px-2 py-1 text-sm" placeholder="Keterangan..." value="${escapeHtml(item.keterangan || "")}"></td>
-        <td class="px-3 py-1.5 text-right"><input type="text" inputmode="numeric" class="trx-jumlah calc-trigger w-full rounded border border-slate-300 px-2 py-1 text-sm text-right" value="${formatThousands(item.jumlah)}"></td>
+        <td class="px-3 py-1.5"><input type="date" class="trx-tanggal w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100" value="${escapeHtml(item.tanggal || "")}"></td>
+        <td class="px-3 py-1.5"><input type="text" class="trx-ket w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100" placeholder="Keterangan..." value="${escapeHtml(item.keterangan || "")}"></td>
+        <td class="px-3 py-1.5 text-right"><input type="text" inputmode="numeric" class="trx-jumlah calc-trigger w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-right text-slate-100" value="${formatThousands(item.jumlah)}"></td>
         <td class="px-1 text-center"><button type="button" class="remove-row text-red-500 hover:text-red-700">✕</button></td>`;
     return tr;
 }
@@ -361,8 +361,8 @@ function trxRow(item = {}) {
 function blankoRow(item = {}) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-        <td class="px-1 py-1.5 w-28"><input type="text" class="blk-jenis w-full rounded border border-slate-300 px-2 py-1 text-sm" placeholder="Jenis" value="${escapeHtml(item.jenis || "")}"></td>
-        <td class="px-1 py-1.5"><input type="text" class="blk-nomor w-full rounded border border-slate-300 px-2 py-1 text-sm" placeholder="Nomor range blanko..." value="${escapeHtml(item.nomor || "")}"></td>
+        <td class="px-1 py-1.5 w-28"><input type="text" class="blk-jenis w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100" placeholder="Jenis" value="${escapeHtml(item.jenis || "")}"></td>
+        <td class="px-1 py-1.5"><input type="text" class="blk-nomor w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100" placeholder="Nomor range blanko..." value="${escapeHtml(item.nomor || "")}"></td>
         <td class="px-1 text-center w-10"><button type="button" class="remove-row text-red-500 hover:text-red-700">✕</button></td>`;
     return tr;
 }
@@ -376,13 +376,13 @@ function renderPecahan(data = []) {
     PECAHAN.forEach((nominal) => {
         const item = byNominal[nominal] || {};
         const tr = document.createElement("tr");
-        tr.className = "border-b border-slate-100";
+        tr.className = "border-b border-slate-800 text-slate-100";
         tr.dataset.nominal = nominal;
         tr.innerHTML = `
             <td class="px-3 py-1.5 text-right font-semibold">${new Intl.NumberFormat("id-ID").format(nominal)}</td>
-            <td class="px-3 py-1.5 text-center"><input type="number" min="0" class="pcn-besar calc-trigger w-24 rounded border border-slate-300 px-2 py-1 text-sm text-center" value="${num(item.lembar_besar)}"></td>
+            <td class="px-3 py-1.5 text-center"><input type="number" min="0" class="pcn-besar calc-trigger w-24 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-center text-slate-100" value="${num(item.lembar_besar)}"></td>
             <td class="px-3 py-1.5 text-right pcn-total-besar">Rp 0</td>
-            <td class="px-3 py-1.5 text-center"><input type="number" min="0" class="pcn-kecil calc-trigger w-24 rounded border border-slate-300 px-2 py-1 text-sm text-center" value="${num(item.lembar_kecil)}"></td>
+            <td class="px-3 py-1.5 text-center"><input type="number" min="0" class="pcn-kecil calc-trigger w-24 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-center text-slate-100" value="${num(item.lembar_kecil)}"></td>
             <td class="px-3 py-1.5 text-right pcn-total-kecil">Rp 0</td>`;
         tbody.appendChild(tr);
     });
