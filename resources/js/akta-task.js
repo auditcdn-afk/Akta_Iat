@@ -201,6 +201,7 @@ const PLAN_STATUS_LABEL = {
     scheduled: "Terjadwal",
     running: "Audit Berjalan",
     cabang_active: "Cabang Aktif",
+    revisi: "Perlu Perbaikan",
     done: "Selesai",
     cancelled: "Dibatalkan",
 };
@@ -292,6 +293,7 @@ function openModal(task) {
     const branchSection = document.getElementById("branchSection");
     const selesaiCabangSection = document.getElementById("selesaiCabangSection");
     const pinjamanApprovalSection = document.getElementById("pinjamanApprovalSection");
+    const revisiSection = document.getElementById("revisiSection");
 
     // Sembunyikan semua seksi dulu
     execSection?.classList.add("hidden");
@@ -299,6 +301,7 @@ function openModal(task) {
     branchSection?.classList.add("hidden");
     selesaiCabangSection?.classList.add("hidden");
     pinjamanApprovalSection?.classList.add("hidden");
+    revisiSection?.classList.add("hidden");
 
     if (branch) {
         // Branch user: tampilkan tombol Mulai Cabang jika plan sedang running
@@ -336,6 +339,11 @@ function openModal(task) {
                 info.textContent = `Plan audit ini menunggu persetujuan ${who}. Periksa data plan di atas lalu pilih tindakan.`;
             }
         }
+    } else if (plan.status === "revisi" && ["auditor", "admin"].includes(currentUser?.role)) {
+        revisiSection?.classList.remove("hidden");
+        document.getElementById("approvePlanId").value = plan.id || "";
+        const revisiCatatan = document.getElementById("revisiCatatan");
+        if (revisiCatatan) revisiCatatan.value = "";
     } else {
         execSection?.classList.remove("hidden");
         document.getElementById("approvePlanId").value = plan.id || "";
@@ -430,6 +438,28 @@ async function mulaiCabang(planId) {
         await loadTasks();
     } catch (err) {
         showAlert(err.message || "Gagal mengonfirmasi.", "error");
+    }
+}
+
+async function selesaiRevisi(planId) {
+    if (!planId) return;
+    const catatan = document.getElementById("revisiCatatan")?.value?.trim() || "";
+    if (!catatan) {
+        showAlert("Tanggapan perbaikan wajib diisi.", "error");
+        return;
+    }
+    if (!confirm("Nyatakan perbaikan pemeriksaan ini selesai?")) return;
+    try {
+        const payload = await fetchJson(`/api/plans/${planId}/advance`, {
+            method: "POST",
+            headers: authHeaders({ "Content-Type": "application/json" }),
+            body: JSON.stringify({ catatan }),
+        });
+        closeModal();
+        showAlert(payload.message || "Perbaikan dinyatakan selesai.");
+        await loadTasks();
+    } catch (err) {
+        showAlert(err.message || "Gagal menyelesaikan perbaikan.", "error");
     }
 }
 
@@ -789,6 +819,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("cancelTaskFormButton2")?.addEventListener("click", closeModal);
     document.getElementById("cancelBranchButton")?.addEventListener("click", closeModal);
     document.getElementById("cancelSelesaiCabangButton")?.addEventListener("click", closeModal);
+    document.getElementById("cancelRevisiButton")?.addEventListener("click", closeModal);
+
+    document.getElementById("revisiSelesaiBtn")?.addEventListener("click", () => {
+        const planId = document.getElementById("approvePlanId")?.value;
+        selesaiRevisi(planId).catch((err) => showAlert(err.message, "error"));
+    });
 
     document.getElementById("mulaiCabangBtn")?.addEventListener("click", () => {
         const planId = document.getElementById("approvePlanId")?.value;

@@ -68,6 +68,28 @@ class PlanPenilaianController extends Controller
             'catatan' => $data['catatan'],
         ]);
 
+        // Penilaian "Not OK" membuka kembali pemeriksaan: plan kembali berstatus 'revisi'
+        // agar auditor bisa memperbaiki pemeriksaan pada menu Audit, lalu mengisi tanggapan
+        // perbaikan sebelum plan bisa dinyatakan selesai kembali.
+        if ($data['hasil'] === 'not_ok') {
+            $prevStatus = $plan->status;
+            $plan->status = 'revisi';
+            $plan->updated_by = $user->username;
+            $plan->save();
+
+            $plan->recordLog(
+                'advance',
+                $prevStatus,
+                'revisi',
+                $user,
+                "Penilaian {$role} Not OK: {$data['catatan']}"
+            );
+
+            // Bersihkan penilaian sebelumnya agar koordinator/manajer bisa menilai ulang
+            // setelah auditor menyelesaikan perbaikan.
+            PlanPenilaian::query()->where('plan_audit_id', $plan->id)->delete();
+        }
+
         return response()->json([
             'message' => 'Penilaian berhasil disimpan.',
             'data' => $penilaian->toAktaArray(),

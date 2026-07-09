@@ -16,6 +16,7 @@ const STATUS_LABELS = {
     scheduled:            "Disetujui",
     running:              "Audit Berjalan",
     cabang_active:        "Cabang Aktif",
+    revisi:               "Perlu Perbaikan",
     done:                 "Selesai",
     cancelled:            "Dibatalkan",
 };
@@ -28,6 +29,7 @@ const STATUS_BADGE = {
     scheduled:            "bg-blue-500/10 text-blue-300 border-blue-500/20",
     running:              "bg-amber-500/10 text-amber-300 border-amber-500/20",
     cabang_active:        "bg-teal-500/10 text-teal-300 border-teal-500/20",
+    revisi:               "bg-red-500/10 text-red-300 border-red-500/20",
     done:                 "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
     cancelled:            "bg-red-500/10 text-red-300 border-red-500/20",
 };
@@ -42,6 +44,7 @@ const TRANSITIONS = {
     scheduled:           { next: "running",             roles: ["auditor", "admin"],            label: "Mulai Audit",  color: "amber"   },
     running:             { next: "cabang_active",       roles: ["__branch__", "admin"],         label: "Mulai Cabang", color: "teal"    },
     cabang_active:       { next: "done",                roles: ["auditor", "manajer", "admin"], label: "Selesai",      color: "slate"   },
+    revisi:              { next: "done",                roles: ["auditor", "admin"],            label: "Selesai Perbaikan", color: "slate" },
 };
 
 const REJECTABLE = {
@@ -400,10 +403,22 @@ async function advancePlan(id) {
     if (!plan) return;
 
     const t = TRANSITIONS[plan.status];
-    const confirmed = confirm(`${t?.label || "Lanjutkan"} plan ${plan.noSpt}?`);
-    if (!confirmed) return;
 
-    const payload = await fetchJson(`/api/plans/${id}/advance`, { method: "POST" });
+    let body;
+    if (plan.status === "revisi") {
+        const catatan = prompt("Isi tanggapan perbaikan sebelum menyatakan selesai:");
+        if (!catatan || !catatan.trim()) return;
+        body = JSON.stringify({ catatan: catatan.trim() });
+    } else {
+        const confirmed = confirm(`${t?.label || "Lanjutkan"} plan ${plan.noSpt}?`);
+        if (!confirmed) return;
+    }
+
+    const payload = await fetchJson(`/api/plans/${id}/advance`, {
+        method: "POST",
+        headers: body ? { "Content-Type": "application/json" } : {},
+        body,
+    });
     showAlert(payload.message || "Status berhasil diperbarui.");
     await loadPlans();
 }

@@ -101,6 +101,7 @@ const STATUS_META = {
     scheduled:     { label: "Terjadwal",      badge: "bg-blue-500/10 text-blue-300 border-blue-500/20" },
     running:       { label: "Sedang Berjalan", badge: "bg-amber-500/10 text-amber-300 border-amber-500/20" },
     cabang_active: { label: "Cabang Aktif",    badge: "bg-purple-500/10 text-purple-300 border-purple-500/20" },
+    revisi:        { label: "Perlu Perbaikan", badge: "bg-red-500/10 text-red-300 border-red-500/20" },
     done:          { label: "Selesai",         badge: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" },
 };
 
@@ -108,7 +109,7 @@ const PLAN_STATUS_LABEL = {
     draft: "Draft", pending_koordinator: "Menunggu Koordinator",
     pending_manajer: "Menunggu Manajer Audit", pending_coo: "Menunggu COO",
     scheduled: "Terjadwal", running: "Audit Berjalan",
-    cabang_active: "Cabang Aktif", done: "Selesai", cancelled: "Dibatalkan",
+    cabang_active: "Cabang Aktif", revisi: "Perlu Perbaikan", done: "Selesai", cancelled: "Dibatalkan",
 };
 
 const ACTION_META = {
@@ -140,7 +141,7 @@ function renderTable() {
     const tbody = document.getElementById("auditTableBody");
     if (!tbody) return;
 
-    const relevant = plans.filter(p => ["scheduled", "running", "cabang_active"].includes(p.status));
+    const relevant = plans.filter(p => ["scheduled", "running", "cabang_active", "revisi"].includes(p.status));
 
     if (!relevant.length) {
         tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">Belum ada plan audit yang siap dikerjakan.</td></tr>`;
@@ -150,7 +151,7 @@ function renderTable() {
     tbody.innerHTML = relevant.map((plan) => {
         const meta    = STATUS_META[plan.status] || STATUS_META.scheduled;
         const tim     = [plan.kepalaTim, ...(plan.tim || [])].filter(Boolean);
-        const isActive = plan.status === "running" || plan.status === "cabang_active";
+        const isActive = plan.status === "running" || plan.status === "cabang_active" || plan.status === "revisi";
         const btnLabel = isActive ? "Buka Pemeriksaan" : "Mulai Audit";
         const btnColor = isActive
             ? "border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
@@ -1315,7 +1316,7 @@ function openAuditModal(plan) {
         startBtn.textContent = "Mulai Audit";
         startBtn.addEventListener("click", () => startAudit(plan));
         actions.appendChild(startBtn);
-    } else if (plan.status === "running" || plan.status === "cabang_active") {
+    } else if (plan.status === "running" || plan.status === "cabang_active" || plan.status === "revisi") {
         const openBtn = document.createElement("button");
         openBtn.type = "button";
         openBtn.className = "rounded-xl bg-amber-600 px-5 py-2 text-sm font-semibold text-white hover:bg-amber-500";

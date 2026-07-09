@@ -267,6 +267,28 @@
                 </div>
             </div>
 
+            {{-- ── Perbaikan (auditor, setelah penilaian Not OK) ── --}}
+            <div id="revisiSection" class="hidden">
+                <div class="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-200">
+                    Penilaian menyatakan <strong>Not OK</strong>. Perbaiki pemeriksaan pada menu <strong>Audit</strong>, lalu isi tanggapan perbaikan di bawah ini sebelum menekan <strong>Selesai</strong>.
+                </div>
+                <div class="mt-3">
+                    <label for="revisiCatatan" class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Tanggapan Perbaikan</label>
+                    <textarea id="revisiCatatan" rows="3" class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                        placeholder="Jelaskan perbaikan yang sudah dilakukan..."></textarea>
+                </div>
+                <div class="flex justify-end gap-3 border-t border-slate-800 pt-4 mt-4">
+                    <button type="button" id="cancelRevisiButton"
+                        class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">
+                        Tutup
+                    </button>
+                    <button type="button" id="revisiSelesaiBtn"
+                        class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500">
+                        Selesai
+                    </button>
+                </div>
+            </div>
+
             {{-- ── Approval (koordinator/manajer/coo) ── --}}
             <div id="approvalSection" class="hidden">
                 <div id="approvalInfo" class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">

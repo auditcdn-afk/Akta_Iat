@@ -26,6 +26,7 @@ class PlanAuditController extends Controller
         'scheduled'           => ['next' => 'running',             'roles' => ['auditor', 'admin']],
         'running'             => ['next' => 'cabang_active',       'roles' => ['__branch__', 'admin']],
         'cabang_active'       => ['next' => 'done',                'roles' => ['auditor', 'manajer', 'admin', '__branch__']],
+        'revisi'              => ['next' => 'done',                'roles' => ['auditor', 'admin']],
     ];
 
     // Status yang boleh ditolak (kembali ke draft).
@@ -186,11 +187,26 @@ class PlanAuditController extends Controller
             ], 422);
         }
 
+        // Perbaikan (revisi -> done) wajib menyertakan tanggapan perbaikan.
+        $catatanPerbaikan = null;
+        if ($status === 'revisi') {
+            $data = $request->validate([
+                'catatan' => ['required', 'string', 'max:2000'],
+            ]);
+            $catatanPerbaikan = $data['catatan'];
+        }
+
         $plan->status = $transition['next'];
         $plan->updated_by = $request->user()?->username;
         $plan->save();
 
-        $plan->recordLog('advance', $status, $plan->status, $request->user(), 'Disetujui / dilanjutkan');
+        $plan->recordLog(
+            'advance',
+            $status,
+            $plan->status,
+            $request->user(),
+            $catatanPerbaikan ? ('Tanggapan perbaikan: ' . $catatanPerbaikan) : 'Disetujui / dilanjutkan'
+        );
 
         // Saat plan berubah ke 'running', buat task untuk cabang agar muncul di Task mereka.
         if ($plan->status === 'running' && $plan->cabang) {
