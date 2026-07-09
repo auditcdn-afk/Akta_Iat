@@ -60,6 +60,7 @@ class AuditTask extends Model
                 'kepalaTim' => $this->planAudit->kepala_tim,
                 'tim' => $this->planAudit->tim ?: [],
                 'status' => $this->planAudit->status,
+                'canMarkSelesai' => $this->planAudit->canMarkSelesai(),
                 'logs' => $this->planAudit->relationLoaded('logs')
                     ? $this->planAudit->logs->map->toAktaArray()->all()
                     : $this->planAudit->logs()->orderBy('created_at')->get()->map->toAktaArray()->all(),
