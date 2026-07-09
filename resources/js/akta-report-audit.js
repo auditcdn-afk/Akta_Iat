@@ -170,12 +170,19 @@ function renderReportItems() {
 
                     <td class="px-4 py-4 text-right">
                         <div class="flex items-center justify-end gap-2">
-                            <button type="button" class="view-report-detail rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-plan-id="${plan.id}">
-                                Detail
-                            </button>
+                            ${!plan.is_mandiri ? `
+                                <button type="button" class="view-report-detail rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-plan-id="${plan.id}">
+                                    Detail
+                                </button>
+                            ` : ""}
                             ${canShowPenilaianButton(plan) ? `
                                 <button type="button" class="open-penilaian rounded-lg border border-emerald-500/40 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/10" data-plan-id="${plan.id}">
                                     Penilaian
+                                </button>
+                            ` : ""}
+                            ${canShowCrosscheckButton(plan) ? `
+                                <button type="button" class="open-crosscheck rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/10" data-plan-id="${plan.id}">
+                                    Crosscheck
                                 </button>
                             ` : ""}
                             <a href="/akta/report-audit/pdf/${plan.id}" target="_blank"
@@ -193,6 +200,88 @@ function renderReportItems() {
 // Tombol Penilaian hanya untuk koordinator/manajer, dan hanya saat plan sudah done.
 function canShowPenilaianButton(plan) {
     return ["koordinator", "manajer"].includes(currentUser?.role) && plan.status === "done";
+}
+
+// Crosscheck: khusus plan Audit Mandiri/Sertijab, bisa dilakukan oleh auditor mana pun (atau admin).
+function canShowCrosscheckButton(plan) {
+    return !!plan.is_mandiri && ["auditor", "admin"].includes(currentUser?.role);
+}
+
+async function openCrosscheck(planId) {
+    const modal = document.getElementById("crosscheckModal");
+    if (!modal) return;
+
+    document.getElementById("crosscheckPlanId").value = planId;
+    document.getElementById("crosscheckForm")?.reset();
+    document.getElementById("crosscheckRekomendasiWrap")?.classList.add("hidden");
+    document.getElementById("crosscheckExisting")?.classList.add("hidden");
+
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+
+    try {
+        const res = await fetchJson(`/api/plan-audit-mandiri-crosscheck?plan_audit_id=${planId}`, { headers: authHeaders() });
+        if (res.data) {
+            const label = { ok: "OK", not_ok: "Not OK", selisih: "Selisih" }[res.data.hasil] || res.data.hasil;
+            document.getElementById("crosscheckExistingText").textContent =
+                `${label} oleh ${res.data.displayName || res.data.username || "-"} (${res.data.updatedAt || res.data.createdAt || "-"})`;
+            document.getElementById("crosscheckExisting")?.classList.remove("hidden");
+        }
+    } catch (e) {
+        showAlert(e.message, "error");
+    }
+}
+
+function closeCrosscheck() {
+    const modal = document.getElementById("crosscheckModal");
+    modal?.classList.add("hidden");
+    modal?.classList.remove("flex");
+}
+
+async function saveCrosscheck(event) {
+    event.preventDefault();
+
+    const planId = document.getElementById("crosscheckPlanId")?.value;
+    const hasil = document.querySelector('input[name="crosscheckHasil"]:checked')?.value;
+    if (!planId || !hasil) {
+        showAlert("Pilih hasil crosscheck terlebih dahulu.", "error");
+        return;
+    }
+
+    const body = {
+        plan_audit_id: Number(planId),
+        hasil,
+        catatan: document.getElementById("crosscheckCatatan")?.value || null,
+    };
+
+    if (hasil === "selisih") {
+        const judul = document.getElementById("crosscheckRekJudul")?.value?.trim();
+        if (!judul) {
+            showAlert("Judul rekomendasi wajib diisi jika hasil Selisih.", "error");
+            return;
+        }
+        body.rekomendasi = {
+            judul,
+            deskripsi: document.getElementById("crosscheckRekDeskripsi")?.value || null,
+            pic: document.getElementById("crosscheckRekPic")?.value || null,
+            deadline: document.getElementById("crosscheckRekDeadline")?.value || null,
+            prioritas: document.getElementById("crosscheckRekPrioritas")?.value || "sedang",
+        };
+    }
+
+    try {
+        const payload = await fetchJson("/api/plan-audit-mandiri-crosscheck", {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        showAlert(payload.message || "Crosscheck berhasil disimpan.");
+        closeCrosscheck();
+        await loadReportSummary();
+        await loadReportItems();
+    } catch (e) {
+        showAlert(e.message, "error");
+    }
 }
 
 async function openPenilaian(planId) {
@@ -504,10 +593,18 @@ function setupTableActions() {
         ?.addEventListener("click", async (event) => {
             const detailButton = event.target.closest(".view-report-detail");
             const penilaianButton = event.target.closest(".open-penilaian");
+            const crosscheckButton = event.target.closest(".open-crosscheck");
 
             if (penilaianButton) {
                 openPenilaian(penilaianButton.dataset.planId).catch((error) =>
                     showAlert(error.message || "Gagal membuka penilaian.", "error")
+                );
+                return;
+            }
+
+            if (crosscheckButton) {
+                openCrosscheck(crosscheckButton.dataset.planId).catch((error) =>
+                    showAlert(error.message || "Gagal membuka crosscheck.", "error")
                 );
                 return;
             }
@@ -534,6 +631,17 @@ function setupTableActions() {
     document.querySelectorAll(".penilaian-hasil-radio").forEach((radio) => {
         radio.addEventListener("change", () => {
             document.getElementById("penilaianCatatanWrap")?.classList.toggle("hidden", radio.value === "ok" && radio.checked);
+        });
+    });
+
+    document.getElementById("closeCrosscheckBtn")?.addEventListener("click", closeCrosscheck);
+    document.getElementById("cancelCrosscheckBtn")?.addEventListener("click", closeCrosscheck);
+    document.getElementById("crosscheckForm")?.addEventListener("submit", (event) => {
+        saveCrosscheck(event).catch((error) => showAlert(error.message || "Gagal menyimpan crosscheck.", "error"));
+    });
+    document.querySelectorAll(".crosscheck-hasil-radio").forEach((radio) => {
+        radio.addEventListener("change", () => {
+            document.getElementById("crosscheckRekomendasiWrap")?.classList.toggle("hidden", radio.value !== "selisih");
         });
     });
 }

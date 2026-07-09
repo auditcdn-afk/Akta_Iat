@@ -247,6 +247,7 @@ class ReportAuditController extends Controller
             'jenis_audit' => $this->attr($plan, ['jenis_audit', 'jenisAudit', 'tipe_audit', 'tipeAudit']),
             'auditor' => $this->attr($plan, ['auditor', 'nama_pemeriksa', 'namaPemeriksa']),
             'status' => $this->attr($plan, ['status']),
+            'is_mandiri' => (bool) $plan->is_mandiri,
             'tanggal_mulai' => $this->attr($plan, ['tanggal_mulai', 'tgl_mulai', 'tglMulai', 'tanggal']),
             'tanggal_selesai' => $this->attr($plan, ['tanggal_selesai', 'tgl_selesai', 'tglSelesai']),
             'created_at' => $plan->created_at,

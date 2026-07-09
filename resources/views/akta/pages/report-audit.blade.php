@@ -262,6 +262,96 @@
         </div>
     </div>
 </div>
+
+<div id="crosscheckModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
+    <div class="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+            <div>
+                <h3 class="text-lg font-bold">Crosscheck Audit Mandiri</h3>
+                <p class="text-sm text-slate-400">Crosscheck bisa dilakukan oleh auditor mana pun.</p>
+            </div>
+            <button type="button" id="closeCrosscheckBtn"
+                class="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">Tutup</button>
+        </div>
+
+        <div class="space-y-4 px-5 py-5">
+            <input type="hidden" id="crosscheckPlanId">
+
+            <div id="crosscheckExisting" class="hidden rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">
+                Crosscheck terakhir: <span id="crosscheckExistingText" class="font-semibold text-slate-100">-</span>
+            </div>
+
+            <form id="crosscheckForm" class="space-y-4">
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-300">Hasil Crosscheck <span class="text-red-400">*</span></label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <label class="flex cursor-pointer items-center justify-center gap-1 rounded-xl border border-slate-700 bg-slate-950 px-2 py-3 text-sm font-semibold text-slate-300 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 has-[:checked]:text-emerald-300">
+                            <input type="radio" name="crosscheckHasil" value="ok" class="crosscheck-hasil-radio">
+                            OK
+                        </label>
+                        <label class="flex cursor-pointer items-center justify-center gap-1 rounded-xl border border-slate-700 bg-slate-950 px-2 py-3 text-sm font-semibold text-slate-300 has-[:checked]:border-red-500 has-[:checked]:bg-red-500/10 has-[:checked]:text-red-300">
+                            <input type="radio" name="crosscheckHasil" value="not_ok" class="crosscheck-hasil-radio">
+                            Not OK
+                        </label>
+                        <label class="flex cursor-pointer items-center justify-center gap-1 rounded-xl border border-slate-700 bg-slate-950 px-2 py-3 text-sm font-semibold text-slate-300 has-[:checked]:border-amber-500 has-[:checked]:bg-amber-500/10 has-[:checked]:text-amber-300">
+                            <input type="radio" name="crosscheckHasil" value="selisih" class="crosscheck-hasil-radio">
+                            Selisih
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Catatan</label>
+                    <textarea id="crosscheckCatatan" rows="3"
+                        class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
+                </div>
+
+                <div id="crosscheckRekomendasiWrap" class="hidden space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-amber-300">Rekomendasi (karena hasil Selisih)</p>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-300">Judul Rekomendasi <span class="text-red-400">*</span></label>
+                        <input id="crosscheckRekJudul" type="text"
+                            class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-300">Deskripsi</label>
+                        <textarea id="crosscheckRekDeskripsi" rows="3"
+                            class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-300">PIC</label>
+                            <input id="crosscheckRekPic" type="text"
+                                class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-300">Deadline</label>
+                            <input id="crosscheckRekDeadline" type="date"
+                                class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-300">Prioritas</label>
+                        <select id="crosscheckRekPrioritas"
+                            class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                            <option value="rendah">Rendah</option>
+                            <option value="sedang" selected>Sedang</option>
+                            <option value="tinggi">Tinggi</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
+                    <button type="button" id="cancelCrosscheckBtn"
+                        class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">Batal</button>
+                    <button type="submit" id="saveCrosscheckBtn"
+                        class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
