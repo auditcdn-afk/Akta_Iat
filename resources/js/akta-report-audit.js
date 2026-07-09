@@ -218,11 +218,18 @@ async function openPenilaian(planId) {
             document.getElementById("penilaianViewWrap")?.classList.remove("hidden");
             setText("penilaianViewTgl", mine.tglPemeriksaan || "-");
             setText("penilaianViewCatatan", mine.catatan || "-");
+            const hasilEl = document.getElementById("penilaianViewHasil");
+            if (hasilEl) {
+                const isOk = mine.hasil === "ok";
+                hasilEl.textContent = isOk ? "OK" : "Not OK";
+                hasilEl.className = "text-sm font-bold " + (isOk ? "text-emerald-300" : "text-red-300");
+            }
         } else {
             document.getElementById("penilaianForm")?.classList.remove("hidden");
             setText("penilaianFormTgl", new Date().toLocaleString("id-ID"));
             const textarea = document.getElementById("penilaianCatatan");
             if (textarea) textarea.value = "";
+            document.querySelectorAll(".penilaian-hasil-radio").forEach((r) => (r.checked = false));
         }
     } catch (e) {
         document.getElementById("penilaianLoading")?.classList.add("hidden");
@@ -240,8 +247,13 @@ async function savePenilaian(event) {
     event.preventDefault();
     const planId = document.getElementById("penilaianPlanId").value;
     const catatan = document.getElementById("penilaianCatatan")?.value.trim();
+    const hasil = document.querySelector(".penilaian-hasil-radio:checked")?.value;
     const btn = document.getElementById("savePenilaianBtn");
 
+    if (!hasil) {
+        showAlert("Pilih hasil penilaian: OK atau Not OK.", "error");
+        return;
+    }
     if (!catatan) {
         showAlert("Catatan penilaian wajib diisi.", "error");
         return;
@@ -252,7 +264,7 @@ async function savePenilaian(event) {
     try {
         const payload = await fetchJson("/api/plan-penilaian", {
             method: "POST",
-            body: JSON.stringify({ plan_audit_id: planId, catatan }),
+            body: JSON.stringify({ plan_audit_id: planId, hasil, catatan }),
         });
         showAlert(payload.message || "Penilaian berhasil disimpan.");
         closePenilaian();

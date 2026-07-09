@@ -12,6 +12,7 @@ class PlanPenilaian extends Model
     protected $fillable = [
         'plan_audit_id',
         'role',
+        'hasil',
         'username',
         'display_name',
         'tgl_pemeriksaan',
@@ -33,6 +34,7 @@ class PlanPenilaian extends Model
             'id' => $this->id,
             'planAuditId' => $this->plan_audit_id,
             'role' => $this->role,
+            'hasil' => $this->hasil,
             'username' => $this->username,
             'displayName' => $this->display_name,
             'tglPemeriksaan' => optional($this->tgl_pemeriksaan)->toDateTimeString(),

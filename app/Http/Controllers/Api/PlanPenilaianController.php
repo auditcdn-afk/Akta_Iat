@@ -41,6 +41,7 @@ class PlanPenilaianController extends Controller
 
         $data = $request->validate([
             'plan_audit_id' => ['required', 'integer', 'exists:plan_audits,id'],
+            'hasil' => ['required', 'string', 'in:ok,not_ok'],
             'catatan' => ['required', 'string', 'max:2000'],
         ]);
 
@@ -60,6 +61,7 @@ class PlanPenilaianController extends Controller
         $penilaian = PlanPenilaian::query()->create([
             'plan_audit_id' => $plan->id,
             'role' => $role,
+            'hasil' => $data['hasil'],
             'username' => $user->username,
             'display_name' => $user->display_name ?? $user->name ?? $user->username,
             'tgl_pemeriksaan' => now(),

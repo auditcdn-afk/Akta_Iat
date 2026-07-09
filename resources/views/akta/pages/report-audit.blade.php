@@ -220,6 +220,10 @@
                     <p id="penilaianViewTgl" class="text-sm text-slate-200">-</p>
                 </div>
                 <div>
+                    <label class="mb-1 block text-xs font-semibold text-slate-400">Hasil Penilaian</label>
+                    <p id="penilaianViewHasil" class="text-sm font-bold">-</p>
+                </div>
+                <div>
                     <label class="mb-1 block text-xs font-semibold text-slate-400">Catatan Penilaian</label>
                     <p id="penilaianViewCatatan" class="whitespace-pre-wrap rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200">-</p>
                 </div>
@@ -229,6 +233,19 @@
                 <div>
                     <label class="mb-1 block text-xs font-semibold text-slate-400">Tgl Pemeriksaan</label>
                     <p id="penilaianFormTgl" class="rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-400">-</p>
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-300">Hasil Penilaian <span class="text-red-400">*</span></label>
+                    <div class="flex gap-3">
+                        <label class="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm font-semibold text-slate-300 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 has-[:checked]:text-emerald-300">
+                            <input type="radio" name="penilaianHasil" value="ok" class="penilaian-hasil-radio">
+                            OK
+                        </label>
+                        <label class="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm font-semibold text-slate-300 has-[:checked]:border-red-500 has-[:checked]:bg-red-500/10 has-[:checked]:text-red-300">
+                            <input type="radio" name="penilaianHasil" value="not_ok" class="penilaian-hasil-radio">
+                            Not OK
+                        </label>
+                    </div>
                 </div>
                 <div>
                     <label class="mb-1 block text-sm font-medium text-slate-300">Catatan Penilaian <span class="text-red-400">*</span></label>
