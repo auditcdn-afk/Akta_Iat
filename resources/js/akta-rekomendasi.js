@@ -418,6 +418,11 @@ async function deleteRecommendation(id) {
     await loadRecommendations();
 }
 
+// Label tampilan untuk step birokrasi (nilai step tetap dipakai untuk matching/API)
+function stepLabel(step) {
+    return step === 'AFD' ? 'Keputusan AFD' : step;
+}
+
 // Ambil daftar step birokrasi (tanpa step teknis) dengan index aslinya
 function birokrasiStepsOf(item) {
     return (item.steps ?? [])
@@ -457,7 +462,7 @@ function buildBirokrasiCards(item) {
 
         const chip = '<span title="' + title + '" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:' + textColor + ';white-space:nowrap">'
             + '<span style="width:8px;height:8px;border-radius:50%;background:' + dotColor + ';display:inline-block"></span>'
-            + escapeHtml(s.step)
+            + escapeHtml(stepLabel(s.step))
             + (done ? ' ✓' : '')
             + '</span>';
 
@@ -480,7 +485,7 @@ window.openIsiStepFromReko = function openIsiStepFromReko(rekId, stepIdx, roleNa
     modal.dataset.stepIdx = stepIdx;
     const stepFormEl = document.getElementById('isiForm');
     if (stepFormEl) stepFormEl.style.display = '';
-    document.getElementById('isiModalSubtitle').textContent = 'Isi rekomendasi: ' + (roleName || '');
+    document.getElementById('isiModalSubtitle').textContent = 'Isi rekomendasi: ' + (stepLabel(roleName) || '');
 
     // Rekomendasi awal auditor
     const awalEl = document.getElementById('isiModalRekomendasiAwal');
@@ -497,7 +502,7 @@ window.openIsiStepFromReko = function openIsiStepFromReko(rekId, stepIdx, roleNa
             histList.innerHTML = histSteps.map(s => `
                 <div class="rounded-xl border border-slate-700 bg-slate-800/60 px-4 py-3">
                     <div class="flex items-center justify-between mb-1">
-                        <span class="text-xs font-bold text-slate-300">${escapeHtml(s.step === 'isi_rekomendasi' ? 'Isian Unit Usaha' : s.step)}</span>
+                        <span class="text-xs font-bold text-slate-300">${escapeHtml(s.step === 'isi_rekomendasi' ? 'Isian Unit Usaha' : stepLabel(s.step))}</span>
                         <span class="text-[10px] text-slate-500">${escapeHtml(s.user ?? '')}${s.time ? ' · ' + String(s.time).substring(0,10) : ''}</span>
                     </div>
                     <p class="text-sm text-slate-200 whitespace-pre-wrap">${escapeHtml(s.note)}</p>
@@ -540,7 +545,7 @@ function openIsiModal(id, judul, readOnly = false) {
         histList.innerHTML = histSteps.map(s => `
             <div class="rounded-xl border border-slate-700 bg-slate-800/60 px-4 py-3">
                 <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs font-bold text-slate-300">${escapeHtml(s.step === 'isi_rekomendasi' ? 'Isian Unit Usaha' : s.step)}</span>
+                    <span class="text-xs font-bold text-slate-300">${escapeHtml(s.step === 'isi_rekomendasi' ? 'Isian Unit Usaha' : stepLabel(s.step))}</span>
                     <span class="text-[10px] text-slate-500">${escapeHtml(s.user ?? '')}${s.time ? ' · ' + s.time.substring(0,10) : ''}</span>
                 </div>
                 <p class="text-sm text-slate-200 whitespace-pre-wrap">${escapeHtml(s.note)}</p>
