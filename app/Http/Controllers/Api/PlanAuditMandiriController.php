@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\PlanAudit;
 use App\Models\PlanAuditMandiri;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,8 +52,23 @@ class PlanAuditMandiriController extends Controller
             $identitas
         );
 
+        // Buat plan_audits "bayangan" agar bisa langsung memakai form pemeriksaan
+        // yang sama persis (Kas, SMH, Bank, dll) seperti menu Audit biasa.
+        $shadowPlan = PlanAudit::query()->create([
+            'no_spt' => $noPlan,
+            'cabang' => $user?->unit_usaha,
+            'cabang_area' => $user?->wilayah,
+            'jenis_audit' => $data['jenis_audit'],
+            'tgl_plan' => $tanggal->toDateString(),
+            'status' => 'cabang_active',
+            'is_mandiri' => true,
+            'created_by' => $user?->username,
+            'updated_by' => $user?->username,
+        ]);
+
         $plan = PlanAuditMandiri::query()->create([
             ...$data,
+            'plan_audit_id' => $shadowPlan->id,
             'no_plan' => $noPlan,
             'urutan' => $urutan,
             'tahun_plan' => $tahun,
@@ -73,6 +89,7 @@ class PlanAuditMandiriController extends Controller
 
     public function destroy(PlanAuditMandiri $planAuditMandiri): JsonResponse
     {
+        $planAuditMandiri->planAudit()->delete();
         $planAuditMandiri->delete();
 
         return response()->json(['ok' => true, 'message' => 'Plan audit mandiri berhasil dihapus.']);

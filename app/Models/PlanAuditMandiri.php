@@ -3,12 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PlanAuditMandiri extends Model
 {
     protected $table = 'plan_audit_mandiris';
 
     protected $fillable = [
+        'plan_audit_id',
         'no_plan',
         'urutan',
         'tahun_plan',
@@ -26,10 +28,16 @@ class PlanAuditMandiri extends Model
         'tgl_plan' => 'date',
     ];
 
+    public function planAudit(): BelongsTo
+    {
+        return $this->belongsTo(PlanAudit::class, 'plan_audit_id');
+    }
+
     public function toAktaArray(): array
     {
         return [
             'id' => $this->id,
+            'planAuditId' => $this->plan_audit_id,
             'noPlan' => $this->no_plan,
             'jenisPemeriksaan' => $this->jenis_pemeriksaan,
             'jenisAudit' => $this->jenis_audit,

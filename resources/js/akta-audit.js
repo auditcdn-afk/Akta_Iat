@@ -4,6 +4,7 @@ let plans = [];
 let currentUser = null;
 let activePlanId = null;
 let activePlan = null;
+let _deepLinkModul = null;
 let currentKasId = null;
 
 const PECAHAN = [100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100];
@@ -142,7 +143,7 @@ function renderTable() {
     const tbody = document.getElementById("auditTableBody");
     if (!tbody) return;
 
-    const relevant = plans.filter(p => ["scheduled", "running", "cabang_active", "revisi"].includes(p.status));
+    const relevant = plans.filter(p => !p.isMandiri && ["scheduled", "running", "cabang_active", "revisi"].includes(p.status));
 
     if (!relevant.length) {
         tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">Belum ada plan audit yang siap dikerjakan.</td></tr>`;
@@ -183,11 +184,11 @@ function renderTable() {
 
 // Sembunyikan tab pemeriksaan yang tidak diaktifkan admin untuk jenis audit ini.
 // Fail-open: jika config gagal dimuat atau jenis audit belum dikonfigurasi, semua tab tetap tampil.
-async function applyAuditTabVisibility(jenisAudit) {
+async function applyAuditTabVisibility(jenisAudit, modul = "audit") {
     let tabsConfig = null;
     try {
         const res = await fetchJson(
-            `/api/audit-tab-configs/show?jenis_audit=${encodeURIComponent(jenisAudit || "")}`,
+            `/api/audit-tab-configs/show?modul=${encodeURIComponent(modul)}&jenis_audit=${encodeURIComponent(jenisAudit || "")}`,
             { headers: authHeaders() }
         );
         tabsConfig = res.tabs || null;
@@ -226,7 +227,8 @@ async function openPemeriksaan(plan) {
         if (catatanEl) catatanEl.value = "";
     }
 
-    const firstTab = await applyAuditTabVisibility(plan.jenisAudit);
+    const modul = plan.isMandiri ? (_deepLinkModul || "audit_mandiri") : "audit";
+    const firstTab = await applyAuditTabVisibility(plan.jenisAudit, modul);
     switchTab(firstTab);
     if (firstTab === "kas") {
         loadKasForm().catch((e) => showAlert(e.message, "error"));
@@ -1864,6 +1866,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
         await loadCurrentUser();
         await loadPlans();
+
+        // Deep link dari menu Audit Mandiri: ?planId=X&modul=audit_mandiri|sertijab
+        const params = new URLSearchParams(window.location.search);
+        const deepLinkPlanId = params.get("planId");
+        if (deepLinkPlanId) {
+            _deepLinkModul = params.get("modul") || "audit_mandiri";
+            try {
+                const res = await fetchJson(`/api/plans/${deepLinkPlanId}`, { headers: authHeaders() });
+                if (res.data) openPemeriksaan(res.data);
+            } catch (e) {
+                showAlert(e.message || "Gagal membuka pemeriksaan.", "error");
+            }
+        }
     } catch (err) {
         showAlert(err.message || "Gagal memuat data audit.", "error");
     }
