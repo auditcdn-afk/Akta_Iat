@@ -263,6 +263,7 @@ async function saveCrosscheck(event) {
         body.rekomendasi = {
             judul,
             deskripsi: document.getElementById("crosscheckRekDeskripsi")?.value || null,
+            kategori: document.getElementById("crosscheckRekKategori")?.value || null,
             pic: document.getElementById("crosscheckRekPic")?.value || null,
             deadline: document.getElementById("crosscheckRekDeadline")?.value || null,
             prioritas: document.getElementById("crosscheckRekPrioritas")?.value || "sedang",

@@ -264,7 +264,7 @@
 </div>
 
 <div id="crosscheckModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
-    <div class="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+    <div class="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
         <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
             <div>
                 <h3 class="text-lg font-bold">Crosscheck Audit Mandiri</h3>
@@ -306,39 +306,62 @@
                         class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
                 </div>
 
-                <div id="crosscheckRekomendasiWrap" class="hidden space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-amber-300">Rekomendasi (karena hasil Selisih)</p>
-                    <div>
-                        <label class="mb-1 block text-sm font-medium text-slate-300">Judul Rekomendasi <span class="text-red-400">*</span></label>
-                        <input id="crosscheckRekJudul" type="text"
-                            class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                    </div>
-                    <div>
-                        <label class="mb-1 block text-sm font-medium text-slate-300">Deskripsi</label>
-                        <textarea id="crosscheckRekDeskripsi" rows="3"
-                            class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
+                <div id="crosscheckRekomendasiWrap" class="hidden rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                    <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-amber-300">Rekomendasi (karena hasil Selisih)</p>
+
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <div class="sm:col-span-2">
+                            <label class="mb-1 block text-sm font-medium text-slate-300">Judul <span class="text-red-400">*</span></label>
+                            <input id="crosscheckRekJudul" type="text" required
+                                class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                        </div>
+
+                        <div class="sm:col-span-2">
+                            <label class="mb-1 block text-sm font-medium text-slate-300">Deskripsi</label>
+                            <textarea id="crosscheckRekDeskripsi" rows="3"
+                                class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-300">Kategori</label>
+                            <select id="crosscheckRekKategori"
+                                class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                                <option value="">Pilih Kategori</option>
+                                <option value="Kas">Kas</option>
+                                <option value="Bank">Bank</option>
+                                <option value="Piutang">Piutang</option>
+                                <option value="BPKB">BPKB</option>
+                                <option value="HGP">HGP</option>
+                                <option value="KWT">KWT</option>
+                                <option value="MT">MT</option>
+                                <option value="Grading">Grading</option>
+                                <option value="Administrasi">Administrasi</option>
+                                <option value="Lainnya">Lainnya</option>
+                            </select>
+                        </div>
+
                         <div>
                             <label class="mb-1 block text-sm font-medium text-slate-300">PIC</label>
                             <input id="crosscheckRekPic" type="text"
                                 class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
                         </div>
+
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-300">Prioritas</label>
+                            <select id="crosscheckRekPrioritas"
+                                class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                                <option value="rendah">Rendah</option>
+                                <option value="sedang" selected>Sedang</option>
+                                <option value="tinggi">Tinggi</option>
+                                <option value="urgent">Urgent</option>
+                            </select>
+                        </div>
+
                         <div>
                             <label class="mb-1 block text-sm font-medium text-slate-300">Deadline</label>
                             <input id="crosscheckRekDeadline" type="date"
                                 class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
                         </div>
-                    </div>
-                    <div>
-                        <label class="mb-1 block text-sm font-medium text-slate-300">Prioritas</label>
-                        <select id="crosscheckRekPrioritas"
-                            class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                            <option value="rendah">Rendah</option>
-                            <option value="sedang" selected>Sedang</option>
-                            <option value="tinggi">Tinggi</option>
-                            <option value="urgent">Urgent</option>
-                        </select>
                     </div>
                 </div>
 
