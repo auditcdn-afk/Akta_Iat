@@ -28,16 +28,31 @@ function showAlert(message, type = 'success') {
 // ─── State ────────────────────────────────────────────────────────────────────
 let _plans = [];
 let _jenisPemeriksaan = 'audit_mandiri';
+let _currentUser = null;
 
 const JENIS_PEMERIKSAAN_LABEL = {
     audit_mandiri: 'Audit Mandiri',
     sertijab: 'Sertijab',
 };
 
+function todayLocal() {
+    const d = new Date();
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+}
+
+async function loadCurrentUser() {
+    const payload = await fetchJson('/api/auth/me', { headers: authHeaders() });
+    _currentUser = payload.user;
+    document.getElementById('amCabang').textContent = _currentUser?.unitUsaha || '-';
+    document.getElementById('amCabangArea').textContent = _currentUser?.wilayah || '-';
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     if (!getSession()) { window.location.href = '/akta/login'; return; }
 
+    document.getElementById('amTglPlan').textContent = todayLocal();
+    loadCurrentUser().catch((e) => showAlert(e.message, 'error'));
     loadPlans();
 
     document.querySelectorAll('.am-jenis-pemeriksaan-btn').forEach((btn) => {
@@ -91,10 +106,8 @@ async function createPlan(e) {
     const body = {
         jenis_pemeriksaan: _jenisPemeriksaan,
         jenis_audit: jenisAudit,
-        cabang: document.getElementById('amCabang').value || null,
-        cabang_area: document.getElementById('amCabangArea').value || null,
-        tgl_plan: document.getElementById('amTglPlan').value || null,
-        catatan: document.getElementById('amCatatan').value || null,
+        cabang: _currentUser?.unitUsaha || null,
+        cabang_area: _currentUser?.wilayah || null,
     };
 
     const payload = await fetchJson('/api/plan-audit-mandiri', {

@@ -33,14 +33,10 @@ class PlanAuditMandiriController extends Controller
         $data = $request->validate([
             'jenis_pemeriksaan' => ['required', 'string', 'in:audit_mandiri,sertijab'],
             'jenis_audit' => ['required', 'string', 'max:100'],
-            'cabang' => ['nullable', 'string', 'max:150'],
-            'cabang_area' => ['nullable', 'string', 'max:150'],
-            'tgl_plan' => ['nullable', 'date'],
-            'catatan' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $tglPlan = $data['tgl_plan'] ?? now()->toDateString();
-        $tanggal = \Carbon\Carbon::parse($tglPlan);
+        $user = $request->user();
+        $tanggal = now();
         $tahun = (int) $tanggal->format('Y');
 
         // Nomor urut plan reset tiap tahun berbeda.
@@ -60,10 +56,12 @@ class PlanAuditMandiriController extends Controller
             'no_plan' => $noPlan,
             'urutan' => $urutan,
             'tahun_plan' => $tahun,
-            'tgl_plan' => $tglPlan,
+            'cabang' => $user?->unit_usaha,
+            'cabang_area' => $user?->wilayah,
+            'tgl_plan' => $tanggal->toDateString(),
             'status' => 'draft',
-            'created_by' => $request->user()?->username,
-            'updated_by' => $request->user()?->username,
+            'created_by' => $user?->username,
+            'updated_by' => $user?->username,
         ]);
 
         return response()->json([

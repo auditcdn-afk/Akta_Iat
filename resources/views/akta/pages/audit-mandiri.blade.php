@@ -44,26 +44,17 @@
                     </select>
                 </div>
                 <div>
-                    <label for="amTglPlan" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Tanggal Plan</label>
-                    <input id="amTglPlan" type="date"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Tanggal Plan</label>
+                    <div id="amTglPlan" class="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm text-slate-300">-</div>
                 </div>
                 <div>
-                    <label for="amCabang" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Cabang / Unit Usaha</label>
-                    <input id="amCabang" type="text" placeholder="Contoh: SO ALB"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Cabang / Unit Usaha</label>
+                    <div id="amCabang" class="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm text-slate-300">-</div>
                 </div>
                 <div>
-                    <label for="amCabangArea" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Wilayah</label>
-                    <input id="amCabangArea" type="text" placeholder="Contoh: Aceh"
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Wilayah</label>
+                    <div id="amCabangArea" class="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm text-slate-300">-</div>
                 </div>
-            </div>
-
-            <div>
-                <label for="amCatatan" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Catatan</label>
-                <textarea id="amCatatan" rows="2"
-                    class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
             </div>
 
             <div class="flex justify-end">
