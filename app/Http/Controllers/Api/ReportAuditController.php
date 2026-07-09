@@ -13,10 +13,22 @@ use Illuminate\Http\Request;
 
 class ReportAuditController extends Controller
 {
+    // Role kantor pusat (HO) yang boleh melihat semua unit usaha.
+    private const HO_ROLES = ['admin', 'manajer', 'auditor', 'koordinator', 'coo'];
+
     public function index(Request $request): JsonResponse
     {
+        $user = $request->user();
+        $role = $user?->role;
+
         $query = PlanAudit::query()
             ->latest('id');
+
+        // Role cabang (unit usaha, H1/H2/WHS) hanya boleh melihat plan milik
+        // unit usahanya sendiri, tidak semua unit usaha.
+        if (!in_array($role, self::HO_ROLES, true)) {
+            $query->where('cabang', $user?->unit_usaha);
+        }
 
         if ($request->filled('status') && $request->query('status') !== 'all') {
             $query->where('status', $request->query('status'));
@@ -83,39 +95,47 @@ class ReportAuditController extends Controller
 
     public function summary(Request $request): JsonResponse
     {
-        $plans = PlanAudit::query()
-            ->latest('id')
-            ->get();
+        $user = $request->user();
+        $role = $user?->role;
+        $scopedToOwnUnit = !in_array($role, self::HO_ROLES, true);
 
-        $totalPlans = $plans->count();
+        $planQuery = PlanAudit::query();
+        if ($scopedToOwnUnit) {
+            $planQuery->where('cabang', $user?->unit_usaha);
+        }
 
-        $taskTotal = AuditTask::query()->count();
-        $recommendationTotal = AuditRecommendation::query()->count();
-        $picaTotal = Pica::query()->count();
-        $skTotal = SuratKeputusan::query()->count();
+        $planIds = (clone $planQuery)->pluck('id');
+        $totalPlans = $planIds->count();
+
+        $scopeByPlan = fn($query) => $scopedToOwnUnit ? $query->whereIn('plan_audit_id', $planIds) : $query;
+
+        $taskTotal = $scopeByPlan(AuditTask::query())->count();
+        $recommendationTotal = $scopeByPlan(AuditRecommendation::query())->count();
+        $picaTotal = $scopeByPlan(Pica::query())->count();
+        $skTotal = $scopeByPlan(SuratKeputusan::query())->count();
 
         return response()->json([
             'data' => [
                 'plan_total' => $totalPlans,
 
                 'task_total' => $taskTotal,
-                'task_open' => AuditTask::query()->where('status', 'open')->count(),
-                'task_progress' => AuditTask::query()->whereIn('status', ['progress', 'in_progress'])->count(),
-                'task_done' => AuditTask::query()->whereIn('status', ['done', 'selesai', 'completed'])->count(),
+                'task_open' => $scopeByPlan(AuditTask::query())->where('status', 'open')->count(),
+                'task_progress' => $scopeByPlan(AuditTask::query())->whereIn('status', ['progress', 'in_progress'])->count(),
+                'task_done' => $scopeByPlan(AuditTask::query())->whereIn('status', ['done', 'selesai', 'completed'])->count(),
 
                 'recommendation_total' => $recommendationTotal,
-                'recommendation_waiting_approval' => AuditRecommendation::query()->where('status', 'waiting_approval')->count(),
-                'recommendation_approved' => AuditRecommendation::query()->where('status', 'approved')->count(),
+                'recommendation_waiting_approval' => $scopeByPlan(AuditRecommendation::query())->where('status', 'waiting_approval')->count(),
+                'recommendation_approved' => $scopeByPlan(AuditRecommendation::query())->where('status', 'approved')->count(),
 
                 'pica_total' => $picaTotal,
-                'pica_open' => Pica::query()->where('status', 'open')->count(),
-                'pica_progress' => Pica::query()->where('status', 'progress')->count(),
-                'pica_closed' => Pica::query()->where('status', 'closed')->count(),
+                'pica_open' => $scopeByPlan(Pica::query())->where('status', 'open')->count(),
+                'pica_progress' => $scopeByPlan(Pica::query())->where('status', 'progress')->count(),
+                'pica_closed' => $scopeByPlan(Pica::query())->where('status', 'closed')->count(),
 
                 'sk_total' => $skTotal,
-                'sk_pending_manajer' => SuratKeputusan::query()->where('status', 'pending_manajer')->count(),
-                'sk_pending_afd' => SuratKeputusan::query()->where('status', 'pending_afd')->count(),
-                'sk_selesai' => SuratKeputusan::query()->where('status', 'selesai')->count(),
+                'sk_pending_manajer' => $scopeByPlan(SuratKeputusan::query())->where('status', 'pending_manajer')->count(),
+                'sk_pending_afd' => $scopeByPlan(SuratKeputusan::query())->where('status', 'pending_afd')->count(),
+                'sk_selesai' => $scopeByPlan(SuratKeputusan::query())->where('status', 'selesai')->count(),
 
                 'generated_at' => now()->toDateTimeString(),
             ],

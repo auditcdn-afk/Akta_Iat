@@ -68,15 +68,22 @@ class PlanAuditController extends Controller
 
         $plans = PlanAudit::query()
             ->with(['logs' => fn($q) => $q->orderBy('created_at')])
-            ->when($onlyMine && !empty($identities), function ($q) use ($identities) {
-                // Cabang & role non-HO hanya melihat plan yang mereka terlibat sebagai tim
-                $q->where(function ($sub) use ($identities) {
-                    $sub->whereIn('kepala_tim', $identities)
-                        ->orWhere(function ($json) use ($identities) {
-                            foreach ($identities as $id) {
-                                $json->orWhereJsonContains('tim', $id);
-                            }
-                        });
+            ->when($onlyMine, function ($q) use ($identities, $user) {
+                // Role cabang (unit usaha, H1/H2/WHS): hanya boleh melihat plan
+                // milik unit usahanya sendiri. Auditor HO non-cabang: hanya plan
+                // yang mereka terlibat sebagai tim.
+                $q->where(function ($sub) use ($identities, $user) {
+                    if ($user?->unit_usaha) {
+                        $sub->orWhere('cabang', $user->unit_usaha);
+                    }
+                    if (!empty($identities)) {
+                        $sub->orWhereIn('kepala_tim', $identities)
+                            ->orWhere(function ($json) use ($identities) {
+                                foreach ($identities as $id) {
+                                    $json->orWhereJsonContains('tim', $id);
+                                }
+                            });
+                    }
                 });
             })
             ->when($request->filled('q'), function ($query) use ($request) {

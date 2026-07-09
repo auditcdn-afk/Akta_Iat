@@ -18,11 +18,22 @@ class PicaController extends Controller
 
     private array $closeRoles = ['admin', 'manajer'];
 
+    // Role kantor pusat (HO) yang boleh melihat semua unit usaha.
+    private const HO_ROLES = ['admin', 'manajer', 'auditor', 'koordinator', 'coo'];
+
     public function index(Request $request): JsonResponse
     {
+        $user = $request->user();
+
         $query = Pica::query()
             ->with(['recommendation', 'plan', 'task'])
             ->latest('id');
+
+        // Role cabang (unit usaha, H1/H2/WHS) hanya boleh melihat PICA milik
+        // plan dari unit usahanya sendiri.
+        if (!in_array($user?->role, self::HO_ROLES, true)) {
+            $query->whereHas('plan', fn($q) => $q->where('cabang', $user?->unit_usaha));
+        }
 
         $recommendationId = $request->query('audit_recommendation_id')
             ?? $request->query('recommendation_id')

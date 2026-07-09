@@ -22,11 +22,23 @@ class SuratKeputusanController extends Controller
 
     private array $approveAfdRoles = ['admin', 'afd'];
 
+    // Role kantor pusat (HO) yang boleh melihat semua unit usaha.
+    private const HO_ROLES = ['admin', 'manajer', 'auditor', 'koordinator', 'coo', 'afd'];
+
     public function index(Request $request): JsonResponse
     {
+        $user = $request->user();
+
         $query = SuratKeputusan::query()
             ->with(['planAudit', 'pembebanan', 'distribusi'])
             ->latest('id');
+
+        // Role cabang (unit usaha, H1/H2/WHS) hanya boleh melihat SK milik
+        // plan dari unit usahanya sendiri (distribusi ke mereka tetap lewat
+        // endpoint myDistribusi terpisah).
+        if (!in_array($user?->role, self::HO_ROLES, true)) {
+            $query->whereHas('planAudit', fn($q) => $q->where('cabang', $user?->unit_usaha));
+        }
 
         $planAuditId = $request->query('plan_audit_id')
             ?? $request->query('plan_id')
