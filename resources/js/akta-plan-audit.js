@@ -170,8 +170,18 @@ function actionButtons(plan) {
             teal:    "border-teal-500/40 text-teal-300 hover:bg-teal-500/10",
             slate:   "border-slate-500/40 text-slate-300 hover:bg-slate-800",
         };
+
+        // Untuk transisi cabang_active -> done, syarat BU Performance & Rekomendasi wajib lengkap.
+        const belumLengkap = plan.status === "cabang_active" && !plan.canMarkSelesai;
+        const btnClass = belumLengkap
+            ? "border-slate-700 text-slate-600 cursor-not-allowed opacity-50"
+            : colors[c] || colors.slate;
+        const title = belumLengkap
+            ? 'title="Belum bisa: BU Performance dan Rekomendasi (isi cabang) belum lengkap"'
+            : "";
+
         buttons.push(
-            `<button type="button" class="advance-plan rounded-lg border px-3 py-1.5 text-xs font-semibold ${colors[c] || colors.slate}" data-id="${plan.id}">${escapeHtml(t.label)}</button>`
+            `<button type="button" class="advance-plan rounded-lg border px-3 py-1.5 text-xs font-semibold ${btnClass}" data-id="${plan.id}" ${belumLengkap ? "disabled" : ""} ${title}>${escapeHtml(t.label)}</button>`
         );
     }
 

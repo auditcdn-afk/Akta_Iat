@@ -177,9 +177,9 @@ class PlanAuditController extends Controller
             return response()->json(['ok' => false, 'message' => 'Role kamu tidak bisa melakukan aksi ini.'], 403);
         }
 
-        // Cabang hanya boleh menyatakan pemeriksaan selesai jika BU Performance dan
-        // birokrasi rekomendasi (isi oleh cabang) sudah ada. HO tetap bebas tanpa syarat ini.
-        if ($status === 'cabang_active' && $isBranch && !$plan->canMarkSelesai()) {
+        // Semua role (termasuk admin/HO) hanya boleh menyatakan pemeriksaan selesai jika
+        // BU Performance dan birokrasi rekomendasi (isi oleh cabang) sudah ada — tidak ada yang bisa melewati syarat ini.
+        if ($status === 'cabang_active' && !$plan->canMarkSelesai()) {
             return response()->json([
                 'ok' => false,
                 'message' => 'Belum bisa menyatakan selesai: pastikan BU Performance dan Rekomendasi (isi oleh cabang) sudah diisi.',
