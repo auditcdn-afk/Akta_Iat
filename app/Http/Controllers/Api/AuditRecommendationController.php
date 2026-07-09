@@ -19,18 +19,18 @@ class AuditRecommendationController extends Controller
         $unitUsaha     = $user?->unit_usaha;
         $userRoleUpper = strtoupper($user?->role ?? '');
 
-        // Collect all cabang names reachable by this user:
-        // - unit_usaha matches a unit directly (cabang staff fills isi_rekomendasi)
+        // Collect all cabang names reachable by this user sebagai APPROVER
+        // (bukan hanya anggota unit biasa di grup birokrasi tsb):
         // - unit_usaha matches an approver name exactly (e.g. "Retail Aceh")
         // - role (case-insensitive) matches a generic approver role (e.g. "so", "csc", "whs")
+        // Unit biasa (bukan approver) hanya boleh melihat rekomendasi milik unit usahanya sendiri.
         $allowedCabang = [];
         if (!$isInternal) {
             foreach (config('birokrasi', []) as $group) {
                 $approversUpper = array_map('strtoupper', $group['approvers']);
-                $inUnits        = $unitUsaha && in_array($unitUsaha, $group['units']);
                 $inApproverUnit = $unitUsaha && in_array(strtoupper($unitUsaha), $approversUpper);
                 $inApproverRole = $userRoleUpper && in_array($userRoleUpper, $approversUpper);
-                if ($inUnits || $inApproverUnit || $inApproverRole) {
+                if ($inApproverUnit || $inApproverRole) {
                     $allowedCabang = array_merge($allowedCabang, $group['units']);
                 }
             }
