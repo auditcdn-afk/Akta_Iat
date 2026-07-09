@@ -185,12 +185,6 @@
                     <p id="skFileExisting" class="mt-1 text-xs text-slate-500"></p>
                 </div>
 
-                <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Memutuskan</label>
-                    <textarea id="skMemutuskan" rows="6" placeholder="Salin poin-poin &quot;Memutuskan&quot; dari dokumen SK di sini..."
-                        class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
-                    <p class="mt-1 text-xs text-slate-500">Poin ini akan ditampilkan kepada pihak-pihak yang menerima distribusi SK.</p>
-                </div>
             </div>
 
             <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
@@ -249,6 +243,12 @@
 
         <form id="distributeSkForm" class="space-y-4 px-5 py-5">
             <input type="hidden" id="distributeSkId">
+            <div>
+                <label class="mb-1 block text-sm font-medium text-slate-300">Memutuskan</label>
+                <textarea id="distributeSkMemutuskan" rows="6" placeholder="Salin poin-poin &quot;Memutuskan&quot; dari dokumen SK di sini..."
+                    class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
+                <p class="mt-1 text-xs text-slate-500">Poin ini akan ditampilkan kepada pengguna yang dipilih di bawah.</p>
+            </div>
             <div id="distributeSkUserList" class="max-h-72 space-y-2 overflow-y-auto pr-1"></div>
             <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
                 <button type="button" id="cancelDistributeSkBtn"

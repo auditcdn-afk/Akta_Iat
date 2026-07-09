@@ -682,7 +682,6 @@ function openBuatSkModal(planId, noSpt, unit) {
     document.getElementById('buatSkPlanId').value = planId || '';
     document.getElementById('buatSkNo').value = '';
     document.getElementById('buatSkFile').value = '';
-    document.getElementById('buatSkMemutuskan').value = '';
     document.getElementById('buatSkSubtitle').textContent = [noSpt, unit].filter(Boolean).join(' • ');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -699,7 +698,6 @@ async function saveBuatSk(event) {
     const planId = document.getElementById('buatSkPlanId').value;
     const noSk   = document.getElementById('buatSkNo').value.trim();
     const file   = document.getElementById('buatSkFile').files?.[0];
-    const memutuskan = document.getElementById('buatSkMemutuskan').value.trim();
     const btn    = document.getElementById('saveBuatSkBtn');
 
     if (!noSk || !file) {
@@ -711,7 +709,6 @@ async function saveBuatSk(event) {
     if (planId) formData.append('plan_audit_id', planId);
     formData.append('no_sk', noSk);
     formData.append('file', file);
-    if (memutuskan) formData.append('memutuskan', memutuskan);
 
     btn.textContent = 'Menyimpan...';
     btn.disabled = true;

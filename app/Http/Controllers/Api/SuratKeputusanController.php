@@ -81,7 +81,13 @@ class SuratKeputusanController extends Controller
         $data = $request->validate([
             'usernames' => ['required', 'array', 'min:1'],
             'usernames.*' => ['string'],
+            'memutuskan' => ['nullable', 'string', 'max:5000'],
         ]);
+
+        if ($request->filled('memutuskan')) {
+            $suratKeputusan->memutuskan = $data['memutuskan'];
+            $suratKeputusan->save();
+        }
 
         $users = User::query()->whereIn('username', $data['usernames'])->get(['username', 'name', 'display_name']);
         abort_if($users->isEmpty(), 422, 'Tidak ada pengguna valid yang dipilih.');

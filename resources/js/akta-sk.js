@@ -417,7 +417,6 @@ function openModal(item = null) {
             item.unit_usaha || item.unitUsaha || "";
         document.getElementById("jenisAudit").value =
             item.jenis_audit || item.jenisAudit || "";
-        document.getElementById("skMemutuskan").value = item.memutuskan || "";
 
         const existingEl = document.getElementById("skFileExisting");
         if (existingEl) {
@@ -453,7 +452,6 @@ function getFormPayload() {
         no_spt: emptyToNull(document.getElementById("noSpt").value),
         unit_usaha: emptyToNull(document.getElementById("unitUsaha").value),
         jenis_audit: emptyToNull(document.getElementById("jenisAudit").value),
-        memutuskan: emptyToNull(document.getElementById("skMemutuskan").value),
     };
 }
 
@@ -662,6 +660,9 @@ function openDistributeModal(id) {
     if (!modal) return;
     document.getElementById("distributeSkId").value = id;
 
+    const item = skItems.find((row) => String(row.id) === String(id));
+    document.getElementById("distributeSkMemutuskan").value = item?.memutuskan || "";
+
     const list = document.getElementById("distributeSkUserList");
     if (list) {
         list.innerHTML = allUserOptions.map((u) => `
@@ -689,6 +690,7 @@ function escapeAttr(value) {
 async function saveDistributeSk(event) {
     event.preventDefault();
     const id = document.getElementById("distributeSkId").value;
+    const memutuskan = document.getElementById("distributeSkMemutuskan").value.trim();
     const checked = Array.from(document.querySelectorAll(".distribute-user-checkbox:checked")).map((el) => el.value);
     const btn = document.getElementById("saveDistributeSkBtn");
 
@@ -702,10 +704,11 @@ async function saveDistributeSk(event) {
     try {
         const payload = await fetchJson(`/api/sk/${id}/distribute`, {
             method: "POST",
-            body: JSON.stringify({ usernames: checked }),
+            body: JSON.stringify({ usernames: checked, memutuskan: memutuskan || null }),
         });
         closeDistributeModal();
         showAlert(payload.message || "SK berhasil didistribusikan.");
+        await loadSkItems();
     } catch (e) {
         showAlert(e.message || "Gagal mendistribusikan SK.", "error");
     } finally {

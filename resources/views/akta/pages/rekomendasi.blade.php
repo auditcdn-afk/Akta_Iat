@@ -285,12 +285,6 @@
                 <input id="buatSkFile" type="file" accept="application/pdf" required
                     class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-white file:text-xs file:font-semibold">
             </div>
-            <div>
-                <label class="mb-1 block text-sm font-medium text-slate-300">Memutuskan</label>
-                <textarea id="buatSkMemutuskan" rows="6" placeholder="Salin poin-poin &quot;Memutuskan&quot; dari dokumen SK di sini..."
-                    class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
-                <p class="mt-1 text-xs text-slate-500">Poin ini akan ditampilkan kepada pihak-pihak yang menerima distribusi SK.</p>
-            </div>
             <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
                 <button type="button" id="cancelBuatSkBtn"
                     class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">Batal</button>
