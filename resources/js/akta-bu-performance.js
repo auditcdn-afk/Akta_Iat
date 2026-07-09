@@ -25,11 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('bupSearch')?.addEventListener('input', renderTable);
     document.getElementById('bupBulanFilter')?.addEventListener('change', renderTable);
-    document.getElementById('bupTambahBtn')?.addEventListener('click', openForm);
-    document.getElementById('bupFormCloseBtn')?.addEventListener('click', closeForm);
-    document.getElementById('bupCancelBtn')?.addEventListener('click', closeForm);
-    document.getElementById('bupSaveBtn')?.addEventListener('click', saveForm);
-    document.getElementById('bupTambahRowBtn')?.addEventListener('click', () => addInputRow());
+    document.getElementById('bupUnitFilter')?.addEventListener('change', renderTable);
+    document.getElementById('bupExportFilterBtn')?.addEventListener('click', () => exportCsv(getFiltered(), 'bu-performance-tampilan'));
+    document.getElementById('bupExportAllBtn')?.addEventListener('click', () => exportCsv(_allRows, 'bu-performance-semua'));
 });
 
 // ─── API ──────────────────────────────────────────────────────────────────────
@@ -37,6 +35,7 @@ async function loadList() {
     try {
         const res = await fetchJson('/api/bu-performance', { headers: authHeaders() });
         _allRows = res.data ?? [];
+        loadUnitOptions();
         renderTable();
     } catch (e) {
         showAlert('Gagal memuat data: ' + e.message, 'error');
@@ -57,33 +56,14 @@ async function loadBulanOptions() {
     } catch (_) {}
 }
 
-async function saveForm() {
-    const bulan = document.getElementById('bupBulan')?.value;
-    if (!bulan) { showAlert('Bulan wajib diisi.', 'error'); return; }
-
-    const rows = collectInputRows();
-    if (!rows.length) { showAlert('Tambahkan minimal 1 baris data.', 'error'); return; }
-
-    // Format bulan: "2026-01" → "Januari 2026"
-    const bulanLabel = formatBulanLabel(bulan);
-
-    const btn = document.getElementById('bupSaveBtn');
-    if (btn) { btn.textContent = 'Menyimpan...'; btn.disabled = true; }
-    try {
-        await fetchJson('/api/bu-performance', {
-            method: 'POST',
-            headers: authHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ bulan: bulanLabel, rows }),
-        });
-        closeForm();
-        await loadList();
-        await loadBulanOptions();
-        showAlert('Data BU Performance tersimpan.', 'success');
-    } catch (e) {
-        showAlert(e.message, 'error');
-    } finally {
-        if (btn) { btn.textContent = 'Simpan'; btn.disabled = false; }
-    }
+function loadUnitOptions() {
+    const sel = document.getElementById('bupUnitFilter');
+    if (!sel) return;
+    const current = sel.value;
+    const units = [...new Set(_allRows.map(r => r.unitUsaha).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">Semua Unit Usaha</option>' +
+        units.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join('');
+    sel.value = current;
 }
 
 async function deleteRow(id) {
@@ -97,78 +77,15 @@ async function deleteRow(id) {
     }
 }
 
-// ─── Form ─────────────────────────────────────────────────────────────────────
-function openForm() {
-    document.getElementById('bupForm')?.classList.remove('hidden');
-    document.getElementById('bupInputBody').innerHTML = '';
-    // Default 3 baris kosong
-    addInputRow(); addInputRow(); addInputRow();
-    document.getElementById('bupBulan')?.focus();
-}
-
-function closeForm() {
-    document.getElementById('bupForm')?.classList.add('hidden');
-}
-
-function addInputRow(data = {}) {
-    const tbody = document.getElementById('bupInputBody');
-    if (!tbody) return;
-    const tr = document.createElement('tr');
-    tr.className = 'bup-input-row';
-    tr.innerHTML = `
-        <td class="px-2 py-1.5">
-            <input type="text" placeholder="Unit Usaha" value="${esc(data.unitUsaha ?? '')}"
-                class="bup-unit w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-blue-500">
-        </td>
-        <td class="px-2 py-1.5">
-            <input type="text" placeholder="Auditor" value="${esc(data.auditor ?? '')}"
-                class="bup-auditor w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-blue-500">
-        </td>
-        <td class="px-2 py-1.5">
-            <input type="text" placeholder="PIC" value="${esc(data.penilaian?.[0]?.pic ?? '')}"
-                class="bup-pic w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-blue-500">
-        </td>
-        <td class="px-2 py-1.5">
-            <input type="text" placeholder="Jabatan" value="${esc(data.penilaian?.[0]?.jabatan ?? '')}"
-                class="bup-jabatan w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-blue-500">
-        </td>
-        <td class="px-2 py-1.5">
-            <input type="text" placeholder="Uraian / temuan..." value="${esc(data.penilaian?.[0]?.uraian ?? '')}"
-                class="bup-uraian w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 outline-none focus:border-blue-500">
-        </td>
-        <td class="px-2 py-1.5 text-center">
-            <button type="button" onclick="this.closest('tr').remove()"
-                class="text-red-400 hover:text-red-300 text-base leading-none">&times;</button>
-        </td>
-    `;
-    tbody.appendChild(tr);
-}
-
-function collectInputRows() {
-    const rows = [];
-    document.querySelectorAll('.bup-input-row').forEach(tr => {
-        const unitUsaha = tr.querySelector('.bup-unit')?.value.trim();
-        if (!unitUsaha) return;
-        rows.push({
-            unitUsaha,
-            auditor:   tr.querySelector('.bup-auditor')?.value.trim() || null,
-            penilaian: [{
-                pic:     tr.querySelector('.bup-pic')?.value.trim()     || '-',
-                jabatan: tr.querySelector('.bup-jabatan')?.value.trim() || '-',
-                uraian:  tr.querySelector('.bup-uraian')?.value.trim()  || 'TIDAK ADA MASALAH',
-            }],
-        });
-    });
-    return rows;
-}
-
 // ─── Table Render ─────────────────────────────────────────────────────────────
 function getFiltered() {
     const q     = (document.getElementById('bupSearch')?.value ?? '').toLowerCase();
     const bulan = document.getElementById('bupBulanFilter')?.value ?? '';
+    const unit  = document.getElementById('bupUnitFilter')?.value ?? '';
 
     return _allRows.filter(r => {
         if (bulan && r.bulan !== bulan) return false;
+        if (unit && r.unitUsaha !== unit) return false;
         if (q && ![(r.unitUsaha ?? ''), (r.auditor ?? '')].some(v => v.toLowerCase().includes(q))) return false;
         return true;
     });
@@ -219,8 +136,7 @@ function tableRow(r, p, showMeta) {
         <td class="px-4 py-2.5 border-r border-slate-800 text-slate-300">${esc(p.jabatan ?? '-')}</td>
         <td class="px-4 py-2.5 border-r border-slate-800 ${uraianClass}">${esc(p.uraian ?? '-')}</td>
         <td class="px-3 py-2.5 text-center">
-            ${showMeta ? `<span class="text-emerald-400 font-bold">&#10003;</span>` : ''}
-            ${showMeta ? `<button onclick="deleteRow(${r.id})" class="ml-2 text-xs text-red-400 hover:text-red-300">&times;</button>` : ''}
+            ${showMeta ? `<button onclick="deleteRow(${r.id})" class="text-xs text-red-400 hover:text-red-300">&times;</button>` : ''}
         </td>
     </tr>`;
 }
@@ -230,14 +146,45 @@ function setTableEmpty(msg) {
     if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="py-12 text-center text-slate-500">${esc(msg)}</td></tr>`;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function formatBulanLabel(monthInput) {
-    // "2026-01" → "Januari 2026"
-    const [year, month] = monthInput.split('-');
-    const names = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-    return (names[parseInt(month, 10) - 1] ?? month) + ' ' + year;
+// ─── Export CSV ───────────────────────────────────────────────────────────────
+function exportCsv(rows, filenamePrefix) {
+    if (!rows.length) {
+        showAlert('Tidak ada data untuk diexport.', 'error');
+        return;
+    }
+
+    const header = ['Bulan', 'Unit Usaha', 'Auditor', 'PIC', 'Jabatan', 'Uraian'];
+    const lines = [header.join(';')];
+
+    rows.forEach(r => {
+        const penilaian = r.penilaian?.length ? r.penilaian : [{ pic: '-', jabatan: '-', uraian: 'TIDAK ADA MASALAH' }];
+        penilaian.forEach(p => {
+            lines.push([
+                csvCell(r.bulan), csvCell(r.unitUsaha), csvCell(r.auditor ?? '-'),
+                csvCell(p.pic ?? '-'), csvCell(p.jabatan ?? '-'), csvCell(p.uraian ?? '-'),
+            ].join(';'));
+        });
+    });
+
+    const csvContent = '﻿' + lines.join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const stamp = new Date().toISOString().substring(0, 10);
+    a.href = url;
+    a.download = `${filenamePrefix}-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
 }
 
+function csvCell(value) {
+    const s = String(value ?? '').replaceAll('"', '""');
+    return /[;"\n]/.test(s) ? `"${s}"` : s;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function esc(s) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
