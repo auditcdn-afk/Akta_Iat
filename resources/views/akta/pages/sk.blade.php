@@ -278,6 +278,11 @@
                 <textarea id="tanggapiSkText" rows="5" required
                     class="w-full resize-y rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></textarea>
             </div>
+            <div>
+                <label class="mb-1 block text-sm font-medium text-slate-300">Lampiran File (opsional)</label>
+                <input id="tanggapiSkFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                    class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-white file:text-xs file:font-semibold">
+            </div>
             <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
                 <button type="button" id="cancelTanggapiSkBtn"
                     class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">Batal</button>

@@ -149,11 +149,23 @@ class SuratKeputusanController extends Controller
 
         $data = $request->validate([
             'tanggapan' => ['required', 'string', 'max:1000'],
+            'file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx', 'max:10240'],
         ]);
 
         $distribusi->tanggapan = $data['tanggapan'];
         $distribusi->status = 'ditanggapi';
         $distribusi->responded_at = now();
+
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $path = $file->store('sk-tanggapan', 'public');
+            $distribusi->file_tanggapan = [
+                'name' => $file->getClientOriginalName(),
+                'type' => $file->getClientMimeType(),
+                'url'  => Storage::url($path),
+            ];
+        }
+
         $distribusi->save();
 
         return response()->json([

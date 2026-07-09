@@ -15,6 +15,7 @@ class SkDistribusi extends Model
         'user_name',
         'status',
         'tanggapan',
+        'file_tanggapan',
         'responded_at',
         'distributed_by',
         'distributed_by_name',
@@ -22,6 +23,7 @@ class SkDistribusi extends Model
     ];
 
     protected $casts = [
+        'file_tanggapan' => 'array',
         'responded_at' => 'datetime',
         'distributed_at' => 'datetime',
     ];

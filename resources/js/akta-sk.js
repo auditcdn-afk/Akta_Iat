@@ -745,6 +745,11 @@ async function loadMyDistribusi() {
             ? ""
             : `<button type="button" class="tanggapi-sk rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white transition" data-id="${item.id}">Tanggapan</button>`;
 
+        const fileTanggapan = item.file_tanggapan || item.fileTanggapan || null;
+        const tanggapanHtml = item.tanggapan
+            ? escapeHtml(item.tanggapan) + (fileTanggapan?.url ? `<br><a href="${escapeAttr(fileTanggapan.url)}" target="_blank" class="text-blue-400 hover:underline text-xs">${escapeHtml(fileTanggapan.name || "Lampiran")}</a>` : "")
+            : "-";
+
         return `
             <tr class="hover:bg-slate-950/50">
                 <td class="px-4 py-3 text-sm text-slate-200">${escapeHtml(sk.no_sk || sk.noSk || "-")}</td>
@@ -752,7 +757,7 @@ async function loadMyDistribusi() {
                 <td class="px-4 py-3 text-sm">${file.url ? `<a href="${escapeAttr(file.url)}" target="_blank" class="text-blue-400 hover:underline">${escapeHtml(file.name || "Buka File")}</a>` : "-"}</td>
                 <td class="px-4 py-3 text-sm text-slate-300 max-w-xs whitespace-pre-wrap">${escapeHtml(sk.memutuskan || "-")}</td>
                 <td class="px-4 py-3"><span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${badge}">${label}</span></td>
-                <td class="px-4 py-3 text-sm text-slate-400">${escapeHtml(item.tanggapan || "-")}</td>
+                <td class="px-4 py-3 text-sm text-slate-400">${tanggapanHtml}</td>
                 <td class="px-4 py-3 text-right">${btn}</td>
             </tr>
         `;
@@ -764,6 +769,8 @@ function openTanggapiModal(id) {
     if (!modal) return;
     document.getElementById("tanggapiSkId").value = id;
     document.getElementById("tanggapiSkText").value = "";
+    const fileEl = document.getElementById("tanggapiSkFile");
+    if (fileEl) fileEl.value = "";
     modal.classList.remove("hidden");
     modal.classList.add("flex");
 }
@@ -778,6 +785,7 @@ async function saveTanggapiSk(event) {
     event.preventDefault();
     const id = document.getElementById("tanggapiSkId").value;
     const tanggapan = document.getElementById("tanggapiSkText").value.trim();
+    const file = document.getElementById("tanggapiSkFile")?.files?.[0];
     const btn = document.getElementById("saveTanggapiSkBtn");
 
     if (!tanggapan) {
@@ -785,13 +793,27 @@ async function saveTanggapiSk(event) {
         return;
     }
 
+    const formData = new FormData();
+    formData.append("tanggapan", tanggapan);
+    if (file) formData.append("file", file);
+
     btn.textContent = "Menyimpan...";
     btn.disabled = true;
     try {
-        const payload = await fetchJson(`/api/sk-distribusi/${id}/tanggapi`, {
+        const session = getSession();
+        const response = await fetch(`/api/sk-distribusi/${id}/tanggapi`, {
             method: "POST",
-            body: JSON.stringify({ tanggapan }),
+            headers: {
+                Accept: "application/json",
+                Authorization: `${session?.tokenType || "Bearer"} ${session?.token}`,
+            },
+            body: formData,
         });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            const firstError = payload.errors ? Object.values(payload.errors).flat()[0] : null;
+            throw new Error(firstError || payload.message || "Request gagal.");
+        }
         closeTanggapiModal();
         showAlert(payload.message || "Tanggapan berhasil disimpan.");
         await loadMyDistribusi();
