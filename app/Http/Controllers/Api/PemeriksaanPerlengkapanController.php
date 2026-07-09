@@ -122,7 +122,7 @@ class PemeriksaanPerlengkapanController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $this->ensureCanWrite($request);
+        $this->ensureCanWrite($request, (int) $request->input('plan_audit_id'));
 
         $data = $request->validate([
             'plan_audit_id'     => 'required|integer|exists:plan_audits,id',
@@ -153,7 +153,7 @@ class PemeriksaanPerlengkapanController extends Controller
 
     public function update(Request $request, PemeriksaanPerlengkapan $pemeriksaanPerlengkapan): JsonResponse
     {
-        $this->ensureCanWrite($request);
+        $this->ensureCanWrite($request, (int) $pemeriksaanPerlengkapan->plan_audit_id);
 
         $data = $request->validate([
             'no_plan'           => 'nullable|string|max:100',
@@ -195,8 +195,12 @@ class PemeriksaanPerlengkapanController extends Controller
         return $uu ? strtolower(trim($uu->wilayah ?? '')) : null;
     }
 
-    private function ensureCanWrite(Request $request): void
+    private function ensureCanWrite(Request $request, int $planAuditId = 0): void
     {
+        if ($planAuditId && PlanAudit::query()->where('id', $planAuditId)->where('is_mandiri', true)->exists()) {
+            return;
+        }
+
         abort_unless(in_array(strtolower($request->user()?->role ?? ''), $this->writeRoles, true), 403, 'Role tidak diizinkan.');
     }
 

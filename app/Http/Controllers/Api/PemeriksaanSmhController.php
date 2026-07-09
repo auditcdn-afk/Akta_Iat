@@ -33,12 +33,12 @@ class PemeriksaanSmhController extends Controller
 
     public function upload(Request $request): JsonResponse
     {
-        $this->ensureCanWrite($request);
-
         $request->validate([
             'file'         => 'required|file|mimes:xls,xlsx,csv',
             'plan_audit_id' => 'required|integer|exists:plan_audits,id',
         ]);
+
+        $this->ensureCanWrite($request, (int) $request->input('plan_audit_id'));
 
         $file = $request->file('file');
         $spreadsheet = IOFactory::load($file->getRealPath());
@@ -146,7 +146,7 @@ class PemeriksaanSmhController extends Controller
 
     public function checkItem(Request $request, SmhOnhandItem $item): JsonResponse
     {
-        $this->ensureCanWrite($request);
+        $this->ensureCanWrite($request, (int) $item->pemeriksaan?->plan_audit_id);
 
         $data = $request->validate([
             'status_fisik'       => 'required|in:ada,tidak_ada',
@@ -334,7 +334,7 @@ class PemeriksaanSmhController extends Controller
 
     public function storeManual(Request $request): JsonResponse
     {
-        $this->ensureCanWrite($request);
+        $this->ensureCanWrite($request, (int) $request->input('plan_audit_id'));
 
         $data = $request->validate([
             'plan_audit_id' => ['required', 'integer', 'exists:plan_audits,id'],
@@ -385,8 +385,12 @@ class PemeriksaanSmhController extends Controller
         ], 201);
     }
 
-    private function ensureCanWrite(Request $request): void
+    private function ensureCanWrite(Request $request, int $planAuditId = 0): void
     {
+        if ($planAuditId && PlanAudit::query()->where('id', $planAuditId)->where('is_mandiri', true)->exists()) {
+            return;
+        }
+
         abort_unless(in_array($this->role($request), $this->writeRoles, true), 403, 'Role tidak diizinkan.');
     }
 

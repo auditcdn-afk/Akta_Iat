@@ -65,10 +65,10 @@ class PemeriksaanBankController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $this->ensureCanWrite($request);
-
         $payload = $this->normalizePayload($request);
         $data = $this->validatePayload($payload, true);
+
+        $this->ensureCanWrite($request, (int) ($data['plan_audit_id'] ?? 0));
 
         $this->fillFromPlan($data, (int) $data['plan_audit_id']);
         $this->calculateSelisih($data);
@@ -85,7 +85,7 @@ class PemeriksaanBankController extends Controller
 
     public function update(Request $request, PemeriksaanBank $pemeriksaanBank): JsonResponse
     {
-        $this->ensureCanWrite($request);
+        $this->ensureCanWrite($request, (int) $pemeriksaanBank->plan_audit_id);
 
         $payload = $this->normalizePayload($request);
         $data = $this->validatePayload($payload, false);
@@ -114,7 +114,7 @@ class PemeriksaanBankController extends Controller
 
     public function destroy(Request $request, PemeriksaanBank $pemeriksaanBank): JsonResponse
     {
-        $this->ensureCanWrite($request);
+        $this->ensureCanWrite($request, (int) $pemeriksaanBank->plan_audit_id);
 
         $pemeriksaanBank->delete();
 
@@ -229,8 +229,13 @@ class PemeriksaanBankController extends Controller
         $data['selisih'] = round($saldoBank - $saldoBuku, 2);
     }
 
-    private function ensureCanWrite(Request $request): void
+    private function ensureCanWrite(Request $request, int $planAuditId = 0): void
     {
+        // Plan Audit Mandiri/Sertijab: unit usaha yang bersangkutan sendiri yang mengisi.
+        if ($planAuditId && PlanAudit::query()->where('id', $planAuditId)->where('is_mandiri', true)->exists()) {
+            return;
+        }
+
         abort_unless(
             in_array($this->role($request), $this->writeRoles, true),
             403,
