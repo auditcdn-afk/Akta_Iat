@@ -317,6 +317,8 @@ function activateTab(type) {
 let _atcTabList = [];
 let _atcInitDone = false;
 let _atcConfiguredSet = new Set();
+let _atcModul = "audit";
+let _atcAudioOptionsHtml = "";
 
 async function initAuditToolsTab() {
     document.getElementById("audit-tools-admin-only")?.classList.toggle("hidden", !isAdmin());
@@ -327,12 +329,33 @@ async function initAuditToolsTab() {
     }
     _atcInitDone = true;
 
+    _atcAudioOptionsHtml = document.getElementById("atcJenisAuditInput")?.innerHTML || "";
+
     try {
         const tabsRes = await fetchJson("/api/audit-tab-configs/tabs", { headers: authHeaders() });
         _atcTabList = tabsRes.data ?? [];
     } catch (e) {
         showAlert("Gagal memuat konfigurasi tab audit: " + e.message, "error");
     }
+
+    document.querySelectorAll(".atc-modul-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+            _atcModul = btn.dataset.value;
+            document.getElementById("atcModulInput").value = _atcModul;
+            document.querySelectorAll(".atc-modul-btn").forEach((b) => {
+                const active = b === btn;
+                b.classList.toggle("bg-blue-600", active);
+                b.classList.toggle("border-blue-600", active);
+                b.classList.toggle("text-white", active);
+                b.classList.toggle("border-slate-700", !active);
+                b.classList.toggle("text-slate-300", !active);
+            });
+            await populateAtcJenisAuditOptions();
+            loadAtcForJenisAudit();
+            await loadAtcConfiguredList();
+            updateAtcModeLabel();
+        });
+    });
 
     document.getElementById("atcJenisAuditInput")?.addEventListener("change", () => {
         loadAtcForJenisAudit();
@@ -348,6 +371,25 @@ async function initAuditToolsTab() {
     loadAtcForJenisAudit();
     await loadAtcConfiguredList();
     updateAtcModeLabel();
+}
+
+// Ganti isi dropdown "Jenis Audit" sesuai modul (Audit pakai daftar statis, modul lain pakai daftar tetap dari server).
+async function populateAtcJenisAuditOptions() {
+    const select = document.getElementById("atcJenisAuditInput");
+    if (!select) return;
+
+    if (_atcModul === "audit") {
+        select.innerHTML = _atcAudioOptionsHtml;
+        return;
+    }
+
+    try {
+        const res = await fetchJson("/api/audit-tab-configs/jenis-audit-options?modul=" + encodeURIComponent(_atcModul), { headers: authHeaders() });
+        const options = res.data ?? [];
+        select.innerHTML = options.map((o) => `<option value="${escHtml(o)}">${escHtml(o)}</option>`).join("");
+    } catch (e) {
+        showAlert("Gagal memuat pilihan jenis: " + e.message, "error");
+    }
 }
 
 // Tandai opsi dropdown yang sudah punya konfigurasi tersimpan sebagai disabled
@@ -416,7 +458,7 @@ async function loadAtcForJenisAudit() {
     if (!jenisAudit) return;
     try {
         const res = await fetchJson(
-            "/api/audit-tab-configs/show?jenis_audit=" + encodeURIComponent(jenisAudit),
+            "/api/audit-tab-configs/show?modul=" + encodeURIComponent(_atcModul) + "&jenis_audit=" + encodeURIComponent(jenisAudit),
             { headers: authHeaders() }
         );
         renderAtcChecklist(res.tabs || {});
@@ -445,7 +487,7 @@ async function saveAtcConfig() {
         const res = await fetchJson("/api/audit-tab-configs", {
             method: "POST",
             headers: jsonHeaders(),
-            body: JSON.stringify({ jenis_audit: jenisAudit, tabs }),
+            body: JSON.stringify({ modul: _atcModul, jenis_audit: jenisAudit, tabs }),
         });
         showAlert(res.message || "Konfigurasi tersimpan.");
         await loadAtcConfiguredList();
@@ -471,7 +513,7 @@ async function resetAtcConfig() {
         const res = await fetchJson("/api/audit-tab-configs/reset", {
             method: "POST",
             headers: jsonHeaders(),
-            body: JSON.stringify({ jenis_audit: jenisAudit }),
+            body: JSON.stringify({ modul: _atcModul, jenis_audit: jenisAudit }),
         });
         showAlert(res.message || "Direset.");
         renderAtcChecklist(_atcTabList.reduce((acc, t) => ({ ...acc, [t.key]: true }), {}));
@@ -486,7 +528,7 @@ async function loadAtcConfiguredList() {
     const wrap = document.getElementById("atcConfiguredList");
     if (!wrap) return;
     try {
-        const res = await fetchJson("/api/audit-tab-configs", { headers: authHeaders() });
+        const res = await fetchJson("/api/audit-tab-configs?modul=" + encodeURIComponent(_atcModul), { headers: authHeaders() });
         const data = res.data ?? [];
         _atcConfiguredSet = new Set(data.map((row) => row.jenis_audit));
         applyAtcDropdownState();

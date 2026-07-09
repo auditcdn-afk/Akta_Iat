@@ -191,6 +191,16 @@
                 Jenis audit yang belum dikonfigurasi akan menampilkan semua tab (default).
             </p>
 
+            <div>
+                <label class="mb-1 block text-xs font-semibold text-slate-400">Modul</label>
+                <div class="grid grid-cols-3 gap-2 sm:max-w-lg">
+                    <button type="button" data-value="audit" class="atc-modul-btn rounded-xl border px-3 py-2 text-sm font-semibold transition bg-blue-600 border-blue-600 text-white">Audit</button>
+                    <button type="button" data-value="audit_mandiri" class="atc-modul-btn rounded-xl border px-3 py-2 text-sm font-semibold transition border-slate-700 text-slate-300 hover:bg-slate-800">Audit Mandiri</button>
+                    <button type="button" data-value="sertijab" class="atc-modul-btn rounded-xl border px-3 py-2 text-sm font-semibold transition border-slate-700 text-slate-300 hover:bg-slate-800">Sertijab</button>
+                </div>
+                <input type="hidden" id="atcModulInput" value="audit">
+            </div>
+
             <p id="atcModeLabel" class="text-xs font-semibold text-blue-300"></p>
 
             <div class="grid gap-3 sm:grid-cols-2">
