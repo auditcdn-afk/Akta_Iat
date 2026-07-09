@@ -343,7 +343,15 @@ class AuditRecommendationController extends Controller
         $isInternal    = $user && in_array($user->role, ['admin', 'manajer', 'auditor']);
         $bypass        = $isAdmin || ($isInternal && $stepRole !== 'AFD');
         if (!$bypass) {
-            if ($stepRole && $userRoleUpper !== $stepRole && $userUnitUpper !== $stepRole) {
+            // Step generik yang mewakili jenis unit usaha (mis. "SO", "WHS", "CSC") --
+            // nama unit usaha diawali kata jenisnya (mis. "SO ALB", "SO BDS"). Unit
+            // usaha pemilik plan ini boleh mengisi step jenisnya sendiri.
+            $planCabangUpper = strtoupper($recommendation->planAudit?->cabang ?? '');
+            $isOwnUnitTypeStep = $stepRole
+                && $userUnitUpper === $planCabangUpper
+                && str_starts_with($planCabangUpper, $stepRole . ' ');
+
+            if ($stepRole && $userRoleUpper !== $stepRole && $userUnitUpper !== $stepRole && !$isOwnUnitTypeStep) {
                 return response()->json(['ok' => false, 'message' => 'Anda tidak berwenang mengisi step ini.'], 403);
             }
         }

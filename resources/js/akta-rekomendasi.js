@@ -56,7 +56,9 @@ function canIsiRekomendasi(item) {
 }
 
 // Returns true if current user can fill a specific birokrasi step role
-function canIsiStep(roleName) {
+// planCabang: cabang milik plan rekomendasi ini (untuk mencocokkan step generik
+// seperti "SO"/"WHS"/"CSC" yang mewakili JENIS unit usaha, bukan role akun).
+function canIsiStep(roleName, planCabang) {
     if (isInternal()) return true;
     const stepRole = (roleName ?? '').toUpperCase();
     if (!stepRole) return false;
@@ -66,6 +68,13 @@ function canIsiStep(roleName) {
     // Match by unit_usaha (e.g. user.unitUsaha = "SO ALB" matches step "SO ALB")
     const myUnit = (currentUser?.unitUsaha ?? '').toUpperCase();
     if (myUnit && myUnit === stepRole) return true;
+    // Step generik yang mewakili jenis unit usaha (mis. "SO", "WHS", "CSC") — nama
+    // unit usaha diawali kata jenisnya (mis. "SO ALB", "SO BDS"). Unit usaha yang
+    // bersangkutan (pemilik plan ini) boleh mengisi step jenisnya sendiri.
+    const planCabangUpper = (planCabang ?? '').toUpperCase();
+    if (myUnit && planCabangUpper && myUnit === planCabangUpper && planCabangUpper.startsWith(stepRole + ' ')) {
+        return true;
+    }
     return false;
 }
 
@@ -466,7 +475,7 @@ function findMyPendingStep(item) {
         if (done) continue;
         const prevDone = i === 0 || ['done', 'approved'].includes(steps[i - 1]?.status);
         // Hanya step pertama yang belum selesai yang bisa diisi
-        return (prevDone && canIsiStep(s.step)) ? s : null;
+        return (prevDone && canIsiStep(s.step, item.planAudit?.cabang)) ? s : null;
     }
     return null;
 }
