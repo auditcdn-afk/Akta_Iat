@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditTask;
+use App\Models\PlanAudit;
 use App\Models\SkPembebanan;
 use App\Models\SuratKeputusan;
 use App\Services\BirokrasiResolver;
@@ -51,7 +53,30 @@ class SkPembebananController extends Controller
         return response()->json([
             'jenis' => $jenis,
             'kategori' => $jenis === 'h1' ? self::KATEGORI_H1 : self::KATEGORI_H2_WHS,
+            'tgl_audit_suggestion' => $this->suggestTglAudit($request->query('plan_audit_id')),
         ]);
+    }
+
+    // Tanggal mulai auditor melaksanakan audit (dari AuditTask::started_at),
+    // fallback ke tgl_mulai plan bila belum ada task yang dimulai.
+    private function suggestTglAudit($planAuditId): ?string
+    {
+        if (empty($planAuditId)) {
+            return null;
+        }
+
+        $startedAt = AuditTask::query()
+            ->where('plan_audit_id', $planAuditId)
+            ->whereNotNull('started_at')
+            ->min('started_at');
+
+        if ($startedAt) {
+            return substr($startedAt, 0, 10);
+        }
+
+        $plan = PlanAudit::query()->find($planAuditId);
+
+        return $plan?->tgl_mulai ? $plan->tgl_mulai->format('Y-m-d') : null;
     }
 
     public function store(Request $request): JsonResponse

@@ -995,24 +995,27 @@ async function openPembebananModal(id) {
     if (!item) return;
 
     const unitUsaha = item.unit_usaha || item.unitUsaha || "";
+    const planId = item.plan_audit_id || item.planAuditId || "";
     pembebananCurrentSkId = id;
     document.getElementById("pembebananSkId").value = id;
-    document.getElementById("pembebananPlanId").value = item.plan_audit_id || item.planAuditId || "";
+    document.getElementById("pembebananPlanId").value = planId;
     document.getElementById("pembebananNoSk").value = item.no_sk || item.noSk || "";
     document.getElementById("pembebananUnitUsaha").value = unitUsaha;
     document.getElementById("pembebananPimpinanSo").value = "";
     document.getElementById("pembebananPimpinanCsc").value = "";
-
-    const plan = item.plan_audit || item.planAudit || {};
-    const tglMulai = plan.tgl_mulai || plan.tglMulai || "";
-    document.getElementById("pembebananTglAudit").value = tglMulai ? String(tglMulai).substring(0, 10) : "";
+    document.getElementById("pembebananTglAudit").value = "";
 
     document.getElementById("personilList").innerHTML = "";
     pembebananPersonilCount = 0;
 
     try {
-        const res = await fetchJson(`/api/sk-pembebanan/kategori?unit_usaha=${encodeURIComponent(unitUsaha)}`);
+        const qs = new URLSearchParams({ unit_usaha: unitUsaha });
+        if (planId) qs.set("plan_audit_id", planId);
+        const res = await fetchJson(`/api/sk-pembebanan/kategori?${qs.toString()}`);
         pembebananKategoriList = res.kategori || [];
+        if (res.tgl_audit_suggestion) {
+            document.getElementById("pembebananTglAudit").value = res.tgl_audit_suggestion;
+        }
     } catch {
         pembebananKategoriList = [];
     }
