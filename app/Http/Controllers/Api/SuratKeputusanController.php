@@ -25,7 +25,7 @@ class SuratKeputusanController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = SuratKeputusan::query()
-            ->with('planAudit')
+            ->with(['planAudit', 'pembebanan', 'distribusi'])
             ->latest('id');
 
         $planAuditId = $request->query('plan_audit_id')

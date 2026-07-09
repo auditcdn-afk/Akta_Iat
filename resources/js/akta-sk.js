@@ -107,6 +107,36 @@ function escapeHtml(value) {
         .replaceAll("'", "&#039;");
 }
 
+// Hitung progres keseluruhan siklus SK: Selesai -> Pembebanan Final -> Distribusi -> Semua Tanggapan.
+function hitungProgressSk(item) {
+    if (item.status !== "selesai") {
+        return { persen: 0, tahap: "Menunggu SK disetujui" };
+    }
+
+    let persen = 25;
+    const tahapan = ["SK Disetujui"];
+
+    const pembebanan = item.pembebanan;
+    if (pembebanan?.status === "final") {
+        persen += 25;
+        tahapan.push("Pembebanan Final");
+    }
+
+    const distribusi = item.distribusi || [];
+    if (distribusi.length) {
+        persen += 25;
+        tahapan.push("Terdistribusi");
+
+        const semuaTanggap = distribusi.every((d) => d.status === "ditanggapi");
+        if (semuaTanggap) {
+            persen += 25;
+            tahapan.push("Semua Tanggapan Selesai");
+        }
+    }
+
+    return { persen, tahap: tahapan.join(" • ") };
+}
+
 function statusBadge(status) {
     const map = {
         pending_manajer: "bg-blue-500/10 text-blue-300 border-blue-500/20",
@@ -243,7 +273,7 @@ function renderSkItems() {
     if (!skItems.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">
+                <td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">
                     Belum ada SK.
                 </td>
             </tr>
@@ -395,6 +425,22 @@ function renderSkItems() {
                             <div>Manajer: ${escapeHtml(steps.manajer?.byName || "-")}</div>
                             <div>AFD: ${escapeHtml(steps.afd?.byName || "-")}</div>
                         </div>
+                    </td>
+
+                    <td class="px-4 py-4" style="min-width:160px">
+                        ${(() => {
+                            const progress = hitungProgressSk(item);
+                            const barColor = progress.persen >= 100 ? "#34d399" : progress.persen >= 50 ? "#60a5fa" : "#fbbf24";
+                            return `
+                                <div class="flex items-center gap-2">
+                                    <div style="flex:1;height:8px;border-radius:9999px;background:#1e293b;overflow:hidden">
+                                        <div style="width:${progress.persen}%;height:100%;background:${barColor}"></div>
+                                    </div>
+                                    <span class="text-xs font-bold text-slate-300">${progress.persen}%</span>
+                                </div>
+                                <p class="mt-1 text-[10px] text-slate-500" title="${escapeAttr(progress.tahap)}">${escapeHtml(progress.tahap)}</p>
+                            `;
+                        })()}
                     </td>
 
                     <td class="px-4 py-4 text-right">

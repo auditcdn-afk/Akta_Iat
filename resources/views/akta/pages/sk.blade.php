@@ -87,6 +87,9 @@
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Status
                         </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            Progress
+                        </th>
                         <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">
                             Aksi
                         </th>
@@ -95,7 +98,7 @@
 
                 <tbody id="skTableBody" class="divide-y divide-slate-800">
                     <tr>
-                        <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">
+                        <td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">
                             Memuat SK...
                         </td>
                     </tr>

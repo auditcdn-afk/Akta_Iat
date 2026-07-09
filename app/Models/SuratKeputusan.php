@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SuratKeputusan extends Model
 {
@@ -42,5 +43,10 @@ class SuratKeputusan extends Model
     public function distribusi(): HasMany
     {
         return $this->hasMany(SkDistribusi::class, 'surat_keputusan_id');
+    }
+
+    public function pembebanan(): HasOne
+    {
+        return $this->hasOne(SkPembebanan::class, 'surat_keputusan_id');
     }
 }
