@@ -142,38 +142,29 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/audit-detail/kas/summary', [PemeriksaanKasController::class, 'summary']);
     Route::get('/audit-detail/kas/{pemeriksaanKas}', [PemeriksaanKasController::class, 'show']);
 
-    Route::post('/audit-detail/kas', [PemeriksaanKasController::class, 'store'])
-        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/kas', [PemeriksaanKasController::class, 'store']);
 
-    Route::put('/audit-detail/kas/{pemeriksaanKas}', [PemeriksaanKasController::class, 'update'])
-        ->middleware('akta.role:admin,manajer,auditor');
+    Route::put('/audit-detail/kas/{pemeriksaanKas}', [PemeriksaanKasController::class, 'update']);
 
-    Route::delete('/audit-detail/kas/{pemeriksaanKas}', [PemeriksaanKasController::class, 'destroy'])
-        ->middleware('akta.role:admin,manajer,auditor');
+    Route::delete('/audit-detail/kas/{pemeriksaanKas}', [PemeriksaanKasController::class, 'destroy']);
 
     Route::get('/audit-detail/bank', [PemeriksaanBankController::class, 'index']);
     Route::get('/audit-detail/bank/summary', [PemeriksaanBankController::class, 'summary']);
     Route::get('/audit-detail/bank/{pemeriksaanBank}', [PemeriksaanBankController::class, 'show']);
 
-    Route::post('/audit-detail/bank', [PemeriksaanBankController::class, 'store'])
-        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/bank', [PemeriksaanBankController::class, 'store']);
 
-    Route::put('/audit-detail/bank/{pemeriksaanBank}', [PemeriksaanBankController::class, 'update'])
-        ->middleware('akta.role:admin,manajer,auditor');
+    Route::put('/audit-detail/bank/{pemeriksaanBank}', [PemeriksaanBankController::class, 'update']);
 
-    Route::delete('/audit-detail/bank/{pemeriksaanBank}', [PemeriksaanBankController::class, 'destroy'])
-        ->middleware('akta.role:admin,manajer,auditor');
+    Route::delete('/audit-detail/bank/{pemeriksaanBank}', [PemeriksaanBankController::class, 'destroy']);
 
     // ── Perlengkapan di luar SMH ──
     Route::get('/audit-detail/perlengkapan', [PemeriksaanPerlengkapanController::class, 'index']);
     Route::get('/audit-detail/perlengkapan/jenis', [PemeriksaanPerlengkapanController::class, 'jenis']);
     Route::get('/audit-detail/perlengkapan/smh-summary', [PemeriksaanPerlengkapanController::class, 'smhSummary']);
-    Route::post('/audit-detail/perlengkapan', [PemeriksaanPerlengkapanController::class, 'store'])
-        ->middleware('akta.role:admin,manajer,auditor');
-    Route::put('/audit-detail/perlengkapan/{pemeriksaanPerlengkapan}', [PemeriksaanPerlengkapanController::class, 'update'])
-        ->middleware('akta.role:admin,manajer,auditor');
-    Route::delete('/audit-detail/perlengkapan/{pemeriksaanPerlengkapan}', [PemeriksaanPerlengkapanController::class, 'destroy'])
-        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/perlengkapan', [PemeriksaanPerlengkapanController::class, 'store']);
+    Route::put('/audit-detail/perlengkapan/{pemeriksaanPerlengkapan}', [PemeriksaanPerlengkapanController::class, 'update']);
+    Route::delete('/audit-detail/perlengkapan/{pemeriksaanPerlengkapan}', [PemeriksaanPerlengkapanController::class, 'destroy']);
 
     // ── Plafon ──
     Route::get('/audit-detail/plafon/analisa',   [PlafonController::class, 'analisa']);
@@ -316,13 +307,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/audit-detail/smh', [PemeriksaanSmhController::class, 'index']);
     Route::get('/audit-detail/smh/scan', [PemeriksaanSmhController::class, 'scan']);
     Route::get('/audit-detail/smh/perlengkapan', [PemeriksaanSmhController::class, 'perlengkapan']);
-    Route::post('/audit-detail/smh/upload', [PemeriksaanSmhController::class, 'upload'])
-        ->middleware('akta.role:admin,manajer,auditor');
-    Route::post('/audit-detail/smh/manual', [PemeriksaanSmhController::class, 'storeManual'])
-        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/smh/upload', [PemeriksaanSmhController::class, 'upload']);
+    Route::post('/audit-detail/smh/manual', [PemeriksaanSmhController::class, 'storeManual']);
     Route::get('/audit-detail/smh/{pemeriksaanSmh}/sync-perlengkapan', [PemeriksaanSmhController::class, 'syncPerlengkapan']);
-    Route::put('/audit-detail/smh/items/{item}', [PemeriksaanSmhController::class, 'checkItem'])
-        ->middleware('akta.role:admin,manajer,auditor');
+    Route::put('/audit-detail/smh/items/{item}', [PemeriksaanSmhController::class, 'checkItem']);
 
 
     Route::get('/picas', [PicaController::class, 'index']);
