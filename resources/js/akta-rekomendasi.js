@@ -266,8 +266,8 @@ function renderRecommendations() {
         const birokrasiAll = birokrasiStepsOf(item);
         const lastStep      = birokrasiAll[birokrasiAll.length - 1];
         const semuaSelesai  = lastStep && ['done', 'approved'].includes(lastStep.status);
-        const isCreator     = item.createdBy && currentUser?.username && item.createdBy === currentUser.username;
-        const skBtn = (semuaSelesai && (isCreator || currentUser?.role === 'admin'))
+        const isAuditor     = ['admin', 'auditor'].includes(currentUser?.role);
+        const skBtn = (semuaSelesai && isAuditor)
             ? `<button type="button" class="buat-sk ml-2 rounded-lg border border-emerald-500/40 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/10 transition" data-plan-id="${item.planAuditId || ''}" data-no-spt="${escapeHtml(plan.noSpt || '')}" data-unit="${escapeHtml(plan.cabang || '')}">
                     Buat SK
                 </button>`
