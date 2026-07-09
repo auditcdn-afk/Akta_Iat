@@ -191,9 +191,14 @@
                 Jenis audit yang belum dikonfigurasi akan menampilkan semua tab (default).
             </p>
 
+            <p id="atcModeLabel" class="text-xs font-semibold text-blue-300"></p>
+
             <div class="grid gap-3 sm:grid-cols-2">
                 <div>
-                    <label class="mb-1 block text-xs font-semibold text-slate-400">Jenis Audit</label>
+                    <div class="mb-1 flex items-center justify-between">
+                        <label class="block text-xs font-semibold text-slate-400">Jenis Audit</label>
+                        <button type="button" id="atcNewBtn" class="hidden text-xs font-semibold text-blue-400 hover:underline">+ Tambah Jenis Audit Baru</button>
+                    </div>
                     <select id="atcJenisAuditInput"
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
                         <option value="Audit">Audit</option>

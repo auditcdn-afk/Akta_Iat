@@ -316,12 +316,13 @@ function activateTab(type) {
 // ── Jenis Audit & Tools (admin config) ──────────────────────────────
 let _atcTabList = [];
 let _atcInitDone = false;
+let _atcConfiguredSet = new Set();
 
 async function initAuditToolsTab() {
     document.getElementById("audit-tools-admin-only")?.classList.toggle("hidden", !isAdmin());
 
     if (_atcInitDone) {
-        loadAtcConfiguredList();
+        loadAtcConfiguredList().then(updateAtcModeLabel);
         return;
     }
     _atcInitDone = true;
@@ -333,15 +334,60 @@ async function initAuditToolsTab() {
         showAlert("Gagal memuat konfigurasi tab audit: " + e.message, "error");
     }
 
-    document.getElementById("atcJenisAuditInput")?.addEventListener("change", loadAtcForJenisAudit);
+    document.getElementById("atcJenisAuditInput")?.addEventListener("change", () => {
+        loadAtcForJenisAudit();
+        updateAtcModeLabel();
+    });
     document.getElementById("atcSaveBtn")?.addEventListener("click", saveAtcConfig);
     document.getElementById("atcResetBtn")?.addEventListener("click", resetAtcConfig);
     document.getElementById("atcSelectAllBtn")?.addEventListener("click", () => setAllAtcCheckboxes(true));
     document.getElementById("atcSelectNoneBtn")?.addEventListener("click", () => setAllAtcCheckboxes(false));
+    document.getElementById("atcNewBtn")?.addEventListener("click", startAtcNewConfig);
 
     // Muat konfigurasi untuk jenis audit yang sedang terpilih (default: opsi pertama "Audit")
     loadAtcForJenisAudit();
-    loadAtcConfiguredList();
+    await loadAtcConfiguredList();
+    updateAtcModeLabel();
+}
+
+// Tandai opsi dropdown yang sudah punya konfigurasi tersimpan sebagai disabled
+// (mencegah membuat entri baru/duplikat lewat dropdown). Tetap bisa dipilih lewat klik baris di list bawah.
+function applyAtcDropdownState() {
+    const select = document.getElementById("atcJenisAuditInput");
+    if (!select) return;
+    Array.from(select.options).forEach((opt) => {
+        const configured = _atcConfiguredSet.has(opt.value);
+        opt.disabled = configured;
+        const baseLabel = opt.dataset.baseLabel || opt.textContent;
+        opt.dataset.baseLabel = baseLabel;
+        opt.textContent = configured ? `${baseLabel} (sudah dikonfigurasi)` : baseLabel;
+    });
+}
+
+function updateAtcModeLabel() {
+    const select = document.getElementById("atcJenisAuditInput");
+    const label = document.getElementById("atcModeLabel");
+    const newBtn = document.getElementById("atcNewBtn");
+    if (!select || !label) return;
+
+    const isEditing = _atcConfiguredSet.has(select.value);
+    label.textContent = isEditing
+        ? `Mode Edit: mengubah konfigurasi untuk "${select.value}"`
+        : `Mode Tambah Baru: membuat konfigurasi untuk "${select.value}"`;
+    newBtn?.classList.toggle("hidden", !isEditing);
+}
+
+function startAtcNewConfig() {
+    const select = document.getElementById("atcJenisAuditInput");
+    if (!select) return;
+    const firstUnconfigured = Array.from(select.options).find((opt) => !_atcConfiguredSet.has(opt.value));
+    if (firstUnconfigured) {
+        select.value = firstUnconfigured.value;
+        loadAtcForJenisAudit();
+        updateAtcModeLabel();
+    } else {
+        showAlert("Semua jenis audit sudah dikonfigurasi.", "error");
+    }
 }
 
 function renderAtcChecklist(stateMap) {
@@ -402,7 +448,8 @@ async function saveAtcConfig() {
             body: JSON.stringify({ jenis_audit: jenisAudit, tabs }),
         });
         showAlert(res.message || "Konfigurasi tersimpan.");
-        loadAtcConfiguredList();
+        await loadAtcConfiguredList();
+        updateAtcModeLabel();
     } catch (e) {
         showAlert("Gagal menyimpan: " + e.message, "error");
     } finally {
@@ -428,7 +475,8 @@ async function resetAtcConfig() {
         });
         showAlert(res.message || "Direset.");
         renderAtcChecklist(_atcTabList.reduce((acc, t) => ({ ...acc, [t.key]: true }), {}));
-        loadAtcConfiguredList();
+        await loadAtcConfiguredList();
+        updateAtcModeLabel();
     } catch (e) {
         showAlert("Gagal reset: " + e.message, "error");
     }
@@ -440,6 +488,9 @@ async function loadAtcConfiguredList() {
     try {
         const res = await fetchJson("/api/audit-tab-configs", { headers: authHeaders() });
         const data = res.data ?? [];
+        _atcConfiguredSet = new Set(data.map((row) => row.jenis_audit));
+        applyAtcDropdownState();
+
         if (!data.length) {
             wrap.innerHTML = '<p class="text-slate-500">Belum ada jenis audit yang dikonfigurasi (semua jenis audit menampilkan semua tab).</p>';
             return;
@@ -464,6 +515,7 @@ async function loadAtcConfiguredList() {
                 if (input) {
                     input.value = jenis;
                     loadAtcForJenisAudit();
+                    updateAtcModeLabel();
                     input.scrollIntoView({ behavior: "smooth", block: "center" });
                 }
             });
