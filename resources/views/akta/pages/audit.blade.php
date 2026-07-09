@@ -164,7 +164,7 @@
         </div>
 
         {{-- ── Row kedua: Grading, PICA, Rekomendasi, BU Performance ── --}}
-        <div class="flex flex-wrap gap-2 rounded-2xl border border-amber-700/40 bg-slate-900/60 p-2">
+        <div id="hasilTindakLanjutRow" class="flex flex-wrap gap-2 rounded-2xl border border-amber-700/40 bg-slate-900/60 p-2">
             <span class="self-center px-2 text-xs font-semibold uppercase tracking-wide text-amber-400/70">Hasil &amp; Tindak Lanjut</span>
             <button type="button" data-tab="grading"
                 class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">

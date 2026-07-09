@@ -229,6 +229,8 @@ async function openPemeriksaan(plan) {
         if (catatanEl) catatanEl.value = "";
     }
 
+    document.getElementById("hasilTindakLanjutRow")?.classList.toggle("hidden", !!plan.isMandiri);
+
     const modul = plan.isMandiri ? (_deepLinkModul || "audit_mandiri") : "audit";
     const firstTab = await applyAuditTabVisibility(plan.jenisAudit, modul);
     switchTab(firstTab);
