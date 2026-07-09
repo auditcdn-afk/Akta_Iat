@@ -57,6 +57,8 @@ async function fetchJson(url, options = {}) {
 }
 
 function canManageKas() {
+    // Plan Audit Mandiri/Sertijab: unit usaha yang bersangkutan sendiri yang mengisi.
+    if (activePlan?.isMandiri) return true;
     const role = String(currentUser?.role || "").trim().toLowerCase();
     return ["admin", "manajer", "auditor"].includes(role);
 }
