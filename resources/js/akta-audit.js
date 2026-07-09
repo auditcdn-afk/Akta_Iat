@@ -179,7 +179,31 @@ function renderTable() {
 
 // ── Pemeriksaan section ───────────────────────────────────────────────────────
 
-function openPemeriksaan(plan) {
+// Sembunyikan tab pemeriksaan yang tidak diaktifkan admin untuk jenis audit ini.
+// Fail-open: jika config gagal dimuat atau jenis audit belum dikonfigurasi, semua tab tetap tampil.
+async function applyAuditTabVisibility(jenisAudit) {
+    let tabsConfig = null;
+    try {
+        const res = await fetchJson(
+            `/api/audit-tab-configs/show?jenis_audit=${encodeURIComponent(jenisAudit || "")}`,
+            { headers: authHeaders() }
+        );
+        tabsConfig = res.tabs || null;
+    } catch {
+        tabsConfig = null;
+    }
+
+    let firstVisibleTab = null;
+    document.querySelectorAll(".audit-tab-btn").forEach((btn) => {
+        const key = btn.dataset.tab;
+        const visible = !tabsConfig || tabsConfig[key] !== false;
+        btn.classList.toggle("hidden", !visible);
+        if (visible && !firstVisibleTab) firstVisibleTab = key;
+    });
+    return firstVisibleTab || "kas";
+}
+
+async function openPemeriksaan(plan) {
     activePlanId = plan.id;
     activePlan = plan;
     document.getElementById("kasPlanAuditId").value = plan.id;
@@ -191,8 +215,12 @@ function openPemeriksaan(plan) {
     }
 
     setText("pemeriksaanPlanLabel", `${plan.noSpt || "-"} • ${plan.cabang || "-"}`);
-    switchTab("kas");
-    loadKasForm().catch((e) => showAlert(e.message, "error"));
+
+    const firstTab = await applyAuditTabVisibility(plan.jenisAudit);
+    switchTab(firstTab);
+    if (firstTab === "kas") {
+        loadKasForm().catch((e) => showAlert(e.message, "error"));
+    }
 }
 
 function closePemeriksaan() {

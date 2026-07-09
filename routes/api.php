@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\PlanAuditController;
 use App\Http\Controllers\Api\AuditTaskController;
 use App\Http\Controllers\Api\AuditRecommendationController;
 use App\Http\Controllers\Api\PicaController;
+use App\Http\Controllers\Api\AuditTabConfigController;
 use App\Http\Controllers\Api\SkPembebananController;
 use App\Http\Controllers\Api\SuratKeputusanController;
 use App\Http\Controllers\Api\ReportAuditController;
@@ -116,6 +117,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/sk-pembebanan/{skPembebanan}/finalize', [SkPembebananController::class, 'finalize'])
         ->middleware('akta.role:admin,auditor');
     Route::delete('/sk-pembebanan/{skPembebanan}', [SkPembebananController::class, 'destroy'])
+        ->middleware('akta.role:admin');
+
+    Route::get('/audit-tab-configs', [AuditTabConfigController::class, 'index']);
+    Route::get('/audit-tab-configs/tabs', [AuditTabConfigController::class, 'tabList']);
+    Route::get('/audit-tab-configs/jenis-audit-options', [AuditTabConfigController::class, 'jenisAuditOptions']);
+    Route::get('/audit-tab-configs/show', [AuditTabConfigController::class, 'show']);
+    Route::post('/audit-tab-configs', [AuditTabConfigController::class, 'store'])
+        ->middleware('akta.role:admin');
+    Route::post('/audit-tab-configs/reset', [AuditTabConfigController::class, 'reset'])
         ->middleware('akta.role:admin');
 
     Route::get('/report-audit', [ReportAuditController::class, 'index']);

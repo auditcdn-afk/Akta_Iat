@@ -303,8 +303,182 @@ function activateTab(type) {
     });
     document.getElementById(`tab-${type}`)?.classList.remove("hidden");
 
+    if (type === "audit-tools") {
+        initAuditToolsTab();
+        return;
+    }
+
     if (!tabData[type].length) {
         loadTab(type);
+    }
+}
+
+// ── Jenis Audit & Tools (admin config) ──────────────────────────────
+let _atcTabList = [];
+let _atcInitDone = false;
+
+async function initAuditToolsTab() {
+    document.getElementById("audit-tools-admin-only")?.classList.toggle("hidden", !isAdmin());
+
+    if (_atcInitDone) {
+        loadAtcConfiguredList();
+        return;
+    }
+    _atcInitDone = true;
+
+    try {
+        const [tabsRes, optsRes] = await Promise.all([
+            fetchJson("/api/audit-tab-configs/tabs", { headers: authHeaders() }),
+            fetchJson("/api/audit-tab-configs/jenis-audit-options", { headers: authHeaders() }),
+        ]);
+        _atcTabList = tabsRes.data ?? [];
+        renderAtcChecklist(_atcTabList.reduce((acc, t) => ({ ...acc, [t.key]: true }), {}));
+
+        const datalist = document.getElementById("atcJenisAuditOptions");
+        if (datalist) {
+            datalist.innerHTML = (optsRes.data ?? [])
+                .map((v) => `<option value="${escHtml(v)}"></option>`)
+                .join("");
+        }
+    } catch (e) {
+        showAlert("Gagal memuat konfigurasi tab audit: " + e.message, "error");
+    }
+
+    document.getElementById("atcJenisAuditInput")?.addEventListener("change", loadAtcForJenisAudit);
+    document.getElementById("atcSaveBtn")?.addEventListener("click", saveAtcConfig);
+    document.getElementById("atcResetBtn")?.addEventListener("click", resetAtcConfig);
+    document.getElementById("atcSelectAllBtn")?.addEventListener("click", () => setAllAtcCheckboxes(true));
+    document.getElementById("atcSelectNoneBtn")?.addEventListener("click", () => setAllAtcCheckboxes(false));
+
+    loadAtcConfiguredList();
+}
+
+function renderAtcChecklist(stateMap) {
+    const wrap = document.getElementById("atcTabChecklist");
+    if (!wrap) return;
+    wrap.innerHTML = _atcTabList
+        .map(
+            (t) => `
+        <label class="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800/60 cursor-pointer">
+            <input type="checkbox" class="atc-tab-checkbox" value="${escHtml(t.key)}" ${stateMap[t.key] !== false ? "checked" : ""}>
+            ${escHtml(t.label)}
+        </label>
+    `
+        )
+        .join("");
+}
+
+function setAllAtcCheckboxes(checked) {
+    document.querySelectorAll(".atc-tab-checkbox").forEach((cb) => {
+        cb.checked = checked;
+    });
+}
+
+async function loadAtcForJenisAudit() {
+    const jenisAudit = document.getElementById("atcJenisAuditInput")?.value.trim();
+    if (!jenisAudit) return;
+    try {
+        const res = await fetchJson(
+            "/api/audit-tab-configs/show?jenis_audit=" + encodeURIComponent(jenisAudit),
+            { headers: authHeaders() }
+        );
+        renderAtcChecklist(res.tabs || {});
+    } catch (e) {
+        showAlert("Gagal memuat konfigurasi: " + e.message, "error");
+    }
+}
+
+async function saveAtcConfig() {
+    const jenisAudit = document.getElementById("atcJenisAuditInput")?.value.trim();
+    if (!jenisAudit) {
+        showAlert("Jenis audit wajib diisi.", "error");
+        return;
+    }
+    const tabs = {};
+    document.querySelectorAll(".atc-tab-checkbox").forEach((cb) => {
+        tabs[cb.value] = cb.checked;
+    });
+
+    const btn = document.getElementById("atcSaveBtn");
+    if (btn) {
+        btn.textContent = "Menyimpan...";
+        btn.disabled = true;
+    }
+    try {
+        const res = await fetchJson("/api/audit-tab-configs", {
+            method: "POST",
+            headers: jsonHeaders(),
+            body: JSON.stringify({ jenis_audit: jenisAudit, tabs }),
+        });
+        showAlert(res.message || "Konfigurasi tersimpan.");
+        loadAtcConfiguredList();
+    } catch (e) {
+        showAlert("Gagal menyimpan: " + e.message, "error");
+    } finally {
+        if (btn) {
+            btn.textContent = "Simpan Konfigurasi";
+            btn.disabled = false;
+        }
+    }
+}
+
+async function resetAtcConfig() {
+    const jenisAudit = document.getElementById("atcJenisAuditInput")?.value.trim();
+    if (!jenisAudit) {
+        showAlert("Jenis audit wajib diisi.", "error");
+        return;
+    }
+    if (!confirm(`Reset konfigurasi tab untuk "${jenisAudit}" ke default (semua tampil)?`)) return;
+    try {
+        const res = await fetchJson("/api/audit-tab-configs/reset", {
+            method: "POST",
+            headers: jsonHeaders(),
+            body: JSON.stringify({ jenis_audit: jenisAudit }),
+        });
+        showAlert(res.message || "Direset.");
+        renderAtcChecklist(_atcTabList.reduce((acc, t) => ({ ...acc, [t.key]: true }), {}));
+        loadAtcConfiguredList();
+    } catch (e) {
+        showAlert("Gagal reset: " + e.message, "error");
+    }
+}
+
+async function loadAtcConfiguredList() {
+    const wrap = document.getElementById("atcConfiguredList");
+    if (!wrap) return;
+    try {
+        const res = await fetchJson("/api/audit-tab-configs", { headers: authHeaders() });
+        const data = res.data ?? [];
+        if (!data.length) {
+            wrap.innerHTML = '<p class="text-slate-500">Belum ada jenis audit yang dikonfigurasi (semua jenis audit menampilkan semua tab).</p>';
+            return;
+        }
+        wrap.innerHTML = data
+            .map((row) => {
+                const tabsObj = row.tabs || {};
+                const hiddenTabs = _atcTabList.filter((t) => tabsObj[t.key] === false).map((t) => t.label);
+                return `
+                <div class="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 cursor-pointer edit-atc-row" data-jenis="${escHtml(row.jenis_audit)}">
+                    <span class="font-semibold text-slate-200">${escHtml(row.jenis_audit)}</span>
+                    <span class="text-xs text-slate-500">${hiddenTabs.length ? "Sembunyikan: " + escHtml(hiddenTabs.join(", ")) : "Semua tab tampil"}</span>
+                </div>
+            `;
+            })
+            .join("");
+
+        wrap.querySelectorAll(".edit-atc-row").forEach((row) => {
+            row.addEventListener("click", () => {
+                const jenis = row.dataset.jenis;
+                const input = document.getElementById("atcJenisAuditInput");
+                if (input) {
+                    input.value = jenis;
+                    loadAtcForJenisAudit();
+                    input.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+            });
+        });
+    } catch (e) {
+        wrap.innerHTML = `<p class="text-red-400">Gagal memuat: ${escHtml(e.message)}</p>`;
     }
 }
 
