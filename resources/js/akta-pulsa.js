@@ -2,7 +2,7 @@ const SESSION_KEY = "akta_session";
 
 function getSession() {
     try {
-        return JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+        return JSON.parse(sessionStorage.getItem(SESSION_KEY));
     } catch {
         return null;
     }
@@ -372,6 +372,10 @@ function exportExcel() {
 
 document.addEventListener("DOMContentLoaded", async () => {
     currentUser = getSession();
+    if (!currentUser) {
+        window.location.href = "/akta/login";
+        return;
+    }
 
     populateFilterOptions();
 
