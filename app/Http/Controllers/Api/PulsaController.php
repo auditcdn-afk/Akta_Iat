@@ -13,7 +13,7 @@ use Illuminate\Validation\Rule;
 
 class PulsaController extends Controller
 {
-    private const OPERATORS = ['Telkomsel', 'Indosat', 'XL', 'Axis', 'Tri', 'Smartfren'];
+    private const OPERATORS = ['Telkomsel', 'Indosat', 'XL', 'Axis', 'Tri', 'Smartfren', 'By.U'];
 
     private const ROLE_LABEL = [
         'admin' => 'Admin',
