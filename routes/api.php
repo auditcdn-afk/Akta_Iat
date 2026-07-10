@@ -435,6 +435,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/plans/{plan}', [PlanAuditController::class, 'show']);
 
     Route::get('/plan-audit-mandiri', [PlanAuditMandiriController::class, 'index']);
+    Route::get('/plan-audit-mandiri/pencapaian', [PlanAuditMandiriController::class, 'pencapaian']);
     Route::post('/plan-audit-mandiri', [PlanAuditMandiriController::class, 'store']);
     Route::delete('/plan-audit-mandiri/{planAuditMandiri}', [PlanAuditMandiriController::class, 'destroy']);
 
