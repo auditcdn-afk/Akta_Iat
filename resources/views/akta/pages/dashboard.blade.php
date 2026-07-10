@@ -83,15 +83,40 @@
 
     <div id="amdAlert" class="mt-4 hidden rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300"></div>
 
+    <div class="mt-5 grid gap-3 grid-cols-2 lg:grid-cols-4">
+        <div class="rounded-xl border border-slate-800 bg-gradient-to-br from-blue-500/10 to-transparent p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Target</p>
+            <p id="amdStatTarget" class="mt-1 text-2xl font-bold text-blue-300">0</p>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-gradient-to-br from-emerald-500/10 to-transparent p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Realisasi</p>
+            <p id="amdStatRealisasi" class="mt-1 text-2xl font-bold text-emerald-300">0</p>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-gradient-to-br from-violet-500/10 to-transparent p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Capaian Rata-rata</p>
+            <p id="amdStatCapaian" class="mt-1 text-2xl font-bold text-violet-300">0%</p>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-gradient-to-br from-red-500/10 to-transparent p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Unit Belum Audit</p>
+            <p id="amdStatBelum" class="mt-1 text-2xl font-bold text-red-300">0</p>
+        </div>
+    </div>
+
     <div class="mt-5 rounded-xl border border-slate-800 bg-slate-950 p-4">
-        <h3 class="mb-2 text-sm font-bold text-slate-200">Ringkasan per Jenis Audit &amp; Jenis Unit</h3>
-        <canvas id="amdSummaryChart" height="220"></canvas>
+        <h3 class="mb-3 text-sm font-bold text-slate-200">Ringkasan per Jenis Audit &amp; Jenis Unit</h3>
+        <div class="mx-auto" style="max-width: 720px;">
+            <canvas id="amdSummaryChart" height="240"></canvas>
+        </div>
     </div>
 
     <div class="mt-5 grid gap-5 lg:grid-cols-2">
         <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
-            <h3 class="mb-2 text-sm font-bold text-slate-200">Per Unit Usaha (sesuai filter Jenis Audit di atas)</h3>
-            <canvas id="amdUnitChart"></canvas>
+            <h3 class="mb-2 text-sm font-bold text-slate-200">Per Unit Usaha <span class="font-normal text-slate-500">(diurutkan dari capaian terendah)</span></h3>
+            <div class="akta-scrollbar max-h-[420px] overflow-y-auto">
+                <div id="amdUnitChartWrap" class="relative">
+                    <canvas id="amdUnitChart"></canvas>
+                </div>
+            </div>
         </div>
 
         <div class="overflow-hidden rounded-xl border border-slate-800">

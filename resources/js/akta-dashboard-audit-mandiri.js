@@ -106,13 +106,38 @@ function capaianBadge(capaian) {
     return `<span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${cls}">${capaian}%</span>`;
 }
 
+function capaianColor(capaian, alpha = 0.75) {
+    if (capaian === null || capaian === undefined) return `rgba(148,163,184,${alpha})`;
+    if (capaian >= 100) return `rgba(16,185,129,${alpha})`;
+    if (capaian >= 70) return `rgba(245,158,11,${alpha})`;
+    return `rgba(239,68,68,${alpha})`;
+}
+
+function updateStatCards(summary) {
+    const totalTarget = summary.reduce((acc, it) => acc + it.target, 0);
+    const totalRealisasi = summary.reduce((acc, it) => acc + it.realisasi, 0);
+    const capaianRata = totalTarget > 0 ? Math.round((totalRealisasi / totalTarget) * 1000) / 10 : 0;
+    const rows = unitRowsForFilter(document.getElementById("amdJenisAuditFilter")?.value || "");
+    const belum = rows.filter((r) => r.realisasi === 0).length;
+
+    const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    };
+    setText("amdStatTarget", totalTarget.toLocaleString("id-ID"));
+    setText("amdStatRealisasi", totalRealisasi.toLocaleString("id-ID"));
+    setText("amdStatCapaian", `${capaianRata}%`);
+    setText("amdStatBelum", belum.toLocaleString("id-ID"));
+}
+
 function renderSummaryChart(summary) {
     const canvas = document.getElementById("amdSummaryChart");
     if (!canvas) return;
 
-    const labels = summary.map((it) => `${it.jenisAudit} (${it.unitType})`);
+    const labels = summary.map((it) => [it.jenisAudit, `Unit ${it.unitType}`]);
     const target = summary.map((it) => it.target);
     const realisasi = summary.map((it) => it.realisasi);
+    const realisasiColors = summary.map((it) => capaianColor(it.capaian));
 
     if (summaryChart) summaryChart.destroy();
     summaryChart = new Chart(canvas, {
@@ -120,16 +145,41 @@ function renderSummaryChart(summary) {
         data: {
             labels,
             datasets: [
-                { label: "Target", data: target, backgroundColor: "rgba(59,130,246,0.5)", borderRadius: 6 },
-                { label: "Realisasi", data: realisasi, backgroundColor: "rgba(16,185,129,0.7)", borderRadius: 6 },
+                {
+                    label: "Target",
+                    data: target,
+                    backgroundColor: "rgba(100,116,139,0.35)",
+                    borderRadius: 8,
+                    maxBarThickness: 46,
+                },
+                {
+                    label: "Realisasi",
+                    data: realisasi,
+                    backgroundColor: realisasiColors,
+                    borderRadius: 8,
+                    maxBarThickness: 46,
+                },
             ],
         },
         options: {
             responsive: true,
-            plugins: { legend: { labels: { color: "#d3d9e6" } } },
+            categoryPercentage: 0.6,
+            barPercentage: 0.85,
+            plugins: {
+                legend: { labels: { color: "#d3d9e6", usePointStyle: true, pointStyle: "circle" } },
+                tooltip: {
+                    callbacks: {
+                        afterBody: (items) => {
+                            const idx = items[0]?.dataIndex;
+                            const capaian = summary[idx]?.capaian;
+                            return capaian !== null && capaian !== undefined ? `Capaian: ${capaian}%` : "";
+                        },
+                    },
+                },
+            },
             scales: {
-                x: { ticks: { color: "#aab2c5" }, grid: { color: "rgba(148,163,184,0.1)" } },
-                y: { beginAtZero: true, ticks: { color: "#aab2c5", precision: 0 }, grid: { color: "rgba(148,163,184,0.1)" } },
+                x: { ticks: { color: "#aab2c5" }, grid: { display: false } },
+                y: { beginAtZero: true, ticks: { color: "#aab2c5", precision: 0 }, grid: { color: "rgba(148,163,184,0.08)" } },
             },
         },
     });
@@ -159,13 +209,16 @@ function renderUnitChart(rows) {
     const canvas = document.getElementById("amdUnitChart");
     if (!canvas) return;
 
-    const labels = rows.map((r) => rows.length && r.jenisAudit && !document.getElementById("amdJenisAuditFilter").value
-        ? `${r.unitUsaha} - ${r.jenisAudit}`
-        : r.unitUsaha);
-    const target = rows.map((r) => r.target);
-    const realisasi = rows.map((r) => r.realisasi);
+    const showJenisAudit = !document.getElementById("amdJenisAuditFilter")?.value;
+    const sorted = [...rows].sort((a, b) => (a.capaian ?? -1) - (b.capaian ?? -1));
 
-    canvas.parentElement.style.height = `${Math.max(240, rows.length * 28)}px`;
+    const labels = sorted.map((r) => (showJenisAudit ? `${r.unitUsaha} · ${r.jenisAudit}` : r.unitUsaha));
+    const target = sorted.map((r) => r.target);
+    const realisasi = sorted.map((r) => r.realisasi);
+    const realisasiColors = sorted.map((r) => capaianColor(r.capaian));
+
+    const wrap = document.getElementById("amdUnitChartWrap");
+    if (wrap) wrap.style.height = `${Math.max(260, sorted.length * 30)}px`;
 
     if (unitChart) unitChart.destroy();
     unitChart = new Chart(canvas, {
@@ -173,18 +226,31 @@ function renderUnitChart(rows) {
         data: {
             labels,
             datasets: [
-                { label: "Target", data: target, backgroundColor: "rgba(59,130,246,0.5)", borderRadius: 4 },
-                { label: "Realisasi", data: realisasi, backgroundColor: "rgba(16,185,129,0.7)", borderRadius: 4 },
+                { label: "Target", data: target, backgroundColor: "rgba(100,116,139,0.3)", borderRadius: 4, maxBarThickness: 16 },
+                { label: "Realisasi", data: realisasi, backgroundColor: realisasiColors, borderRadius: 4, maxBarThickness: 16 },
             ],
         },
         options: {
             indexAxis: "y",
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { labels: { color: "#d3d9e6" } } },
+            categoryPercentage: 0.7,
+            barPercentage: 0.9,
+            plugins: {
+                legend: { labels: { color: "#d3d9e6", usePointStyle: true, pointStyle: "circle" } },
+                tooltip: {
+                    callbacks: {
+                        afterBody: (items) => {
+                            const idx = items[0]?.dataIndex;
+                            const capaian = sorted[idx]?.capaian;
+                            return capaian !== null && capaian !== undefined ? `Capaian: ${capaian}%` : "";
+                        },
+                    },
+                },
+            },
             scales: {
-                x: { beginAtZero: true, ticks: { color: "#aab2c5", precision: 0 }, grid: { color: "rgba(148,163,184,0.1)" } },
-                y: { ticks: { color: "#aab2c5" }, grid: { color: "rgba(148,163,184,0.05)" } },
+                x: { beginAtZero: true, ticks: { color: "#aab2c5", precision: 0 }, grid: { color: "rgba(148,163,184,0.08)" } },
+                y: { ticks: { color: "#aab2c5", font: { size: 11 } }, grid: { display: false } },
             },
         },
     });
@@ -218,6 +284,7 @@ function renderUnitSection() {
         ? latestSummary.filter((it) => it.jenisAudit === jenisAuditFilter)
         : latestSummary;
     renderSummaryChart(filteredSummary);
+    updateStatCards(filteredSummary);
 
     const rows = unitRowsForFilter(jenisAuditFilter);
     renderUnitChart(rows);
