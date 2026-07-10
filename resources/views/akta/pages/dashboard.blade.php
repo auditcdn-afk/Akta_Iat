@@ -330,12 +330,40 @@
         <canvas id="gbTrendChart" height="220"></canvas>
     </div>
 
+    <div class="mt-5 rounded-xl border border-slate-800 bg-slate-950 p-4">
+        <h3 class="mb-3 text-sm font-bold text-slate-200">Nominal &amp; Jumlah Kasus per Tahun</h3>
+        <canvas id="gbTahunChart" height="220"></canvas>
+    </div>
+
     <div class="mt-5 grid gap-5 lg:grid-cols-2">
         <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
             <h3 class="mb-3 text-sm font-bold text-slate-200">Beban per Jenis Unit</h3>
             <canvas id="gbJenisUnitChart" height="220"></canvas>
         </div>
 
+        <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
+            <h3 class="mb-3 text-sm font-bold text-slate-200">Nominal per Item Pembebanan</h3>
+            <canvas id="gbItemChart" height="220"></canvas>
+        </div>
+    </div>
+
+    <div class="mt-5 grid gap-5 lg:grid-cols-2">
+        <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
+            <h3 class="mb-3 text-sm font-bold text-slate-200">Beban per Jabatan</h3>
+            <canvas id="gbJabatanChart" height="220"></canvas>
+        </div>
+
+        <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
+            <h3 class="mb-3 text-sm font-bold text-slate-200">Beban per Personil <span class="font-normal text-slate-500">(top 15)</span></h3>
+            <div class="akta-scrollbar max-h-[360px] overflow-y-auto">
+                <div id="gbPersonilChartWrap" class="relative">
+                    <canvas id="gbPersonilChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-5 grid gap-5 lg:grid-cols-2">
         <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
             <div class="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <h3 class="text-sm font-bold text-slate-200">Beban per Unit Usaha <span class="font-normal text-slate-500">(terbesar dulu)</span></h3>

@@ -85,7 +85,7 @@ class SkPembebananController extends Controller
             $query->whereIn('status', $statusList);
         }
 
-        $rows = $query->get(['unit_usaha', 'jenis_unit', 'status', 'total_pembebanan', 'tgl_audit']);
+        $rows = $query->get(['unit_usaha', 'jenis_unit', 'status', 'total_pembebanan', 'tgl_audit', 'personil']);
 
         $tahunOptions = SkPembebanan::query()
             ->whereNotNull('tgl_audit')
@@ -128,6 +128,67 @@ class SkPembebananController extends Controller
             ])
             ->values();
 
+        $byTahun = $rows
+            ->groupBy(fn($r) => optional($r->tgl_audit)->format('Y'))
+            ->map(fn($group, $key) => [
+                'tahun' => $key,
+                'total' => (float) $group->sum('total_pembebanan'),
+                'jumlahSk' => $group->count(),
+            ])
+            ->sortBy('tahun')
+            ->values();
+
+        // Ratakan semua rincian personil (nama, jabatan, kategori item) dari
+        // seluruh SK yang lolos filter, untuk agregasi per item/personil/jabatan.
+        $allRincian = collect();
+        $allPersonil = collect();
+        foreach ($rows as $row) {
+            foreach (($row->personil ?? []) as $p) {
+                $allPersonil->push([
+                    'nama' => $p['nama'] ?? '(Tanpa Nama)',
+                    'jabatan' => $p['jabatan'] ?? '-',
+                    'subtotal' => (float) ($p['subtotal'] ?? 0),
+                ]);
+                foreach (($p['rincian'] ?? []) as $r) {
+                    $allRincian->push([
+                        'kategori' => $r['kategori'] ?? '(Lainnya)',
+                        'nilai' => (float) ($r['nilai'] ?? 0),
+                    ]);
+                }
+            }
+        }
+
+        $byItemPembebanan = $allRincian
+            ->groupBy('kategori')
+            ->map(fn($group, $key) => [
+                'kategori' => $key,
+                'total' => (float) $group->sum('nilai'),
+                'jumlah' => $group->count(),
+            ])
+            ->sortByDesc('total')
+            ->values();
+
+        $byPersonil = $allPersonil
+            ->groupBy(fn($p) => $p['nama'] . '|' . $p['jabatan'])
+            ->map(fn($group) => [
+                'nama' => $group->first()['nama'],
+                'jabatan' => $group->first()['jabatan'],
+                'total' => (float) $group->sum('subtotal'),
+                'jumlahKasus' => $group->count(),
+            ])
+            ->sortByDesc('total')
+            ->values();
+
+        $byJabatan = $allPersonil
+            ->groupBy(fn($p) => $p['jabatan'] ?: '-')
+            ->map(fn($group, $key) => [
+                'jabatan' => $key,
+                'total' => (float) $group->sum('subtotal'),
+                'jumlahKasus' => $group->count(),
+            ])
+            ->sortByDesc('total')
+            ->values();
+
         return response()->json([
             'ok' => true,
             'tahunOptions' => $tahunOptions,
@@ -141,6 +202,10 @@ class SkPembebananController extends Controller
             'byBulan' => $byBulan,
             'byUnit' => $byUnit,
             'byJenisUnit' => $byJenisUnit,
+            'byTahun' => $byTahun,
+            'byItemPembebanan' => $byItemPembebanan,
+            'byPersonil' => $byPersonil,
+            'byJabatan' => $byJabatan,
         ]);
     }
 

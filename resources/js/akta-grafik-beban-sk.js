@@ -59,6 +59,10 @@ const STATUS_LABEL = { draft: "Draft", final: "Final" };
 let trendChart = null;
 let jenisUnitChart = null;
 let unitChart = null;
+let tahunChart = null;
+let itemChart = null;
+let jabatanChart = null;
+let personilChart = null;
 let latestByUnit = [];
 let tahunOptionsPopulated = false;
 
@@ -250,6 +254,170 @@ function renderJenisUnitChart(byJenisUnit) {
     });
 }
 
+function renderTahunChart(byTahun) {
+    const canvas = document.getElementById("gbTahunChart");
+    if (!canvas) return;
+
+    const labels = byTahun.map((it) => it.tahun);
+    const totals = byTahun.map((it) => it.total);
+    const jumlah = byTahun.map((it) => it.jumlahSk);
+
+    if (tahunChart) tahunChart.destroy();
+    tahunChart = new Chart(canvas, {
+        data: {
+            labels,
+            datasets: [
+                {
+                    type: "bar",
+                    label: "Nominal Beban (Rp)",
+                    data: totals,
+                    backgroundColor: "rgba(96,165,250,0.85)",
+                    borderRadius: 8,
+                    maxBarThickness: 60,
+                    yAxisID: "y",
+                },
+                {
+                    type: "line",
+                    label: "Jumlah Kasus",
+                    data: jumlah,
+                    borderColor: "rgba(248,113,113,1)",
+                    backgroundColor: "rgba(248,113,113,1)",
+                    tension: 0.3,
+                    yAxisID: "y1",
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { labels: { color: "#d3d9e6", usePointStyle: true, pointStyle: "circle" } },
+                tooltip: {
+                    callbacks: {
+                        label: (item) => item.dataset.yAxisID === "y" ? `Nominal: ${formatRupiah(item.parsed.y)}` : `Jumlah Kasus: ${item.parsed.y}`,
+                    },
+                },
+            },
+            scales: {
+                x: { ticks: { color: "#aab2c5" }, grid: { display: false } },
+                y: {
+                    beginAtZero: true,
+                    position: "left",
+                    ticks: { color: "#aab2c5", callback: (v) => formatRupiah(v) },
+                    grid: { color: "rgba(148,163,184,0.08)" },
+                },
+                y1: {
+                    beginAtZero: true,
+                    position: "right",
+                    ticks: { color: "#aab2c5", precision: 0 },
+                    grid: { drawOnChartArea: false },
+                },
+            },
+        },
+    });
+}
+
+function renderItemChart(byItem) {
+    const canvas = document.getElementById("gbItemChart");
+    if (!canvas) return;
+
+    const labels = byItem.map((it) => it.kategori);
+    const totals = byItem.map((it) => it.total);
+    const colors = byItem.map((_, idx) => capaianColor(idx));
+
+    if (itemChart) itemChart.destroy();
+    itemChart = new Chart(canvas, {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [{ label: "Nominal Beban", data: totals, backgroundColor: colors, borderRadius: 6, maxBarThickness: 40 }],
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (item) => formatRupiah(item.parsed.y) } },
+            },
+            scales: {
+                x: { ticks: { color: "#aab2c5" }, grid: { display: false } },
+                y: {
+                    beginAtZero: true,
+                    ticks: { color: "#aab2c5", callback: (v) => formatRupiah(v) },
+                    grid: { color: "rgba(148,163,184,0.08)" },
+                },
+            },
+        },
+    });
+}
+
+function renderJabatanChart(byJabatan) {
+    const canvas = document.getElementById("gbJabatanChart");
+    if (!canvas) return;
+
+    const labels = byJabatan.map((it) => it.jabatan);
+    const totals = byJabatan.map((it) => it.total);
+    const colors = byJabatan.map((_, idx) => capaianColor(idx));
+
+    if (jabatanChart) jabatanChart.destroy();
+    jabatanChart = new Chart(canvas, {
+        type: "doughnut",
+        data: {
+            labels,
+            datasets: [{ data: totals, backgroundColor: colors, borderWidth: 0 }],
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: "bottom", labels: { color: "#d3d9e6", usePointStyle: true, pointStyle: "circle" } },
+                tooltip: { callbacks: { label: (item) => `${item.label}: ${formatRupiah(item.parsed)}` } },
+            },
+        },
+    });
+}
+
+function renderPersonilChart(byPersonil) {
+    const canvas = document.getElementById("gbPersonilChart");
+    if (!canvas) return;
+
+    const top = byPersonil.slice(0, 15);
+    const labels = top.map((it) => it.nama);
+    const totals = top.map((it) => it.total);
+    const colors = top.map((_, idx) => capaianColor(idx));
+
+    const wrap = document.getElementById("gbPersonilChartWrap");
+    if (wrap) wrap.style.height = `${Math.max(260, top.length * 28)}px`;
+
+    if (personilChart) personilChart.destroy();
+    personilChart = new Chart(canvas, {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [{ label: "Nominal Beban", data: totals, backgroundColor: colors, borderRadius: 4, maxBarThickness: 18 }],
+        },
+        options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (item) => formatRupiah(item.parsed.x),
+                        afterLabel: (item) => `Jabatan: ${top[item.dataIndex]?.jabatan || "-"}`,
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: { color: "#aab2c5", callback: (v) => formatRupiah(v) },
+                    grid: { color: "rgba(148,163,184,0.08)" },
+                },
+                y: { ticks: { color: "#aab2c5", font: { size: 11 } }, grid: { display: false } },
+            },
+        },
+    });
+}
+
 function unitRowsForFilter() {
     const searchTerm = (document.getElementById("gbUnitSearch")?.value || "").trim().toLowerCase();
     return latestByUnit.filter((u) => !searchTerm || u.unitUsaha.toLowerCase().includes(searchTerm));
@@ -361,6 +529,10 @@ async function loadRekap() {
         updateStatCards(result.stats || {});
         renderTrendChart(result.byBulan || []);
         renderJenisUnitChart(result.byJenisUnit || []);
+        renderTahunChart(result.byTahun || []);
+        renderItemChart(result.byItemPembebanan || []);
+        renderJabatanChart(result.byJabatan || []);
+        renderPersonilChart(result.byPersonil || []);
         latestByUnit = result.byUnit || [];
         renderUnitSection();
     } catch (err) {
