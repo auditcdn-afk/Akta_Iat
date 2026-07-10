@@ -101,7 +101,18 @@
                     class="amd-filter-panel akta-scrollbar absolute right-0 z-20 mt-2 hidden max-h-64 w-44 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-lg">
                 </div>
             </div>
-            <select id="amdTahunFilter" class="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></select>
+            <div class="relative">
+                <button type="button" id="amdTahunFilterBtn"
+                    class="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    <span id="amdTahunFilterLabel">Tahun</span>
+                    <svg class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                <div id="amdTahunFilterPanel"
+                    class="amd-filter-panel akta-scrollbar absolute right-0 z-20 mt-2 hidden max-h-64 w-36 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-lg">
+                </div>
+            </div>
         </div>
     </div>
 

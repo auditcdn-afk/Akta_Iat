@@ -158,13 +158,23 @@ function updateBulanFilterLabel() {
     label.textContent = bulanList.length === 1 ? BULAN_LABEL[bulanList[0]] : `${bulanList.length} Bulan Dipilih`;
 }
 
-function populateFilters() {
-    const tahunEl = document.getElementById("amdTahunFilter");
-    if (!tahunEl) return;
+function getSelectedTahun() {
+    const checked = getSelectedValues("amdTahunCheckbox").map(Number);
+    return checked.length ? checked.sort((a, b) => a - b) : [new Date().getFullYear()];
+}
 
+function updateTahunFilterLabel() {
+    const tahunList = getSelectedTahun();
+    const label = document.getElementById("amdTahunFilterLabel");
+    if (!label) return;
+    label.textContent = tahunList.length === 1 ? String(tahunList[0]) : `${tahunList.length} Tahun Dipilih`;
+}
+
+function populateFilters() {
     setupDropdownToggle("amdBulanFilterBtn", "amdBulanFilterPanel");
     setupDropdownToggle("amdWilayahFilterBtn", "amdWilayahFilterPanel");
     setupDropdownToggle("amdJenisAuditFilterBtn", "amdJenisAuditFilterPanel");
+    setupDropdownToggle("amdTahunFilterBtn", "amdTahunFilterPanel");
 
     const now = new Date();
     const bulanItems = BULAN_LABEL
@@ -184,14 +194,15 @@ function populateFilters() {
     updateMultiFilterLabel("amdJenisAuditFilterLabel", [], "Semua Jenis Audit", (v) => v);
 
     const currentYear = now.getFullYear();
-    tahunEl.innerHTML = "";
+    const tahunItems = [];
     for (let y = currentYear + 1; y >= currentYear - 3; y--) {
-        const opt = document.createElement("option");
-        opt.value = String(y);
-        opt.textContent = String(y);
-        tahunEl.appendChild(opt);
+        tahunItems.push({ value: y, label: String(y), checked: y === currentYear });
     }
-    tahunEl.value = String(currentYear);
+    renderCheckboxPanel("amdTahunFilterPanel", "amdTahunCheckbox", tahunItems, () => {
+        updateTahunFilterLabel();
+        loadPencapaian();
+    });
+    updateTahunFilterLabel();
 }
 
 function populateWilayahOptions(options) {
@@ -431,12 +442,13 @@ function renderUnitSection() {
 
 async function loadPencapaian() {
     const bulanList = getSelectedBulan();
-    const tahun = document.getElementById("amdTahunFilter")?.value;
+    const tahunList = getSelectedTahun();
     const wilayahList = getSelectedWilayah();
     try {
         showAlert(null);
-        const params = new URLSearchParams({ tahun });
+        const params = new URLSearchParams();
         bulanList.forEach((b) => params.append("bulan[]", b));
+        tahunList.forEach((t) => params.append("tahun[]", t));
         wilayahList.forEach((w) => params.append("wilayah[]", w));
         const result = await fetchJson(`/api/plan-audit-mandiri/pencapaian?${params.toString()}`, {
             headers: authHeaders(),
@@ -454,6 +466,5 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!getSession()) return;
 
     populateFilters();
-    document.getElementById("amdTahunFilter")?.addEventListener("change", loadPencapaian);
     loadPencapaian();
 });

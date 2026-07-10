@@ -105,7 +105,17 @@ class PlanAuditMandiriController extends Controller
     // unit (H1/H2).
     public function pencapaian(Request $request): JsonResponse
     {
-        $tahun = (int) $request->query('tahun', now()->year);
+        $tahunInput = $request->query('tahun', now()->year);
+        $tahunList = collect(is_array($tahunInput) ? $tahunInput : [$tahunInput])
+            ->map(fn($t) => (int) $t)
+            ->filter(fn($t) => $t >= 2000 && $t <= 2100)
+            ->unique()
+            ->sort()
+            ->values();
+        if ($tahunList->isEmpty()) {
+            $tahunList = collect([now()->year]);
+        }
+
         $bulanInput = $request->query('bulan', now()->month);
         $bulanList = collect(is_array($bulanInput) ? $bulanInput : [$bulanInput])
             ->map(fn($b) => (int) $b)
@@ -143,7 +153,11 @@ class PlanAuditMandiriController extends Controller
 
         $rows = PlanAuditMandiri::query()
             ->where('jenis_pemeriksaan', 'audit_mandiri')
-            ->whereYear('tgl_plan', $tahun)
+            ->where(function ($q) use ($tahunList) {
+                foreach ($tahunList as $t) {
+                    $q->orWhereYear('tgl_plan', $t);
+                }
+            })
             ->where(function ($q) use ($bulanList) {
                 foreach ($bulanList as $b) {
                     $q->orWhereMonth('tgl_plan', $b);
@@ -183,8 +197,8 @@ class PlanAuditMandiriController extends Controller
                     continue;
                 }
 
-                // Target per bulan dikali jumlah bulan yang dipilih pada filter.
-                $targetPerUnit = $targetPerUnitType[$unit['jenis']] * $bulanList->count();
+                // Target per bulan dikali jumlah bulan & tahun yang dipilih pada filter.
+                $targetPerUnit = $targetPerUnitType[$unit['jenis']] * $bulanList->count() * $tahunList->count();
                 $actual = (int) ($realisasiBySuffix[$unit['suffix']][$jenisAudit] ?? 0);
                 $capaian = $targetPerUnit > 0 ? round(($actual / $targetPerUnit) * 100, 1) : null;
 
@@ -234,7 +248,7 @@ class PlanAuditMandiriController extends Controller
 
         return response()->json([
             'ok' => true,
-            'tahun' => $tahun,
+            'tahun' => $tahunList->values(),
             'bulan' => $bulanList->values(),
             'wilayahOptions' => $wilayahOptions,
             'summary' => $summary,
