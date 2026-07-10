@@ -10,7 +10,11 @@ function getSession() {
 
 function authHeaders() {
     const session = getSession();
-    return session?.token ? { Authorization: `Bearer ${session.token}` } : {};
+    const headers = { Accept: "application/json" };
+    if (session?.token) {
+        headers.Authorization = `${session.tokenType || "Bearer"} ${session.token}`;
+    }
+    return headers;
 }
 
 async function fetchJson(url, options = {}) {
