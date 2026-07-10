@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DbUnitUsaha;
 use App\Models\PlanAudit;
 use App\Models\PlanAuditMandiri;
+use App\Models\PlanAuditMandiriCrosscheck;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -132,16 +133,27 @@ class PlanAuditMandiriController extends Controller
             ->where('jenis_pemeriksaan', 'audit_mandiri')
             ->whereYear('tgl_plan', $tahun)
             ->whereMonth('tgl_plan', $bulan)
-            ->get(['jenis_audit', 'cabang']);
+            ->whereNotNull('plan_audit_id')
+            ->get(['jenis_audit', 'cabang', 'plan_audit_id']);
 
-        // Hitung realisasi per suffix unit + jenis audit.
+        // Hasil crosscheck auditor (ok/not_ok/selisih) per plan_audit_id, kalau sudah diperiksa.
+        $crosscheckByPlanId = PlanAuditMandiriCrosscheck::query()
+            ->whereIn('plan_audit_id', $rows->pluck('plan_audit_id')->filter())
+            ->pluck('hasil', 'plan_audit_id');
+
+        // Hitung realisasi & hasil crosscheck per suffix unit + jenis audit.
         $realisasiBySuffix = [];
+        $crosscheckBySuffix = [];
         foreach ($rows as $row) {
             $suffix = $this->suffix3($row->cabang);
             if (!$suffix) {
                 continue;
             }
             $realisasiBySuffix[$suffix][$row->jenis_audit] = ($realisasiBySuffix[$suffix][$row->jenis_audit] ?? 0) + 1;
+
+            $hasil = $crosscheckByPlanId[$row->plan_audit_id] ?? 'pending';
+            $crosscheckBySuffix[$suffix][$row->jenis_audit][$hasil] =
+                ($crosscheckBySuffix[$suffix][$row->jenis_audit][$hasil] ?? 0) + 1;
         }
 
         $detail = [];
@@ -159,11 +171,21 @@ class PlanAuditMandiriController extends Controller
                 $actual = (int) ($realisasiBySuffix[$unit['suffix']][$jenisAudit] ?? 0);
                 $capaian = $targetPerUnit > 0 ? round(($actual / $targetPerUnit) * 100, 1) : null;
 
+                $cc = $crosscheckBySuffix[$unit['suffix']][$jenisAudit] ?? [];
+                $ccOk = (int) ($cc['ok'] ?? 0);
+                $ccNotOk = (int) ($cc['not_ok'] ?? 0);
+                $ccSelisih = (int) ($cc['selisih'] ?? 0);
+                $ccPending = (int) ($cc['pending'] ?? 0);
+
                 $unitItems[] = [
                     'jenisAudit' => $jenisAudit,
                     'target' => $targetPerUnit,
                     'realisasi' => $actual,
                     'capaian' => $capaian,
+                    'crosscheckOk' => $ccOk,
+                    'crosscheckNotOk' => $ccNotOk,
+                    'crosscheckSelisih' => $ccSelisih,
+                    'crosscheckPending' => $ccPending,
                 ];
 
                 $key = $jenisAudit . '|' . $unit['jenis'];
@@ -172,6 +194,10 @@ class PlanAuditMandiriController extends Controller
                 $summaryAgg[$key]['unitCount'] = ($summaryAgg[$key]['unitCount'] ?? 0) + 1;
                 $summaryAgg[$key]['target'] = ($summaryAgg[$key]['target'] ?? 0) + $targetPerUnit;
                 $summaryAgg[$key]['realisasi'] = ($summaryAgg[$key]['realisasi'] ?? 0) + $actual;
+                $summaryAgg[$key]['crosscheckOk'] = ($summaryAgg[$key]['crosscheckOk'] ?? 0) + $ccOk;
+                $summaryAgg[$key]['crosscheckNotOk'] = ($summaryAgg[$key]['crosscheckNotOk'] ?? 0) + $ccNotOk;
+                $summaryAgg[$key]['crosscheckSelisih'] = ($summaryAgg[$key]['crosscheckSelisih'] ?? 0) + $ccSelisih;
+                $summaryAgg[$key]['crosscheckPending'] = ($summaryAgg[$key]['crosscheckPending'] ?? 0) + $ccPending;
             }
 
             if ($unitItems) {

@@ -102,6 +102,25 @@
         </div>
     </div>
 
+    <div class="mt-3 grid gap-3 grid-cols-2 lg:grid-cols-4">
+        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cross-check OK</p>
+            <p id="amdStatCcOk" class="mt-1 text-2xl font-bold text-emerald-300">0</p>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cross-check Not OK</p>
+            <p id="amdStatCcNotOk" class="mt-1 text-2xl font-bold text-red-300">0</p>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cross-check Selisih</p>
+            <p id="amdStatCcSelisih" class="mt-1 text-2xl font-bold text-amber-300">0</p>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Belum Cross-check</p>
+            <p id="amdStatCcPending" class="mt-1 text-2xl font-bold text-slate-400">0</p>
+        </div>
+    </div>
+
     <div class="mt-5 rounded-xl border border-slate-800 bg-slate-950 p-4">
         <h3 class="mb-3 text-sm font-bold text-slate-200">Ringkasan per Jenis Audit &amp; Jenis Unit</h3>
         <div class="mx-auto" style="max-width: 720px;">
@@ -130,10 +149,11 @@
                             <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Target</th>
                             <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Realisasi</th>
                             <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Capaian</th>
+                            <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Cross-check</th>
                         </tr>
                     </thead>
                     <tbody id="amdTableBody" class="divide-y divide-slate-800 text-slate-200">
-                        <tr><td colspan="6" class="px-3 py-6 text-center text-sm text-slate-500">Memuat data...</td></tr>
+                        <tr><td colspan="7" class="px-3 py-6 text-center text-sm text-slate-500">Memuat data...</td></tr>
                     </tbody>
                 </table>
             </div>
