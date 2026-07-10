@@ -6,6 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'AKTA IAT')</title>
 
+    <script>
+        (function () {
+            try {
+                var theme = localStorage.getItem('akta_theme') || 'dark';
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
+
     @vite(['resources/css/app.css', 'resources/js/akta-shell.js'])
 </head>
 

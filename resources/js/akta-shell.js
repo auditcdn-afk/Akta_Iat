@@ -196,9 +196,27 @@ function guardAdminOnlyPage(user) {
     }
 }
 
+function setupThemeToggle() {
+    const THEME_KEY = "akta_theme";
+    const btn = document.getElementById("themeToggleBtn");
+    if (!btn) return;
+
+    btn.addEventListener("click", () => {
+        const current = document.documentElement.getAttribute("data-theme") || "dark";
+        const next = current === "dark" ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", next);
+        try {
+            localStorage.setItem(THEME_KEY, next);
+        } catch {
+            /* localStorage tidak tersedia, tema tidak tersimpan antar sesi */
+        }
+    });
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     setupMobileMenu();
     setupSidebarScrollMemory();
+    setupThemeToggle();
 
     const session = getSession();
 
