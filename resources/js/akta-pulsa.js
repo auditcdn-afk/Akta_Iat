@@ -305,7 +305,7 @@ async function handleSubmit(e) {
     const nominalRaw = document.getElementById("pulsaNominal")?.value.replace(/\D/g, "") || "0";
 
     const formData = new FormData();
-    formData.append("username", getSession()?.username || "");
+    formData.append("username", currentUser?.username || "");
     formData.append("nama", document.getElementById("pulsaNama")?.value || "");
     formData.append("jabatan", document.getElementById("pulsaJabatan")?.value || "");
     formData.append("tanggal", document.getElementById("pulsaTanggal")?.value || "");
@@ -468,7 +468,7 @@ function cetakBon() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-    currentUser = getSession();
+    currentUser = getSession()?.user || null;
     if (!currentUser) {
         window.location.href = "/akta/login";
         return;

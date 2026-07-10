@@ -310,7 +310,7 @@ async function deleteItem(id) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-    currentUser = getSession();
+    currentUser = getSession()?.user || null;
     if (!currentUser) {
         window.location.href = "/akta/login";
         return;
