@@ -21,8 +21,8 @@ async function fetchJson(url, options = {}) {
     } catch {
         body = null;
     }
-    if (!res.ok) {
-        throw new Error(body?.message || `Gagal memuat ${url}`);
+    if (!res.ok || body === null) {
+        throw new Error(body?.message || `Gagal memuat ${url} (status ${res.status})`);
     }
     return body;
 }
