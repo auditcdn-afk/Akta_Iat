@@ -91,6 +91,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/sk/{suratKeputusan}/toggle-pembebanan', [SuratKeputusanController::class, 'togglePembebanan'])
         ->middleware('akta.role:admin,manajer,auditor');
 
+    Route::post('/sk/{suratKeputusan}/re-extract-memutuskan', [SuratKeputusanController::class, 'reExtractMemutuskan'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
     Route::post('/sk/{suratKeputusan}/approve-manajer', [SuratKeputusanController::class, 'approveManajer'])
         ->middleware('akta.role:admin,manajer');
 

@@ -307,6 +307,26 @@ class SuratKeputusanController extends Controller
         ]);
     }
 
+    // Ekstrak ulang poin "Memutuskan" dari file SK yang sudah diupload, untuk
+    // kasus di mana kolom memutuskan masih kosong (mis. ekstraksi awal gagal).
+    public function reExtractMemutuskan(Request $request, SuratKeputusan $suratKeputusan): JsonResponse
+    {
+        $this->ensureCanWrite($request);
+
+        abort_if(empty($suratKeputusan->file_sk), 422, 'SK ini belum memiliki file untuk diekstrak.');
+
+        $memutuskan = $this->extractMemutuskanFromUpload($suratKeputusan->file_sk);
+        abort_if(empty($memutuskan), 422, 'Tidak ditemukan poin "Memutuskan" pada file SK ini.');
+
+        $suratKeputusan->memutuskan = $memutuskan;
+        $suratKeputusan->save();
+
+        return response()->json([
+            'message' => 'Poin Memutuskan berhasil diekstrak ulang.',
+            'data' => $suratKeputusan->load('planAudit'),
+        ]);
+    }
+
     public function destroy(Request $request, SuratKeputusan $suratKeputusan): JsonResponse
     {
         $this->ensureIsAdmin($request);

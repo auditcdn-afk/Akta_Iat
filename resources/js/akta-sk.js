@@ -733,13 +733,14 @@ async function loadUserOptions() {
     allUserOptions = payload.data || [];
 }
 
-function openDistributeModal(id) {
+async function openDistributeModal(id) {
     const modal = document.getElementById("distributeSkModal");
     if (!modal) return;
     document.getElementById("distributeSkId").value = id;
 
     const item = skItems.find((row) => String(row.id) === String(id));
-    document.getElementById("distributeSkMemutuskan").value = item?.memutuskan || "";
+    const memutuskanEl = document.getElementById("distributeSkMemutuskan");
+    memutuskanEl.value = item?.memutuskan || "";
 
     const list = document.getElementById("distributeSkUserList");
     if (list) {
@@ -753,6 +754,28 @@ function openDistributeModal(id) {
 
     modal.classList.remove("hidden");
     modal.classList.add("flex");
+
+    // Kolom memutuskan masih kosong tapi filenya ada: coba ekstrak ulang dari PDF
+    // secara otomatis (mis. untuk SK plan Audit Mandiri yang ekstraksi awalnya gagal).
+    if (!item?.memutuskan && (item?.file_sk || item?.fileSk)) {
+        memutuskanEl.placeholder = "⏳ Mengekstrak poin Memutuskan dari file SK...";
+        try {
+            const result = await fetchJson(`/api/sk/${id}/re-extract-memutuskan`, {
+                method: "POST",
+                headers: authHeaders(),
+            });
+            const updated = result.data?.memutuskan || "";
+            if (updated) {
+                memutuskanEl.value = updated;
+                const idx = skItems.findIndex((row) => String(row.id) === String(id));
+                if (idx !== -1) skItems[idx].memutuskan = updated;
+            }
+        } catch {
+            // Diam-diam gagal; auditor tetap bisa mengisi manual.
+        } finally {
+            memutuskanEl.placeholder = "Salin poin-poin \"Memutuskan\" dari dokumen SK di sini...";
+        }
+    }
 }
 
 function closeDistributeModal() {
