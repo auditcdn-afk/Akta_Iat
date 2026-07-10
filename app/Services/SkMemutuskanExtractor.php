@@ -33,11 +33,21 @@ class SkMemutuskanExtractor
     {
         $text = str_replace(["\r\n", "\r"], "\n", $text);
 
-        if (!preg_match('/Memutuskan\s*:?\s*\n(.+)$/isu', $text, $matches)) {
+        // Heading "Memutuskan" tidak selalu diikuti baris baru pada hasil ekstraksi PDF
+        // (kadang isi poin pertama langsung menyambung di baris yang sama), jadi cukup
+        // cocokkan kata "Memutuskan" + tanda baca opsional, tanpa mewajibkan \n setelahnya.
+        if (!preg_match('/Memutuskan\s*:?\s*/isu', $text, $matches, PREG_OFFSET_CAPTURE)) {
             return null;
         }
 
-        $body = trim($matches[1]);
+        // Offset dari PREG_OFFSET_CAPTURE dalam satuan byte, jadi pakai substr (byte-safe)
+        // untuk memotong, baru diproses lebih lanjut dengan fungsi mb_*.
+        $startPos = $matches[0][1] + strlen($matches[0][0]);
+        $body = trim(substr($text, $startPos));
+
+        if ($body === '') {
+            return null;
+        }
 
         // Hentikan di heading penutup umum (tanda tangan, tembusan, dll) jika ada.
         $stopWords = ['Ditetapkan di', 'Demikian', 'Tembusan', 'Yang Menetapkan'];
