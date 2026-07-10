@@ -89,57 +89,99 @@ let latestSummary = [];
 let latestDetail = [];
 let wilayahOptionsPopulated = false;
 
+// ── Dropdown checkbox multi-pilih (dipakai untuk Wilayah, Jenis Audit, Bulan) ──
+
+function setupDropdownToggle(btnId, panelId) {
+    const btn = document.getElementById(btnId);
+    const panel = document.getElementById(panelId);
+    if (!btn || !panel) return;
+
+    btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        document.querySelectorAll(".amd-filter-panel").forEach((p) => {
+            if (p !== panel) p.classList.add("hidden");
+        });
+        panel.classList.toggle("hidden");
+    });
+    document.addEventListener("click", (e) => {
+        if (!panel.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+            panel.classList.add("hidden");
+        }
+    });
+}
+
+function renderCheckboxPanel(panelId, checkboxClass, items, onChange) {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    panel.innerHTML = items.map(({ value, label, checked }) => `
+        <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-200 hover:bg-slate-800 cursor-pointer">
+            <input type="checkbox" value="${value}" class="${checkboxClass} rounded border-slate-600 bg-slate-950 text-blue-500 focus:ring-0" ${checked ? "checked" : ""}>
+            ${label}
+        </label>
+    `).join("");
+    panel.querySelectorAll(`.${checkboxClass}`).forEach((cb) => cb.addEventListener("change", onChange));
+}
+
+function getSelectedValues(checkboxClass) {
+    return Array.from(document.querySelectorAll(`.${checkboxClass}:checked`)).map((el) => el.value);
+}
+
+function updateMultiFilterLabel(labelId, selected, allLabel, resolveLabel) {
+    const el = document.getElementById(labelId);
+    if (!el) return;
+    if (!selected.length) {
+        el.textContent = allLabel;
+    } else if (selected.length === 1) {
+        el.textContent = resolveLabel(selected[0]);
+    } else {
+        el.textContent = `${selected.length} Dipilih`;
+    }
+}
+
 function getSelectedBulan() {
-    const checked = Array.from(document.querySelectorAll(".amdBulanCheckbox:checked")).map((el) => Number(el.value));
+    const checked = getSelectedValues("amdBulanCheckbox").map(Number);
     return checked.length ? checked.sort((a, b) => a - b) : [new Date().getMonth() + 1];
+}
+
+function getSelectedWilayah() {
+    return getSelectedValues("amdWilayahCheckbox");
+}
+
+function getSelectedJenisAudit() {
+    return getSelectedValues("amdJenisAuditCheckbox");
 }
 
 function updateBulanFilterLabel() {
     const bulanList = getSelectedBulan();
     const label = document.getElementById("amdBulanFilterLabel");
     if (!label) return;
-    if (bulanList.length === 1) {
-        label.textContent = BULAN_LABEL[bulanList[0]];
-    } else {
-        label.textContent = `${bulanList.length} Bulan Dipilih`;
-    }
+    label.textContent = bulanList.length === 1 ? BULAN_LABEL[bulanList[0]] : `${bulanList.length} Bulan Dipilih`;
 }
 
 function populateFilters() {
-    const bulanPanel = document.getElementById("amdBulanFilterPanel");
-    const bulanBtn = document.getElementById("amdBulanFilterBtn");
     const tahunEl = document.getElementById("amdTahunFilter");
-    if (!bulanPanel || !tahunEl) return;
+    if (!tahunEl) return;
+
+    setupDropdownToggle("amdBulanFilterBtn", "amdBulanFilterPanel");
+    setupDropdownToggle("amdWilayahFilterBtn", "amdWilayahFilterPanel");
+    setupDropdownToggle("amdJenisAuditFilterBtn", "amdJenisAuditFilterPanel");
 
     const now = new Date();
-    bulanPanel.innerHTML = "";
-    BULAN_LABEL.forEach((label, idx) => {
-        if (idx === 0) return;
-        const wrapper = document.createElement("label");
-        wrapper.className = "flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-200 hover:bg-slate-800 cursor-pointer";
-        wrapper.innerHTML = `
-            <input type="checkbox" value="${idx}" class="amdBulanCheckbox rounded border-slate-600 bg-slate-950 text-blue-500 focus:ring-0" ${idx === now.getMonth() + 1 ? "checked" : ""}>
-            ${label}
-        `;
-        bulanPanel.appendChild(wrapper);
-    });
-    bulanPanel.querySelectorAll(".amdBulanCheckbox").forEach((cb) => {
-        cb.addEventListener("change", () => {
-            updateBulanFilterLabel();
-            loadPencapaian();
-        });
+    const bulanItems = BULAN_LABEL
+        .map((label, idx) => ({ value: idx, label, checked: idx === now.getMonth() + 1 }))
+        .filter((item) => item.value !== 0);
+    renderCheckboxPanel("amdBulanFilterPanel", "amdBulanCheckbox", bulanItems, () => {
+        updateBulanFilterLabel();
+        loadPencapaian();
     });
     updateBulanFilterLabel();
 
-    bulanBtn?.addEventListener("click", (e) => {
-        e.stopPropagation();
-        bulanPanel.classList.toggle("hidden");
+    const jenisAuditItems = ["KAS", "SMH", "Sparepart", "BPKB", "MT"].map((j) => ({ value: j, label: j, checked: false }));
+    renderCheckboxPanel("amdJenisAuditFilterPanel", "amdJenisAuditCheckbox", jenisAuditItems, () => {
+        updateMultiFilterLabel("amdJenisAuditFilterLabel", getSelectedJenisAudit(), "Semua Jenis Audit", (v) => v);
+        renderUnitSection();
     });
-    document.addEventListener("click", (e) => {
-        if (!bulanPanel.contains(e.target) && e.target !== bulanBtn) {
-            bulanPanel.classList.add("hidden");
-        }
-    });
+    updateMultiFilterLabel("amdJenisAuditFilterLabel", [], "Semua Jenis Audit", (v) => v);
 
     const currentYear = now.getFullYear();
     tahunEl.innerHTML = "";
@@ -154,15 +196,14 @@ function populateFilters() {
 
 function populateWilayahOptions(options) {
     if (wilayahOptionsPopulated) return;
-    const el = document.getElementById("amdWilayahFilter");
-    if (!el || !options?.length) return;
+    if (!options?.length) return;
 
-    options.forEach((w) => {
-        const opt = document.createElement("option");
-        opt.value = w;
-        opt.textContent = w;
-        el.appendChild(opt);
+    const items = options.map((w) => ({ value: w, label: w, checked: false }));
+    renderCheckboxPanel("amdWilayahFilterPanel", "amdWilayahCheckbox", items, () => {
+        updateMultiFilterLabel("amdWilayahFilterLabel", getSelectedWilayah(), "Semua Wilayah", (v) => v);
+        loadPencapaian();
     });
+    updateMultiFilterLabel("amdWilayahFilterLabel", [], "Semua Wilayah", (v) => v);
     wilayahOptionsPopulated = true;
 }
 
@@ -266,11 +307,11 @@ function renderSummaryChart(summary) {
     });
 }
 
-function unitRowsForFilter(jenisAuditFilter) {
+function unitRowsForFilter(jenisAuditFilterList) {
     const rows = [];
     latestDetail.forEach((unit) => {
         unit.items
-            .filter((it) => !jenisAuditFilter || it.jenisAudit === jenisAuditFilter)
+            .filter((it) => !jenisAuditFilterList.length || jenisAuditFilterList.includes(it.jenisAudit))
             .forEach((it) => {
                 rows.push({
                     unitUsaha: unit.unitUsaha,
@@ -294,7 +335,7 @@ function renderUnitChart(rows) {
     const canvas = document.getElementById("amdUnitChart");
     if (!canvas) return;
 
-    const showJenisAudit = !document.getElementById("amdJenisAuditFilter")?.value;
+    const showJenisAudit = getSelectedJenisAudit().length !== 1;
     const sorted = [...rows].sort((a, b) => (a.capaian ?? -1) - (b.capaian ?? -1));
 
     const labels = sorted.map((r) => (showJenisAudit ? `${r.unitUsaha} · ${r.jenisAudit}` : r.unitUsaha));
@@ -363,7 +404,7 @@ function renderTable(rows) {
 
     tbody.innerHTML = rows.map((r) => `
         <tr>
-            <td class="px-3 py-2 font-semibold">${r.unitUsaha}${!document.getElementById("amdJenisAuditFilter").value ? ` <span class="text-slate-500 font-normal">(${r.jenisAudit})</span>` : ""}</td>
+            <td class="px-3 py-2 font-semibold">${r.unitUsaha}${getSelectedJenisAudit().length !== 1 ? ` <span class="text-slate-500 font-normal">(${r.jenisAudit})</span>` : ""}</td>
             <td class="px-3 py-2 text-center text-slate-400">${r.wilayah || "-"}</td>
             <td class="px-3 py-2 text-center">${r.jenis}</td>
             <td class="px-3 py-2 text-center">${r.target}</td>
@@ -375,14 +416,14 @@ function renderTable(rows) {
 }
 
 function renderUnitSection() {
-    const jenisAuditFilter = document.getElementById("amdJenisAuditFilter")?.value || "";
+    const jenisAuditFilterList = getSelectedJenisAudit();
 
-    const filteredSummary = jenisAuditFilter
-        ? latestSummary.filter((it) => it.jenisAudit === jenisAuditFilter)
+    const filteredSummary = jenisAuditFilterList.length
+        ? latestSummary.filter((it) => jenisAuditFilterList.includes(it.jenisAudit))
         : latestSummary;
     renderSummaryChart(filteredSummary);
 
-    const rows = unitRowsForFilter(jenisAuditFilter);
+    const rows = unitRowsForFilter(jenisAuditFilterList);
     updateStatCards(filteredSummary, rows);
     renderUnitChart(rows);
     renderTable(rows);
@@ -391,12 +432,12 @@ function renderUnitSection() {
 async function loadPencapaian() {
     const bulanList = getSelectedBulan();
     const tahun = document.getElementById("amdTahunFilter")?.value;
-    const wilayah = document.getElementById("amdWilayahFilter")?.value || "";
+    const wilayahList = getSelectedWilayah();
     try {
         showAlert(null);
         const params = new URLSearchParams({ tahun });
         bulanList.forEach((b) => params.append("bulan[]", b));
-        if (wilayah) params.set("wilayah", wilayah);
+        wilayahList.forEach((w) => params.append("wilayah[]", w));
         const result = await fetchJson(`/api/plan-audit-mandiri/pencapaian?${params.toString()}`, {
             headers: authHeaders(),
         });
@@ -414,7 +455,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
     populateFilters();
     document.getElementById("amdTahunFilter")?.addEventListener("change", loadPencapaian);
-    document.getElementById("amdWilayahFilter")?.addEventListener("change", loadPencapaian);
-    document.getElementById("amdJenisAuditFilter")?.addEventListener("change", renderUnitSection);
     loadPencapaian();
 });

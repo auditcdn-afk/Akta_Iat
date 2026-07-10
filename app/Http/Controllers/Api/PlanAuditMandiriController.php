@@ -116,7 +116,10 @@ class PlanAuditMandiriController extends Controller
         if ($bulanList->isEmpty()) {
             $bulanList = collect([now()->month]);
         }
-        $wilayahFilter = $request->query('wilayah');
+        $wilayahInput = $request->query('wilayah');
+        $wilayahFilterList = collect(is_array($wilayahInput) ? $wilayahInput : array_filter([$wilayahInput]))
+            ->filter()
+            ->values();
 
         // Daftar unit usaha dari master Database Unit Usaha, dengan suffix
         // 3-huruf terakhir sebagai kunci pencocokan ke `cabang` (konvensi yang
@@ -129,7 +132,7 @@ class PlanAuditMandiriController extends Controller
         $wilayahOptions = $allUnits->pluck('wilayah')->filter()->unique()->sort()->values();
 
         $units = $allUnits
-            ->when($wilayahFilter, fn($q) => $q->filter(fn($u) => $u->wilayah === $wilayahFilter))
+            ->when($wilayahFilterList->isNotEmpty(), fn($q) => $q->filter(fn($u) => $wilayahFilterList->contains($u->wilayah)))
             ->map(fn($u) => [
                 'unitUsaha' => $u->unit_usaha,
                 'wilayah' => $u->wilayah,
