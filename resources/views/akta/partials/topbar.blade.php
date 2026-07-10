@@ -5,7 +5,7 @@
                 @yield('page_title', 'Dashboard')
             </h1>
             <p class="hidden truncate text-xs text-slate-400 sm:block">
-                @yield('page_description', 'Migrasi Laravel 13 AKTA IAT')
+                @yield('page_description', 'Migrasi Laravel 13 SIMPAS-IAT')
             </p>
         </div>
 

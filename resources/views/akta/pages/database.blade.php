@@ -1,6 +1,6 @@
 @extends('akta.layouts.app')
 
-@section('title', 'Database - AKTA IAT')
+@section('title', 'Database - SIMPAS-IAT')
 @section('page_title', 'Database')
 @section('page_description', 'Master data SMH &mdash; Harga, Plafon, Perlengkapan, Onhand, dan Unit Usaha')
 

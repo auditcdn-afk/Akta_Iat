@@ -1,6 +1,6 @@
 @extends('akta.layouts.app')
 
-@section('title', 'SK - AKTA IAT')
+@section('title', 'SK - SIMPAS-IAT')
 @section('page_title', 'SK')
 @section('page_description', 'Surat Keputusan audit dan alur persetujuan')
 

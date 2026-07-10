@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - AKTA IAT</title>
+    <title>Dashboard - SIMPAS-IAT</title>
 
     @vite(['resources/css/app.css', 'resources/js/akta-dashboard.js'])
 </head>
@@ -15,7 +15,7 @@
             <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
                 <div>
                     <h1 class="text-xl font-bold tracking-tight">
-                        AKTA IAT
+                        SIMPAS-IAT
                     </h1>
                     <p class="text-xs text-slate-400">
                         Dashboard awal migrasi Laravel

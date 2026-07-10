@@ -1,6 +1,6 @@
 @extends('akta.layouts.app')
 
-@section('title', $title.' - AKTA IAT')
+@section('title', $title.' - SIMPAS-IAT')
 @section('page_title', $title)
 @section('page_description', $description)
 
@@ -8,7 +8,7 @@
 <section class="rounded-2xl border border-slate-800 bg-slate-900 p-6">
     <div class="max-w-3xl">
         <p class="text-sm font-semibold uppercase tracking-wide text-blue-400">
-            Modul AKTA IAT
+            Modul SIMPAS-IAT
         </p>
 
         <h2 class="mt-3 text-2xl font-bold">

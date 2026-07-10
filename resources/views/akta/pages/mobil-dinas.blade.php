@@ -1,6 +1,6 @@
 @extends('akta.layouts.app')
 
-@section('title', 'Mobil Dinas - AKTA IAT')
+@section('title', 'Mobil Dinas - SIMPAS-IAT')
 @section('page_title', 'Mobil Dinas')
 @section('page_description', 'Pengajuan penggunaan mobil dinas: auditor ajukan, manajer setujui, MRR lengkapi data kendaraan')
 

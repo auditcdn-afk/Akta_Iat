@@ -1,6 +1,6 @@
 @extends('akta.layouts.app')
 
-@section('title', 'Monitoring - AKTA IAT')
+@section('title', 'Monitoring - SIMPAS-IAT')
 @section('page_title', 'Monitoring')
 @section('page_description', 'Statistik aplikasi, health check, dan log aktivitas')
 

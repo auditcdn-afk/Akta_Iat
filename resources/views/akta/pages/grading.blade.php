@@ -1,6 +1,6 @@
 @extends('akta.layouts.app')
 
-@section('title', 'Grading - AKTA IAT')
+@section('title', 'Grading - SIMPAS-IAT')
 @section('page_title', 'Grading')
 @section('page_description', 'Analisa hasil grading audit per unit usaha')
 

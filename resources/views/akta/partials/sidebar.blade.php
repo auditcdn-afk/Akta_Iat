@@ -6,12 +6,13 @@ $menuItems = app(\App\Services\AktaMenuService::class)->visibleItems();
     <div class="flex h-full flex-col">
         <div class="border-b border-slate-800 px-5 py-5">
             <div class="flex items-center gap-3">
-                <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 font-black text-white">
-                    A
+                <div class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white">
+                    <img src="{{ asset('images/logo.png') }}" alt="Logo" class="h-full w-full object-contain p-1"
+                        onerror="this.parentElement.classList.add('bg-blue-600'); this.replaceWith(Object.assign(document.createElement('span'), {className: 'font-black text-white', textContent: 'S'}));">
                 </div>
 
                 <div>
-                    <div class="font-bold leading-tight">AKTA IAT</div>
+                    <div class="font-bold leading-tight">SIMPAS-IAT</div>
                     <div class="text-xs text-slate-400">Aplikasi Audit Honda Dealer</div>
                 </div>
             </div>
@@ -119,9 +120,15 @@ $menuItems = app(\App\Services\AktaMenuService::class)->visibleItems();
 <div class="lg:hidden">
     <div class="border-b border-slate-800 bg-slate-950 px-4 py-3">
         <div class="flex items-center justify-between">
-            <div>
-                <div class="font-bold">AKTA IAT</div>
-                <div class="text-xs text-slate-400">Audit Honda Dealer</div>
+            <div class="flex items-center gap-2">
+                <div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
+                    <img src="{{ asset('images/logo.png') }}" alt="Logo" class="h-full w-full object-contain p-0.5"
+                        onerror="this.parentElement.classList.add('bg-blue-600'); this.replaceWith(Object.assign(document.createElement('span'), {className: 'text-xs font-black text-white', textContent: 'S'}));">
+                </div>
+                <div>
+                    <div class="font-bold">SIMPAS-IAT</div>
+                    <div class="text-xs text-slate-400">Audit Honda Dealer</div>
+                </div>
             </div>
 
             <button id="mobileMenuButton" type="button"

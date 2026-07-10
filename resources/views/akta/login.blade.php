@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - AKTA IAT</title>
+    <title>Login - SIMPAS-IAT</title>
 
     @vite(['resources/css/app.css', 'resources/js/akta-auth.js'])
 </head>
@@ -14,12 +14,13 @@
         <section class="w-full max-w-md">
             <div class="mb-8 text-center">
                 <div
-                    class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 shadow-lg shadow-blue-600/20">
-                    <span class="text-2xl font-black tracking-tight">A</span>
+                    class="mx-auto mb-4 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg shadow-blue-600/20">
+                    <img src="{{ asset('images/logo.png') }}" alt="Logo" class="h-full w-full object-contain p-1.5"
+                        onerror="this.parentElement.classList.add('bg-blue-600'); this.replaceWith(Object.assign(document.createElement('span'), {className: 'text-2xl font-black tracking-tight text-white', textContent: 'S'}));">
                 </div>
 
                 <h1 class="text-3xl font-bold tracking-tight">
-                    AKTA IAT
+                    SIMPAS-IAT
                 </h1>
 
                 <p class="mt-2 text-sm text-slate-400">

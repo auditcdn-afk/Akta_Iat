@@ -1,6 +1,6 @@
 @extends('akta.layouts.app')
 
-@section('title', 'Audit Mandiri - AKTA IAT')
+@section('title', 'Audit Mandiri - SIMPAS-IAT')
 @section('page_title', 'Audit Mandiri')
 @section('page_description', 'Modul BU Performance, pengecekan audit mandiri, dan sertijab.')
 

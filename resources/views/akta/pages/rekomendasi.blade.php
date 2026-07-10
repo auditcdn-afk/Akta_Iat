@@ -1,6 +1,6 @@
 @extends('akta.layouts.app')
 
-@section('title', 'Rekomendasi - AKTA IAT')
+@section('title', 'Rekomendasi - SIMPAS-IAT')
 @section('page_title', 'Rekomendasi')
 @section('page_description', 'Rekomendasi audit, PIC, deadline, approval, dan tindak lanjut')
 

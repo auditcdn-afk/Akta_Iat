@@ -2745,7 +2745,7 @@ window.addEventListener('load', function() {
 @endif
 
 <div style="text-align:center;color:#9ca3af;font-size:8px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:8px;">
-  Laporan ini digenerate secara otomatis oleh sistem AKTA IAT pada {{ now()->format('d/m/Y H:i:s') }}.
+  Laporan ini digenerate secara otomatis oleh sistem SIMPAS-IAT pada {{ now()->format('d/m/Y H:i:s') }}.
 </div>
 
 </div>{{-- end page-wrap --}}

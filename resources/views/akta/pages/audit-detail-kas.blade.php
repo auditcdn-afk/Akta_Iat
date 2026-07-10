@@ -1,6 +1,6 @@
 @extends('akta.layouts.app')
 
-@section('title', 'Audit Detail Kas - AKTA IAT')
+@section('title', 'Audit Detail Kas - SIMPAS-IAT')
 @section('page_title', 'Audit Detail Kas')
 @section('page_description', 'Pemeriksaan kas berdasarkan Plan Audit')
 

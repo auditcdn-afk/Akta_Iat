@@ -16,7 +16,7 @@ class DataStoreController extends Controller
     {
         return response()->json([
             'ok' => true,
-            'app' => config('akta.app_name', 'AKTA IAT'),
+            'app' => config('akta.app_name', 'SIMPAS-IAT'),
             'time' => now()->toDateTimeString(),
         ]);
     }

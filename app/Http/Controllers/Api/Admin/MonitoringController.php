@@ -52,7 +52,7 @@ class MonitoringController extends Controller
                     'lastAt' => optional($lastActivity?->timestamp)->toDateTimeString(),
                 ],
                 'system' => [
-                    'app' => config('akta.app_name', 'AKTA IAT'),
+                    'app' => config('akta.app_name', 'SIMPAS-IAT'),
                     'environment' => app()->environment(),
                     'debug' => (bool) config('app.debug'),
                     'php' => PHP_VERSION,

@@ -1,6 +1,6 @@
 @extends('akta.layouts.app')
 
-@section('title', 'Manajemen Menu - AKTA IAT')
+@section('title', 'Manajemen Menu - SIMPAS-IAT')
 @section('page_title', 'Manajemen Menu')
 @section('page_description', 'Pengaturan tampilan sidebar dan akses menu')
 

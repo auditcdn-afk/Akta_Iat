@@ -1,6 +1,6 @@
 @extends('akta.layouts.app')
 
-@section('title', 'Pulsa - AKTA IAT')
+@section('title', 'Pulsa - SIMPAS-IAT')
 @section('page_title', 'Realisasi Pulsa')
 @section('page_description', 'Input & realisasi biaya pulsa auditor per bulan')
 

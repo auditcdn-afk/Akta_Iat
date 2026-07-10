@@ -1,6 +1,6 @@
 @extends('akta.layouts.app')
 
-@section('title', 'Akun Saya - AKTA IAT')
+@section('title', 'Akun Saya - SIMPAS-IAT')
 @section('page_title', 'Akun Saya')
 @section('page_description', 'Kelola foto, identitas, dan keamanan akun Anda')
 

@@ -1,6 +1,6 @@
 @extends('akta.layouts.app')
 
-@section('title', 'Pengguna - AKTA IAT')
+@section('title', 'Pengguna - SIMPAS-IAT')
 @section('page_title', 'Pengguna')
 @section('page_description', 'Manajemen user, role, unit usaha, dan status akun')
 
@@ -137,7 +137,7 @@
         <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
             <div>
                 <h3 id="userModalTitle" class="text-lg font-bold">Tambah User</h3>
-                <p class="text-sm text-slate-400">Isi data akun AKTA IAT.</p>
+                <p class="text-sm text-slate-400">Isi data akun SIMPAS-IAT.</p>
             </div>
 
             <button id="closeUserModalButton" type="button"

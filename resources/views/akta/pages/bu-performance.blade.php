@@ -1,6 +1,6 @@
 @extends('akta.layouts.app')
 
-@section('title', 'BU Performance - AKTA IAT')
+@section('title', 'BU Performance - SIMPAS-IAT')
 @section('page_title', 'BU Performance')
 @section('page_description', 'Penilaian personil kinerja jelek per unit usaha')
 

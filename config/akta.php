@@ -4,16 +4,16 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | AKTA IAT Configuration
+    | SIMPAS-IAT Configuration
     |--------------------------------------------------------------------------
     |
-    | Konfigurasi khusus aplikasi AKTA IAT.
+    | Konfigurasi khusus aplikasi SIMPAS-IAT.
     | Project lama memakai Express + JSONB hybrid.
     | Di Laravel versi lokal ini kita pakai MySQL JSON.
     |
     */
 
-    'app_name' => env('AKTA_APP_NAME', 'AKTA IAT'),
+    'app_name' => env('AKTA_APP_NAME', 'SIMPAS-IAT'),
 
     'timezone' => env('AKTA_TIMEZONE', 'Asia/Jakarta'),
 

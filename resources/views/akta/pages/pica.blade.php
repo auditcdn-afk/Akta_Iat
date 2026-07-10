@@ -1,6 +1,6 @@
 @extends('akta.layouts.app')
 
-@section('title', 'PICA - AKTA IAT')
+@section('title', 'PICA - SIMPAS-IAT')
 @section('page_title', 'PICA')
 @section('page_description', 'Tindak lanjut operasional dari rekomendasi audit')
 
