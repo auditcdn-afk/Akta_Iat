@@ -36,7 +36,17 @@ class SkMemutuskanExtractor
         // Heading "Memutuskan" tidak selalu diikuti baris baru pada hasil ekstraksi PDF
         // (kadang isi poin pertama langsung menyambung di baris yang sama), jadi cukup
         // cocokkan kata "Memutuskan" + tanda baca opsional, tanpa mewajibkan \n setelahnya.
-        if (!preg_match('/Memutuskan\s*:?\s*/isu', $text, $matches, PREG_OFFSET_CAPTURE)) {
+        $found = preg_match('/Memutuskan\s*:?\s*/isu', $text, $matches, PREG_OFFSET_CAPTURE);
+
+        // Beberapa PDF (hasil export tertentu) mengekstrak teks dengan setiap huruf
+        // terpisah spasi (mis. "M e m u t u s k a n"), sehingga kata utuhnya tidak
+        // pernah cocok. Coba gabungkan kembali huruf yang terpisah spasi sebagai fallback.
+        if (!$found) {
+            $text = static::despaceLetters($text);
+            $found = preg_match('/Memutuskan\s*:?\s*/isu', $text, $matches, PREG_OFFSET_CAPTURE);
+        }
+
+        if (!$found) {
             return null;
         }
 
@@ -65,5 +75,18 @@ class SkMemutuskanExtractor
         $cleaned = implode("\n", $lines);
 
         return $cleaned !== '' ? mb_substr($cleaned, 0, 5000) : null;
+    }
+
+    // Gabungkan kembali huruf-huruf yang terpisah spasi tunggal (mis. "M e m u t u s k a n"
+    // menjadi "Memutuskan"), artefak umum dari beberapa PDF generator saat teks diekstrak.
+    // Hanya menyasar rangkaian >=3 huruf tunggal berturut-turut agar kata pendek yang
+    // memang wajar (mis. "di", "ke") tidak ikut termakan.
+    private static function despaceLetters(string $text): string
+    {
+        return preg_replace_callback(
+            '/(?:\p{L}[ \t]){2,}\p{L}\b/u',
+            fn($m) => str_replace([' ', "\t"], '', $m[0]),
+            $text
+        );
     }
 }
