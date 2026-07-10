@@ -179,11 +179,18 @@ class PlanAuditMandiriController extends Controller
             if (!$suffix) {
                 continue;
             }
-            $realisasiBySuffix[$suffix][$row->jenis_audit] = ($realisasiBySuffix[$suffix][$row->jenis_audit] ?? 0) + 1;
 
             $hasil = $crosscheckByPlanId[$row->plan_audit_id] ?? 'pending';
             $crosscheckBySuffix[$suffix][$row->jenis_audit][$hasil] =
                 ($crosscheckBySuffix[$suffix][$row->jenis_audit][$hasil] ?? 0) + 1;
+
+            // Realisasi hanya dihitung kalau hasil crosscheck OK/Selisih, atau
+            // belum di-crosscheck sama sekali. Kalau auditor menyatakan
+            // "Not OK", audit tersebut dianggap tidak sah dan tidak dihitung.
+            if ($hasil === 'not_ok') {
+                continue;
+            }
+            $realisasiBySuffix[$suffix][$row->jenis_audit] = ($realisasiBySuffix[$suffix][$row->jenis_audit] ?? 0) + 1;
         }
 
         $detail = [];
