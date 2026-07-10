@@ -320,7 +320,10 @@ function renderSummaryChart(summary) {
 
 function unitRowsForFilter(jenisAuditFilterList) {
     const rows = [];
-    latestDetail.forEach((unit) => {
+    const searchTerm = (document.getElementById("amdUnitSearch")?.value || "").trim().toLowerCase();
+    latestDetail
+        .filter((unit) => !searchTerm || unit.unitUsaha.toLowerCase().includes(searchTerm))
+        .forEach((unit) => {
         unit.items
             .filter((it) => !jenisAuditFilterList.length || jenisAuditFilterList.includes(it.jenisAudit))
             .forEach((it) => {
@@ -466,5 +469,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!getSession()) return;
 
     populateFilters();
+    document.getElementById("amdUnitSearch")?.addEventListener("input", renderUnitSection);
     loadPencapaian();
 });

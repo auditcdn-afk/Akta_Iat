@@ -169,7 +169,16 @@
 
     <div class="mt-5 grid gap-5 lg:grid-cols-2">
         <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
-            <h3 class="mb-2 text-sm font-bold text-slate-200">Per Unit Usaha <span class="font-normal text-slate-500">(diurutkan dari capaian terendah)</span></h3>
+            <div class="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h3 class="text-sm font-bold text-slate-200">Per Unit Usaha <span class="font-normal text-slate-500">(diurutkan dari capaian terendah)</span></h3>
+                <div class="relative">
+                    <svg class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.35-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input type="search" id="amdUnitSearch" placeholder="Cari unit usaha..."
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950 py-2 pl-8 pr-3 text-sm text-slate-100 outline-none focus:border-blue-500 sm:w-52">
+                </div>
+            </div>
             <div class="akta-scrollbar max-h-[420px] overflow-y-auto">
                 <div id="amdUnitChartWrap" class="relative">
                     <canvas id="amdUnitChart"></canvas>
