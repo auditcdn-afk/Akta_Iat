@@ -65,6 +65,9 @@
             </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+            <select id="amdWilayahFilter" class="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                <option value="">Semua Wilayah</option>
+            </select>
             <select id="amdJenisAuditFilter" class="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
                 <option value="">Semua Jenis Audit</option>
                 <option value="KAS">KAS</option>
@@ -97,6 +100,7 @@
                     <thead class="sticky top-0 bg-slate-950/95">
                         <tr>
                             <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Unit Usaha</th>
+                            <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Wilayah</th>
                             <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis</th>
                             <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Target</th>
                             <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Realisasi</th>
@@ -104,7 +108,7 @@
                         </tr>
                     </thead>
                     <tbody id="amdTableBody" class="divide-y divide-slate-800 text-slate-200">
-                        <tr><td colspan="5" class="px-3 py-6 text-center text-sm text-slate-500">Memuat data...</td></tr>
+                        <tr><td colspan="6" class="px-3 py-6 text-center text-sm text-slate-500">Memuat data...</td></tr>
                     </tbody>
                 </table>
             </div>

@@ -53,6 +53,7 @@ let summaryChart = null;
 let unitChart = null;
 let latestSummary = [];
 let latestDetail = [];
+let wilayahOptionsPopulated = false;
 
 function populateFilters() {
     const bulanEl = document.getElementById("amdBulanFilter");
@@ -79,6 +80,20 @@ function populateFilters() {
         tahunEl.appendChild(opt);
     }
     tahunEl.value = String(currentYear);
+}
+
+function populateWilayahOptions(options) {
+    if (wilayahOptionsPopulated) return;
+    const el = document.getElementById("amdWilayahFilter");
+    if (!el || !options?.length) return;
+
+    options.forEach((w) => {
+        const opt = document.createElement("option");
+        opt.value = w;
+        opt.textContent = w;
+        el.appendChild(opt);
+    });
+    wilayahOptionsPopulated = true;
 }
 
 function capaianBadge(capaian) {
@@ -128,6 +143,7 @@ function unitRowsForFilter(jenisAuditFilter) {
             .forEach((it) => {
                 rows.push({
                     unitUsaha: unit.unitUsaha,
+                    wilayah: unit.wilayah,
                     jenis: unit.jenis,
                     jenisAudit: it.jenisAudit,
                     target: it.target,
@@ -179,13 +195,14 @@ function renderTable(rows) {
     if (!tbody) return;
 
     if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="px-3 py-6 text-center text-sm text-slate-500">Tidak ada unit usaha H1/H2 untuk filter ini.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="px-3 py-6 text-center text-sm text-slate-500">Tidak ada unit usaha H1/H2 untuk filter ini.</td></tr>';
         return;
     }
 
     tbody.innerHTML = rows.map((r) => `
         <tr>
             <td class="px-3 py-2 font-semibold">${r.unitUsaha}${!document.getElementById("amdJenisAuditFilter").value ? ` <span class="text-slate-500 font-normal">(${r.jenisAudit})</span>` : ""}</td>
+            <td class="px-3 py-2 text-center text-slate-400">${r.wilayah || "-"}</td>
             <td class="px-3 py-2 text-center">${r.jenis}</td>
             <td class="px-3 py-2 text-center">${r.target}</td>
             <td class="px-3 py-2 text-center">${r.realisasi}</td>
@@ -204,13 +221,17 @@ function renderUnitSection() {
 async function loadPencapaian() {
     const bulan = document.getElementById("amdBulanFilter")?.value;
     const tahun = document.getElementById("amdTahunFilter")?.value;
+    const wilayah = document.getElementById("amdWilayahFilter")?.value || "";
     try {
         showAlert(null);
-        const result = await fetchJson(`/api/plan-audit-mandiri/pencapaian?tahun=${tahun}&bulan=${bulan}`, {
+        const params = new URLSearchParams({ tahun, bulan });
+        if (wilayah) params.set("wilayah", wilayah);
+        const result = await fetchJson(`/api/plan-audit-mandiri/pencapaian?${params.toString()}`, {
             headers: authHeaders(),
         });
         latestSummary = result.summary || [];
         latestDetail = result.detail || [];
+        populateWilayahOptions(result.wilayahOptions);
         renderSummaryChart(latestSummary);
         renderUnitSection();
     } catch (err) {
@@ -224,6 +245,7 @@ document.addEventListener("DOMContentLoaded", () => {
     populateFilters();
     document.getElementById("amdBulanFilter")?.addEventListener("change", loadPencapaian);
     document.getElementById("amdTahunFilter")?.addEventListener("change", loadPencapaian);
+    document.getElementById("amdWilayahFilter")?.addEventListener("change", loadPencapaian);
     document.getElementById("amdJenisAuditFilter")?.addEventListener("change", renderUnitSection);
     loadPencapaian();
 });

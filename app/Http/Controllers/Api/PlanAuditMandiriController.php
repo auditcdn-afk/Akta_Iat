@@ -106,16 +106,23 @@ class PlanAuditMandiriController extends Controller
     {
         $tahun = (int) $request->query('tahun', now()->year);
         $bulan = (int) $request->query('bulan', now()->month);
+        $wilayahFilter = $request->query('wilayah');
 
         // Daftar unit usaha dari master Database Unit Usaha, dengan suffix
         // 3-huruf terakhir sebagai kunci pencocokan ke `cabang` (konvensi yang
         // sama dipakai PlafonController, karena format nama cabang bisa beda
         // antar tabel).
-        $units = DbUnitUsaha::query()
+        $allUnits = DbUnitUsaha::query()
             ->get()
-            ->filter(fn($u) => $u->unit_usaha && $u->jenis && $this->suffix3($u->unit_usaha))
+            ->filter(fn($u) => $u->unit_usaha && $u->jenis && $this->suffix3($u->unit_usaha));
+
+        $wilayahOptions = $allUnits->pluck('wilayah')->filter()->unique()->sort()->values();
+
+        $units = $allUnits
+            ->when($wilayahFilter, fn($q) => $q->filter(fn($u) => $u->wilayah === $wilayahFilter))
             ->map(fn($u) => [
                 'unitUsaha' => $u->unit_usaha,
+                'wilayah' => $u->wilayah,
                 'jenis' => strtoupper($u->jenis),
                 'suffix' => $this->suffix3($u->unit_usaha),
             ])
@@ -170,6 +177,7 @@ class PlanAuditMandiriController extends Controller
             if ($unitItems) {
                 $detail[] = [
                     'unitUsaha' => $unit['unitUsaha'],
+                    'wilayah' => $unit['wilayah'],
                     'jenis' => $unit['jenis'],
                     'items' => $unitItems,
                 ];
@@ -185,6 +193,7 @@ class PlanAuditMandiriController extends Controller
             'ok' => true,
             'tahun' => $tahun,
             'bulan' => $bulan,
+            'wilayahOptions' => $wilayahOptions,
             'summary' => $summary,
             'detail' => $detail,
         ]);
