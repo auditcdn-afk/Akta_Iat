@@ -164,3 +164,61 @@ body {
 .theme-toggle-icon-light { display: inline; }
 [data-theme="dark"] .theme-toggle-icon-dark { display: inline; }
 [data-theme="dark"] .theme-toggle-icon-light { display: none; }
+
+/* ──────────────────────────────────────────────────────────────
+   Responsif untuk laptop/HP/tablet: cegah menu/form terpotong atau
+   tertimpa. Ditulis sebagai lapisan pengaman global (bukan per
+   halaman) supaya berlaku ke semua menu tanpa perlu menyentuh
+   tiap file blade satu-satu.
+   ────────────────────────────────────────────────────────────── */
+
+/* Cegah scrollbar horizontal di level halaman; tabel/panel yang
+   memang perlu geser ke samping tetap bisa lewat overflow-x-auto
+   miliknya sendiri (nested, tidak terpengaruh aturan ini). */
+main {
+    overflow-x: hidden;
+}
+
+/* Modal/dialog (fixed inset-0 ...) dibuat bisa discroll dan diberi
+   jarak atas-bawah, supaya form di dalamnya tidak terpotong di layar
+   pendek (HP dalam posisi landscape, atau saat keyboard muncul). */
+[class~="fixed"][class~="inset-0"] {
+    overflow-y: auto;
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+}
+
+/* Baris header (judul + search/filter) yang di desktop sejajar
+   horizontal, dipaksa membungkus ke bawah di layar sempit supaya
+   tidak saling tertimpa. */
+@media (max-width: 640px) {
+    .flex.items-center.justify-between:not(.h-16) {
+        flex-wrap: wrap;
+        row-gap: 0.75rem;
+    }
+
+    /* Input/select berlebar tetap (w-64/w-72/w-80/w-96) dibuat penuh
+       selebar kontainernya di layar HP supaya tidak terpotong. */
+    .w-64,
+    .w-72,
+    .w-80,
+    .w-96 {
+        width: 100%;
+    }
+}
+
+input,
+select,
+textarea {
+    max-width: 100%;
+}
+
+/* Grid angka/skor padat (grid-cols-3/4 tanpa breakpoint) dipersempit
+   jadi 2 kolom di layar HP kecil supaya tiap sel tidak terlalu sempit
+   dan teks/angka tidak saling tertimpa. */
+@media (max-width: 480px) {
+    .grid-cols-3,
+    .grid-cols-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
