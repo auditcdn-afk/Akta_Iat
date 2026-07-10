@@ -89,21 +89,57 @@ let latestSummary = [];
 let latestDetail = [];
 let wilayahOptionsPopulated = false;
 
+function getSelectedBulan() {
+    const checked = Array.from(document.querySelectorAll(".amdBulanCheckbox:checked")).map((el) => Number(el.value));
+    return checked.length ? checked.sort((a, b) => a - b) : [new Date().getMonth() + 1];
+}
+
+function updateBulanFilterLabel() {
+    const bulanList = getSelectedBulan();
+    const label = document.getElementById("amdBulanFilterLabel");
+    if (!label) return;
+    if (bulanList.length === 1) {
+        label.textContent = BULAN_LABEL[bulanList[0]];
+    } else {
+        label.textContent = `${bulanList.length} Bulan Dipilih`;
+    }
+}
+
 function populateFilters() {
-    const bulanEl = document.getElementById("amdBulanFilter");
+    const bulanPanel = document.getElementById("amdBulanFilterPanel");
+    const bulanBtn = document.getElementById("amdBulanFilterBtn");
     const tahunEl = document.getElementById("amdTahunFilter");
-    if (!bulanEl || !tahunEl) return;
+    if (!bulanPanel || !tahunEl) return;
 
     const now = new Date();
-    bulanEl.innerHTML = "";
+    bulanPanel.innerHTML = "";
     BULAN_LABEL.forEach((label, idx) => {
         if (idx === 0) return;
-        const opt = document.createElement("option");
-        opt.value = String(idx);
-        opt.textContent = label;
-        bulanEl.appendChild(opt);
+        const wrapper = document.createElement("label");
+        wrapper.className = "flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-200 hover:bg-slate-800 cursor-pointer";
+        wrapper.innerHTML = `
+            <input type="checkbox" value="${idx}" class="amdBulanCheckbox rounded border-slate-600 bg-slate-950 text-blue-500 focus:ring-0" ${idx === now.getMonth() + 1 ? "checked" : ""}>
+            ${label}
+        `;
+        bulanPanel.appendChild(wrapper);
     });
-    bulanEl.value = String(now.getMonth() + 1);
+    bulanPanel.querySelectorAll(".amdBulanCheckbox").forEach((cb) => {
+        cb.addEventListener("change", () => {
+            updateBulanFilterLabel();
+            loadPencapaian();
+        });
+    });
+    updateBulanFilterLabel();
+
+    bulanBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        bulanPanel.classList.toggle("hidden");
+    });
+    document.addEventListener("click", (e) => {
+        if (!bulanPanel.contains(e.target) && e.target !== bulanBtn) {
+            bulanPanel.classList.add("hidden");
+        }
+    });
 
     const currentYear = now.getFullYear();
     tahunEl.innerHTML = "";
@@ -353,12 +389,13 @@ function renderUnitSection() {
 }
 
 async function loadPencapaian() {
-    const bulan = document.getElementById("amdBulanFilter")?.value;
+    const bulanList = getSelectedBulan();
     const tahun = document.getElementById("amdTahunFilter")?.value;
     const wilayah = document.getElementById("amdWilayahFilter")?.value || "";
     try {
         showAlert(null);
-        const params = new URLSearchParams({ tahun, bulan });
+        const params = new URLSearchParams({ tahun });
+        bulanList.forEach((b) => params.append("bulan[]", b));
         if (wilayah) params.set("wilayah", wilayah);
         const result = await fetchJson(`/api/plan-audit-mandiri/pencapaian?${params.toString()}`, {
             headers: authHeaders(),
@@ -376,7 +413,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!getSession()) return;
 
     populateFilters();
-    document.getElementById("amdBulanFilter")?.addEventListener("change", loadPencapaian);
     document.getElementById("amdTahunFilter")?.addEventListener("change", loadPencapaian);
     document.getElementById("amdWilayahFilter")?.addEventListener("change", loadPencapaian);
     document.getElementById("amdJenisAuditFilter")?.addEventListener("change", renderUnitSection);

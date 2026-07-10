@@ -106,7 +106,16 @@ class PlanAuditMandiriController extends Controller
     public function pencapaian(Request $request): JsonResponse
     {
         $tahun = (int) $request->query('tahun', now()->year);
-        $bulan = (int) $request->query('bulan', now()->month);
+        $bulanInput = $request->query('bulan', now()->month);
+        $bulanList = collect(is_array($bulanInput) ? $bulanInput : [$bulanInput])
+            ->map(fn($b) => (int) $b)
+            ->filter(fn($b) => $b >= 1 && $b <= 12)
+            ->unique()
+            ->sort()
+            ->values();
+        if ($bulanList->isEmpty()) {
+            $bulanList = collect([now()->month]);
+        }
         $wilayahFilter = $request->query('wilayah');
 
         // Daftar unit usaha dari master Database Unit Usaha, dengan suffix
@@ -132,7 +141,11 @@ class PlanAuditMandiriController extends Controller
         $rows = PlanAuditMandiri::query()
             ->where('jenis_pemeriksaan', 'audit_mandiri')
             ->whereYear('tgl_plan', $tahun)
-            ->whereMonth('tgl_plan', $bulan)
+            ->where(function ($q) use ($bulanList) {
+                foreach ($bulanList as $b) {
+                    $q->orWhereMonth('tgl_plan', $b);
+                }
+            })
             ->whereNotNull('plan_audit_id')
             ->get(['jenis_audit', 'cabang', 'plan_audit_id']);
 
@@ -167,7 +180,8 @@ class PlanAuditMandiriController extends Controller
                     continue;
                 }
 
-                $targetPerUnit = $targetPerUnitType[$unit['jenis']];
+                // Target per bulan dikali jumlah bulan yang dipilih pada filter.
+                $targetPerUnit = $targetPerUnitType[$unit['jenis']] * $bulanList->count();
                 $actual = (int) ($realisasiBySuffix[$unit['suffix']][$jenisAudit] ?? 0);
                 $capaian = $targetPerUnit > 0 ? round(($actual / $targetPerUnit) * 100, 1) : null;
 
@@ -218,7 +232,7 @@ class PlanAuditMandiriController extends Controller
         return response()->json([
             'ok' => true,
             'tahun' => $tahun,
-            'bulan' => $bulan,
+            'bulan' => $bulanList->values(),
             'wilayahOptions' => $wilayahOptions,
             'summary' => $summary,
             'detail' => $detail,
