@@ -325,17 +325,19 @@
         </div>
     </div>
 
-    <div class="mt-5 rounded-xl border border-slate-800 bg-slate-950 p-4">
-        <h3 class="mb-3 text-sm font-bold text-slate-200">Tren Beban SK per Bulan</h3>
-        <canvas id="gbTrendChart" height="220"></canvas>
+    <div class="mt-5 grid gap-5 xl:grid-cols-2">
+        <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
+            <h3 class="mb-3 text-sm font-bold text-slate-200">Tren Beban SK per Bulan</h3>
+            <canvas id="gbTrendChart" height="220"></canvas>
+        </div>
+
+        <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
+            <h3 class="mb-3 text-sm font-bold text-slate-200">Nominal &amp; Jumlah Kasus per Tahun</h3>
+            <canvas id="gbTahunChart" height="220"></canvas>
+        </div>
     </div>
 
-    <div class="mt-5 rounded-xl border border-slate-800 bg-slate-950 p-4">
-        <h3 class="mb-3 text-sm font-bold text-slate-200">Nominal &amp; Jumlah Kasus per Tahun</h3>
-        <canvas id="gbTahunChart" height="220"></canvas>
-    </div>
-
-    <div class="mt-5 grid gap-5 lg:grid-cols-2">
+    <div class="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
             <h3 class="mb-3 text-sm font-bold text-slate-200">Beban per Jenis Unit</h3>
             <canvas id="gbJenisUnitChart" height="220"></canvas>
@@ -345,9 +347,7 @@
             <h3 class="mb-3 text-sm font-bold text-slate-200">Nominal per Item Pembebanan</h3>
             <canvas id="gbItemChart" height="220"></canvas>
         </div>
-    </div>
 
-    <div class="mt-5 grid gap-5 lg:grid-cols-2">
         <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
             <h3 class="mb-3 text-sm font-bold text-slate-200">Beban per Jabatan</h3>
             <canvas id="gbJabatanChart" height="220"></canvas>
@@ -355,7 +355,7 @@
 
         <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
             <h3 class="mb-3 text-sm font-bold text-slate-200">Beban per Personil <span class="font-normal text-slate-500">(top 15)</span></h3>
-            <div class="akta-scrollbar max-h-[360px] overflow-y-auto">
+            <div class="akta-scrollbar max-h-[280px] overflow-y-auto">
                 <div id="gbPersonilChartWrap" class="relative">
                     <canvas id="gbPersonilChart"></canvas>
                 </div>
@@ -363,7 +363,7 @@
         </div>
     </div>
 
-    <div class="mt-5 grid gap-5 lg:grid-cols-2">
+    <div class="mt-5 grid gap-5 xl:grid-cols-2">
         <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
             <div class="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <h3 class="text-sm font-bold text-slate-200">Beban per Unit Usaha <span class="font-normal text-slate-500">(terbesar dulu)</span></h3>
@@ -375,29 +375,29 @@
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 py-2 pl-8 pr-3 text-sm text-slate-100 outline-none focus:border-blue-500 sm:w-52">
                 </div>
             </div>
-            <div class="akta-scrollbar max-h-[420px] overflow-y-auto">
+            <div class="akta-scrollbar max-h-[360px] overflow-y-auto">
                 <div id="gbUnitChartWrap" class="relative">
                     <canvas id="gbUnitChart"></canvas>
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="mt-5 overflow-hidden rounded-xl border border-slate-800">
-        <div class="max-h-[420px] overflow-y-auto akta-scrollbar">
-            <table class="min-w-full divide-y divide-slate-800 text-sm">
-                <thead class="sticky top-0 bg-slate-950/95">
-                    <tr>
-                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Unit Usaha</th>
-                        <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis Unit</th>
-                        <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Jumlah SK</th>
-                        <th class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Total Beban</th>
-                    </tr>
-                </thead>
-                <tbody id="gbTableBody" class="divide-y divide-slate-800 text-slate-200">
-                    <tr><td colspan="4" class="px-3 py-6 text-center text-sm text-slate-500">Memuat data...</td></tr>
-                </tbody>
-            </table>
+        <div class="overflow-hidden rounded-xl border border-slate-800">
+            <div class="max-h-[360px] overflow-y-auto akta-scrollbar">
+                <table class="min-w-full divide-y divide-slate-800 text-sm">
+                    <thead class="sticky top-0 bg-slate-950/95">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Unit Usaha</th>
+                            <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis Unit</th>
+                            <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Jumlah SK</th>
+                            <th class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Total Beban</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gbTableBody" class="divide-y divide-slate-800 text-slate-200">
+                        <tr><td colspan="4" class="px-3 py-6 text-center text-sm text-slate-500">Memuat data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </section>
