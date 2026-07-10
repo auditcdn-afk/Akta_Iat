@@ -1,5 +1,39 @@
 import Chart from "chart.js/auto";
 
+// Plugin custom: gambar label "Achieve %" di atas/samping bar Realisasi,
+// supaya persentase capaian langsung terlihat tanpa perlu hover.
+const achieveLabelPlugin = {
+    id: "achieveLabel",
+    afterDatasetsDraw(chart, _args, opts) {
+        const values = opts?.values || [];
+        if (!values.length) return;
+        const meta = chart.getDatasetMeta(1);
+        const { ctx } = chart;
+        const isHorizontal = chart.options.indexAxis === "y";
+
+        ctx.save();
+        ctx.font = "bold 11px system-ui, sans-serif";
+        ctx.fillStyle = "#e9edf5";
+
+        meta.data.forEach((bar, idx) => {
+            const val = values[idx];
+            if (val === null || val === undefined) return;
+            const text = `${val}%`;
+            if (isHorizontal) {
+                ctx.textAlign = "left";
+                ctx.textBaseline = "middle";
+                ctx.fillText(text, bar.x + 6, bar.y);
+            } else {
+                ctx.textAlign = "center";
+                ctx.textBaseline = "bottom";
+                ctx.fillText(text, bar.x, bar.y - 4);
+            }
+        });
+        ctx.restore();
+    },
+};
+Chart.register(achieveLabelPlugin);
+
 const SESSION_KEY = "akta_session";
 
 function getSession() {
@@ -174,14 +208,16 @@ function renderSummaryChart(summary) {
             responsive: true,
             categoryPercentage: 0.6,
             barPercentage: 0.85,
+            layout: { padding: { top: 22 } },
             plugins: {
                 legend: { labels: { color: "#d3d9e6", usePointStyle: true, pointStyle: "circle" } },
+                achieveLabel: { values: summary.map((it) => it.capaian) },
                 tooltip: {
                     callbacks: {
                         afterBody: (items) => {
                             const idx = items[0]?.dataIndex;
                             const capaian = summary[idx]?.capaian;
-                            return capaian !== null && capaian !== undefined ? `Capaian: ${capaian}%` : "";
+                            return capaian !== null && capaian !== undefined ? `Achieve: ${capaian}%` : "";
                         },
                     },
                 },
@@ -249,14 +285,16 @@ function renderUnitChart(rows) {
             maintainAspectRatio: false,
             categoryPercentage: 0.7,
             barPercentage: 0.9,
+            layout: { padding: { right: 46 } },
             plugins: {
                 legend: { labels: { color: "#d3d9e6", usePointStyle: true, pointStyle: "circle" } },
+                achieveLabel: { values: sorted.map((r) => r.capaian) },
                 tooltip: {
                     callbacks: {
                         afterBody: (items) => {
                             const idx = items[0]?.dataIndex;
                             const capaian = sorted[idx]?.capaian;
-                            return capaian !== null && capaian !== undefined ? `Capaian: ${capaian}%` : "";
+                            return capaian !== null && capaian !== undefined ? `Achieve: ${capaian}%` : "";
                         },
                     },
                 },

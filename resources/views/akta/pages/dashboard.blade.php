@@ -93,7 +93,7 @@
             <p id="amdStatRealisasi" class="mt-1 text-2xl font-bold text-emerald-300">0</p>
         </div>
         <div class="rounded-xl border border-slate-800 bg-gradient-to-br from-violet-500/10 to-transparent p-4">
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Capaian Rata-rata</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Achieve Rata-rata</p>
             <p id="amdStatCapaian" class="mt-1 text-2xl font-bold text-violet-300">0%</p>
         </div>
         <div class="rounded-xl border border-slate-800 bg-gradient-to-br from-red-500/10 to-transparent p-4">
@@ -148,7 +148,7 @@
                             <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis</th>
                             <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Target</th>
                             <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Realisasi</th>
-                            <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Capaian</th>
+                            <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Achieve</th>
                             <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Cross-check</th>
                         </tr>
                     </thead>
