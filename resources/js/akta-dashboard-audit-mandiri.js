@@ -235,7 +235,72 @@ function capaianColor(capaian, alpha = 0.9) {
     return `rgba(248,113,113,${alpha})`;
 }
 
+let latestStatRows = [];
+let activeCcStatus = null;
+
+const CC_FIELD_BY_STATUS = {
+    ok: "crosscheckOk",
+    notOk: "crosscheckNotOk",
+    selisih: "crosscheckSelisih",
+    pending: "crosscheckPending",
+};
+const CC_TITLE_BY_STATUS = {
+    ok: "Rincian Cross-check: OK",
+    notOk: "Rincian Cross-check: Not OK",
+    selisih: "Rincian Cross-check: Selisih",
+    pending: "Rincian Belum Cross-check",
+};
+
+function renderCcDetail(status) {
+    const panel = document.getElementById("amdCcDetailPanel");
+    const body = document.getElementById("amdCcDetailBody");
+    const title = document.getElementById("amdCcDetailTitle");
+    if (!panel || !body || !title) return;
+
+    const field = CC_FIELD_BY_STATUS[status];
+    const items = latestStatRows.filter((r) => (r[field] || 0) > 0);
+
+    title.textContent = CC_TITLE_BY_STATUS[status];
+    if (!items.length) {
+        body.innerHTML = '<tr><td colspan="4" class="px-2 py-4 text-center text-sm text-slate-500">Tidak ada data untuk kategori ini.</td></tr>';
+    } else {
+        body.innerHTML = items.map((r) => `
+            <tr>
+                <td class="px-2 py-1.5 font-semibold">${r.unitUsaha}</td>
+                <td class="px-2 py-1.5 text-center text-slate-400">${r.wilayah || "-"}</td>
+                <td class="px-2 py-1.5 text-center">${r.jenisAudit}</td>
+                <td class="px-2 py-1.5 text-center">${r[field]}</td>
+            </tr>
+        `).join("");
+    }
+    panel.classList.remove("hidden");
+}
+
+function setupCcCardHandlers() {
+    document.querySelectorAll(".amdCcCard").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const status = btn.dataset.ccStatus;
+            if (activeCcStatus === status) {
+                activeCcStatus = null;
+                document.getElementById("amdCcDetailPanel")?.classList.add("hidden");
+            } else {
+                activeCcStatus = status;
+                renderCcDetail(status);
+            }
+        });
+    });
+    document.getElementById("amdCcDetailCloseBtn")?.addEventListener("click", () => {
+        activeCcStatus = null;
+        document.getElementById("amdCcDetailPanel")?.classList.add("hidden");
+    });
+}
+
 function updateStatCards(summary, rows) {
+    latestStatRows = rows;
+    if (activeCcStatus) {
+        renderCcDetail(activeCcStatus);
+    }
+
     const totalTarget = summary.reduce((acc, it) => acc + it.target, 0);
     const totalRealisasi = summary.reduce((acc, it) => acc + it.realisasi, 0);
     const capaianRata = totalTarget > 0 ? Math.round((totalRealisasi / totalTarget) * 1000) / 10 : 0;
@@ -469,6 +534,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!getSession()) return;
 
     populateFilters();
+    setupCcCardHandlers();
     document.getElementById("amdUnitSearch")?.addEventListener("input", renderUnitSection);
     loadPencapaian();
 });

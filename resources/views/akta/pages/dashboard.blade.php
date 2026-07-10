@@ -142,21 +142,49 @@
     </div>
 
     <div class="mt-3 grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+        <button type="button" id="amdCcCardOk" data-cc-status="ok"
+            class="amdCcCard rounded-xl border border-slate-800 bg-slate-900 p-4 text-left transition hover:border-emerald-500/40 hover:bg-emerald-500/5">
             <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cross-check OK</p>
             <p id="amdStatCcOk" class="mt-1 text-2xl font-bold text-emerald-300">0</p>
-        </div>
-        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+            <p class="mt-1 text-[11px] text-slate-500">Klik untuk lihat rincian</p>
+        </button>
+        <button type="button" id="amdCcCardNotOk" data-cc-status="notOk"
+            class="amdCcCard rounded-xl border border-slate-800 bg-slate-900 p-4 text-left transition hover:border-red-500/40 hover:bg-red-500/5">
             <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cross-check Not OK</p>
             <p id="amdStatCcNotOk" class="mt-1 text-2xl font-bold text-red-300">0</p>
-        </div>
-        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+            <p class="mt-1 text-[11px] text-slate-500">Klik untuk lihat rincian</p>
+        </button>
+        <button type="button" id="amdCcCardSelisih" data-cc-status="selisih"
+            class="amdCcCard rounded-xl border border-slate-800 bg-slate-900 p-4 text-left transition hover:border-amber-500/40 hover:bg-amber-500/5">
             <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cross-check Selisih</p>
             <p id="amdStatCcSelisih" class="mt-1 text-2xl font-bold text-amber-300">0</p>
-        </div>
-        <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+            <p class="mt-1 text-[11px] text-slate-500">Klik untuk lihat rincian</p>
+        </button>
+        <button type="button" id="amdCcCardPending" data-cc-status="pending"
+            class="amdCcCard rounded-xl border border-slate-800 bg-slate-900 p-4 text-left transition hover:border-slate-500/60 hover:bg-slate-800/60">
             <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Belum Cross-check</p>
             <p id="amdStatCcPending" class="mt-1 text-2xl font-bold text-slate-400">0</p>
+            <p class="mt-1 text-[11px] text-slate-500">Klik untuk lihat rincian</p>
+        </button>
+    </div>
+
+    <div id="amdCcDetailPanel" class="mt-3 hidden rounded-xl border border-slate-800 bg-slate-950 p-4">
+        <div class="flex items-center justify-between">
+            <h3 id="amdCcDetailTitle" class="text-sm font-bold text-slate-200">Rincian Cross-check</h3>
+            <button type="button" id="amdCcDetailCloseBtn" class="text-slate-500 hover:text-slate-300">✕</button>
+        </div>
+        <div class="mt-3 max-h-72 overflow-y-auto akta-scrollbar">
+            <table class="min-w-full divide-y divide-slate-800 text-sm">
+                <thead>
+                    <tr>
+                        <th class="px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Unit Usaha</th>
+                        <th class="px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Wilayah</th>
+                        <th class="px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis Audit</th>
+                        <th class="px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Jumlah</th>
+                    </tr>
+                </thead>
+                <tbody id="amdCcDetailBody" class="divide-y divide-slate-800 text-slate-200"></tbody>
+            </table>
         </div>
     </div>
 
