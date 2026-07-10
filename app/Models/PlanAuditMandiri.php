@@ -47,6 +47,7 @@ class PlanAuditMandiri extends Model
             'status' => $this->status,
             'createdBy' => $this->created_by,
             'createdAt' => optional($this->created_at)->toDateTimeString(),
+            'crosscheck' => $this->planAudit?->crosscheck?->toAktaArray(),
         ];
     }
 }

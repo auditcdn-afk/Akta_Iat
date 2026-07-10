@@ -182,22 +182,42 @@ function renderTable() {
         return;
     }
 
-    tbody.innerHTML = filtered.map((p) => `
+    tbody.innerHTML = filtered.map((p) => {
+        const cc = p.crosscheck;
+        const ccLabel = { ok: 'OK', not_ok: 'Not OK', selisih: 'Selisih' }[cc?.hasil] || cc?.hasil;
+        const ccClass = {
+            ok: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
+            not_ok: 'border-red-500/40 bg-red-500/10 text-red-300',
+            selisih: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
+        }[cc?.hasil] || 'border-slate-600 bg-slate-800 text-slate-300';
+
+        return `
         <tr class="hover:bg-slate-950/50">
             <td class="px-4 py-4">
                 <div class="font-semibold text-slate-100">${escapeHtml(p.noPlan)}</div>
                 <div class="text-xs text-slate-500">${escapeHtml(p.jenisAudit)}</div>
+                ${cc ? `
+                    <div class="mt-1.5 space-y-1">
+                        <span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${ccClass}">Crosscheck: ${escapeHtml(ccLabel)}</span>
+                        ${cc.catatan ? `<p class="text-xs text-slate-400 whitespace-pre-wrap">${escapeHtml(cc.catatan)}</p>` : ''}
+                    </div>
+                ` : ''}
             </td>
             <td class="px-4 py-4 text-sm text-slate-300">${escapeHtml(JENIS_PEMERIKSAAN_LABEL[p.jenisPemeriksaan] || p.jenisPemeriksaan)}</td>
             <td class="px-4 py-4 text-sm text-slate-300">${escapeHtml(p.cabang || '-')}</td>
             <td class="px-4 py-4 text-sm text-slate-300">${escapeHtml(p.tglPlan || '-')}</td>
             <td class="px-4 py-4 text-right">
                 <div class="flex justify-end gap-2">
-                    <button type="button" class="am-open-btn rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10" data-id="${p.id}">Buka</button>
-                    <button type="button" class="am-delete-btn rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${p.id}">Hapus</button>
+                    ${cc ? `
+                        <span class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-500" title="Sudah di-crosscheck, tidak bisa dibuka/dihapus lagi">Terkunci</span>
+                    ` : `
+                        <button type="button" class="am-open-btn rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10" data-id="${p.id}">Buka</button>
+                        <button type="button" class="am-delete-btn rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${p.id}">Hapus</button>
+                    `}
                 </div>
             </td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
 }
 

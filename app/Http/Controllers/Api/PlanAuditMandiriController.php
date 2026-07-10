@@ -13,6 +13,7 @@ class PlanAuditMandiriController extends Controller
     public function index(Request $request): JsonResponse
     {
         $plans = PlanAuditMandiri::query()
+            ->with('planAudit.crosscheck')
             ->when($request->filled('q'), function ($query) use ($request) {
                 $q = $request->query('q');
                 $query->where(function ($sub) use ($q) {
@@ -89,6 +90,12 @@ class PlanAuditMandiriController extends Controller
 
     public function destroy(PlanAuditMandiri $planAuditMandiri): JsonResponse
     {
+        abort_if(
+            $planAuditMandiri->planAudit?->crosscheck,
+            422,
+            'Plan ini sudah di-crosscheck oleh auditor dan tidak bisa dihapus lagi.'
+        );
+
         $planAuditMandiri->planAudit()->delete();
         $planAuditMandiri->delete();
 
