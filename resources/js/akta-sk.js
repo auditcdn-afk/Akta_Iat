@@ -107,34 +107,44 @@ function escapeHtml(value) {
         .replaceAll("'", "&#039;");
 }
 
-// Hitung progres keseluruhan siklus SK: Selesai -> Pembebanan Final -> Distribusi -> Semua Tanggapan.
+// Hitung progres keseluruhan siklus SK: Selesai -> [Pembebanan Final] -> Distribusi -> Semua Tanggapan.
+// Tahap Pembebanan dilewati (tidak ikut menentukan bobot) jika SK ditandai
+// tidak memerlukan Pembebanan, agar progres tetap bisa mencapai 100%.
 function hitungProgressSk(item) {
     if (item.status !== "selesai") {
         return { persen: 0, tahap: "Menunggu SK disetujui" };
     }
 
-    let persen = 25;
+    const perluPembebanan = item.perlu_pembebanan !== false;
+    const totalTahap = perluPembebanan ? 4 : 3;
+    const bobot = 100 / totalTahap;
+
+    let persen = bobot;
     const tahapan = ["SK Disetujui"];
 
-    const pembebanan = item.pembebanan;
-    if (pembebanan?.status === "final") {
-        persen += 25;
-        tahapan.push("Pembebanan Final");
+    if (perluPembebanan) {
+        const pembebanan = item.pembebanan;
+        if (pembebanan?.status === "final") {
+            persen += bobot;
+            tahapan.push("Pembebanan Final");
+        }
+    } else {
+        tahapan.push("Pembebanan Tidak Diperlukan");
     }
 
     const distribusi = item.distribusi || [];
     if (distribusi.length) {
-        persen += 25;
+        persen += bobot;
         tahapan.push("Terdistribusi");
 
         const semuaTanggap = distribusi.every((d) => d.status === "ditanggapi");
         if (semuaTanggap) {
-            persen += 25;
+            persen += bobot;
             tahapan.push("Semua Tanggapan Selesai");
         }
     }
 
-    return { persen, tahap: tahapan.join(" • ") };
+    return { persen: Math.round(persen), tahap: tahapan.join(" • ") };
 }
 
 function statusBadge(status) {
@@ -340,11 +350,22 @@ function renderSkItems() {
                     `
                     : "";
 
+            const perluPembebanan = item.perlu_pembebanan !== false;
+
             const pembebananButton =
-                item.status === "selesai" && ["admin", "auditor"].includes(currentUser?.role)
+                item.status === "selesai" && perluPembebanan && ["admin", "auditor"].includes(currentUser?.role)
                     ? `
                         <button type="button" class="pembebanan-sk ml-2 rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/10" data-id="${item.id}">
                             Pembebanan SK
+                        </button>
+                    `
+                    : "";
+
+            const togglePembebananButton =
+                item.status === "selesai" && ["admin", "auditor"].includes(currentUser?.role) && !item.pembebanan
+                    ? `
+                        <button type="button" class="toggle-pembebanan-sk ml-2 rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${item.id}" data-perlu="${perluPembebanan ? "1" : "0"}">
+                            ${perluPembebanan ? "Tandai Tidak Perlu Pembebanan" : "Tandai Perlu Pembebanan"}
                         </button>
                     `
                     : "";
@@ -375,6 +396,7 @@ function renderSkItems() {
                 resubmitButton,
                 distributeButton,
                 pembebananButton,
+                togglePembebananButton,
             ]
                 .filter(Boolean)
                 .join("");
@@ -1300,6 +1322,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             const resubmitButton = event.target.closest(".resubmit-sk");
             const distributeButton = event.target.closest(".distribute-sk");
             const pembebananButton = event.target.closest(".pembebanan-sk");
+            const togglePembebananButton = event.target.closest(".toggle-pembebanan-sk");
 
             if (resubmitButton) {
                 openResubmitModal(resubmitButton.dataset.id);
@@ -1313,6 +1336,27 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             if (pembebananButton) {
                 await openPembebananModal(pembebananButton.dataset.id);
+                return;
+            }
+
+            if (togglePembebananButton) {
+                const perluSekarang = togglePembebananButton.dataset.perlu === "1";
+                const perluBaru = !perluSekarang;
+                const confirmMsg = perluBaru
+                    ? "Tandai SK ini perlu Pembebanan kembali?"
+                    : "Tandai SK ini tidak memerlukan Pembebanan? Progres akan dihitung tanpa tahap ini.";
+                if (!confirm(confirmMsg)) return;
+                try {
+                    const result = await fetchJson(`/api/sk/${togglePembebananButton.dataset.id}/toggle-pembebanan`, {
+                        method: "POST",
+                        headers: { ...authHeaders(), "Content-Type": "application/json" },
+                        body: JSON.stringify({ perlu_pembebanan: perluBaru }),
+                    });
+                    showAlert(result.message || "Berhasil diperbarui.");
+                    await loadSkItems();
+                } catch (error) {
+                    showAlert(error.message, "error");
+                }
                 return;
             }
 

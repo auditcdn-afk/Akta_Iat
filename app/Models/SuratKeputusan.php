@@ -23,6 +23,7 @@ class SuratKeputusan extends Model
         'file_sk',
         'memutuskan',
         'status',
+        'perlu_pembebanan',
         'steps',
         'uploaded_by',
         'uploaded_by_name',
@@ -33,6 +34,7 @@ class SuratKeputusan extends Model
         'file_sk' => 'array',
         'steps' => 'array',
         'uploaded_at' => 'datetime',
+        'perlu_pembebanan' => 'boolean',
     ];
 
     public function planAudit(): BelongsTo

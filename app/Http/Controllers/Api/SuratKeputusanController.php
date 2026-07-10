@@ -285,6 +285,28 @@ class SuratKeputusanController extends Controller
         ]);
     }
 
+    // Tandai SK tidak memerlukan Pembebanan (mis. SK Audit Mandiri "KAS" tanpa
+    // alokasi biaya personil), agar progres siklus SK tidak macet menunggu
+    // tahap yang memang tidak relevan.
+    public function togglePembebanan(Request $request, SuratKeputusan $suratKeputusan): JsonResponse
+    {
+        $this->ensureCanWrite($request);
+
+        $data = $request->validate([
+            'perlu_pembebanan' => ['required', 'boolean'],
+        ]);
+
+        $suratKeputusan->perlu_pembebanan = $data['perlu_pembebanan'];
+        $suratKeputusan->save();
+
+        return response()->json([
+            'message' => $data['perlu_pembebanan']
+                ? 'Pembebanan ditandai diperlukan kembali.'
+                : 'SK ditandai tidak memerlukan Pembebanan.',
+            'data' => $suratKeputusan->load(['planAudit', 'pembebanan', 'distribusi']),
+        ]);
+    }
+
     public function destroy(Request $request, SuratKeputusan $suratKeputusan): JsonResponse
     {
         $this->ensureIsAdmin($request);
