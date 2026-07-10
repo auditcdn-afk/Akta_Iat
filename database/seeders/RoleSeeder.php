@@ -20,6 +20,7 @@ class RoleSeeder extends Seeder
             ['name' => 'bpk',         'label' => 'Role BPK',       'color' => 'purple', 'description' => 'Pemegang peran akhir persetujuan pinjaman BPK/BPB.',        'is_system' => false, 'order' => 8],
             ['name' => 'unit',        'label' => 'Unit Usaha',     'color' => 'sky',    'description' => 'Perwakilan unit usaha (SO/CSC/WHS).',                       'is_system' => false, 'order' => 9],
             ['name' => 'viewer',      'label' => 'Viewer',         'color' => 'slate',  'description' => 'Hanya bisa melihat laporan dan data read-only.',            'is_system' => false, 'order' => 10],
+            ['name' => 'mrr',         'label' => 'MRR',            'color' => 'indigo', 'description' => 'Menerima form pengajuan mobil dinas dan melengkapi data supir/kendaraan.', 'is_system' => false, 'order' => 11],
         ];
 
         foreach ($roles as $data) {

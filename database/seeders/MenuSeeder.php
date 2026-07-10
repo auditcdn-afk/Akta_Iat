@@ -31,7 +31,7 @@ class MenuSeeder extends Seeder
         'akta.bu-performance'=> ['admin', 'manajer', 'auditor', 'viewer'],
         'akta.sk'            => ['admin', 'manajer', 'auditor'],
         'akta.pulsa'         => ['admin', 'manajer'],
-        'akta.mobil-dinas'   => ['admin', 'manajer'],
+        'akta.mobil-dinas'   => ['admin', 'manajer', 'auditor', 'mrr'],
         // Admin-only: manajemen sistem
         'akta.pengguna'      => ['admin'],
         'akta.monitoring'    => ['admin'],

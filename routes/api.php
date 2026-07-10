@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\LampiranController;
 use App\Http\Controllers\Api\GradingController;
 use App\Http\Controllers\Api\BuPerformanceController;
 use App\Http\Controllers\Api\PulsaController;
+use App\Http\Controllers\Api\MobilDinasController;
 use App\Http\Controllers\Api\PinjamanCabangController;
 use Illuminate\Support\Facades\Route;
 
@@ -284,6 +285,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/pulsa/{pulsaRealisasi}', [PulsaController::class, 'destroy']);
     Route::post('/pulsa/toggle-periode', [PulsaController::class, 'togglePeriode'])
         ->middleware('akta.role:admin');
+
+    // ── Mobil Dinas ──
+    Route::get('/mobil-dinas', [MobilDinasController::class, 'index']);
+    Route::get('/mobil-dinas/pic-options', [MobilDinasController::class, 'picOptions']);
+    Route::post('/mobil-dinas', [MobilDinasController::class, 'store'])
+        ->middleware('akta.role:admin,auditor');
+    Route::post('/mobil-dinas/{mobilDinasPengajuan}/decide', [MobilDinasController::class, 'decide'])
+        ->middleware('akta.role:admin,manajer');
+    Route::post('/mobil-dinas/{mobilDinasPengajuan}/complete', [MobilDinasController::class, 'complete'])
+        ->middleware('akta.role:admin,mrr');
+    Route::delete('/mobil-dinas/{mobilDinasPengajuan}', [MobilDinasController::class, 'destroy']);
 
     // ── Grading (menu utama) ──
     Route::get('/gradings',         [GradingController::class, 'index']);

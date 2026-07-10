@@ -36,12 +36,7 @@ Route::prefix('akta')->name('akta.')->group(function () {
 
     Route::view('/pulsa', 'akta.pages.pulsa')->name('pulsa');
 
-    Route::get('/mobil-dinas', function () {
-        return view('akta.pages.placeholder', [
-            'title' => 'Mobil Dinas',
-            'description' => 'Modul peminjaman mobil dinas, jadwal, pemakai, dan status kendaraan.',
-        ]);
-    })->name('mobil-dinas');
+    Route::view('/mobil-dinas', 'akta.pages.mobil-dinas')->name('mobil-dinas');
 
     Route::view('/pengguna', 'akta.pages.users')->name('pengguna');
 

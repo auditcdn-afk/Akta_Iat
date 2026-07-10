@@ -16,6 +16,7 @@ export default defineConfig({
                 'resources/js/akta-grading.js',
                 'resources/js/akta-bu-performance.js',
                 'resources/js/akta-pulsa.js',
+                'resources/js/akta-mobil-dinas.js',
                 'resources/js/akta-sk.js',
                 'resources/js/akta-pica.js',
                 'resources/js/akta-rekomendasi.js',
