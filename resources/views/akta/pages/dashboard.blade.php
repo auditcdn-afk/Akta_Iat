@@ -9,51 +9,55 @@
 @endpush
 
 @section('content')
-<section class="grid gap-4 md:grid-cols-3">
-    <div class="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-        <p class="text-sm text-slate-400">Status Auth</p>
-        <p id="dashboardAuthStatus" class="mt-2 text-2xl font-bold text-emerald-400">Memeriksa...</p>
-    </div>
 
-    <div class="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-        <p class="text-sm text-slate-400">API</p>
-        <p id="dashboardApiStatus" class="mt-2 text-2xl font-bold text-blue-400">Online</p>
-    </div>
-
-    <div class="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-        <p class="text-sm text-slate-400">Data Store</p>
-        <p id="dashboardDataStoreStatus" class="mt-2 text-2xl font-bold text-violet-400">Memuat...</p>
+{{-- Hero banner --}}
+<section class="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-indigo-600 via-blue-600 to-teal-500 p-6 shadow-lg">
+    <div class="pointer-events-none absolute -right-10 -top-10 h-56 w-56 rounded-full bg-white/10"></div>
+    <div class="pointer-events-none absolute -bottom-16 right-24 h-40 w-40 rounded-full bg-white/10"></div>
+    <div class="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <p id="dashboardGreeting" class="text-sm font-medium text-white/80">Selamat datang kembali 👋</p>
+            <h1 id="dashboardUserName" class="mt-1 text-2xl font-bold text-white">SIMPAS-IAT</h1>
+            <p class="mt-1 text-sm text-white/80">Sistem Informasi Manajemen Pengawasan Audit &amp; Standarisasi — Internal Audit Team</p>
+        </div>
+        <div class="flex shrink-0 flex-wrap gap-2">
+            <span class="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-semibold text-white backdrop-blur">
+                <span class="h-2 w-2 rounded-full bg-emerald-300"></span>
+                Auth <span id="dashboardAuthStatus">Memeriksa...</span>
+            </span>
+            <span class="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-semibold text-white backdrop-blur">
+                <span class="h-2 w-2 rounded-full bg-blue-200"></span>
+                API <span id="dashboardApiStatus">Online</span>
+            </span>
+        </div>
     </div>
 </section>
 
-<section class="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-5">
-    <h2 class="text-lg font-bold">Status Migrasi</h2>
-    <p class="mt-2 text-sm text-slate-400">
-        Auth Sanctum, sessionStorage, API ping, dan app_data sudah aktif. Selanjutnya setiap menu akan diisi modulnya
-        satu per satu.
-    </p>
+{{-- Akses cepat --}}
+<section class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <a href="{{ route('akta.plan-audit') }}" class="group rounded-2xl border border-slate-800 bg-gradient-to-br from-blue-500/15 to-transparent p-5 transition hover:border-blue-500/40 hover:-translate-y-0.5">
+        <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/20 text-2xl">📋</div>
+        <div class="mt-3 font-bold text-slate-100 group-hover:text-blue-300">Plan Audit</div>
+        <p class="mt-1 text-xs text-slate-400">Kelola rencana audit &amp; jadwal tim</p>
+    </a>
 
-    <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="rounded-xl bg-slate-950 p-4">
-            <div class="text-xs text-slate-500">Backend</div>
-            <div class="mt-1 font-semibold text-emerald-400">Laravel 13</div>
-        </div>
+    <a href="{{ route('akta.task') }}" class="group rounded-2xl border border-slate-800 bg-gradient-to-br from-amber-500/15 to-transparent p-5 transition hover:border-amber-500/40 hover:-translate-y-0.5">
+        <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/20 text-2xl">✅</div>
+        <div class="mt-3 font-bold text-slate-100 group-hover:text-amber-300">Task</div>
+        <p class="mt-1 text-xs text-slate-400">Pantau progres tugas audit tim</p>
+    </a>
 
-        <div class="rounded-xl bg-slate-950 p-4">
-            <div class="text-xs text-slate-500">Auth</div>
-            <div class="mt-1 font-semibold text-emerald-400">Sanctum Token</div>
-        </div>
+    <a href="{{ route('akta.report-audit') }}" class="group rounded-2xl border border-slate-800 bg-gradient-to-br from-emerald-500/15 to-transparent p-5 transition hover:border-emerald-500/40 hover:-translate-y-0.5">
+        <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/20 text-2xl">📊</div>
+        <div class="mt-3 font-bold text-slate-100 group-hover:text-emerald-300">Report Audit</div>
+        <p class="mt-1 text-xs text-slate-400">Lihat hasil &amp; cetak laporan audit</p>
+    </a>
 
-        <div class="rounded-xl bg-slate-950 p-4">
-            <div class="text-xs text-slate-500">Database</div>
-            <div class="mt-1 font-semibold text-emerald-400">MySQL JSON</div>
-        </div>
-
-        <div class="rounded-xl bg-slate-950 p-4">
-            <div class="text-xs text-slate-500">Frontend</div>
-            <div class="mt-1 font-semibold text-emerald-400">Blade + Vanilla JS</div>
-        </div>
-    </div>
+    <a href="{{ route('akta.mobil-dinas') }}" class="group rounded-2xl border border-slate-800 bg-gradient-to-br from-violet-500/15 to-transparent p-5 transition hover:border-violet-500/40 hover:-translate-y-0.5">
+        <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500/20 text-2xl">🚗</div>
+        <div class="mt-3 font-bold text-slate-100 group-hover:text-violet-300">Mobil Dinas</div>
+        <p class="mt-1 text-xs text-slate-400">Ajukan &amp; pantau penggunaan mobil dinas</p>
+    </a>
 </section>
 
 <section class="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-5">
