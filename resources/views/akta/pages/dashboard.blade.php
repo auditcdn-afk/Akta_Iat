@@ -64,7 +64,15 @@
                 Realisasi vs target per jenis audit (KAS, SMH, Sparepart, BPKB, MT), dibedakan unit usaha H1 &amp; H2.
             </p>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+            <select id="amdJenisAuditFilter" class="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                <option value="">Semua Jenis Audit</option>
+                <option value="KAS">KAS</option>
+                <option value="SMH">SMH</option>
+                <option value="Sparepart">Sparepart</option>
+                <option value="BPKB">BPKB</option>
+                <option value="MT">MT</option>
+            </select>
             <select id="amdBulanFilter" class="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></select>
             <select id="amdTahunFilter" class="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></select>
         </div>
@@ -72,18 +80,24 @@
 
     <div id="amdAlert" class="mt-4 hidden rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300"></div>
 
+    <div class="mt-5 rounded-xl border border-slate-800 bg-slate-950 p-4">
+        <h3 class="mb-2 text-sm font-bold text-slate-200">Ringkasan per Jenis Audit &amp; Jenis Unit</h3>
+        <canvas id="amdSummaryChart" height="220"></canvas>
+    </div>
+
     <div class="mt-5 grid gap-5 lg:grid-cols-2">
         <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
-            <canvas id="amdChart" height="220"></canvas>
+            <h3 class="mb-2 text-sm font-bold text-slate-200">Per Unit Usaha (sesuai filter Jenis Audit di atas)</h3>
+            <canvas id="amdUnitChart"></canvas>
         </div>
 
         <div class="overflow-hidden rounded-xl border border-slate-800">
-            <div class="overflow-x-auto">
+            <div class="max-h-[420px] overflow-y-auto">
                 <table class="min-w-full divide-y divide-slate-800 text-sm">
-                    <thead class="bg-slate-950/60">
+                    <thead class="sticky top-0 bg-slate-950/95">
                         <tr>
-                            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis</th>
-                            <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Unit</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Unit Usaha</th>
+                            <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis</th>
                             <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Target</th>
                             <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Realisasi</th>
                             <th class="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Capaian</th>

@@ -49,7 +49,10 @@ const BULAN_LABEL = [
     "Juli", "Agustus", "September", "Oktober", "November", "Desember",
 ];
 
-let chartInstance = null;
+let summaryChart = null;
+let unitChart = null;
+let latestSummary = [];
+let latestDetail = [];
 
 function populateFilters() {
     const bulanEl = document.getElementById("amdBulanFilter");
@@ -78,19 +81,26 @@ function populateFilters() {
     tahunEl.value = String(currentYear);
 }
 
-function renderChart(items) {
-    const canvas = document.getElementById("amdChart");
+function capaianBadge(capaian) {
+    if (capaian === null || capaian === undefined) {
+        return '<span class="text-slate-500">-</span>';
+    }
+    let cls = "bg-red-500/10 text-red-300 border-red-500/30";
+    if (capaian >= 100) cls = "bg-emerald-500/10 text-emerald-300 border-emerald-500/30";
+    else if (capaian >= 70) cls = "bg-amber-500/10 text-amber-300 border-amber-500/30";
+    return `<span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${cls}">${capaian}%</span>`;
+}
+
+function renderSummaryChart(summary) {
+    const canvas = document.getElementById("amdSummaryChart");
     if (!canvas) return;
 
-    const labels = items.map((it) => `${it.jenisAudit} (${it.unitType})`);
-    const target = items.map((it) => it.target);
-    const realisasi = items.map((it) => it.realisasi);
+    const labels = summary.map((it) => `${it.jenisAudit} (${it.unitType})`);
+    const target = summary.map((it) => it.target);
+    const realisasi = summary.map((it) => it.realisasi);
 
-    if (chartInstance) {
-        chartInstance.destroy();
-    }
-
-    chartInstance = new Chart(canvas, {
+    if (summaryChart) summaryChart.destroy();
+    summaryChart = new Chart(canvas, {
         type: "bar",
         data: {
             labels,
@@ -101,9 +111,7 @@ function renderChart(items) {
         },
         options: {
             responsive: true,
-            plugins: {
-                legend: { labels: { color: "#d3d9e6" } },
-            },
+            plugins: { legend: { labels: { color: "#d3d9e6" } } },
             scales: {
                 x: { ticks: { color: "#aab2c5" }, grid: { color: "rgba(148,163,184,0.1)" } },
                 y: { beginAtZero: true, ticks: { color: "#aab2c5", precision: 0 }, grid: { color: "rgba(148,163,184,0.1)" } },
@@ -112,34 +120,85 @@ function renderChart(items) {
     });
 }
 
-function capaianBadge(capaian) {
-    if (capaian === null) {
-        return '<span class="text-slate-500">-</span>';
-    }
-    let cls = "bg-red-500/10 text-red-300 border-red-500/30";
-    if (capaian >= 100) cls = "bg-emerald-500/10 text-emerald-300 border-emerald-500/30";
-    else if (capaian >= 70) cls = "bg-amber-500/10 text-amber-300 border-amber-500/30";
-    return `<span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${cls}">${capaian}%</span>`;
+function unitRowsForFilter(jenisAuditFilter) {
+    const rows = [];
+    latestDetail.forEach((unit) => {
+        unit.items
+            .filter((it) => !jenisAuditFilter || it.jenisAudit === jenisAuditFilter)
+            .forEach((it) => {
+                rows.push({
+                    unitUsaha: unit.unitUsaha,
+                    jenis: unit.jenis,
+                    jenisAudit: it.jenisAudit,
+                    target: it.target,
+                    realisasi: it.realisasi,
+                    capaian: it.capaian,
+                });
+            });
+    });
+    return rows;
 }
 
-function renderTable(items) {
+function renderUnitChart(rows) {
+    const canvas = document.getElementById("amdUnitChart");
+    if (!canvas) return;
+
+    const labels = rows.map((r) => rows.length && r.jenisAudit && !document.getElementById("amdJenisAuditFilter").value
+        ? `${r.unitUsaha} - ${r.jenisAudit}`
+        : r.unitUsaha);
+    const target = rows.map((r) => r.target);
+    const realisasi = rows.map((r) => r.realisasi);
+
+    canvas.parentElement.style.height = `${Math.max(240, rows.length * 28)}px`;
+
+    if (unitChart) unitChart.destroy();
+    unitChart = new Chart(canvas, {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [
+                { label: "Target", data: target, backgroundColor: "rgba(59,130,246,0.5)", borderRadius: 4 },
+                { label: "Realisasi", data: realisasi, backgroundColor: "rgba(16,185,129,0.7)", borderRadius: 4 },
+            ],
+        },
+        options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: "#d3d9e6" } } },
+            scales: {
+                x: { beginAtZero: true, ticks: { color: "#aab2c5", precision: 0 }, grid: { color: "rgba(148,163,184,0.1)" } },
+                y: { ticks: { color: "#aab2c5" }, grid: { color: "rgba(148,163,184,0.05)" } },
+            },
+        },
+    });
+}
+
+function renderTable(rows) {
     const tbody = document.getElementById("amdTableBody");
     if (!tbody) return;
 
-    if (!items.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="px-3 py-6 text-center text-sm text-slate-500">Belum ada data unit usaha H1/H2 untuk dihitung.</td></tr>';
+    if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-3 py-6 text-center text-sm text-slate-500">Tidak ada unit usaha H1/H2 untuk filter ini.</td></tr>';
         return;
     }
 
-    tbody.innerHTML = items.map((it) => `
+    tbody.innerHTML = rows.map((r) => `
         <tr>
-            <td class="px-3 py-2 font-semibold">${it.jenisAudit}</td>
-            <td class="px-3 py-2 text-center">${it.unitType} <span class="text-slate-500">(${it.unitCount})</span></td>
-            <td class="px-3 py-2 text-center">${it.target}</td>
-            <td class="px-3 py-2 text-center">${it.realisasi}</td>
-            <td class="px-3 py-2 text-center">${capaianBadge(it.capaian)}</td>
+            <td class="px-3 py-2 font-semibold">${r.unitUsaha}${!document.getElementById("amdJenisAuditFilter").value ? ` <span class="text-slate-500 font-normal">(${r.jenisAudit})</span>` : ""}</td>
+            <td class="px-3 py-2 text-center">${r.jenis}</td>
+            <td class="px-3 py-2 text-center">${r.target}</td>
+            <td class="px-3 py-2 text-center">${r.realisasi}</td>
+            <td class="px-3 py-2 text-center">${capaianBadge(r.capaian)}</td>
         </tr>
     `).join("");
+}
+
+function renderUnitSection() {
+    const jenisAuditFilter = document.getElementById("amdJenisAuditFilter")?.value || "";
+    const rows = unitRowsForFilter(jenisAuditFilter);
+    renderUnitChart(rows);
+    renderTable(rows);
 }
 
 async function loadPencapaian() {
@@ -150,9 +209,10 @@ async function loadPencapaian() {
         const result = await fetchJson(`/api/plan-audit-mandiri/pencapaian?tahun=${tahun}&bulan=${bulan}`, {
             headers: authHeaders(),
         });
-        const items = result.data || [];
-        renderChart(items);
-        renderTable(items);
+        latestSummary = result.summary || [];
+        latestDetail = result.detail || [];
+        renderSummaryChart(latestSummary);
+        renderUnitSection();
     } catch (err) {
         showAlert(err.message || "Gagal memuat data pencapaian audit mandiri.");
     }
@@ -164,5 +224,6 @@ document.addEventListener("DOMContentLoaded", () => {
     populateFilters();
     document.getElementById("amdBulanFilter")?.addEventListener("change", loadPencapaian);
     document.getElementById("amdTahunFilter")?.addEventListener("change", loadPencapaian);
+    document.getElementById("amdJenisAuditFilter")?.addEventListener("change", renderUnitSection);
     loadPencapaian();
 });

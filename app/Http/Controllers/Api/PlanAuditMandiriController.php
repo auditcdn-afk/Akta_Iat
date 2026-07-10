@@ -99,22 +99,27 @@ class PlanAuditMandiriController extends Controller
     }
 
     // GET /api/plan-audit-mandiri/pencapaian?tahun=&bulan=
-    // Rekap realisasi vs target audit mandiri per jenis audit & jenis unit usaha (H1/H2).
+    // Rekap realisasi vs target audit mandiri per jenis audit, per unit usaha
+    // (langsung dari data master Database Unit Usaha), dan agregat per jenis
+    // unit (H1/H2).
     public function pencapaian(Request $request): JsonResponse
     {
         $tahun = (int) $request->query('tahun', now()->year);
         $bulan = (int) $request->query('bulan', now()->month);
 
-        // Peta suffix-3-huruf cabang → jenis unit usaha (H1/H2/WHS), memakai
-        // konvensi yang sama dengan PlafonController (nama cabang berbeda format
-        // antar tabel, dicocokkan lewat 3 huruf terakhir).
-        $unitJenisBySuffix = DbUnitUsaha::query()
+        // Daftar unit usaha dari master Database Unit Usaha, dengan suffix
+        // 3-huruf terakhir sebagai kunci pencocokan ke `cabang` (konvensi yang
+        // sama dipakai PlafonController, karena format nama cabang bisa beda
+        // antar tabel).
+        $units = DbUnitUsaha::query()
             ->get()
-            ->filter(fn($u) => $u->unit_usaha && $u->jenis)
-            ->keyBy(fn($u) => $this->suffix3($u->unit_usaha))
-            ->map(fn($u) => strtoupper($u->jenis));
-
-        $unitCountByJenis = $unitJenisBySuffix->countBy(fn($jenis) => $jenis);
+            ->filter(fn($u) => $u->unit_usaha && $u->jenis && $this->suffix3($u->unit_usaha))
+            ->map(fn($u) => [
+                'unitUsaha' => $u->unit_usaha,
+                'jenis' => strtoupper($u->jenis),
+                'suffix' => $this->suffix3($u->unit_usaha),
+            ])
+            ->values();
 
         $rows = PlanAuditMandiri::query()
             ->where('jenis_pemeriksaan', 'audit_mandiri')
@@ -122,42 +127,66 @@ class PlanAuditMandiriController extends Controller
             ->whereMonth('tgl_plan', $bulan)
             ->get(['jenis_audit', 'cabang']);
 
-        $realisasi = [];
+        // Hitung realisasi per suffix unit + jenis audit.
+        $realisasiBySuffix = [];
         foreach ($rows as $row) {
             $suffix = $this->suffix3($row->cabang);
-            $unitJenis = $suffix ? ($unitJenisBySuffix[$suffix] ?? null) : null;
-            if (!$unitJenis) {
+            if (!$suffix) {
                 continue;
             }
-            $jenisAudit = $row->jenis_audit;
-            $realisasi[$jenisAudit][$unitJenis] = ($realisasi[$jenisAudit][$unitJenis] ?? 0) + 1;
+            $realisasiBySuffix[$suffix][$row->jenis_audit] = ($realisasiBySuffix[$suffix][$row->jenis_audit] ?? 0) + 1;
         }
 
-        $items = [];
-        foreach (self::TARGETS as $jenisAudit => $targetPerUnitType) {
-            foreach ($targetPerUnitType as $unitType => $targetPerUnit) {
-                $unitCount = (int) ($unitCountByJenis[$unitType] ?? 0);
-                $target = $unitCount * $targetPerUnit;
-                $actual = (int) ($realisasi[$jenisAudit][$unitType] ?? 0);
-                $capaian = $target > 0 ? round(($actual / $target) * 100, 1) : null;
+        $detail = [];
+        $summaryAgg = [];
 
-                $items[] = [
+        foreach ($units as $unit) {
+            $unitItems = [];
+
+            foreach (self::TARGETS as $jenisAudit => $targetPerUnitType) {
+                if (!array_key_exists($unit['jenis'], $targetPerUnitType)) {
+                    continue;
+                }
+
+                $targetPerUnit = $targetPerUnitType[$unit['jenis']];
+                $actual = (int) ($realisasiBySuffix[$unit['suffix']][$jenisAudit] ?? 0);
+                $capaian = $targetPerUnit > 0 ? round(($actual / $targetPerUnit) * 100, 1) : null;
+
+                $unitItems[] = [
                     'jenisAudit' => $jenisAudit,
-                    'unitType' => $unitType,
-                    'unitCount' => $unitCount,
-                    'targetPerUnit' => $targetPerUnit,
-                    'target' => $target,
+                    'target' => $targetPerUnit,
                     'realisasi' => $actual,
                     'capaian' => $capaian,
                 ];
+
+                $key = $jenisAudit . '|' . $unit['jenis'];
+                $summaryAgg[$key]['jenisAudit'] = $jenisAudit;
+                $summaryAgg[$key]['unitType'] = $unit['jenis'];
+                $summaryAgg[$key]['unitCount'] = ($summaryAgg[$key]['unitCount'] ?? 0) + 1;
+                $summaryAgg[$key]['target'] = ($summaryAgg[$key]['target'] ?? 0) + $targetPerUnit;
+                $summaryAgg[$key]['realisasi'] = ($summaryAgg[$key]['realisasi'] ?? 0) + $actual;
+            }
+
+            if ($unitItems) {
+                $detail[] = [
+                    'unitUsaha' => $unit['unitUsaha'],
+                    'jenis' => $unit['jenis'],
+                    'items' => $unitItems,
+                ];
             }
         }
+
+        $summary = array_values(array_map(function ($row) {
+            $row['capaian'] = $row['target'] > 0 ? round(($row['realisasi'] / $row['target']) * 100, 1) : null;
+            return $row;
+        }, $summaryAgg));
 
         return response()->json([
             'ok' => true,
             'tahun' => $tahun,
             'bulan' => $bulan,
-            'data' => $items,
+            'summary' => $summary,
+            'detail' => $detail,
         ]);
     }
 
