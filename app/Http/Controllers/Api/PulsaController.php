@@ -28,6 +28,7 @@ class PulsaController extends Controller
     {
         $users = User::query()
             ->where('is_disabled', false)
+            ->where('role', 'auditor')
             ->orderBy('name')
             ->get()
             ->map(fn(User $u) => [
