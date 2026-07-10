@@ -213,10 +213,20 @@ function setupThemeToggle() {
     });
 }
 
+function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/service-worker.js").catch(() => {
+            /* PWA opsional; abaikan kalau browser/lingkungan tidak mendukung */
+        });
+    });
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     setupMobileMenu();
     setupSidebarScrollMemory();
     setupThemeToggle();
+    registerServiceWorker();
 
     const session = getSession();
 
