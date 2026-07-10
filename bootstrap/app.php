@@ -15,6 +15,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'akta.role' => \App\Http\Middleware\EnsureAktaRole::class,
         ]);
+
+        // Percayai reverse proxy/load balancer (nginx, Cloudflare, dll) di hosting
+        // produksi supaya HTTPS, IP klien, dan URL yang dihasilkan Laravel benar.
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
