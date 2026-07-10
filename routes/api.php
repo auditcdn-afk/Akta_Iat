@@ -123,6 +123,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/sk-pembebanan', [SkPembebananController::class, 'index']);
     Route::get('/sk-pembebanan/kategori', [SkPembebananController::class, 'kategori']);
+    Route::get('/sk-pembebanan/rekap', [SkPembebananController::class, 'rekap']);
     Route::get('/sk-pembebanan/{skPembebanan}', [SkPembebananController::class, 'show']);
     Route::post('/sk-pembebanan', [SkPembebananController::class, 'store'])
         ->middleware('akta.role:admin,auditor');

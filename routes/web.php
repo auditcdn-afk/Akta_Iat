@@ -38,6 +38,8 @@ Route::prefix('akta')->name('akta.')->group(function () {
 
     Route::view('/mobil-dinas', 'akta.pages.mobil-dinas')->name('mobil-dinas');
 
+    Route::view('/grafik-beban-sk', 'akta.pages.grafik-beban-sk')->name('grafik-beban-sk');
+
     Route::view('/pengguna', 'akta.pages.users')->name('pengguna');
 
     Route::view('/monitoring', 'akta.pages.monitoring')->name('monitoring');

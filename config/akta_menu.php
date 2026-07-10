@@ -103,6 +103,13 @@ return [
             'admin_only' => false,
         ],
         [
+            'label' => 'Grafik Beban SK',
+            'route' => 'akta.grafik-beban-sk',
+            'path' => '/akta/grafik-beban-sk',
+            'code' => 'GB',
+            'admin_only' => false,
+        ],
+        [
             'label' => 'Pengguna',
             'route' => 'akta.pengguna',
             'path' => '/akta/pengguna',

@@ -38,6 +38,112 @@ class SkPembebananController extends Controller
         return response()->json(['data' => $query->get()]);
     }
 
+    // GET /api/sk-pembebanan/rekap?tahun[]=&bulan[]=&jenis_unit[]=&status[]=
+    // Rekap beban SK untuk grafik: total per bulan, per unit usaha, dan per status.
+    public function rekap(Request $request): JsonResponse
+    {
+        $tahunInput = $request->query('tahun');
+        $tahunList = collect(is_array($tahunInput) ? $tahunInput : array_filter([$tahunInput]))
+            ->map(fn($t) => (int) $t)
+            ->filter(fn($t) => $t >= 2000 && $t <= 2100)
+            ->unique()->sort()->values();
+
+        $bulanInput = $request->query('bulan');
+        $bulanList = collect(is_array($bulanInput) ? $bulanInput : array_filter([$bulanInput]))
+            ->map(fn($b) => (int) $b)
+            ->filter(fn($b) => $b >= 1 && $b <= 12)
+            ->unique()->sort()->values();
+
+        $jenisUnitInput = $request->query('jenis_unit');
+        $jenisUnitList = collect(is_array($jenisUnitInput) ? $jenisUnitInput : array_filter([$jenisUnitInput]))
+            ->filter()->values();
+
+        $statusInput = $request->query('status');
+        $statusList = collect(is_array($statusInput) ? $statusInput : array_filter([$statusInput]))
+            ->filter()->values();
+
+        $query = SkPembebanan::query()->whereNotNull('tgl_audit');
+
+        if ($tahunList->isNotEmpty()) {
+            $query->where(function ($q) use ($tahunList) {
+                foreach ($tahunList as $t) {
+                    $q->orWhereYear('tgl_audit', $t);
+                }
+            });
+        }
+        if ($bulanList->isNotEmpty()) {
+            $query->where(function ($q) use ($bulanList) {
+                foreach ($bulanList as $b) {
+                    $q->orWhereMonth('tgl_audit', $b);
+                }
+            });
+        }
+        if ($jenisUnitList->isNotEmpty()) {
+            $query->whereIn('jenis_unit', $jenisUnitList);
+        }
+        if ($statusList->isNotEmpty()) {
+            $query->whereIn('status', $statusList);
+        }
+
+        $rows = $query->get(['unit_usaha', 'jenis_unit', 'status', 'total_pembebanan', 'tgl_audit']);
+
+        $tahunOptions = SkPembebanan::query()
+            ->whereNotNull('tgl_audit')
+            ->pluck('tgl_audit')
+            ->map(fn($d) => (int) $d->format('Y'))
+            ->unique()
+            ->sortDesc()
+            ->values();
+        if ($tahunOptions->isEmpty()) {
+            $tahunOptions = collect([now()->year]);
+        }
+
+        $byBulan = $rows
+            ->groupBy(fn($r) => optional($r->tgl_audit)->format('Y-m'))
+            ->map(fn($group, $key) => [
+                'bulan' => $key,
+                'total' => (float) $group->sum('total_pembebanan'),
+                'jumlahSk' => $group->count(),
+            ])
+            ->sortBy('bulan')
+            ->values();
+
+        $byUnit = $rows
+            ->groupBy('unit_usaha')
+            ->map(fn($group, $key) => [
+                'unitUsaha' => $key ?: '(Tanpa Unit)',
+                'jenisUnit' => $group->first()->jenis_unit,
+                'total' => (float) $group->sum('total_pembebanan'),
+                'jumlahSk' => $group->count(),
+            ])
+            ->sortByDesc('total')
+            ->values();
+
+        $byJenisUnit = $rows
+            ->groupBy(fn($r) => $r->jenis_unit ?: 'lainnya')
+            ->map(fn($group, $key) => [
+                'jenisUnit' => $key,
+                'total' => (float) $group->sum('total_pembebanan'),
+                'jumlahSk' => $group->count(),
+            ])
+            ->values();
+
+        return response()->json([
+            'ok' => true,
+            'tahunOptions' => $tahunOptions,
+            'stats' => [
+                'totalBeban' => (float) $rows->sum('total_pembebanan'),
+                'totalFinal' => (float) $rows->where('status', 'final')->sum('total_pembebanan'),
+                'totalDraft' => (float) $rows->where('status', 'draft')->sum('total_pembebanan'),
+                'jumlahFinal' => $rows->where('status', 'final')->count(),
+                'jumlahDraft' => $rows->where('status', 'draft')->count(),
+            ],
+            'byBulan' => $byBulan,
+            'byUnit' => $byUnit,
+            'byJenisUnit' => $byJenisUnit,
+        ]);
+    }
+
     public function show(SkPembebanan $skPembebanan): JsonResponse
     {
         return response()->json(['data' => $skPembebanan->load(['suratKeputusan', 'planAudit'])]);

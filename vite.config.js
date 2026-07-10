@@ -18,6 +18,7 @@ export default defineConfig({
                 'resources/js/akta-pulsa.js',
                 'resources/js/akta-mobil-dinas.js',
                 'resources/js/akta-dashboard-audit-mandiri.js',
+                'resources/js/akta-grafik-beban-sk.js',
                 'resources/js/akta-sk.js',
                 'resources/js/akta-pica.js',
                 'resources/js/akta-rekomendasi.js',
