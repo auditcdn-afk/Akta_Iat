@@ -107,10 +107,13 @@ class SkPembebananController extends Controller
 
         $unitUsahaOptions = SkPembebanan::query()
             ->whereNotNull('unit_usaha')
-            ->distinct()
             ->orderBy('unit_usaha')
-            ->pluck('unit_usaha')
-            ->filter()
+            ->get(['unit_usaha', 'jenis_unit'])
+            ->groupBy('unit_usaha')
+            ->map(fn($group, $key) => [
+                'unitUsaha' => $key,
+                'jenisUnit' => $group->first()->jenis_unit,
+            ])
             ->values();
 
         $byBulan = $rows

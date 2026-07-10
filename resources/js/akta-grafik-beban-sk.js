@@ -137,8 +137,14 @@ let allUnitUsahaOptions = [];
 function renderUnitUsahaFilterOptions(searchTerm = "") {
     const term = searchTerm.trim().toLowerCase();
     const previouslyChecked = new Set(getSelectedUnitUsahaFilter());
-    const filtered = allUnitUsahaOptions.filter((u) => !term || u.toLowerCase().includes(term));
-    const items = filtered.map((u) => ({ value: u, label: u, checked: previouslyChecked.has(u) }));
+    const jenisUnitFilter = getSelectedJenisUnit();
+
+    const filtered = allUnitUsahaOptions.filter((u) => {
+        const matchesSearch = !term || u.unitUsaha.toLowerCase().includes(term);
+        const matchesJenis = !jenisUnitFilter.length || jenisUnitFilter.includes(u.jenisUnit);
+        return matchesSearch && matchesJenis;
+    });
+    const items = filtered.map((u) => ({ value: u.unitUsaha, label: u.unitUsaha, checked: previouslyChecked.has(u.unitUsaha) }));
     renderCheckboxPanel("gbUnitUsahaFilterOptions", "gbUnitUsahaCheckbox", items, () => {
         updateMultiFilterLabel("gbUnitUsahaFilterLabel", getSelectedUnitUsahaFilter(), "Semua Unit Usaha", (v) => v);
         loadRekap();
@@ -173,6 +179,7 @@ function populateStaticFilters() {
     const jenisUnitItems = Object.entries(JENIS_UNIT_LABEL).map(([value, label]) => ({ value, label, checked: false }));
     renderCheckboxPanel("gbJenisUnitFilterPanel", "gbJenisUnitCheckbox", jenisUnitItems, () => {
         updateMultiFilterLabel("gbJenisUnitFilterLabel", getSelectedJenisUnit(), "Semua Jenis Unit", (v) => JENIS_UNIT_LABEL[v]);
+        renderUnitUsahaFilterOptions(document.getElementById("gbUnitUsahaFilterSearch")?.value || "");
         loadRekap();
     });
 
