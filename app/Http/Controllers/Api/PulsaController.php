@@ -10,6 +10,13 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PulsaController extends Controller
 {
@@ -162,6 +169,116 @@ class PulsaController extends Controller
             'message' => $data['status'] === 'tertutup' ? 'Periode ditutup.' : 'Periode dibuka kembali.',
             'data' => $periode->toAktaArray(),
         ]);
+    }
+
+    public function export(Request $request): StreamedResponse
+    {
+        $tahun = (int) $request->query('tahun', now()->year);
+        $bulan = (int) $request->query('bulan', now()->month);
+
+        $rows = PulsaRealisasi::query()
+            ->where('tahun', $tahun)
+            ->where('bulan', $bulan)
+            ->orderBy('tanggal')
+            ->get();
+
+        $statusLabel = [
+            'diajukan' => 'Diajukan',
+            'disetujui' => 'Disetujui',
+            'ditolak' => 'Ditolak',
+        ];
+
+        $headers = ['No', 'Tanggal', 'Nama', 'Jabatan', 'Operator', 'No HP', 'Nominal', 'Bon', 'Status'];
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Realisasi Pulsa');
+
+        $sheet->setCellValue('A1', 'REALISASI PULSA - ' . mb_strtoupper(self::bulanLabel($bulan)) . ' ' . $tahun);
+        $sheet->mergeCells('A1:' . chr(64 + count($headers)) . '1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+        foreach ($headers as $i => $header) {
+            $col = chr(65 + $i);
+            $sheet->setCellValue($col . '3', $header);
+        }
+        $headerRange = 'A3:' . chr(64 + count($headers)) . '3';
+        $sheet->getStyle($headerRange)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle($headerRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('1E3A8A');
+        $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle($headerRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+
+        $rowIndex = 4;
+        $totalNominal = 0;
+
+        foreach ($rows as $i => $row) {
+            $sheet->setCellValue('A' . $rowIndex, $i + 1);
+            $sheet->setCellValue('B' . $rowIndex, optional($row->tanggal)->format('d/m/Y'));
+            $sheet->setCellValue('C' . $rowIndex, $row->nama);
+            $sheet->setCellValue('D' . $rowIndex, $row->jabatan);
+            $sheet->setCellValue('E' . $rowIndex, $row->operator);
+            $sheet->setCellValue('F' . $rowIndex, $row->nomor_hp);
+            $sheet->setCellValue('G' . $rowIndex, (float) $row->nominal);
+            $sheet->setCellValue('I' . $rowIndex, $statusLabel[$row->status] ?? $row->status);
+
+            $bonPath = $row->bon_file['path'] ?? null;
+            $absolutePath = $bonPath ? Storage::disk('public')->path($bonPath) : null;
+            $isImage = $absolutePath && file_exists($absolutePath)
+                && in_array(strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png']);
+
+            if ($isImage) {
+                $drawing = new Drawing();
+                $drawing->setName('Bon');
+                $drawing->setPath($absolutePath);
+                $drawing->setHeight(70);
+                $drawing->setCoordinates('H' . $rowIndex);
+                $drawing->setOffsetX(4);
+                $drawing->setOffsetY(4);
+                $drawing->setWorksheet($sheet);
+                $sheet->getRowDimension($rowIndex)->setRowHeight(56);
+            } else {
+                $sheet->setCellValue('H' . $rowIndex, $bonPath ? 'File PDF (lihat lampiran)' : '-');
+            }
+
+            $totalNominal += (float) $row->nominal;
+            $rowIndex++;
+        }
+
+        $sheet->setCellValue('F' . $rowIndex, 'TOTAL');
+        $sheet->getStyle('F' . $rowIndex)->getFont()->setBold(true);
+        $sheet->setCellValue('G' . $rowIndex, $totalNominal);
+        $sheet->getStyle('G' . $rowIndex)->getFont()->setBold(true);
+
+        $sheet->getStyle('G4:G' . $rowIndex)->getNumberFormat()->setFormatCode('#,##0');
+
+        foreach (range('A', 'I') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize($col !== 'H');
+        }
+        $sheet->getColumnDimension('H')->setWidth(14);
+
+        $dataRange = 'A3:' . chr(64 + count($headers)) . $rowIndex;
+        $sheet->getStyle($dataRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+
+        $filename = 'realisasi-pulsa-' . $tahun . '-' . str_pad((string) $bulan, 2, '0', STR_PAD_LEFT) . '.xlsx';
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    private static function bulanLabel(int $bulan): string
+    {
+        $labels = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+        ];
+
+        return $labels[$bulan] ?? (string) $bulan;
     }
 
     private function ensurePeriodeTerbuka(Request $request, int $tahun, int $bulan): void

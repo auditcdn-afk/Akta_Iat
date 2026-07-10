@@ -340,34 +340,131 @@ async function handleSubmit(e) {
     }
 }
 
-function exportExcel() {
+async function exportExcel() {
     if (!pulsaItems.length) {
         showAlert("Tidak ada data untuk diexport.", "error");
         return;
     }
-    const header = ["No", "Tanggal", "Nama", "Jabatan", "Operator", "No HP", "Nominal", "Status"];
-    const rows = pulsaItems.map((item, idx) => [
-        idx + 1,
-        formatTanggal(item.tanggal),
-        item.nama,
-        item.jabatan || "-",
-        item.operator || "-",
-        item.nomorHp,
-        item.nominal,
-        STATUS_LABEL[item.status]?.text || item.status,
-    ]);
-    const csv = [header, ...rows]
-        .map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))
-        .join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const exportBtn = document.getElementById("pulsaExportBtn");
     const tahun = document.getElementById("pulsaTahunFilter")?.value;
     const bulan = document.getElementById("pulsaBulanFilter")?.value;
-    a.href = url;
-    a.download = `realisasi-pulsa-${tahun}-${bulan}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+
+    if (exportBtn) {
+        exportBtn.disabled = true;
+        exportBtn.textContent = "⏳ Menyiapkan...";
+    }
+    try {
+        const res = await fetch(`/api/pulsa/export?tahun=${tahun}&bulan=${bulan}`, { headers: authHeaders() });
+        if (!res.ok) {
+            throw new Error(`Gagal membuat file Excel (status ${res.status})`);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `realisasi-pulsa-${tahun}-${bulan}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        showAlert(err.message || "Gagal export Excel.", "error");
+    } finally {
+        if (exportBtn) {
+            exportBtn.disabled = false;
+            exportBtn.textContent = "📊 Export Excel";
+        }
+    }
+}
+
+function cetakBon() {
+    const items = pulsaItems.filter((item) => item.bonFile?.url);
+    if (!items.length) {
+        showAlert("Tidak ada file bon untuk dicetak.", "error");
+        return;
+    }
+
+    const pages = [];
+    for (let i = 0; i < items.length; i += 4) {
+        pages.push(items.slice(i, i + 4));
+    }
+
+    const pageHtml = pages.map((page) => {
+        const cells = page.map((item) => {
+            const isPdf = /\.pdf$/i.test(item.bonFile.url);
+            const media = isPdf
+                ? `<embed src="${escapeHtml(item.bonFile.url)}" type="application/pdf" />`
+                : `<img src="${escapeHtml(item.bonFile.url)}" alt="Bon Pulsa" />`;
+            return `
+                <div class="bon-cell">
+                    <div class="bon-media">${media}</div>
+                    <div class="bon-caption">
+                        <strong>${escapeHtml(item.nama)}</strong> — ${escapeHtml(formatTanggal(item.tanggal))}<br>
+                        ${escapeHtml(item.operator || "-")} • ${escapeHtml(item.nomorHp)} • ${formatRupiah(item.nominal)}
+                    </div>
+                </div>`;
+        }).join("");
+        return `<div class="bon-page">${cells}</div>`;
+    }).join("");
+
+    const win = window.open("", "_blank");
+    if (!win) {
+        showAlert("Pop-up diblokir browser. Izinkan pop-up untuk mencetak.", "error");
+        return;
+    }
+    win.document.write(`
+        <!doctype html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Cetak Bon Pulsa</title>
+            <style>
+                @page { size: A4; margin: 10mm; }
+                * { box-sizing: border-box; }
+                body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
+                .bon-page {
+                    width: 190mm;
+                    height: 277mm;
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    grid-template-rows: 1fr 1fr;
+                    gap: 6mm;
+                    page-break-after: always;
+                }
+                .bon-page:last-child { page-break-after: auto; }
+                .bon-cell {
+                    border: 1px solid #999;
+                    border-radius: 4px;
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                }
+                .bon-media {
+                    flex: 1;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #f4f4f4;
+                    overflow: hidden;
+                }
+                .bon-media img, .bon-media embed {
+                    max-width: 100%;
+                    max-height: 100%;
+                    width: 100%;
+                    height: 100%;
+                    object-fit: contain;
+                }
+                .bon-caption {
+                    padding: 4px 8px;
+                    font-size: 11px;
+                    border-top: 1px solid #ccc;
+                }
+            </style>
+        </head>
+        <body>${pageHtml}</body>
+        </html>
+    `);
+    win.document.close();
+    win.focus();
+    win.onload = () => win.print();
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -384,6 +481,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("pulsaNominal")?.addEventListener("input", formatNominalInput);
     document.getElementById("pulsaForm")?.addEventListener("submit", handleSubmit);
     document.getElementById("pulsaExportBtn")?.addEventListener("click", exportExcel);
+    document.getElementById("pulsaCetakBonBtn")?.addEventListener("click", cetakBon);
     document.getElementById("pulsaTogglePeriodeBtn")?.addEventListener("click", handleTogglePeriode);
     document.getElementById("pulsaTahunFilter")?.addEventListener("change", loadData);
     document.getElementById("pulsaBulanFilter")?.addEventListener("change", loadData);

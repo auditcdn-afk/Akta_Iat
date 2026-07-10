@@ -279,6 +279,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/pulsa', [PulsaController::class, 'index']);
     Route::get('/pulsa/users', [PulsaController::class, 'userOptions']);
     Route::get('/pulsa/operators', [PulsaController::class, 'operatorOptions']);
+    Route::get('/pulsa/export', [PulsaController::class, 'export']);
     Route::post('/pulsa', [PulsaController::class, 'store']);
     Route::delete('/pulsa/{pulsaRealisasi}', [PulsaController::class, 'destroy']);
     Route::post('/pulsa/toggle-periode', [PulsaController::class, 'togglePeriode'])

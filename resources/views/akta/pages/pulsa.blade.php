@@ -26,6 +26,10 @@
         <div class="flex flex-wrap items-center gap-2">
             <select id="pulsaTahunFilter" class="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></select>
             <select id="pulsaBulanFilter" class="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"></select>
+            <button id="pulsaCetakBonBtn" type="button"
+                class="rounded-xl border border-blue-500/40 px-4 py-2 text-sm font-semibold text-blue-300 hover:bg-blue-500/10 transition">
+                🖨️ Cetak Bon
+            </button>
             <button id="pulsaExportBtn" type="button"
                 class="rounded-xl border border-emerald-500/40 px-4 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/10 transition">
                 📊 Export Excel
