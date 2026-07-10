@@ -34,12 +34,7 @@ Route::prefix('akta')->name('akta.')->group(function () {
 
     Route::view('/bu-performance', 'akta.pages.bu-performance')->name('bu-performance');
 
-    Route::get('/pulsa', function () {
-        return view('akta.pages.placeholder', [
-            'title' => 'Pulsa',
-            'description' => 'Modul realisasi pulsa, pencatatan penggunaan, dan rekap data.',
-        ]);
-    })->name('pulsa');
+    Route::view('/pulsa', 'akta.pages.pulsa')->name('pulsa');
 
     Route::get('/mobil-dinas', function () {
         return view('akta.pages.placeholder', [

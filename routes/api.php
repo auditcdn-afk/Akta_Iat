@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\SmhTarikanController;
 use App\Http\Controllers\Api\LampiranController;
 use App\Http\Controllers\Api\GradingController;
 use App\Http\Controllers\Api\BuPerformanceController;
+use App\Http\Controllers\Api\PulsaController;
 use App\Http\Controllers\Api\PinjamanCabangController;
 use Illuminate\Support\Facades\Route;
 
@@ -273,6 +274,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,manajer,auditor');
     Route::delete('/bu-performance/{id}', [BuPerformanceController::class, 'destroy'])
         ->middleware('akta.role:admin,manajer');
+
+    // ── Realisasi Pulsa ──
+    Route::get('/pulsa', [PulsaController::class, 'index']);
+    Route::get('/pulsa/users', [PulsaController::class, 'userOptions']);
+    Route::get('/pulsa/operators', [PulsaController::class, 'operatorOptions']);
+    Route::post('/pulsa', [PulsaController::class, 'store']);
+    Route::delete('/pulsa/{pulsaRealisasi}', [PulsaController::class, 'destroy']);
+    Route::post('/pulsa/toggle-periode', [PulsaController::class, 'togglePeriode'])
+        ->middleware('akta.role:admin');
 
     // ── Grading (menu utama) ──
     Route::get('/gradings',         [GradingController::class, 'index']);
