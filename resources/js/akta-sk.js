@@ -770,8 +770,8 @@ async function openDistributeModal(id) {
                 const idx = skItems.findIndex((row) => String(row.id) === String(id));
                 if (idx !== -1) skItems[idx].memutuskan = updated;
             }
-        } catch {
-            // Diam-diam gagal; auditor tetap bisa mengisi manual.
+        } catch (err) {
+            showAlert(err.message || "Gagal mengekstrak poin Memutuskan dari file SK. Silakan isi manual.", "error");
         } finally {
             memutuskanEl.placeholder = "Salin poin-poin \"Memutuskan\" dari dokumen SK di sini...";
         }
