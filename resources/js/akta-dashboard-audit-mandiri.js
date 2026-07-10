@@ -213,6 +213,12 @@ function renderTable(rows) {
 
 function renderUnitSection() {
     const jenisAuditFilter = document.getElementById("amdJenisAuditFilter")?.value || "";
+
+    const filteredSummary = jenisAuditFilter
+        ? latestSummary.filter((it) => it.jenisAudit === jenisAuditFilter)
+        : latestSummary;
+    renderSummaryChart(filteredSummary);
+
     const rows = unitRowsForFilter(jenisAuditFilter);
     renderUnitChart(rows);
     renderTable(rows);
@@ -232,7 +238,6 @@ async function loadPencapaian() {
         latestSummary = result.summary || [];
         latestDetail = result.detail || [];
         populateWilayahOptions(result.wilayahOptions);
-        renderSummaryChart(latestSummary);
         renderUnitSection();
     } catch (err) {
         showAlert(err.message || "Gagal memuat data pencapaian audit mandiri.");
