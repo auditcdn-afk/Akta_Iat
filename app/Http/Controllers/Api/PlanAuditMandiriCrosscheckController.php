@@ -51,6 +51,13 @@ class PlanAuditMandiriCrosscheckController extends Controller
         $plan = PlanAudit::query()->findOrFail($data['plan_audit_id']);
         abort_unless($plan->is_mandiri, 422, 'Crosscheck hanya berlaku untuk plan Audit Mandiri/Sertijab.');
 
+        $existing = PlanAuditMandiriCrosscheck::query()->where('plan_audit_id', $plan->id)->first();
+        abort_if(
+            $existing && $user->role !== 'admin',
+            403,
+            'Plan ini sudah pernah di-crosscheck. Hanya admin yang boleh mengubah hasilnya.'
+        );
+
         $crosscheck = PlanAuditMandiriCrosscheck::query()->updateOrCreate(
             ['plan_audit_id' => $plan->id],
             [

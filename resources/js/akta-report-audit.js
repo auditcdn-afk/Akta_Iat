@@ -134,10 +134,11 @@ function renderReportItems() {
                     <td class="px-4 py-4">
                         <div class="font-semibold text-slate-100">${escapeHtml(plan.no_spt || "-")}</div>
                         <div class="text-xs text-slate-500">${escapeHtml(plan.cabang || plan.unit_usaha || "-")}</div>
-                        <div class="mt-1">
+                        <div class="mt-1 flex flex-wrap gap-1">
                             <span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-bold capitalize ${statusBadge(plan.status)}">
                                 ${escapeHtml(plan.status || "-")}
                             </span>
+                            ${crosscheckBadge(plan)}
                         </div>
                     </td>
 
@@ -182,7 +183,7 @@ function renderReportItems() {
                             ` : ""}
                             ${canShowCrosscheckButton(plan) ? `
                                 <button type="button" class="open-crosscheck rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/10" data-plan-id="${plan.id}">
-                                    Crosscheck
+                                    ${plan.crosscheck ? "Ubah Crosscheck" : "Crosscheck"}
                                 </button>
                             ` : ""}
                             <a href="/akta/report-audit/pdf/${plan.id}" target="_blank"
@@ -202,9 +203,28 @@ function canShowPenilaianButton(plan) {
     return ["koordinator", "manajer"].includes(currentUser?.role) && plan.status === "done";
 }
 
+const CROSSCHECK_LABEL = { ok: "OK", not_ok: "Not OK", selisih: "Selisih" };
+const CROSSCHECK_BADGE_CLASS = {
+    ok: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+    not_ok: "border-red-500/40 bg-red-500/10 text-red-300",
+    selisih: "border-amber-500/40 bg-amber-500/10 text-amber-300",
+};
+
+function crosscheckBadge(plan) {
+    if (!plan.is_mandiri || !plan.crosscheck) return "";
+    const hasil = plan.crosscheck.hasil;
+    const label = CROSSCHECK_LABEL[hasil] || hasil;
+    const cls = CROSSCHECK_BADGE_CLASS[hasil] || "border-slate-600 bg-slate-800 text-slate-300";
+    return `<span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${cls}">Crosscheck: ${escapeHtml(label)}</span>`;
+}
+
 // Crosscheck: khusus plan Audit Mandiri/Sertijab, bisa dilakukan oleh auditor mana pun (atau admin).
 function canShowCrosscheckButton(plan) {
-    return !!plan.is_mandiri && ["auditor", "admin"].includes(currentUser?.role);
+    if (!plan.is_mandiri) return false;
+    // Sudah pernah di-crosscheck: hanya admin yang boleh mengubah hasilnya lagi,
+    // agar auditor tidak bisa crosscheck dobel.
+    if (plan.crosscheck) return currentUser?.role === "admin";
+    return ["auditor", "admin"].includes(currentUser?.role);
 }
 
 // Auto-fill "Isi Rekomendasi" dari data pemeriksaan, sama seperti Rekomendasi Form

@@ -268,6 +268,7 @@ class ReportAuditController extends Controller
             'auditor' => $this->attr($plan, ['auditor', 'nama_pemeriksa', 'namaPemeriksa']),
             'status' => $this->attr($plan, ['status']),
             'is_mandiri' => (bool) $plan->is_mandiri,
+            'crosscheck' => $plan->is_mandiri ? $plan->crosscheck?->toAktaArray() : null,
             'tanggal_mulai' => $this->attr($plan, ['tanggal_mulai', 'tgl_mulai', 'tglMulai', 'tanggal']),
             'tanggal_selesai' => $this->attr($plan, ['tanggal_selesai', 'tgl_selesai', 'tglSelesai']),
             'created_at' => $plan->created_at,

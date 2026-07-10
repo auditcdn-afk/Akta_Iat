@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class PlanAudit extends Model
 {
@@ -86,6 +87,11 @@ class PlanAudit extends Model
     public function recommendations(): HasMany
     {
         return $this->hasMany(AuditRecommendation::class, 'plan_audit_id');
+    }
+
+    public function crosscheck(): HasOne
+    {
+        return $this->hasOne(PlanAuditMandiriCrosscheck::class, 'plan_audit_id');
     }
 
     /**
