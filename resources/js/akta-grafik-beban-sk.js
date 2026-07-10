@@ -127,8 +127,36 @@ function getSelectedJenisUnit() {
 function getSelectedStatus() {
     return getSelectedValues("gbStatusCheckbox");
 }
+function getSelectedUnitUsahaFilter() {
+    return getSelectedValues("gbUnitUsahaCheckbox");
+}
+
+let unitUsahaOptionsPopulated = false;
+let allUnitUsahaOptions = [];
+
+function renderUnitUsahaFilterOptions(searchTerm = "") {
+    const term = searchTerm.trim().toLowerCase();
+    const previouslyChecked = new Set(getSelectedUnitUsahaFilter());
+    const filtered = allUnitUsahaOptions.filter((u) => !term || u.toLowerCase().includes(term));
+    const items = filtered.map((u) => ({ value: u, label: u, checked: previouslyChecked.has(u) }));
+    renderCheckboxPanel("gbUnitUsahaFilterOptions", "gbUnitUsahaCheckbox", items, () => {
+        updateMultiFilterLabel("gbUnitUsahaFilterLabel", getSelectedUnitUsahaFilter(), "Semua Unit Usaha", (v) => v);
+        loadRekap();
+    });
+}
+
+function populateUnitUsahaOptions(options) {
+    if (unitUsahaOptionsPopulated || !options?.length) return;
+    allUnitUsahaOptions = options;
+    renderUnitUsahaFilterOptions();
+    document.getElementById("gbUnitUsahaFilterSearch")?.addEventListener("input", (e) => {
+        renderUnitUsahaFilterOptions(e.target.value);
+    });
+    unitUsahaOptionsPopulated = true;
+}
 
 function populateStaticFilters() {
+    setupDropdownToggle("gbUnitUsahaFilterBtn", "gbUnitUsahaFilterPanel");
     setupDropdownToggle("gbTahunFilterBtn", "gbTahunFilterPanel");
     setupDropdownToggle("gbBulanFilterBtn", "gbBulanFilterPanel");
     setupDropdownToggle("gbJenisUnitFilterBtn", "gbJenisUnitFilterPanel");
@@ -512,6 +540,7 @@ async function loadRekap() {
     const bulanList = getSelectedBulan();
     const jenisUnitList = getSelectedJenisUnit();
     const statusList = getSelectedStatus();
+    const unitUsahaFilterList = getSelectedUnitUsahaFilter();
 
     try {
         showAlert(null);
@@ -520,12 +549,14 @@ async function loadRekap() {
         bulanList.forEach((b) => params.append("bulan[]", b));
         jenisUnitList.forEach((j) => params.append("jenis_unit[]", j));
         statusList.forEach((s) => params.append("status[]", s));
+        unitUsahaFilterList.forEach((u) => params.append("unit_usaha[]", u));
 
         const result = await fetchJson(`/api/sk-pembebanan/rekap?${params.toString()}`, {
             headers: authHeaders(),
         });
 
         populateTahunOptions(result.tahunOptions);
+        populateUnitUsahaOptions(result.unitUsahaOptions);
         updateStatCards(result.stats || {});
         renderTrendChart(result.byBulan || []);
         renderJenisUnitChart(result.byJenisUnit || []);

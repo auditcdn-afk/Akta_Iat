@@ -62,6 +62,10 @@ class SkPembebananController extends Controller
         $statusList = collect(is_array($statusInput) ? $statusInput : array_filter([$statusInput]))
             ->filter()->values();
 
+        $unitUsahaInput = $request->query('unit_usaha');
+        $unitUsahaList = collect(is_array($unitUsahaInput) ? $unitUsahaInput : array_filter([$unitUsahaInput]))
+            ->filter()->values();
+
         $query = SkPembebanan::query()->whereNotNull('tgl_audit');
 
         if ($tahunList->isNotEmpty()) {
@@ -84,6 +88,9 @@ class SkPembebananController extends Controller
         if ($statusList->isNotEmpty()) {
             $query->whereIn('status', $statusList);
         }
+        if ($unitUsahaList->isNotEmpty()) {
+            $query->whereIn('unit_usaha', $unitUsahaList);
+        }
 
         $rows = $query->get(['unit_usaha', 'jenis_unit', 'status', 'total_pembebanan', 'tgl_audit', 'personil']);
 
@@ -97,6 +104,14 @@ class SkPembebananController extends Controller
         if ($tahunOptions->isEmpty()) {
             $tahunOptions = collect([now()->year]);
         }
+
+        $unitUsahaOptions = SkPembebanan::query()
+            ->whereNotNull('unit_usaha')
+            ->distinct()
+            ->orderBy('unit_usaha')
+            ->pluck('unit_usaha')
+            ->filter()
+            ->values();
 
         $byBulan = $rows
             ->groupBy(fn($r) => optional($r->tgl_audit)->format('Y-m'))
@@ -192,6 +207,7 @@ class SkPembebananController extends Controller
         return response()->json([
             'ok' => true,
             'tahunOptions' => $tahunOptions,
+            'unitUsahaOptions' => $unitUsahaOptions,
             'stats' => [
                 'totalBeban' => (float) $rows->sum('total_pembebanan'),
                 'totalFinal' => (float) $rows->where('status', 'final')->sum('total_pembebanan'),
