@@ -67,6 +67,14 @@
     .print-bar, .print-spacer { display: none !important; }
     .page-wrap { width: 100%; margin: 0; padding: 0; box-shadow: none; }
     @page { size: A4 portrait; margin: 14mm 13mm; }
+    /* Section lebar (Piutang Reguler/CDN, banyak kolom) dicetak landscape agar
+       tidak ada kolom yang terpotong / perlu digeser saat dibaca dari PDF. */
+    @page landscape-section { size: A4 landscape; margin: 12mm 10mm; }
+    .section-landscape {
+      page: landscape-section;
+      page-break-before: always;
+      page-break-after: always;
+    }
   }
 </style>
 </head>
@@ -1642,7 +1650,7 @@ window.addEventListener('load', function() {
      9. PIUTANG REGULER
      ═══════════════════════════════════════════════ --}}
 @if(($visibleTabs['piutang-reguler'] ?? true))
-<div class="section">
+<div class="section section-landscape">
   <div class="section-title">9. PIUTANG REGULER</div>
   <div class="section-body">
     @if(!$piutangReguler)
@@ -1779,7 +1787,7 @@ window.addEventListener('load', function() {
      10. PIUTANG CDN
      ═══════════════════════════════════════════════ --}}
 @if(($visibleTabs['piutang-cdn'] ?? true))
-<div class="section">
+<div class="section section-landscape">
   <div class="section-title">10. PIUTANG CDN</div>
   <div class="section-body">
     @if(!$piutangCdn)
