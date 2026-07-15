@@ -65,7 +65,7 @@
                         <thead class="border-b border-slate-700 bg-slate-800">
                             <tr>
                                 <th rowspan="2" class="px-3 py-2 text-left font-semibold uppercase text-slate-400 align-bottom">No</th>
-                                <th rowspan="2" class="px-3 py-2 text-left font-semibold uppercase text-slate-400 align-bottom">Customer</th>
+                                <th rowspan="2" class="sticky left-0 z-20 bg-slate-800 px-3 py-2 text-left font-semibold uppercase text-slate-400 align-bottom shadow-[2px_0_4px_rgba(0,0,0,0.35)]">Customer</th>
                                 <th rowspan="2" class="px-3 py-2 text-left font-semibold uppercase text-slate-400 align-bottom">No. Faktur</th>
                                 <th rowspan="2" class="px-3 py-2 text-left font-semibold uppercase text-slate-400 align-bottom">Tanggal</th>
                                 <th rowspan="2" class="px-3 py-2 text-left font-semibold uppercase text-slate-400 align-bottom">Type</th>

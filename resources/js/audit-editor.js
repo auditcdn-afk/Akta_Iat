@@ -2873,9 +2873,9 @@ function prRender() {
     tblBody.innerHTML = items.map((it, idx) => {
         const hasTung  = (it.tung15 || 0) + (it.tung630 || 0) + (it.tung3160 || 0) + (it.tung60 || 0) > 0;
         const saldoCls = it.saldoAkhir > 0 ? 'line-through text-slate-500' : 'font-bold text-slate-100';
-        return `<tr class="hover:bg-slate-800/30 transition-colors">
+        return `<tr class="group hover:bg-slate-800/30 transition-colors">
             <td class="px-3 py-2 text-slate-400 text-center">${idx + 1}</td>
-            <td class="px-3 py-2 font-medium text-blue-300 whitespace-nowrap">${escHtml(it.customer)}</td>
+            <td class="sticky left-0 z-10 bg-slate-900 group-hover:bg-slate-800 px-3 py-2 font-medium text-blue-300 whitespace-nowrap shadow-[2px_0_4px_rgba(0,0,0,0.35)]">${escHtml(it.customer)}</td>
             <td class="px-3 py-2 text-slate-300 font-mono">${escHtml(it.noFaktur)}</td>
             <td class="px-3 py-2 text-slate-300 whitespace-nowrap">${escHtml(it.tanggal || '-')}</td>
             <td class="px-3 py-2"><span class="rounded px-1.5 py-0.5 text-xs font-bold bg-indigo-600/20 text-indigo-300">${escHtml(it.type)}</span></td>
@@ -3062,11 +3062,11 @@ function pcdnRender() {
     };
 
     tbody.innerHTML = items.map((r, i) => `
-        <tr class="hover:bg-slate-800/40 transition">
+        <tr class="group hover:bg-slate-800/40 transition">
             <td class="px-3 py-2 text-slate-400">${i + 1}</td>
             <td class="px-3 py-2 font-mono text-blue-300">${r.noKontrak || '-'}</td>
             <td class="px-3 py-2 text-slate-300">${r.tanggal || '-'}</td>
-            <td class="px-3 py-2 font-semibold text-slate-100">${r.customer}</td>
+            <td class="sticky left-0 z-10 bg-slate-900 group-hover:bg-slate-800 px-3 py-2 font-semibold text-slate-100 shadow-[2px_0_4px_rgba(0,0,0,0.35)]">${r.customer}</td>
             <td class="px-3 py-2 text-right text-slate-200">${pcdnFmtNum(r.saldoPiutang)}</td>
             <td class="px-3 py-2 text-right text-green-400">${pcdnFmtNum(r.belumJto)}</td>
             <td class="px-3 py-2 text-right">${tung(r.tung15)}</td>
