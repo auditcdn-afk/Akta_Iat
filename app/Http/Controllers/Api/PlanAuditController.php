@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditTask;
+use App\Models\BuPerformance;
 use App\Models\PlanAudit;
 use App\Models\User;
 use App\Services\ActivityLogger;
@@ -97,8 +98,13 @@ class PlanAuditController extends Controller
             })
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->query('status')))
             ->latest()
-            ->get()
-            ->map(fn(PlanAudit $plan) => $plan->toAktaArray());
+            ->get();
+
+        // Dihitung sekali untuk seluruh daftar (bukan per-plan) supaya canMarkSelesai()
+        // tidak menjalankan satu query BuPerformance untuk tiap plan cabang_active.
+        $buPerformanceUnits = BuPerformance::query()->distinct()->pluck('unit_usaha')->all();
+
+        $plans = $plans->map(fn(PlanAudit $plan) => $plan->toAktaArray($buPerformanceUnits));
 
         return response()->json(['ok' => true, 'data' => $plans]);
     }
