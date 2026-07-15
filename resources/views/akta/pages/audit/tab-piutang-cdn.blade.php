@@ -67,7 +67,7 @@
                                 <th rowspan="2" class="px-3 py-2 text-left font-semibold uppercase text-slate-400 align-bottom">No</th>
                                 <th rowspan="2" class="px-3 py-2 text-left font-semibold uppercase text-slate-400 align-bottom">No. Kontrak</th>
                                 <th rowspan="2" class="px-3 py-2 text-left font-semibold uppercase text-slate-400 align-bottom">Tanggal</th>
-                                <th rowspan="2" class="sticky left-0 z-20 bg-slate-800 px-3 py-2 text-left font-semibold uppercase text-slate-400 align-bottom shadow-[2px_0_4px_rgba(0,0,0,0.35)]">Nama Customer</th>
+                                <th rowspan="2" class="sticky left-0 z-20 w-36 bg-slate-800 px-3 py-2 text-left font-semibold uppercase text-slate-400 align-bottom shadow-[2px_0_4px_rgba(0,0,0,0.35)]">Nama Customer</th>
                                 <th rowspan="2" class="px-3 py-2 text-right font-semibold uppercase text-slate-400 align-bottom">Saldo Piutang</th>
                                 <th rowspan="2" class="px-3 py-2 text-right font-semibold uppercase text-slate-400 align-bottom">Belum JTO</th>
                                 <th colspan="4" class="px-3 py-2 text-center font-semibold uppercase text-slate-400 border-b border-slate-700">Tunggakan (Hari)</th>
