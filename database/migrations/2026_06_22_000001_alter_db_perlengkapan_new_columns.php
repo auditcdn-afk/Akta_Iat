@@ -8,27 +8,18 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('db_perlengkapan', function (Blueprint $table) {
-            // Drop old columns if they exist
-            $cols = \Illuminate\Support\Facades\DB::select('SHOW COLUMNS FROM db_perlengkapan');
-            $existing = array_column($cols, 'Field');
-
-            if (in_array('kode', $existing))      $table->dropColumn('kode');
-            if (in_array('nama', $existing))      $table->dropColumn('nama');
-            if (in_array('satuan', $existing))    $table->dropColumn('satuan');
-            if (in_array('qty', $existing))       $table->dropColumn('qty');
-            if (in_array('keterangan', $existing)) $table->dropColumn('keterangan');
+            foreach (['kode', 'nama', 'satuan', 'qty', 'keterangan'] as $col) {
+                if (Schema::hasColumn('db_perlengkapan', $col)) $table->dropColumn($col);
+            }
         });
 
         Schema::table('db_perlengkapan', function (Blueprint $table) {
-            $cols = \Illuminate\Support\Facades\DB::select('SHOW COLUMNS FROM db_perlengkapan');
-            $existing = array_column($cols, 'Field');
-
-            if (!in_array('tipe', $existing))  $table->string('tipe')->nullable()->after('id');
-            if (!in_array('nosin', $existing)) $table->string('nosin')->nullable()->after('tipe');
-            if (!in_array('aceh', $existing))  $table->text('aceh')->nullable()->after('nosin');
-            if (!in_array('riau', $existing))  $table->text('riau')->nullable()->after('aceh');
-            if (!in_array('kepri', $existing)) $table->text('kepri')->nullable()->after('riau');
-            if (!in_array('type', $existing))  $table->string('type')->nullable()->after('kepri');
+            if (!Schema::hasColumn('db_perlengkapan', 'tipe'))  $table->string('tipe')->nullable()->after('id');
+            if (!Schema::hasColumn('db_perlengkapan', 'nosin')) $table->string('nosin')->nullable()->after('tipe');
+            if (!Schema::hasColumn('db_perlengkapan', 'aceh'))  $table->text('aceh')->nullable()->after('nosin');
+            if (!Schema::hasColumn('db_perlengkapan', 'riau'))  $table->text('riau')->nullable()->after('aceh');
+            if (!Schema::hasColumn('db_perlengkapan', 'kepri')) $table->text('kepri')->nullable()->after('riau');
+            if (!Schema::hasColumn('db_perlengkapan', 'type'))  $table->string('type')->nullable()->after('kepri');
         });
     }
 
