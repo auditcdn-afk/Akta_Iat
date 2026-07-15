@@ -198,9 +198,18 @@ class PemeriksaanSmhController extends Controller
 
         $planId = $request->query('plan_audit_id');
 
+        // No mesin/rangka hasil import Excel kadang ada spasi (mis. "JMK2E
+        // 1003815"), tapi barcode fisik di unit biasanya tidak ada spasi sama
+        // sekali. Bandingkan juga versi tanpa-spasi di kedua sisi supaya scan
+        // barcode tetap menemukan data yang tersimpan dengan spasi.
+        $qNoSpace = str_replace(' ', '', $q);
         $query = SmhOnhandItem::query()
-            ->where(fn($q2) => $q2->where('no_mesin', 'like', "%{$q}%")
-                ->orWhere('no_rangka', 'like', "%{$q}%"));
+            ->where(function ($q2) use ($q, $qNoSpace) {
+                $q2->where('no_mesin', 'like', "%{$q}%")
+                    ->orWhere('no_rangka', 'like', "%{$q}%")
+                    ->orWhereRaw("REPLACE(no_mesin, ' ', '') LIKE ?", ["%{$qNoSpace}%"])
+                    ->orWhereRaw("REPLACE(no_rangka, ' ', '') LIKE ?", ["%{$qNoSpace}%"]);
+            });
 
         if ($planId) {
             $query->whereHas('pemeriksaan', fn($q2) => $q2->where('plan_audit_id', $planId));

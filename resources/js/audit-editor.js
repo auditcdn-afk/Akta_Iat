@@ -506,10 +506,17 @@ function showSmhSuggestions(q) {
     if (!ul) return;
     if (!q || q.length < 2) { ul.classList.add('hidden'); ul.innerHTML = ''; return; }
 
+    // No mesin/rangka hasil import Excel kadang ada spasi, tapi barcode fisik
+    // biasanya tidak — bandingkan juga versi tanpa spasi supaya hasil scan
+    // tetap muncul di daftar saran.
+    const stripSpace = (s) => (s || '').toLowerCase().replace(/\s+/g, '');
     const lower = q.toLowerCase();
+    const lowerNoSpace = stripSpace(q);
     const matches = smhItems.filter(it =>
         (it.noMesin || '').toLowerCase().includes(lower) ||
-        (it.noRangka || '').toLowerCase().includes(lower)
+        (it.noRangka || '').toLowerCase().includes(lower) ||
+        stripSpace(it.noMesin).includes(lowerNoSpace) ||
+        stripSpace(it.noRangka).includes(lowerNoSpace)
     ).slice(0, 20);
 
     if (!matches.length) { ul.classList.add('hidden'); ul.innerHTML = ''; return; }
