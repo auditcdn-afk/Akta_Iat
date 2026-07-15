@@ -34,7 +34,7 @@ class PemeriksaanSmhController extends Controller
     public function upload(Request $request): JsonResponse
     {
         $request->validate([
-            'file'         => 'required|file|mimes:xls,xlsx,csv',
+            'file'         => 'required|file',
             'plan_audit_id' => 'required|integer|exists:plan_audits,id',
         ]);
 
