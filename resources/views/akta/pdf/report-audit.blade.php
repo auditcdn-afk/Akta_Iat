@@ -1238,7 +1238,7 @@ window.addEventListener('load', function() {
         </tr>
       </thead>
       <tbody>
-        @foreach($bpkbOnhand->take(200) as $i => $b)
+        @foreach($bpkbOnhand as $i => $b)
         @php $umur = (int)($b->umur ?? 0); $isReg90 = strtoupper($b->jenis ?? '') === 'REG' && $umur > 90; @endphp
         <tr style="{{ $isReg90 ? 'background:#fff7ed;' : '' }}">
           <td>{{ (int)$i+1 }}</td>
@@ -1255,9 +1255,6 @@ window.addEventListener('load', function() {
           <td style="font-size:9px">{{ $b->keterangan ?? '-' }}</td>
         </tr>
         @endforeach
-        @if($bpkbOnhand->count() > 200)
-        <tr><td colspan="10" style="font-style:italic;color:#6b7280;text-align:center">... dan {{ $bpkbOnhand->count()-200 }} item lainnya.</td></tr>
-        @endif
       </tbody>
     </table>
 
