@@ -77,19 +77,33 @@ return new class extends Migration {
 
     private function indexExists(string $table, string $index): bool
     {
-        return ! empty(DB::select("SHOW INDEX FROM `{$table}` WHERE Key_name = ?", [$index]));
+        foreach (Schema::getIndexes($table) as $idx) {
+            if ($idx['name'] === $index) return true;
+        }
+        return false;
     }
 
     private function dropIndexIfExists(string $table, string $index): void
     {
         if ($this->indexExists($table, $index)) {
-            DB::statement("ALTER TABLE `{$table}` DROP INDEX `{$index}`");
+            Schema::table($table, fn(Blueprint $t) => $t->dropUnique($index));
         }
     }
 
     private function dedup(string $table, array $keys): void
     {
-        $on = collect($keys)->map(fn($k) => "t1.`{$k}` <=> t2.`{$k}`")->implode(' AND ');
-        DB::statement("DELETE t1 FROM `{$table}` t1 INNER JOIN `{$table}` t2 ON {$on} WHERE t1.id > t2.id");
+        // GROUP BY sudah memperlakukan NULL sebagai satu grup (setara dengan `<=>`
+        // MySQL untuk kolom yang dibandingkan), dan bentuk "double derived table"
+        // ini portable di SQLite/Postgres/MySQL (lihat migrasi ...000004 untuk
+        // pola yang sama).
+        $groupBy = implode(', ', array_map(fn($k) => "`{$k}`", $keys));
+        DB::statement("
+            DELETE FROM `{$table}`
+            WHERE id NOT IN (
+                SELECT id FROM (
+                    SELECT MIN(id) AS id FROM `{$table}` GROUP BY {$groupBy}
+                ) AS keep_ids
+            )
+        ");
     }
 };

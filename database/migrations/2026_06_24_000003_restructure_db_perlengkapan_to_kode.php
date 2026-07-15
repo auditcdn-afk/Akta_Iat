@@ -2,13 +2,12 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
     public function up(): void
     {
-        $cols = array_column(DB::select('SHOW COLUMNS FROM db_perlengkapan'), 'Field');
+        $cols = Schema::getColumnListing('db_perlengkapan');
 
         // Drop legacy regional columns if present
         $legacyDrop = array_filter(['tipe', 'nosin', 'aceh', 'riau', 'kepri', 'type'], fn($c) => in_array($c, $cols));
@@ -17,7 +16,7 @@ return new class extends Migration {
         }
 
         // Re-read after drop
-        $cols = array_column(DB::select('SHOW COLUMNS FROM db_perlengkapan'), 'Field');
+        $cols = Schema::getColumnListing('db_perlengkapan');
 
         Schema::table('db_perlengkapan', function (Blueprint $t) use ($cols) {
             if (!in_array('kode', $cols))       $t->string('kode', 20)->nullable()->after('id');
@@ -31,7 +30,7 @@ return new class extends Migration {
     public function down(): void
     {
         Schema::table('db_perlengkapan', function (Blueprint $t) {
-            $cols = array_column(DB::select('SHOW COLUMNS FROM db_perlengkapan'), 'Field');
+            $cols = Schema::getColumnListing('db_perlengkapan');
             $newDrop = array_filter(['kode', 'nama', 'satuan', 'qty', 'keterangan'], fn($c) => in_array($c, $cols));
             if ($newDrop) $t->dropColumn(array_values($newDrop));
 

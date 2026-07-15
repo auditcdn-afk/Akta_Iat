@@ -39,21 +39,33 @@ return new class extends Migration {
 
     private function dedup(string $table, array $keys): void
     {
-        // Delete duplicate rows keeping the one with the lowest id
+        // Delete duplicate rows keeping the one with the lowest id. Written as a
+        // "double derived table" subquery so it works on SQLite/Postgres/MySQL
+        // alike (a plain correlated subquery referencing the same table in the
+        // FROM clause is rejected by MySQL: "target table for update in FROM").
         $groupBy = implode(', ', array_map(fn($k) => "`{$k}`", $keys));
         DB::statement("
-            DELETE t1 FROM `{$table}` t1
-            INNER JOIN `{$table}` t2
-            ON " . implode(' AND ', array_map(fn($k) => "t1.`{$k}` = t2.`{$k}`", $keys)) . "
-            WHERE t1.id > t2.id
+            DELETE FROM `{$table}`
+            WHERE id NOT IN (
+                SELECT id FROM (
+                    SELECT MIN(id) AS id FROM `{$table}` GROUP BY {$groupBy}
+                ) AS keep_ids
+            )
         ");
     }
 
     private function addUniqueIfMissing(string $table, string $indexName, \Closure $add): void
     {
-        $indexes = DB::select("SHOW INDEX FROM `{$table}` WHERE Key_name = ?", [$indexName]);
-        if (empty($indexes)) {
+        if (!$this->hasIndexNamed($table, $indexName)) {
             Schema::table($table, $add);
         }
+    }
+
+    private function hasIndexNamed(string $table, string $indexName): bool
+    {
+        foreach (Schema::getIndexes($table) as $index) {
+            if ($index['name'] === $indexName) return true;
+        }
+        return false;
     }
 };

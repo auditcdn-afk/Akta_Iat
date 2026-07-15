@@ -3,14 +3,12 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
 
 return new class extends Migration {
     public function up(): void
     {
         Schema::table('db_grading', function (Blueprint $table) {
-            $cols = DB::select('SHOW COLUMNS FROM db_grading');
-            $existing = array_column($cols, 'Field');
+            $existing = Schema::getColumnListing('db_grading');
 
             foreach (['kode', 'nama', 'grade', 'nilai_min', 'nilai_max', 'keterangan'] as $col) {
                 if (in_array($col, $existing)) $table->dropColumn($col);
@@ -18,8 +16,7 @@ return new class extends Migration {
         });
 
         Schema::table('db_grading', function (Blueprint $table) {
-            $cols = DB::select('SHOW COLUMNS FROM db_grading');
-            $existing = array_column($cols, 'Field');
+            $existing = Schema::getColumnListing('db_grading');
 
             $add = [
                 'id_grading'        => fn() => $table->string('id_grading')->nullable()->after('id'),
