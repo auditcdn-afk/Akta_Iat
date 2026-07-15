@@ -978,23 +978,27 @@ function bankCardEl(item = {}) {
 
             <div>
                 <div class="mb-2 text-sm font-bold text-emerald-500">▲ Penerimaan</div>
+                <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead class="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
                         <tr><th class="px-3 py-2 text-left w-40">Tanggal</th><th class="px-3 py-2 text-left">Keterangan</th><th class="px-3 py-2 text-right w-40">Jumlah (Rp)</th><th class="w-10"></th></tr>
                     </thead>
                     <tbody class="bank-penerimaan-body"></tbody>
                 </table>
+                </div>
                 <button type="button" data-add="bankPenerimaan" class="add-row-btn mt-2 rounded-lg border border-dashed border-blue-400 px-3 py-1.5 text-xs font-semibold text-blue-400 hover:bg-blue-500/10">+ Tambah Penerimaan</button>
             </div>
 
             <div>
                 <div class="mb-2 text-sm font-bold text-red-500">▼ Pengeluaran</div>
+                <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead class="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
                         <tr><th class="px-3 py-2 text-left w-40">Tanggal</th><th class="px-3 py-2 text-left">Keterangan</th><th class="px-3 py-2 text-right w-40">Jumlah (Rp)</th><th class="w-10"></th></tr>
                     </thead>
                     <tbody class="bank-pengeluaran-body"></tbody>
                 </table>
+                </div>
                 <button type="button" data-add="bankPengeluaran" class="add-row-btn mt-2 rounded-lg border border-dashed border-blue-400 px-3 py-1.5 text-xs font-semibold text-blue-400 hover:bg-blue-500/10">+ Tambah Pengeluaran</button>
             </div>
 

@@ -179,6 +179,17 @@ main {
     overflow-x: hidden;
 }
 
+/* Tabel lebar (overflow-x-auto) di HP/tablet: momentum-scroll halus di
+   iOS, dan cegah swipe kiri-kanan di dalam tabel "merembet" jadi navigasi
+   back/forward browser atau bounce scroll halaman — tanpa ini, geser ke
+   samping di dekat bagian atas tabel kadang terasa tertahan/tidak
+   responsif sampai halaman di-scroll ke bawah dulu. */
+.overflow-x-auto,
+.overflow-auto {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+}
+
 /* Modal/dialog (fixed inset-0 ...) dibuat bisa discroll dan diberi
    jarak atas-bawah, supaya form di dalamnya tidak terpotong di layar
    pendek (HP dalam posisi landscape, atau saat keyboard muncul). */

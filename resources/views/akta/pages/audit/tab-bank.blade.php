@@ -13,9 +13,11 @@
             <div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 text-slate-100 shadow">
                 <div class="bg-[#1e3a5f] px-5 py-3 text-sm font-bold uppercase tracking-wide text-white">🧾 Register Cek/Giro yang Belum Digunakan</div>
                 <div class="space-y-3 p-5">
+                    <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <tbody id="registerCekBody"></tbody>
                     </table>
+                    </div>
                     <button type="button" data-add="registerCek" class="add-row-btn rounded-lg border border-dashed border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800">+ Tambah Register Cek</button>
                 </div>
             </div>

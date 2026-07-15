@@ -186,7 +186,7 @@
             <h3 id="amdCcDetailTitle" class="text-sm font-bold text-slate-200">Rincian Cross-check</h3>
             <button type="button" id="amdCcDetailCloseBtn" class="text-slate-500 hover:text-slate-300">✕</button>
         </div>
-        <div class="mt-3 max-h-72 overflow-y-auto akta-scrollbar">
+        <div class="mt-3 max-h-72 overflow-auto akta-scrollbar">
             <table class="min-w-full divide-y divide-slate-800 text-sm">
                 <thead>
                     <tr>
@@ -228,7 +228,7 @@
         </div>
 
         <div class="overflow-hidden rounded-xl border border-slate-800">
-            <div class="max-h-[420px] overflow-y-auto">
+            <div class="max-h-[420px] overflow-auto">
                 <table class="min-w-full divide-y divide-slate-800 text-sm">
                     <thead class="sticky top-0 bg-slate-950/95">
                         <tr>
@@ -397,7 +397,7 @@
         </div>
 
         <div class="overflow-hidden rounded-xl border border-slate-800">
-            <div class="max-h-[360px] overflow-y-auto akta-scrollbar">
+            <div class="max-h-[360px] overflow-auto akta-scrollbar">
                 <table class="min-w-full divide-y divide-slate-800 text-sm">
                     <thead class="sticky top-0 bg-slate-950/95">
                         <tr>

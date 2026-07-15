@@ -22,6 +22,7 @@
                     {{-- Penerimaan --}}
                     <div>
                         <div class="mb-2 text-sm font-bold text-emerald-600">▲ Penerimaan</div>
+                        <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead class="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
                                 <tr>
@@ -33,12 +34,14 @@
                             </thead>
                             <tbody id="kbPenerimaanBody"></tbody>
                         </table>
+                        </div>
                         <button type="button" data-add="kbPenerimaan" class="add-row-btn mt-2 rounded-lg border border-dashed border-blue-400 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-500/10">+ Tambah Penerimaan</button>
                     </div>
 
                     {{-- Pengeluaran --}}
                     <div>
                         <div class="mb-2 text-sm font-bold text-red-500">▼ Pengeluaran</div>
+                        <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead class="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
                                 <tr>
@@ -50,6 +53,7 @@
                             </thead>
                             <tbody id="kbPengeluaranBody"></tbody>
                         </table>
+                        </div>
                         <button type="button" data-add="kbPengeluaran" class="add-row-btn mt-2 rounded-lg border border-dashed border-blue-400 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-500/10">+ Tambah Pengeluaran</button>
                     </div>
 
@@ -82,6 +86,7 @@
 
                     <div>
                         <div class="mb-2 text-sm font-bold text-amber-600">🧾 Rincian Bon Gantung Kas Kecil</div>
+                        <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead class="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
                                 <tr>
@@ -93,6 +98,7 @@
                             </thead>
                             <tbody id="kkBonBody"></tbody>
                         </table>
+                        </div>
                         <button type="button" data-add="kkBon" class="add-row-btn mt-2 rounded-lg border border-dashed border-blue-400 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-500/10">+ Tambah Bon Gantung</button>
                     </div>
 
@@ -145,16 +151,20 @@
                 <div class="space-y-5 p-5">
                     <div>
                         <div class="mb-2 border-b border-slate-800 pb-1 text-sm font-bold text-slate-300">H1</div>
+                        <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <tbody id="blankoH1Body"></tbody>
                         </table>
+                        </div>
                         <button type="button" data-add="blankoH1" class="add-row-btn mt-2 rounded-lg border border-dashed border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800">+ Tambah Register Blanko H1</button>
                     </div>
                     <div>
                         <div class="mb-2 border-b border-slate-800 pb-1 text-sm font-bold text-slate-300">H2</div>
+                        <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <tbody id="blankoH2Body"></tbody>
                         </table>
+                        </div>
                         <button type="button" data-add="blankoH2" class="add-row-btn mt-2 rounded-lg border border-dashed border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800">+ Tambah Register Blanko H2</button>
                     </div>
                 </div>
