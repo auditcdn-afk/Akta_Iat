@@ -1974,11 +1974,24 @@ async function bpkbUnscan(e) {
     }
 }
 
+// Barcode scanner kadang ikut membaca teks tambahan setelah No BPKB (mis.
+// "W1840506-BPKB POLRI 2025"). No BPKB sendiri selalu berbentuk huruf +
+// opsional strip + angka (contoh: "Q-07856595", "W1840506") — ambil bagian
+// itu saja, buang sisanya. Kalau hasil scan tidak cocok pola ini sama
+// sekali, kembalikan apa adanya (fail-safe, jangan sampai menolak input yang
+// valid hanya karena polanya tak terduga).
+function bpkbExtractNoBpkb(raw) {
+    const match = String(raw ?? "").trim().match(/^([A-Za-z]+-?\d+)/);
+    return match ? match[1].toUpperCase() : raw;
+}
+
 async function bpkbScanSubmit() {
     const planId = activePlanId;
     if (!planId) { showAlert("Pilih plan audit terlebih dahulu.", "warning"); return; }
-    const noBpkb = document.getElementById("bpkbScanInput")?.value?.trim();
+    const scanInputEl = document.getElementById("bpkbScanInput");
+    const noBpkb = bpkbExtractNoBpkb(scanInputEl?.value?.trim());
     if (!noBpkb) return;
+    if (scanInputEl && scanInputEl.value !== noBpkb) scanInputEl.value = noBpkb;
 
     const resultEl = document.getElementById("bpkbScanResult");
     try {
