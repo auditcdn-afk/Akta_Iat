@@ -47,8 +47,8 @@
             <div id="smhScanBox" class="hidden overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 text-slate-100 shadow">
                 <div class="bg-[#2d8a4e] px-5 py-3 text-sm font-bold uppercase tracking-wide text-white">🔍 Pemeriksaan Fisik — Scan / Cari Unit</div>
                 <div class="p-5 space-y-3">
-                    <div class="relative flex gap-3">
-                        <div class="relative flex-1">
+                    <div class="flex flex-col gap-3 sm:flex-row">
+                        <div class="relative flex-1 min-w-0">
                             <input id="smhScanInput" type="text" autocomplete="off"
                                 placeholder="Scan atau ketik No. Mesin / No. Rangka..."
                                 class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500">
@@ -57,14 +57,16 @@
                                 class="absolute left-0 right-0 top-full z-50 hidden max-h-60 overflow-y-auto rounded-b-lg border border-t-0 border-slate-700 bg-slate-900 shadow-lg">
                             </ul>
                         </div>
-                        <button type="button" id="smhScanBtn"
-                            class="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-500 whitespace-nowrap">
-                            Cek
-                        </button>
-                        <button type="button" id="smhManualBtn"
-                            class="rounded-xl border border-emerald-600 px-4 py-2 text-sm font-semibold text-emerald-400 hover:bg-emerald-900/20 whitespace-nowrap">
-                            + Tambah Manual
-                        </button>
+                        <div class="flex gap-3">
+                            <button type="button" id="smhScanBtn"
+                                class="flex-1 rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-500 whitespace-nowrap sm:flex-none">
+                                Cek
+                            </button>
+                            <button type="button" id="smhManualBtn"
+                                class="flex-1 rounded-xl border border-emerald-600 px-4 py-2 text-sm font-semibold text-emerald-400 hover:bg-emerald-900/20 whitespace-nowrap sm:flex-none">
+                                + Tambah Manual
+                            </button>
+                        </div>
                     </div>
                     <p class="text-xs text-slate-400">Ketik minimal 2 karakter untuk melihat saran unit, atau scan barcode langsung.</p>
                     <div id="smhScanResult" class="hidden rounded-xl border p-4 text-sm"></div>
