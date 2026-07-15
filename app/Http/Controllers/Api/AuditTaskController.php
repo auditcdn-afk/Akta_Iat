@@ -8,6 +8,7 @@ use App\Services\ActivityLogger;
 use App\Services\PlanTaskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -27,7 +28,16 @@ class AuditTaskController extends Controller
     {
         // Backfill otomatis: pastikan setiap plan (lama & baru) sudah punya task
         // untuk auditor yang ditugaskan, sehingga langsung muncul di sini.
-        $planTasks->syncAll($request->user()?->username);
+        // syncPlan() sudah dipanggil tepat saat plan dibuat/berubah status (lihat
+        // PlanAuditController), jadi syncAll() di sini hanya perlu untuk backfill
+        // plan lama dari sebelum mekanisme ini ada. syncAll() men-scan SELURUH
+        // tabel plan_audits + beberapa query per plan — di-cache 1 jam supaya
+        // tidak diulang di setiap request (sebelumnya berjalan penuh pada SETIAP
+        // load halaman Task, makin berat seiring bertambahnya riwayat audit).
+        Cache::remember('plan_tasks_synced_at', 3600, function () use ($planTasks, $request) {
+            $planTasks->syncAll($request->user()?->username);
+            return true;
+        });
 
         $user = $request->user();
         $role = $user?->role;

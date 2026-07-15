@@ -34,7 +34,13 @@ class PlanAudit extends Model
         'tgl_selesai' => 'date',
     ];
 
-    public function toAktaArray(): array
+    /**
+     * @param array<int,string>|null $unitUsahaWithBuPerformance Daftar unit_usaha yang
+     *        sudah punya BuPerformance, dihitung sekali oleh pemanggil (mis. saat me-list
+     *        banyak plan) agar canMarkSelesai() tidak query per-plan. Null = query langsung
+     *        (dipakai saat toAktaArray() dipanggil untuk satu plan saja).
+     */
+    public function toAktaArray(?array $unitUsahaWithBuPerformance = null): array
     {
         return [
             'id' => $this->id,
@@ -49,7 +55,7 @@ class PlanAudit extends Model
             'tim' => $this->tim ?: [],
             'status' => $this->status,
             'isMandiri' => (bool) $this->is_mandiri,
-            'canMarkSelesai' => $this->canMarkSelesai(),
+            'canMarkSelesai' => $this->canMarkSelesai($unitUsahaWithBuPerformance),
             'keterangan' => $this->keterangan,
             'createdBy' => $this->created_by,
             'updatedBy' => $this->updated_by,
@@ -99,10 +105,14 @@ class PlanAudit extends Model
      * - Plan sudah berada di cabang (status cabang_active, cabang sudah mulai).
      * - BU Performance untuk unit usaha ini sudah ada.
      */
-    public function canMarkSelesai(): bool
+    public function canMarkSelesai(?array $unitUsahaWithBuPerformance = null): bool
     {
         if ($this->status !== 'cabang_active' || !$this->cabang) {
             return false;
+        }
+
+        if ($unitUsahaWithBuPerformance !== null) {
+            return in_array($this->cabang, $unitUsahaWithBuPerformance, true);
         }
 
         return BuPerformance::query()->where('unit_usaha', $this->cabang)->exists();
