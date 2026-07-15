@@ -454,14 +454,14 @@ let smhPmxId = null;
 let smhItems = [];
 
 function smhStatusBadge(status) {
-    if (status === 'ada')       return '<span class="inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-600">Ada ✓</span>';
-    if (status === 'tidak_ada') return '<span class="inline-flex rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-xs font-bold text-red-600">Tidak Ada</span>';
-    return '<span class="inline-flex rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">Belum</span>';
+    if (status === 'ada')       return '<span class="inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-400">Ada ✓</span>';
+    if (status === 'tidak_ada') return '<span class="inline-flex rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-xs font-bold text-red-400">Tidak Ada</span>';
+    return '<span class="inline-flex rounded-full border border-slate-600 bg-slate-800 px-2 py-0.5 text-xs font-bold text-slate-400">Belum</span>';
 }
 
 function smhStatusRowClass(status) {
-    if (status === 'ada')       return 'bg-emerald-50';
-    if (status === 'tidak_ada') return 'bg-red-50';
+    if (status === 'ada')       return 'bg-emerald-500/10';
+    if (status === 'tidak_ada') return 'bg-red-500/10';
     return '';
 }
 
@@ -478,25 +478,25 @@ function renderSmhTable(filter = '') {
     }
 
     tbody.innerHTML = filtered.map((it, idx) => `
-        <tr class="border-b border-slate-100 hover:bg-slate-50 ${smhStatusRowClass(it.statusFisik)}" data-item-id="${it.id}">
+        <tr class="border-b border-slate-800 hover:bg-slate-800/60 ${smhStatusRowClass(it.statusFisik)}" data-item-id="${it.id}">
             <td class="px-3 py-2 text-center text-xs text-slate-500">${idx + 1}</td>
-            <td class="px-3 py-2 font-mono text-xs">${escapeHtml(it.noMesin || '-')}</td>
-            <td class="px-3 py-2 font-mono text-xs">${escapeHtml(it.noRangka || '-')}</td>
-            <td class="px-3 py-2 text-xs">${escapeHtml(it.noSpb || '-')}</td>
-            <td class="px-3 py-2 text-xs">${escapeHtml(it.tglSpb || '-')}</td>
-            <td class="px-3 py-2 text-center text-xs">${it.umur ?? '-'} hr</td>
-            <td class="px-3 py-2 text-xs font-semibold">${escapeHtml(it.kodeModel || '-')}</td>
-            <td class="px-3 py-2 text-xs">${escapeHtml(it.warna || '-')}</td>
-            <td class="px-3 py-2 text-xs">${escapeHtml(it.gudang || '-')}</td>
+            <td class="px-3 py-2 font-mono text-xs text-slate-200">${escapeHtml(it.noMesin || '-')}</td>
+            <td class="px-3 py-2 font-mono text-xs text-slate-200">${escapeHtml(it.noRangka || '-')}</td>
+            <td class="px-3 py-2 text-xs text-slate-300">${escapeHtml(it.noSpb || '-')}</td>
+            <td class="px-3 py-2 text-xs text-slate-300">${escapeHtml(it.tglSpb || '-')}</td>
+            <td class="px-3 py-2 text-center text-xs text-slate-300">${it.umur ?? '-'} hr</td>
+            <td class="px-3 py-2 text-xs font-semibold text-slate-100">${escapeHtml(it.kodeModel || '-')}</td>
+            <td class="px-3 py-2 text-xs text-slate-300">${escapeHtml(it.warna || '-')}</td>
+            <td class="px-3 py-2 text-xs text-slate-300">${escapeHtml(it.gudang || '-')}</td>
             <td class="px-3 py-2 text-center">
-                <select class="smh-status-select rounded border border-slate-300 px-1 py-0.5 text-xs" data-id="${it.id}">
+                <select class="smh-status-select rounded border border-slate-700 bg-slate-950 px-1 py-0.5 text-xs text-slate-100" data-id="${it.id}">
                     <option value="">— Pilih —</option>
                     <option value="ada" ${it.statusFisik === 'ada' ? 'selected' : ''}>Ada ✓</option>
                     <option value="tidak_ada" ${it.statusFisik === 'tidak_ada' ? 'selected' : ''}>Tidak Ada</option>
                 </select>
             </td>
             <td class="px-3 py-2">
-                <input type="text" class="smh-ket-input w-full rounded border border-slate-300 px-1 py-0.5 text-xs" placeholder="ket..." data-id="${it.id}" value="${escapeHtml(it.keteranganFisik || '')}">
+                <input type="text" class="smh-ket-input w-full rounded border border-slate-700 bg-slate-950 px-1 py-0.5 text-xs text-slate-100" placeholder="ket..." data-id="${it.id}" value="${escapeHtml(it.keteranganFisik || '')}">
             </td>
         </tr>`).join('');
 }
@@ -520,13 +520,13 @@ function showSmhSuggestions(q) {
             : it.statusFisik === 'tidak_ada'
             ? '<span class="text-red-500 font-bold">✗</span>'
             : '<span class="text-slate-300">○</span>';
-        const bg = it.statusFisik === 'ada' ? 'hover:bg-emerald-50' : it.statusFisik === 'tidak_ada' ? 'hover:bg-red-50' : 'hover:bg-slate-50';
-        return `<li class="smh-suggestion cursor-pointer px-3 py-2 text-xs border-b border-slate-100 ${bg} flex items-center gap-2"
+        const bg = it.statusFisik === 'ada' ? 'hover:bg-emerald-500/10' : it.statusFisik === 'tidak_ada' ? 'hover:bg-red-500/10' : 'hover:bg-slate-800';
+        return `<li class="smh-suggestion cursor-pointer px-3 py-2 text-xs border-b border-slate-800 ${bg} flex items-center gap-2"
                     data-mesin="${escapeHtml(it.noMesin || '')}" data-rangka="${escapeHtml(it.noRangka || '')}">
                     ${statusDot}
                     <div>
-                        <div class="font-semibold text-slate-800">${escapeHtml(it.noMesin || '-')}</div>
-                        <div class="text-slate-500">${escapeHtml(it.noRangka || '-')} &nbsp;|&nbsp; ${escapeHtml(it.kodeModel || '')} ${escapeHtml(it.warna || '')} &nbsp;|&nbsp; ${escapeHtml(it.gudang || '')}</div>
+                        <div class="font-semibold text-slate-100">${escapeHtml(it.noMesin || '-')}</div>
+                        <div class="text-slate-400">${escapeHtml(it.noRangka || '-')} &nbsp;|&nbsp; ${escapeHtml(it.kodeModel || '')} ${escapeHtml(it.warna || '')} &nbsp;|&nbsp; ${escapeHtml(it.gudang || '')}</div>
                     </div>
                 </li>`;
     }).join('');
@@ -604,15 +604,15 @@ function smhPerlengkapanChecklist(perlengkapan, saved = []) {
     const ada   = (saved || []).filter(p => p.ada).length;
     return `
         <div class="mb-2 flex items-center justify-between">
-            <span class="text-xs font-semibold text-slate-600">Perlengkapan SMH</span>
-            <span class="text-xs font-bold" id="smhPlProgress">${ada}/${total} lengkap</span>
+            <span class="text-xs font-semibold text-slate-300">Perlengkapan SMH</span>
+            <span class="text-xs font-bold text-slate-100" id="smhPlProgress">${ada}/${total} lengkap</span>
         </div>
         <div class="space-y-1" id="smhPlList">
             ${perlengkapan.map(nama => `
-            <label class="flex items-center gap-2 cursor-pointer rounded px-2 py-1 hover:bg-slate-50">
-                <input type="checkbox" class="smh-pl-cb h-4 w-4 rounded border-slate-300 text-emerald-600"
+            <label class="flex items-center gap-2 cursor-pointer rounded px-2 py-1 hover:bg-slate-800">
+                <input type="checkbox" class="smh-pl-cb h-4 w-4 rounded border-slate-600 text-emerald-600"
                     data-nama="${escapeHtml(nama)}" ${savedMap[nama] ? 'checked' : ''}>
-                <span class="text-sm text-slate-700">${escapeHtml(nama)}</span>
+                <span class="text-sm text-slate-200">${escapeHtml(nama)}</span>
             </label>`).join('')}
         </div>`;
 }
@@ -625,7 +625,7 @@ async function smhScanUnit(q) {
     const perlengkapan = payload.perlengkapan || [];
 
     if (!it) {
-        res.className = 'rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700';
+        res.className = 'rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300';
         res.innerHTML = `<strong>Tidak ditemukan</strong> — unit "<em>${escapeHtml(q)}</em>" tidak ada dalam daftar onhand.`;
         res.classList.remove('hidden');
         return;
@@ -636,16 +636,16 @@ async function smhScanUnit(q) {
     const kondisi = it.keteranganKondisi || 'ready_for_sale';
     const isAda   = it.statusFisik === 'ada';
 
-    res.className = 'rounded-xl border border-emerald-400 bg-white p-5 text-sm space-y-4';
+    res.className = 'rounded-xl border border-emerald-500/40 bg-slate-900 p-5 text-sm space-y-4';
     res.innerHTML = `
         <div class="flex items-center gap-2">
-            <span class="inline-flex rounded-full border border-emerald-400 bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">✓ Unit Ditemukan dalam Daftar Onhand</span>
+            <span class="inline-flex rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-400">✓ Unit Ditemukan dalam Daftar Onhand</span>
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2">
             <div>
                 <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Tgl Pemeriksaan</label>
-                <input type="date" id="smhFormTgl" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500" value="${tglVal}">
+                <input type="date" id="smhFormTgl" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500" value="${tglVal}">
             </div>
             <div>
                 <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Fisik Scan</label>
@@ -656,28 +656,28 @@ async function smhScanUnit(q) {
         <div class="grid gap-4 sm:grid-cols-3">
             <div>
                 <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">No. Rangka</label>
-                <div class="text-sm font-semibold text-slate-700">${escapeHtml(it.noRangka || '-')}</div>
+                <div class="text-sm font-semibold text-slate-200">${escapeHtml(it.noRangka || '-')}</div>
             </div>
             <div>
                 <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Jenis Motor</label>
-                <div class="text-sm font-semibold text-slate-700">${escapeHtml(it.kodeModel || '-')} / ${escapeHtml(it.warna || '-')}</div>
+                <div class="text-sm font-semibold text-slate-200">${escapeHtml(it.kodeModel || '-')} / ${escapeHtml(it.warna || '-')}</div>
             </div>
             <div>
                 <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Lokasi</label>
-                <div class="text-sm font-semibold text-slate-700">${escapeHtml(it.gudang || '-')} &nbsp;|&nbsp; Umur ${it.umur ?? '-'} hr</div>
+                <div class="text-sm font-semibold text-slate-200">${escapeHtml(it.gudang || '-')} &nbsp;|&nbsp; Umur ${it.umur ?? '-'} hr</div>
             </div>
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2">
             <div>
                 <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Keterangan Fisik</label>
-                <input type="text" id="smhFormKetFisik" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                <input type="text" id="smhFormKetFisik" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
                     value="${escapeHtml(it.keteranganFisik || 'Fisik Ada')}">
             </div>
             <div>
                 <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Keterangan Kondisi</label>
                 <input id="smhFormKondisi" list="smhKondisiList"
-                    class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                    class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500"
                     placeholder="Pilih atau ketik kondisi..."
                     value="${escapeHtml(it.keteranganKondisi || '')}">
                 <datalist id="smhKondisiList">
@@ -689,13 +689,13 @@ async function smhScanUnit(q) {
             </div>
         </div>
 
-        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <div class="rounded-xl border border-slate-700 bg-slate-800/50 p-4">
             ${smhPerlengkapanChecklist(perlengkapan, it.perlengkapanJson)}
         </div>
 
-        <div class="flex justify-between items-center gap-3 pt-1 border-t border-slate-200">
+        <div class="flex justify-between items-center gap-3 pt-1 border-t border-slate-700">
             <button type="button" data-scan-check="${it.id}" data-val="tidak_ada"
-                class="rounded-xl border border-red-400 px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50">
+                class="rounded-xl border border-red-500/40 px-4 py-2 text-xs font-bold text-red-400 hover:bg-red-500/10">
                 ✗ Tandai Tidak Ditemukan
             </button>
             <button type="button" id="smhFormSimpanBtn" data-id="${it.id}"
@@ -945,15 +945,15 @@ let bankLoadedIds = [];
 function cekRow(item = {}) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-        <td class="px-1 py-1.5"><input type="text" class="cek-nama w-full rounded border border-slate-300 px-2 py-1 text-sm" placeholder="Nama cek / no giro / range..." value="${escapeHtml(item.nomor || "")}"></td>
-        <td class="px-1 text-center w-10"><button type="button" class="remove-row text-red-500 hover:text-red-700">✕</button></td>`;
+        <td class="px-1 py-1.5"><input type="text" class="cek-nama w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100" placeholder="Nama cek / no giro / range..." value="${escapeHtml(item.nomor || "")}"></td>
+        <td class="px-1 text-center w-10"><button type="button" class="remove-row text-red-400 hover:text-red-300">✕</button></td>`;
     return tr;
 }
 
 function bankCardEl(item = {}) {
     const d = item.detail_json || {};
     const card = document.createElement("div");
-    card.className = "bank-card overflow-hidden rounded-2xl border border-slate-800 bg-white text-slate-800 shadow";
+    card.className = "bank-card overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 text-slate-100 shadow";
     if (item.id) card.dataset.id = item.id;
     card.innerHTML = `
         <div class="flex items-center justify-between bg-[#1e3a5f] px-5 py-3 text-white">
@@ -963,63 +963,63 @@ function bankCardEl(item = {}) {
         <div class="space-y-4 p-5">
             <div>
                 <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Nama Bank</label>
-                <input type="text" class="bank-nama w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="Nama Bank..." value="${escapeHtml(item.nama_bank || "")}">
+                <input type="text" class="bank-nama w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500" placeholder="Nama Bank..." value="${escapeHtml(item.nama_bank || "")}">
             </div>
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
                     <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo Awal (Tanggal H-1 Pemeriksaan)</label>
-                    <input type="date" class="bank-saldo-awal-tgl w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" value="${escapeHtml(d.saldo_awal_tgl || activePlan?.tglPlan || "")}">
+                    <input type="date" class="bank-saldo-awal-tgl w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500" value="${escapeHtml(d.saldo_awal_tgl || activePlan?.tglPlan || "")}">
                 </div>
                 <div>
                     <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo Awal (Rp)</label>
-                    <input type="text" inputmode="numeric" class="bank-saldo-awal bank-calc w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" value="${formatThousands(d.saldo_awal)}">
+                    <input type="text" inputmode="numeric" class="bank-saldo-awal bank-calc w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500" value="${formatThousands(d.saldo_awal)}">
                 </div>
             </div>
 
             <div>
-                <div class="mb-2 text-sm font-bold text-emerald-600">▲ Penerimaan</div>
+                <div class="mb-2 text-sm font-bold text-emerald-500">▲ Penerimaan</div>
                 <table class="w-full text-sm">
-                    <thead class="bg-slate-100 text-xs uppercase tracking-wide text-slate-500">
+                    <thead class="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
                         <tr><th class="px-3 py-2 text-left w-40">Tanggal</th><th class="px-3 py-2 text-left">Keterangan</th><th class="px-3 py-2 text-right w-40">Jumlah (Rp)</th><th class="w-10"></th></tr>
                     </thead>
                     <tbody class="bank-penerimaan-body"></tbody>
                 </table>
-                <button type="button" data-add="bankPenerimaan" class="add-row-btn mt-2 rounded-lg border border-dashed border-blue-400 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50">+ Tambah Penerimaan</button>
+                <button type="button" data-add="bankPenerimaan" class="add-row-btn mt-2 rounded-lg border border-dashed border-blue-400 px-3 py-1.5 text-xs font-semibold text-blue-400 hover:bg-blue-500/10">+ Tambah Penerimaan</button>
             </div>
 
             <div>
                 <div class="mb-2 text-sm font-bold text-red-500">▼ Pengeluaran</div>
                 <table class="w-full text-sm">
-                    <thead class="bg-slate-100 text-xs uppercase tracking-wide text-slate-500">
+                    <thead class="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
                         <tr><th class="px-3 py-2 text-left w-40">Tanggal</th><th class="px-3 py-2 text-left">Keterangan</th><th class="px-3 py-2 text-right w-40">Jumlah (Rp)</th><th class="w-10"></th></tr>
                     </thead>
                     <tbody class="bank-pengeluaran-body"></tbody>
                 </table>
-                <button type="button" data-add="bankPengeluaran" class="add-row-btn mt-2 rounded-lg border border-dashed border-blue-400 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50">+ Tambah Pengeluaran</button>
+                <button type="button" data-add="bankPengeluaran" class="add-row-btn mt-2 rounded-lg border border-dashed border-blue-400 px-3 py-1.5 text-xs font-semibold text-blue-400 hover:bg-blue-500/10">+ Tambah Pengeluaran</button>
             </div>
 
-            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
-                <div class="flex justify-between py-1 text-slate-600"><span>Saldo Awal</span><span class="bank-sum-saldo-awal font-semibold text-blue-600">Rp 0</span></div>
-                <div class="flex justify-between py-1 text-slate-600"><span>Total Penerimaan</span><span class="bank-sum-penerimaan font-semibold text-emerald-600">Rp 0</span></div>
-                <div class="flex justify-between py-1 text-slate-600"><span>Total Pengeluaran</span><span class="bank-sum-pengeluaran font-semibold text-red-500">Rp 0</span></div>
-                <div class="mt-1 flex justify-between border-t border-slate-300 py-2 font-bold text-slate-800"><span>Saldo Buku (Sistem)</span><span class="bank-saldo-buku">Rp 0</span></div>
-                <div class="flex justify-between py-1 text-slate-600"><span>Saldo Rekening Koran</span><span class="bank-sum-rk font-semibold text-blue-600">Rp 0</span></div>
-                <div class="flex justify-between py-1 font-bold"><span class="text-red-500">Selisih</span><span class="bank-selisih text-red-500">Rp 0</span></div>
+            <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm">
+                <div class="flex justify-between py-1 text-slate-300"><span>Saldo Awal</span><span class="bank-sum-saldo-awal font-semibold text-blue-400">Rp 0</span></div>
+                <div class="flex justify-between py-1 text-slate-300"><span>Total Penerimaan</span><span class="bank-sum-penerimaan font-semibold text-emerald-400">Rp 0</span></div>
+                <div class="flex justify-between py-1 text-slate-300"><span>Total Pengeluaran</span><span class="bank-sum-pengeluaran font-semibold text-red-400">Rp 0</span></div>
+                <div class="mt-1 flex justify-between border-t border-slate-700 py-2 font-bold text-slate-100"><span>Saldo Buku (Sistem)</span><span class="bank-saldo-buku">Rp 0</span></div>
+                <div class="flex justify-between py-1 text-slate-300"><span>Saldo Rekening Koran</span><span class="bank-sum-rk font-semibold text-blue-400">Rp 0</span></div>
+                <div class="flex justify-between py-1 font-bold"><span class="text-red-400">Selisih</span><span class="bank-selisih text-red-400">Rp 0</span></div>
             </div>
 
             <div>
                 <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Keterangan Selisih</label>
-                <input type="text" class="bank-keterangan w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="contoh: Selisih biaya administrasi" value="${escapeHtml(d.keterangan_selisih || item.keterangan || "")}">
+                <input type="text" class="bank-keterangan w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500" placeholder="contoh: Selisih biaya administrasi" value="${escapeHtml(d.keterangan_selisih || item.keterangan || "")}">
             </div>
 
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
                     <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo Rekening Koran (Tanggal)</label>
-                    <input type="date" class="bank-rk-tgl w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" value="${escapeHtml(d.saldo_rk_tgl || "")}">
+                    <input type="date" class="bank-rk-tgl w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500" value="${escapeHtml(d.saldo_rk_tgl || "")}">
                 </div>
                 <div>
                     <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo Rekening Koran (Rp)</label>
-                    <input type="text" inputmode="numeric" class="bank-rk bank-calc w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" value="${formatThousands(item.saldo_bank ?? d.saldo_rk)}">
+                    <input type="text" inputmode="numeric" class="bank-rk bank-calc w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500" value="${formatThousands(item.saldo_bank ?? d.saldo_rk)}">
                 </div>
             </div>
         </div>`;
@@ -1061,8 +1061,8 @@ function recalcBank() {
         card.querySelector(".bank-sum-rk").textContent = formatRupiah(rk);
         const selEl = card.querySelector(".bank-selisih");
         selEl.textContent = formatRupiah(selisih) + (selisih === 0 ? " ✓" : "");
-        selEl.classList.toggle("text-emerald-600", selisih === 0);
-        selEl.classList.toggle("text-red-500", selisih !== 0);
+        selEl.classList.toggle("text-emerald-400", selisih === 0);
+        selEl.classList.toggle("text-red-400", selisih !== 0);
     });
 }
 
@@ -1533,7 +1533,7 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
         try {
             await smhCheckItem(itemId, { status_fisik: sel.value, keterangan_fisik: ket });
             const row = sel.closest('tr');
-            if (row) { row.className = `border-b border-slate-100 hover:bg-slate-50 ${smhStatusRowClass(sel.value)}`; }
+            if (row) { row.className = `border-b border-slate-800 hover:bg-slate-800/60 ${smhStatusRowClass(sel.value)}`; }
             populateSmhDropdown();
         } catch (err) { showAlert(err.message, 'error'); }
     });
@@ -1554,10 +1554,10 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
             const body = document.getElementById('smhSyncBody');
             const list = res.data || [];
             body.innerHTML = list.length
-                ? list.map(r => `<div class="flex gap-3 items-center py-1 border-b border-slate-100">
-                    <span class="text-xs ${r.matched ? 'text-emerald-600 font-bold' : 'text-red-500'}">${r.matched ? '✓' : '✗'}</span>
-                    <span class="font-mono text-xs">${escapeHtml(r.kode_model_intern || '-')}</span>
-                    <span class="text-xs text-slate-500">${r.matched ? escapeHtml(r.perlengkapan?.tipe || r.perlengkapan?.nosin || '-') : 'Tidak ditemukan di database perlengkapan'}</span>
+                ? list.map(r => `<div class="flex gap-3 items-center py-1 border-b border-slate-800">
+                    <span class="text-xs ${r.matched ? 'text-emerald-400 font-bold' : 'text-red-400'}">${r.matched ? '✓' : '✗'}</span>
+                    <span class="font-mono text-xs text-slate-200">${escapeHtml(r.kode_model_intern || '-')}</span>
+                    <span class="text-xs text-slate-400">${r.matched ? escapeHtml(r.perlengkapan?.tipe || r.perlengkapan?.nosin || '-') : 'Tidak ditemukan di database perlengkapan'}</span>
                   </div>`).join('')
                 : '<p class="text-sm text-slate-400">Tidak ada kode model untuk disinkronkan.</p>';
             document.getElementById('smhSyncResult').classList.remove('hidden');
