@@ -136,11 +136,11 @@ window.addEventListener('load', function() {
 <div class="section">
   <div class="section-title">1. PEMERIKSAAN KAS</div>
   <div class="section-body">
-    @if($kas->isEmpty())
+    @if(!$kas)
       <p class="empty">Belum ada data.</p>
     @else
-      @foreach($kas as $k)
       @php
+        $k = $kas;
         $d   = $k->detail_json ?? [];
         $kb  = $d['kas_besar'] ?? [];
         $kk  = $d['kas_kecil'] ?? [];
@@ -356,8 +356,6 @@ window.addEventListener('load', function() {
         </table>
       </div>
       @endif
-
-      @endforeach
     @endif
   </div>
 </div>

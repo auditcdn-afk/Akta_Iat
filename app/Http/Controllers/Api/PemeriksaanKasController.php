@@ -73,12 +73,22 @@ class PemeriksaanKasController extends Controller
 
         $data['created_by'] = $this->userIdentifier($request);
 
-        $kas = PemeriksaanKas::query()->create($data);
+        // updateOrCreate (bukan create) supaya hanya ada 1 pemeriksaan kas
+        // per plan — mencegah baris dobel kalau tombol simpan sempat
+        // terpicu dua kali sebelum sisi klien tahu record-nya sudah ada
+        // (mis. klik ganda), yang sebelumnya membuat laporan PDF mencetak
+        // section "Pemeriksaan Kas" berulang.
+        $kas = PemeriksaanKas::query()->updateOrCreate(
+            ['plan_audit_id' => $data['plan_audit_id']],
+            $data
+        );
 
         return response()->json([
-            'message' => 'Pemeriksaan kas berhasil dibuat.',
+            'message' => $kas->wasRecentlyCreated
+                ? 'Pemeriksaan kas berhasil dibuat.'
+                : 'Pemeriksaan kas berhasil diperbarui.',
             'data' => $kas->load('planAudit'),
-        ], 201);
+        ], $kas->wasRecentlyCreated ? 201 : 200);
     }
 
     public function update(Request $request, PemeriksaanKas $pemeriksaanKas): JsonResponse
