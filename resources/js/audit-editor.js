@@ -4200,13 +4200,26 @@ function hgpPopulateDatalist() {
     }).join('');
 }
 
+// No Part Honda biasanya berformat "35148-K78-N10", tapi barcode fisik di
+// kemasan kadang menyimpannya tanpa strip/spasi ("35148K78N10") atau malah
+// dengan panjang/prefix berbeda dari yang tersimpan di data import Excel.
+// Buang strip+spasi dulu sebelum dibandingkan, dan sediakan fallback 5
+// karakter terakhir (sama seperti perbaikan scan No. Mesin/Rangka SMH) untuk
+// kasus format barcode yang beda total dari data tersimpan.
+const hgpNormalizeCode = (s) => (s || '').toString().trim().toLowerCase().replace(/[\s-]+/g, '');
+
 function hgpFindIdx(code) {
     const term = (code || '').trim().toLowerCase();
     if (!term) return -1;
     const items = _hgpData?.items || [];
+    const termNorm = hgpNormalizeCode(code);
+    const termLast5 = termNorm.length >= 5 ? termNorm.slice(-5) : null;
+
     let idx = items.findIndex(it => (it.noPart || '').toLowerCase() === term);
     if (idx < 0) idx = items.findIndex(it => (it.sparepart || '').toLowerCase() === term);
+    if (idx < 0) idx = items.findIndex(it => hgpNormalizeCode(it.noPart) === termNorm);
     if (idx < 0) idx = items.findIndex(it => (it.noPart || '').toLowerCase().includes(term));
+    if (idx < 0 && termLast5) idx = items.findIndex(it => hgpNormalizeCode(it.noPart).endsWith(termLast5));
     return idx;
 }
 
