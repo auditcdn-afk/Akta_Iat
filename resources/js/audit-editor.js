@@ -925,7 +925,11 @@ function initPlForm() {
             plEditId = id;
             const sel = document.getElementById('plJenisInput');
             if (sel) sel.value = rec.jenisPerlengkapan || '';
-            document.getElementById('plSaldo').value        = rec.saldo  || 0;
+            // Hitung ulang Saldo dari data onhand/SMH terkini (bukan pakai rec.saldo
+            // yang tersimpan) — supaya kalau data onhand/SMH sudah berubah sejak baris
+            // ini dibuat, Selisih yang ditampilkan tetap mencerminkan kondisi terkini,
+            // bukan angka basi dari saat baris ini pertama disimpan.
+            plSelectJenis(rec.jenisPerlengkapan || '');
             document.getElementById('plFisik').value        = rec.fisik  || 0;
             document.getElementById('plPenjelasan').value   = rec.penjelasan || '';
             document.getElementById('plSimpanBtn').textContent = 'Update';
