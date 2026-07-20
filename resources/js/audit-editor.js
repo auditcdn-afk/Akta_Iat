@@ -512,11 +512,19 @@ function showSmhSuggestions(q) {
     const stripSpace = (s) => (s || '').toLowerCase().replace(/\s+/g, '');
     const lower = q.toLowerCase();
     const lowerNoSpace = stripSpace(q);
+    // Barcode No. Rangka kadang berupa nomor lengkap (mis. "MH1KFG112TK001838")
+    // sedangkan data onhand tersimpan versi ringkas (mis. "KD1112TK722826") —
+    // beda total, bukan cuma beda spasi. Cocokkan juga 5 karakter terakhirnya
+    // sebagai jalan lain menemukan unit yang sama.
+    const last5 = lowerNoSpace.length >= 5 ? lowerNoSpace.slice(-5) : null;
+    const endsWithLast5 = (s) => last5 !== null && stripSpace(s).endsWith(last5);
     const matches = smhItems.filter(it =>
         (it.noMesin || '').toLowerCase().includes(lower) ||
         (it.noRangka || '').toLowerCase().includes(lower) ||
         stripSpace(it.noMesin).includes(lowerNoSpace) ||
-        stripSpace(it.noRangka).includes(lowerNoSpace)
+        stripSpace(it.noRangka).includes(lowerNoSpace) ||
+        endsWithLast5(it.noMesin) ||
+        endsWithLast5(it.noRangka)
     ).slice(0, 20);
 
     if (!matches.length) { ul.classList.add('hidden'); ul.innerHTML = ''; return; }
