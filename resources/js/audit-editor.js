@@ -722,9 +722,14 @@ async function smhScanUnit(q) {
         });
     });
 
-    // Scroll ke baris di tabel
+    // Scroll ke hasil scan (form pemeriksaan + checklist perlengkapan) supaya
+    // auditor langsung bisa isi checklist tanpa geser layar manual — sebelumnya
+    // malah scroll ke baris di tabel "Daftar Unit On Hand", yang cuma referensi
+    // dan bukan tempat auditor kerja selanjutnya. Baris tabelnya tetap
+    // di-highlight (ring biru) sebagai penanda, tanpa memindah posisi scroll.
+    res.scrollIntoView({ behavior: 'smooth', block: 'start' });
     const row = document.querySelector(`#smhTableBody tr[data-item-id="${it.id}"]`);
-    if (row) { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); row.classList.add('ring-2', 'ring-blue-400'); setTimeout(() => row.classList.remove('ring-2', 'ring-blue-400'), 2000); }
+    if (row) { row.classList.add('ring-2', 'ring-blue-400'); setTimeout(() => row.classList.remove('ring-2', 'ring-blue-400'), 2000); }
 }
 
 // ── Perlengkapan di Luar SMH ──────────────────────────────────────────────────
