@@ -3,14 +3,23 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditGrading;
+use App\Models\AuditRecommendation;
 use App\Models\AuditTask;
 use App\Models\BuPerformance;
+use App\Models\PemeriksaanHga;
+use App\Models\PemeriksaanLampiran;
+use App\Models\PemeriksaanSmhTarikan;
+use App\Models\Pica;
 use App\Models\PlanAudit;
+use App\Models\SkPembebanan;
+use App\Models\SuratKeputusan;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\PlanTaskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class PlanAuditController extends Controller
@@ -163,7 +172,26 @@ class PlanAuditController extends Controller
     public function destroy(Request $request, PlanAudit $plan, ActivityLogger $logger): JsonResponse
     {
         $noSpt = $plan->no_spt;
-        $plan->delete();
+
+        DB::transaction(function () use ($plan) {
+            // Tabel-tabel ini pakai nullOnDelete atau tidak punya FK sama sekali,
+            // jadi tidak ikut terhapus lewat cascade DB. Dihapus manual di sini
+            // supaya Report Audit, PICA, Rekomendasi, Grading, dst. ikut hilang
+            // saat plan-nya dihapus. (BU Performance sengaja tidak disentuh:
+            // datanya per cabang+bulan, bukan per-plan, dan bisa dipakai bareng
+            // plan lain di cabang & bulan yang sama.)
+            Pica::where('plan_audit_id', $plan->id)->delete();
+            AuditRecommendation::where('plan_audit_id', $plan->id)->delete();
+            AuditTask::where('plan_audit_id', $plan->id)->delete();
+            SkPembebanan::where('plan_audit_id', $plan->id)->delete();
+            SuratKeputusan::where('plan_audit_id', $plan->id)->delete();
+            AuditGrading::where('plan_audit_id', $plan->id)->delete();
+            PemeriksaanHga::where('plan_audit_id', $plan->id)->delete();
+            PemeriksaanSmhTarikan::where('plan_audit_id', $plan->id)->delete();
+            PemeriksaanLampiran::where('plan_audit_id', $plan->id)->delete();
+
+            $plan->delete();
+        });
 
         $logger->write($request, 'PLAN_DELETE', 'plan_audits', 'Menghapus plan audit: ' . $noSpt, $request->user());
 
