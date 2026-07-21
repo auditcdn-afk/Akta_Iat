@@ -257,6 +257,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/audit-detail/hga',              [HgaController::class, 'show']);
     Route::post('/audit-detail/hga',             [HgaController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/hga/scan-increment', [HgaController::class, 'scanIncrement'])
+        ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hga/parse-excel',     [HgaController::class, 'parseExcel'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hga/parse-excel-pts', [HgaController::class, 'parsePts'])

@@ -146,6 +146,7 @@ function switchTab(tab) {
     // fetch ulang dari server saat tab hgp dibuka lagi, jadi scan terakhir yang
     // belum sempat tersimpan bisa ketimpa kalau tidak di-flush dulu.
     if (tab !== "hgp" && typeof _flushHgpSaveDebounced === "function") _flushHgpSaveDebounced();
+    if (tab !== "hga" && typeof _flushHgaSaveDebounced === "function") _flushHgaSaveDebounced();
     document.querySelectorAll(".audit-tab-btn").forEach((btn) => {
         const active = btn.dataset.tab === tab;
         btn.classList.toggle("bg-blue-600", active);
@@ -4219,12 +4220,24 @@ async function hgpHandleFile(file) {
 /* ---- Form pemeriksaan (scan / dropdown No. Part) ---- */
 let _hgpSelIdx = -1; // index item yang sedang dipilih di form
 
-function hgpPopulateDatalist() {
+// Datalist native browser dengan ratusan/ribuan <option> dikenal bikin input jadi
+// patah-patah/delay (terutama di WebView Android bawaan alat scanner genggam seperti
+// Honeywell EDA52) — setiap fokus/blur/ketik di input yang terhubung ke datalist besar,
+// browser harus mengelola seluruh daftar option itu. Solusinya: JS yang menyaring
+// sendiri (murah, di memory) dan datalist cuma diisi HASIL SARINGAN yang dibatasi
+// jumlahnya, bukan seluruh data import.
+const HGP_DATALIST_MAX = 40;
+function hgpPopulateDatalist(filterTerm) {
     const dl = document.getElementById('hgpPartList');
     if (!dl) return;
     const items = _hgpData?.items || [];
     const esc = s => (s || '').replace(/"/g, '&quot;');
-    dl.innerHTML = items.map(it => {
+    const term = (filterTerm || '').trim().toLowerCase();
+    let list = term
+        ? items.filter(it => (it.noPart || '').toLowerCase().includes(term) || (it.sparepart || '').toLowerCase().includes(term))
+        : items;
+    list = list.slice(0, HGP_DATALIST_MAX);
+    dl.innerHTML = list.map(it => {
         const noPart = esc(it.noPart || it.sparepart || '');
         const nama   = esc(it.sparepart || '');
         // Tampilkan No. Part sebagai nilai utama; nama part jadi keterangan
@@ -4503,6 +4516,9 @@ function initHgpForm() {
     partInput?.addEventListener('keydown', e => {
         if (e.key === 'Enter') { e.preventDefault(); hgpScanAccumulate(partInput.value); }
     });
+    // Saring ulang datalist tiap ketik supaya isinya selalu kecil (lihat komentar di
+    // hgpPopulateDatalist) — bukan cuma diisi sekali di awal dengan seluruh data import.
+    partInput?.addEventListener('input', () => hgpPopulateDatalist(partInput.value));
 
     const qtyInput = document.getElementById('hgpFormQty');
     qtyInput?.addEventListener('input', () => hgpFormRecalc());
@@ -4855,67 +4871,61 @@ function hgaUpdateStats() {
     if (el('hgaTableCount'))  el('hgaTableCount').textContent  = `${total} Item`;
 }
 
-function hgaRenderItems() {
-    const tbody = document.getElementById('hgaTableBody');
-    if (!tbody) return;
-    const items = _hgaData?.items || [];
-    if (items.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="14" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
-        hgaUpdateStats();
-        return;
-    }
-    tbody.innerHTML = items.map((it, i) => {
-        const selisih     = hgaN(it.selisih);
-        const selClass    = selisih < 0 ? 'text-red-400 font-bold' : selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
-        const scan        = it.logScan?.length || 0;
-        const selSign     = selisih >= 0 ? '+' : '';
-        const harga       = hgaN(it.hargaHet);
-        const jumlah      = harga * selisih;
-        const jumlahFmt   = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
-        const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
-        const saldoPts    = it.saldoPts !== undefined && it.saldoPts !== null ? hgaN(it.saldoPts) : null;
-        const saldoPtsFmt = saldoPts === null ? '<span class="text-slate-600">—</span>' : `<span class="text-purple-300">${saldoPts}</span>`;
-        const saldoHgaFmt = it._ptsOnly ? '<span class="text-slate-600">—</span>' : hgaSaldo(it);
-        const fisikScan   = hgaN(it.fisik);
-        const fisikTtp    = hgaN(it.fisikTtp);
-        return `<tr class="hover:bg-slate-800/40">
-            <td class="px-3 py-2 text-slate-400">${i + 1}</td>
-            <td class="px-3 py-2 text-slate-400 text-xs">${it.noPart || ''}</td>
-            <td class="px-3 py-2 text-slate-100 font-medium">${it.sparepart || ''}</td>
-            <td class="px-3 py-2 text-center text-slate-300">${it.tgl || '<span class="text-slate-600">—</span>'}</td>
-            <td class="px-3 py-2 text-right text-slate-300">${saldoHgaFmt}</td>
-            <td class="px-3 py-2 text-right">${saldoPtsFmt}</td>
-            <td class="px-3 py-2 text-right text-green-400 font-semibold">${fisikScan}</td>
-            <td class="px-3 py-2">
-                <input type="number" data-hga-i="${i}" data-hga-f="fisikTtp" min="0"
-                    value="${fisikTtp}"
-                    class="hga-inp w-16 rounded border border-yellow-600/50 bg-slate-800 px-2 py-1 text-xs text-yellow-300 text-right focus:border-yellow-400 focus:outline-none">
-            </td>
-            <td class="px-3 py-2 text-right text-slate-300">${hgaN(it.akhir)}</td>
-            <td class="px-3 py-2 text-right ${selClass}">${selSign}${selisih}</td>
-            <td class="px-3 py-2 text-right text-slate-300">${harga > 0 ? harga.toLocaleString('id-ID') : '<span class="text-slate-600">—</span>'}</td>
-            <td class="px-3 py-2 text-right ${jumlahClass}">${jumlahFmt}</td>
-            <td class="px-3 py-2">
-                <div class="flex flex-col gap-1">
-                    <textarea data-hga-i="${i}" data-hga-f="keterangan" rows="2"
-                        placeholder="Ket. Scan..."
-                        class="hga-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none resize-none">${it.keterangan || ''}</textarea>
-                    <textarea data-hga-i="${i}" data-hga-f="keteranganTtp" rows="2"
-                        placeholder="Ket. TTP..."
-                        class="hga-inp w-full rounded border border-yellow-600/40 bg-slate-800/60 px-2 py-1 text-xs text-yellow-300 focus:border-yellow-400 focus:outline-none resize-none">${it.keteranganTtp || ''}</textarea>
-                </div>
-            </td>
-            <td class="px-3 py-2 text-xs">
-                <div class="flex flex-col gap-0.5 text-slate-400">
-                    <span>Scan : <span class="text-green-400 font-semibold">${fisikScan}</span> | TTP : <span class="text-yellow-400 font-semibold">${fisikTtp}</span></span>
-                    <span>Ref Saldo : <span class="text-slate-300">${saldoPts !== null ? saldoPts : hgaSaldo(it)}</span></span>
-                    <span>Selisih : <span class="${selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300'} font-semibold">${selSign}${selisih}</span></span>
-                </div>
-            </td>
-        </tr>`;
-    }).join('');
+// Bangun HTML 1 baris tabel HGA. Dipisah dari hgaRenderItems() supaya bisa dipakai
+// juga untuk update 1 baris saja setelah scan (hgaUpdateSingleRow) — sama seperti pola
+// yang sudah dipakai di modul HGP untuk menghindari render ulang seluruh tabel tiap scan.
+function hgaRowHtml(it, i) {
+    const selisih     = hgaN(it.selisih);
+    const selClass    = selisih < 0 ? 'text-red-400 font-bold' : selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
+    const selSign     = selisih >= 0 ? '+' : '';
+    const harga       = hgaN(it.hargaHet);
+    const jumlah      = harga * selisih;
+    const jumlahFmt   = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
+    const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
+    const saldoPts    = it.saldoPts !== undefined && it.saldoPts !== null ? hgaN(it.saldoPts) : null;
+    const saldoPtsFmt = saldoPts === null ? '<span class="text-slate-600">—</span>' : `<span class="text-purple-300">${saldoPts}</span>`;
+    const saldoHgaFmt = it._ptsOnly ? '<span class="text-slate-600">—</span>' : hgaSaldo(it);
+    const fisikScan   = hgaN(it.fisik);
+    const fisikTtp    = hgaN(it.fisikTtp);
+    return `<tr class="hover:bg-slate-800/40" data-hga-row="${i}">
+        <td class="px-3 py-2 text-slate-400">${i + 1}</td>
+        <td class="px-3 py-2 text-slate-400 text-xs">${it.noPart || ''}</td>
+        <td class="px-3 py-2 text-slate-100 font-medium">${it.sparepart || ''}</td>
+        <td class="px-3 py-2 text-center text-slate-300">${it.tgl || '<span class="text-slate-600">—</span>'}</td>
+        <td class="px-3 py-2 text-right text-slate-300">${saldoHgaFmt}</td>
+        <td class="px-3 py-2 text-right">${saldoPtsFmt}</td>
+        <td class="px-3 py-2 text-right text-green-400 font-semibold">${fisikScan}</td>
+        <td class="px-3 py-2">
+            <input type="number" data-hga-i="${i}" data-hga-f="fisikTtp" min="0"
+                value="${fisikTtp}"
+                class="hga-inp w-16 rounded border border-yellow-600/50 bg-slate-800 px-2 py-1 text-xs text-yellow-300 text-right focus:border-yellow-400 focus:outline-none">
+        </td>
+        <td class="px-3 py-2 text-right text-slate-300">${hgaN(it.akhir)}</td>
+        <td class="px-3 py-2 text-right ${selClass}">${selSign}${selisih}</td>
+        <td class="px-3 py-2 text-right text-slate-300">${harga > 0 ? harga.toLocaleString('id-ID') : '<span class="text-slate-600">—</span>'}</td>
+        <td class="px-3 py-2 text-right ${jumlahClass}">${jumlahFmt}</td>
+        <td class="px-3 py-2">
+            <div class="flex flex-col gap-1">
+                <textarea data-hga-i="${i}" data-hga-f="keterangan" rows="2"
+                    placeholder="Ket. Scan..."
+                    class="hga-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none resize-none">${it.keterangan || ''}</textarea>
+                <textarea data-hga-i="${i}" data-hga-f="keteranganTtp" rows="2"
+                    placeholder="Ket. TTP..."
+                    class="hga-inp w-full rounded border border-yellow-600/40 bg-slate-800/60 px-2 py-1 text-xs text-yellow-300 focus:border-yellow-400 focus:outline-none resize-none">${it.keteranganTtp || ''}</textarea>
+            </div>
+        </td>
+        <td class="px-3 py-2 text-xs">
+            <div class="flex flex-col gap-0.5 text-slate-400">
+                <span>Scan : <span class="text-green-400 font-semibold">${fisikScan}</span> | TTP : <span class="text-yellow-400 font-semibold">${fisikTtp}</span></span>
+                <span>Ref Saldo : <span class="text-slate-300">${saldoPts !== null ? saldoPts : hgaSaldo(it)}</span></span>
+                <span>Selisih : <span class="${selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300'} font-semibold">${selSign}${selisih}</span></span>
+            </div>
+        </td>
+    </tr>`;
+}
 
-    tbody.querySelectorAll('.hga-inp').forEach(inp => {
+function hgaAttachRowListeners(container) {
+    container.querySelectorAll('.hga-inp').forEach(inp => {
         inp.addEventListener('input', () => {
             const idx = parseInt(inp.dataset.hgaI);
             const field = inp.dataset.hgaF;
@@ -4948,14 +4958,52 @@ function hgaRenderItems() {
         });
         inp.addEventListener('blur', () => { _doSaveHga().catch(() => {}); });
     });
+}
+
+function hgaRenderItems() {
+    const tbody = document.getElementById('hgaTableBody');
+    if (!tbody) return;
+    const items = _hgaData?.items || [];
+    if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="14" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
+        hgaUpdateStats();
+        return;
+    }
+    tbody.innerHTML = items.map((it, i) => hgaRowHtml(it, i)).join('');
+    hgaAttachRowListeners(tbody);
     hgaUpdateStats();
 }
 
-function hgaPopulateDatalist() {
+// Update 1 baris saja (dipakai setelah scan barcode) — jauh lebih ringan daripada
+// render ulang seluruh tabel tiap scan, terutama kalau data import-nya banyak.
+function hgaUpdateSingleRow(idx) {
+    const tbody = document.getElementById('hgaTableBody');
+    if (!tbody) return;
+    const row = tbody.querySelector(`tr[data-hga-row="${idx}"]`);
+    const it  = _hgaData.items[idx];
+    if (!row || !it) { hgaRenderItems(); return; }
+    const tmp = document.createElement('tbody');
+    tmp.innerHTML = hgaRowHtml(it, idx);
+    const newRow = tmp.firstElementChild;
+    hgaAttachRowListeners(newRow);
+    row.replaceWith(newRow);
+    hgaUpdateStats();
+}
+
+// Sama seperti hgpPopulateDatalist: batasi ukuran datalist native supaya tidak bikin
+// input patah-patah di browser/WebView yang lebih lemah (alat scanner genggam).
+const HGA_DATALIST_MAX = 40;
+function hgaPopulateDatalist(filterTerm) {
     const dl = document.getElementById('hgaPartList');
     if (!dl) return;
+    const items = _hgaData?.items || [];
     const esc = s => (s || '').replace(/"/g, '&quot;');
-    dl.innerHTML = (_hgaData?.items || []).map(it => {
+    const term = (filterTerm || '').trim().toLowerCase();
+    let list = term
+        ? items.filter(it => (it.noPart || '').toLowerCase().includes(term) || (it.sparepart || '').toLowerCase().includes(term))
+        : items;
+    list = list.slice(0, HGA_DATALIST_MAX);
+    dl.innerHTML = list.map(it => {
         const noPart = esc(it.noPart || it.sparepart || '');
         const nama   = esc(it.sparepart || '');
         return `<option value="${noPart}" label="${noPart}${nama ? ' — ' + nama : ''}">${noPart}</option>`;
@@ -5015,6 +5063,41 @@ function hgaFormSelectPart(code) {
     hgaFormRecalc();
 }
 
+// Sama seperti pola di modul HGP: simpan penuh (_doSaveHga, kirim SELURUH array items)
+// di-debounce supaya scan beruntun tidak masing-masing menunggu network round-trip, dan
+// scan barcode (jalur tercepat/tersering) pakai delta-save (_doScanHgaIncrement, cuma
+// kirim 1 No. Part + qty) supaya payload-nya tetap kecil di alat scanner genggam.
+let _hgaSaveDebounceTimer = null;
+function _doSaveHgaDebounced(delay = 700) {
+    clearTimeout(_hgaSaveDebounceTimer);
+    _hgaSaveDebounceTimer = setTimeout(() => {
+        _hgaSaveDebounceTimer = null;
+        _doSaveHga().catch(() => {});
+    }, delay);
+}
+function _flushHgaSaveDebounced() {
+    if (!_hgaSaveDebounceTimer) return;
+    clearTimeout(_hgaSaveDebounceTimer);
+    _hgaSaveDebounceTimer = null;
+    _doSaveHga().catch(() => {});
+}
+async function _doScanHgaIncrement(noPart, qty, idx) {
+    if (!activePlanId || !noPart) return;
+    try {
+        const res = await fetchJson('/api/audit-detail/hga/scan-increment', {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ planAuditId: activePlanId, noPart, qty }),
+        });
+        if (res?.item && _hgaData?.items?.[idx]) {
+            _hgaData.items[idx] = { ..._hgaData.items[idx], ...res.item };
+            hgaUpdateSingleRow(idx);
+        }
+    } catch (_) {
+        _doSaveHgaDebounced();
+    }
+}
+
 function hgaScanAccumulate(code) {
     const msg = document.getElementById('hgaFormMsg');
     const showMsg = (text, ok) => {
@@ -5032,8 +5115,8 @@ function hgaScanAccumulate(code) {
     it.logScan.push({ at: new Date().toISOString(), qty: 1 });
     it.tgl = document.getElementById('hgaFormTgl')?.value || it.tgl;
     hgaCalcItem(it);
-    hgaRenderItems();
-    _doSaveHga().catch(() => {});
+    hgaUpdateSingleRow(idx);
+    _doScanHgaIncrement(it.noPart, 1, idx);
     showMsg(`✓ ${it.noPart || it.sparepart} — ${it.sparepart} | Fisik: ${hgaN(it.fisik)} | Akhir: ${it.akhir} | Selisih: ${it.selisih >= 0 ? '+' : ''}${it.selisih} (Terscan: ${it.logScan.length})`, true);
     hgaFormClearInputs();
 }
@@ -5065,8 +5148,8 @@ function hgaFormSaveEntry() {
     if (!Array.isArray(it.logScan)) it.logScan = [];
     it.logScan.push({ at: new Date().toISOString(), qty });
     hgaCalcItem(it);
-    hgaRenderItems();
-    _doSaveHga().catch(() => {});
+    hgaUpdateSingleRow(_hgaSelIdx);
+    _doSaveHgaDebounced();
     showMsg(`✓ Tersimpan: ${it.noPart || it.sparepart} — Fisik ${hgaN(it.fisik)}, Akhir ${it.akhir}, Selisih ${it.selisih >= 0 ? '+' : ''}${it.selisih}`, true);
     hgaFormClearInputs();
 }
@@ -5197,6 +5280,7 @@ async function _doSaveHga() {
 function initHgaForm() {
     const fileInput = document.getElementById('hgaFileInput');
     const dropzone  = document.getElementById('hgaDropzone');
+    window.addEventListener('beforeunload', () => _flushHgaSaveDebounced());
     fileInput?.addEventListener('change', () => { if (fileInput.files[0]) hgaHandleFile(fileInput.files[0]); fileInput.value = ''; });
     dropzone?.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-blue-400'); });
     dropzone?.addEventListener('dragleave', () => dropzone.classList.remove('border-blue-400'));
@@ -5217,6 +5301,7 @@ function initHgaForm() {
     const partInput = document.getElementById('hgaFormPart');
     partInput?.addEventListener('change', () => { if (_hgaScanGuard) return; if (partInput.value) hgaFormSelectPart(partInput.value); });
     partInput?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); hgaScanAccumulate(partInput.value); } });
+    partInput?.addEventListener('input', () => hgaPopulateDatalist(partInput.value));
 
     const qtyInput = document.getElementById('hgaFormQty');
     qtyInput?.addEventListener('input', () => hgaFormRecalc());
