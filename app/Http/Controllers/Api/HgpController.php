@@ -34,6 +34,55 @@ class HgpController extends Controller
         return response()->json(['message' => 'Data HGP tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
     }
 
+    // Simpan HANYA 1 item (delta) yang bertambah fisiknya dari 1 kali scan, alih-alih
+    // menerima & menulis ulang seluruh array items (items_json) seperti save(). Dipakai
+    // dari alur scan barcode supaya payload yang dikirim dari alat scanner (mis. Honeywell
+    // EDA52 di jaringan gudang yang bisa saja lemah) tetap kecil walau daftar onhand-nya
+    // ratusan/ribuan item, bukan ikut membawa seluruh riwayat logScan semua item lain.
+    public function scanIncrement(Request $request): JsonResponse
+    {
+        $planId = $request->input('planAuditId') ?? $request->input('plan_audit_id');
+        $noPart = trim((string) $request->input('noPart', ''));
+        $qty    = (float) $request->input('qty', 1);
+        $who    = $request->user()?->username ?? $request->user()?->email;
+
+        if ($noPart === '') {
+            return response()->json(['message' => 'No. Part wajib diisi.'], 422);
+        }
+
+        $rec = PemeriksaanHgp::where('plan_audit_id', $planId)->first();
+        if (!$rec) {
+            return response()->json(['message' => 'Data HGP belum ada untuk plan audit ini.'], 422);
+        }
+
+        $items = $rec->items_json ?? [];
+        $idx = null;
+        foreach ($items as $i => $row) {
+            if (strcasecmp(trim((string)($row['noPart'] ?? '')), $noPart) === 0) {
+                $idx = $i;
+                break;
+            }
+        }
+        if ($idx === null) {
+            return response()->json(['message' => "No. Part \"{$noPart}\" tidak ditemukan."], 404);
+        }
+
+        $it = $items[$idx];
+        $it['fisik'] = $this->n($it['fisik'] ?? 0) + $qty;
+        $it['logScan'] = is_array($it['logScan'] ?? null) ? $it['logScan'] : [];
+        $it['logScan'][] = ['at' => now()->toIso8601String(), 'qty' => $qty];
+        $saldo = $this->n($it['saldoAkhir'] ?? 0);
+        $it['akhir']   = $saldo - $this->n($it['fisik']);
+        $it['selisih'] = $this->n($it['fisik']) - $saldo;
+        $items[$idx] = $it;
+
+        $rec->items_json  = $items;
+        $rec->updated_by  = $who;
+        $rec->save();
+
+        return response()->json(['message' => 'OK', 'item' => $it, 'idx' => $idx]);
+    }
+
     public function parseExcel(Request $request): JsonResponse
     {
         $request->validate(['file' => 'required|file']);

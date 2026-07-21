@@ -4320,6 +4320,33 @@ function _flushHgpSaveDebounced() {
     _doSaveHgp().catch(() => {});
 }
 
+// Kirim HANYA delta scan (No. Part + qty) ke server, bukan seluruh daftar item —
+// _doSaveHgp() mengirim SEMUA item (termasuk riwayat logScan tiap item) setiap kali
+// dipanggil; kalau daftar onhand-nya ratusan/ribuan item, payload itu bisa berat untuk
+// diupload dari alat scanner genggam (mis. Honeywell EDA52) yang jaringannya (WiFi
+// gudang/data seluler) belum tentu kencang. Endpoint ini hanya membawa 1 No. Part +
+// qty, jadi ukurannya tetap kecil berapa pun banyaknya item di data import.
+// Kalau request ini gagal (network putus dsb), fallback ke simpan penuh yang
+// di-debounce supaya datanya tidak hilang.
+async function _doScanHgpIncrement(noPart, qty, idx) {
+    if (!activePlanId || !noPart) return;
+    try {
+        const res = await fetchJson('/api/audit-detail/hgp/scan-increment', {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ planAuditId: activePlanId, noPart, qty }),
+        });
+        // Selaraskan dengan hasil otoritatif server (jaga-jaga ada device lain yang
+        // ikut scan No. Part yang sama di waktu yang berdekatan).
+        if (res?.item && _hgpData?.items?.[idx]) {
+            _hgpData.items[idx] = { ..._hgpData.items[idx], ...res.item };
+            hgpUpdateSingleRow(idx);
+        }
+    } catch (_) {
+        _doSaveHgpDebounced();
+    }
+}
+
 // Scan barcode: akumulasi fisik +1 setiap scan kode yang sama, tiap scan tercatat di log.
 // Setelah scan, form dikosongkan total agar siap scan berikutnya.
 let _hgpScanGuard = false;
@@ -4349,7 +4376,7 @@ function hgpScanAccumulate(code) {
     hgpCalcItem(it);
 
     hgpUpdateSingleRow(idx);
-    _doSaveHgpDebounced();
+    _doScanHgpIncrement(it.noPart, 1, idx);
 
     // Pesan hasil scan, lalu kosongkan form untuk scan berikutnya
     showMsg(`✓ ${it.noPart || it.sparepart} — ${it.sparepart} | Fisik: ${hgpN(it.fisik)} | Akhir: ${it.akhir} | Selisih: ${it.selisih >= 0 ? '+' : ''}${it.selisih} (Terscan: ${it.logScan.length})`, true);
@@ -4398,8 +4425,8 @@ function hgpFormSaveEntry() {
     if (!Array.isArray(it.logScan)) it.logScan = [];
     it.logScan.push({ at: new Date().toISOString(), qty });
     hgpCalcItem(it);
-    hgpRenderItems();
-    _doSaveHgp().catch(() => {});
+    hgpUpdateSingleRow(_hgpSelIdx);
+    _doSaveHgpDebounced();
     showMsg(`✓ Tersimpan: ${it.noPart || it.sparepart} — Fisik ${hgpN(it.fisik)}, Akhir ${it.akhir}, Selisih ${it.selisih >= 0 ? '+' : ''}${it.selisih}`, true);
     hgpFormClearInputs();
 }
