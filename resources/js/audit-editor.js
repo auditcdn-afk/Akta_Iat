@@ -142,6 +142,10 @@ function closePemeriksaan() {
 }
 
 function switchTab(tab) {
+    // Flush simpan HGP yang di-debounce sebelum pindah tab — loadHgpTab() akan
+    // fetch ulang dari server saat tab hgp dibuka lagi, jadi scan terakhir yang
+    // belum sempat tersimpan bisa ketimpa kalau tidak di-flush dulu.
+    if (tab !== "hgp" && typeof _flushHgpSaveDebounced === "function") _flushHgpSaveDebounced();
     document.querySelectorAll(".audit-tab-btn").forEach((btn) => {
         const active = btn.dataset.tab === tab;
         btn.classList.toggle("bg-blue-600", active);
@@ -4036,59 +4040,58 @@ function hgpUpdateStats() {
     if (el('hgpTableCount'))  el('hgpTableCount').textContent  = `${total} Item`;
 }
 
-function hgpRenderItems() {
-    const tbody = document.getElementById('hgpTableBody');
-    if (!tbody) return;
-    const items = _hgpData?.items || [];
-    if (items.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
-        hgpUpdateStats();
-        return;
-    }
-    tbody.innerHTML = items.map((it, i) => {
-        const selisih  = hgpN(it.selisih);
-        const selClass = selisih < 0 ? 'text-red-400 font-bold' : selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
-        const scan     = it.logScan?.length || 0;
-        const selSign  = selisih >= 0 ? '+' : '';
-        const harga    = hgpN(it.hargaHet);
-        const jumlah   = harga * selisih;   // negatif = kekurangan, positif = kelebihan
-        const jumlahFmt = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
-        const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
-        const wo = hgpN(it.wo);
-        return `<tr class="hover:bg-slate-800/40">
-            <td class="px-3 py-2 text-slate-400">${i + 1}</td>
-            <td class="px-3 py-2 text-slate-400 text-xs">${it.noPart || ''}</td>
-            <td class="px-3 py-2 text-slate-100 font-medium">${it.sparepart || ''}</td>
-            <td class="px-3 py-2 text-center text-slate-300">${it.tgl || '<span class="text-slate-600">—</span>'}</td>
-            <td class="px-3 py-2 text-right text-slate-300">${hgpSaldo(it)}</td>
-            <td class="px-3 py-2 text-right text-slate-100 font-semibold">${hgpN(it.fisik)}</td>
-            <td class="px-3 py-2 text-right">
-                <input type="number" min="0" data-hgp-i="${i}" data-hgp-f="wo"
-                    value="${wo || ''}" placeholder="0"
-                    class="hgp-inp w-16 rounded border border-amber-700/50 bg-amber-900/20 px-2 py-1 text-xs text-amber-300 text-right focus:border-amber-500 focus:outline-none">
-            </td>
-            <td class="px-3 py-2 text-right text-slate-300">${hgpN(it.akhir)}</td>
-            <td class="px-3 py-2 text-right ${selClass}">${selSign}${selisih}</td>
-            <td class="px-3 py-2 text-right text-slate-300">${harga > 0 ? harga.toLocaleString('id-ID') : '<span class="text-slate-600">—</span>'}</td>
-            <td class="px-3 py-2 text-right ${jumlahClass}">${jumlahFmt}</td>
-            <td class="px-3 py-2">
-                <input type="text" data-hgp-i="${i}" data-hgp-f="keterangan"
-                    value="${it.keterangan || ''}"
-                    placeholder="Keterangan..."
-                    class="hgp-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
-            </td>
-            <td class="px-3 py-2 text-xs">
-                <div class="flex flex-col gap-0.5 text-slate-400">
-                    <span>Fisik Terscan : <span class="text-green-400 font-semibold">${scan}</span></span>
-                    <span>Saldo Akhir : <span class="text-slate-300">${hgpSaldo(it)}</span></span>
-                    <span>Selisih Scan : <span class="${selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300'} font-semibold">${selSign}${selisih}</span></span>
-                </div>
-            </td>
-        </tr>`;
-    }).join('');
+// Bangun HTML 1 baris tabel HGP/AHM Oil. Dipisah dari hgpRenderItems() supaya
+// bisa dipakai juga untuk update 1 baris saja setelah scan (hgpUpdateSingleRow),
+// tanpa perlu render ulang SELURUH tabel tiap kali scan — daftar onhand ini
+// bisa ratusan/ribuan baris, jadi render ulang semuanya di tiap scan bikin
+// aplikasi terasa berat/nge-freeze terutama di HP scanner yang tidak sekencang
+// laptop.
+function hgpRowHtml(it, i) {
+    const selisih  = hgpN(it.selisih);
+    const selClass = selisih < 0 ? 'text-red-400 font-bold' : selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
+    const scan     = it.logScan?.length || 0;
+    const selSign  = selisih >= 0 ? '+' : '';
+    const harga    = hgpN(it.hargaHet);
+    const jumlah   = harga * selisih;   // negatif = kekurangan, positif = kelebihan
+    const jumlahFmt = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
+    const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
+    const wo = hgpN(it.wo);
+    return `<tr class="hover:bg-slate-800/40" data-hgp-row="${i}">
+        <td class="px-3 py-2 text-slate-400">${i + 1}</td>
+        <td class="px-3 py-2 text-slate-400 text-xs">${it.noPart || ''}</td>
+        <td class="px-3 py-2 text-slate-100 font-medium">${it.sparepart || ''}</td>
+        <td class="px-3 py-2 text-center text-slate-300">${it.tgl || '<span class="text-slate-600">—</span>'}</td>
+        <td class="px-3 py-2 text-right text-slate-300">${hgpSaldo(it)}</td>
+        <td class="px-3 py-2 text-right text-slate-100 font-semibold">${hgpN(it.fisik)}</td>
+        <td class="px-3 py-2 text-right">
+            <input type="number" min="0" data-hgp-i="${i}" data-hgp-f="wo"
+                value="${wo || ''}" placeholder="0"
+                class="hgp-inp w-16 rounded border border-amber-700/50 bg-amber-900/20 px-2 py-1 text-xs text-amber-300 text-right focus:border-amber-500 focus:outline-none">
+        </td>
+        <td class="px-3 py-2 text-right text-slate-300">${hgpN(it.akhir)}</td>
+        <td class="px-3 py-2 text-right ${selClass}">${selSign}${selisih}</td>
+        <td class="px-3 py-2 text-right text-slate-300">${harga > 0 ? harga.toLocaleString('id-ID') : '<span class="text-slate-600">—</span>'}</td>
+        <td class="px-3 py-2 text-right ${jumlahClass}">${jumlahFmt}</td>
+        <td class="px-3 py-2">
+            <input type="text" data-hgp-i="${i}" data-hgp-f="keterangan"
+                value="${it.keterangan || ''}"
+                placeholder="Keterangan..."
+                class="hgp-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
+        </td>
+        <td class="px-3 py-2 text-xs">
+            <div class="flex flex-col gap-0.5 text-slate-400">
+                <span>Fisik Terscan : <span class="text-green-400 font-semibold">${scan}</span></span>
+                <span>Saldo Akhir : <span class="text-slate-300">${hgpSaldo(it)}</span></span>
+                <span>Selisih Scan : <span class="${selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300'} font-semibold">${selSign}${selisih}</span></span>
+            </div>
+        </td>
+    </tr>`;
+}
 
-    // Input change — keterangan (text) dan wo (number → recalc in-place)
-    tbody.querySelectorAll('.hgp-inp').forEach(inp => {
+// Pasang listener input/blur utk kolom yang bisa diedit (wo, keterangan) pada
+// 1 baris <tr>. Dipanggil baik saat render penuh maupun update 1 baris.
+function hgpAttachRowListeners(tr) {
+    tr.querySelectorAll('.hgp-inp').forEach(inp => {
         inp.addEventListener('input', () => {
             const i = parseInt(inp.dataset.hgpI);
             const f = inp.dataset.hgpF;
@@ -4118,7 +4121,36 @@ function hgpRenderItems() {
         });
         inp.addEventListener('blur', () => { _doSaveHgp().catch(() => {}); });
     });
+}
 
+function hgpRenderItems() {
+    const tbody = document.getElementById('hgpTableBody');
+    if (!tbody) return;
+    const items = _hgpData?.items || [];
+    if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
+        hgpUpdateStats();
+        return;
+    }
+    tbody.innerHTML = items.map((it, i) => hgpRowHtml(it, i)).join('');
+    hgpAttachRowListeners(tbody);
+    hgpUpdateStats();
+}
+
+// Update 1 baris saja di tabel (dipakai setelah scan barcode) — jauh lebih
+// ringan daripada render ulang seluruh tabel tiap kali scan, terutama kalau
+// data onhand-nya ratusan/ribuan baris.
+function hgpUpdateSingleRow(idx) {
+    const tbody = document.getElementById('hgpTableBody');
+    if (!tbody) return;
+    const row = tbody.querySelector(`tr[data-hgp-row="${idx}"]`);
+    const it  = _hgpData.items[idx];
+    if (!row || !it) { hgpRenderItems(); return; }
+    const tmp = document.createElement('tbody');
+    tmp.innerHTML = hgpRowHtml(it, idx);
+    const newRow = tmp.firstElementChild;
+    hgpAttachRowListeners(newRow);
+    row.replaceWith(newRow);
     hgpUpdateStats();
 }
 
@@ -4268,6 +4300,26 @@ function hgpFormSelectPart(code) {
     hgpFormRecalc();
 }
 
+// Simpan ke server di-debounce: scan barcode berturut-turut (device scanner bisa
+// beberapa kali per detik) tidak perlu masing-masing menunggu round-trip network +
+// tulis ulang seluruh items_json ke DB — cukup simpan sekali setelah scan berhenti
+// sejenak. _flushHgpSaveDebounced() dipanggil sebelum pindah tab / tutup halaman
+// supaya scan terakhir tidak hilang.
+let _hgpSaveDebounceTimer = null;
+function _doSaveHgpDebounced(delay = 700) {
+    clearTimeout(_hgpSaveDebounceTimer);
+    _hgpSaveDebounceTimer = setTimeout(() => {
+        _hgpSaveDebounceTimer = null;
+        _doSaveHgp().catch(() => {});
+    }, delay);
+}
+function _flushHgpSaveDebounced() {
+    if (!_hgpSaveDebounceTimer) return;
+    clearTimeout(_hgpSaveDebounceTimer);
+    _hgpSaveDebounceTimer = null;
+    _doSaveHgp().catch(() => {});
+}
+
 // Scan barcode: akumulasi fisik +1 setiap scan kode yang sama, tiap scan tercatat di log.
 // Setelah scan, form dikosongkan total agar siap scan berikutnya.
 let _hgpScanGuard = false;
@@ -4296,8 +4348,8 @@ function hgpScanAccumulate(code) {
     it.tgl = document.getElementById('hgpFormTgl')?.value || it.tgl;
     hgpCalcItem(it);
 
-    hgpRenderItems();
-    _doSaveHgp().catch(() => {});
+    hgpUpdateSingleRow(idx);
+    _doSaveHgpDebounced();
 
     // Pesan hasil scan, lalu kosongkan form untuk scan berikutnya
     showMsg(`✓ ${it.noPart || it.sparepart} — ${it.sparepart} | Fisik: ${hgpN(it.fisik)} | Akhir: ${it.akhir} | Selisih: ${it.selisih >= 0 ? '+' : ''}${it.selisih} (Terscan: ${it.logScan.length})`, true);
@@ -4393,6 +4445,8 @@ async function saveHgp() {
 function initHgpForm() {
     const fileInput = document.getElementById('hgpFileInput');
     const dropzone  = document.getElementById('hgpDropzone');
+
+    window.addEventListener('beforeunload', () => _flushHgpSaveDebounced());
 
     fileInput?.addEventListener('change', () => {
         if (fileInput.files[0]) hgpHandleFile(fileInput.files[0]);
