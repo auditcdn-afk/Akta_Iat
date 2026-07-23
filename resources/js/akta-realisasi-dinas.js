@@ -67,11 +67,15 @@ const BULAN_LABEL = [
     "Juli", "Agustus", "September", "Oktober", "November", "Desember",
 ];
 
+const PERSONIL_DATALIST_MAX = 30;
+
 let currentUser = null;
 let listItems = [];
 let personilChips = [];
 let currentDetail = null; // header realisasi dinas yang sedang dibuka
 let currentPlanId = null;
+let jenisPengeluaranOptionsMaster = [];
+let rawPersonilOptions = [];
 
 // ── Personil chip picker (dipakai di panel detail) ──
 
@@ -120,17 +124,29 @@ async function addPersonilFromInput() {
 
 // ── Load reference data ──
 
-async function loadPersonilOptions() {
+// Native <datalist> dengan ratusan opsi bisa bikin input lag (sama seperti
+// bug Qty HGP/HGA sebelumnya) — jadi kita filter & batasi sendiri lewat JS
+// setiap kali user mengetik, bukan render semua opsi sekaligus.
+function personilPopulateDatalist(filterTerm = "") {
     const el = document.getElementById("rdPersonilOptions");
     if (!el) return;
+    const term = filterTerm.trim().toLowerCase();
+    const filtered = term
+        ? rawPersonilOptions.filter((nama) => nama.toLowerCase().includes(term))
+        : rawPersonilOptions;
+    el.innerHTML = filtered.slice(0, PERSONIL_DATALIST_MAX)
+        .map((nama) => `<option value="${escapeHtml(nama)}"></option>`)
+        .join("");
+}
+
+async function loadPersonilOptions() {
     try {
         const result = await fetchJson("/api/plan-users", { headers: authHeaders() });
         const options = result.data || [];
-        el.innerHTML = options
+        rawPersonilOptions = options
             .map((u) => u.displayName || u.name || u.username)
-            .filter(Boolean)
-            .map((nama) => `<option value="${escapeHtml(nama)}"></option>`)
-            .join("");
+            .filter(Boolean);
+        personilPopulateDatalist();
     } catch {
         // Datalist opsional — abaikan jika gagal
     }
@@ -151,16 +167,37 @@ async function loadPlanOptions() {
 }
 
 function populateJenisPengeluaranSelects(options) {
-    const itemSelect = document.getElementById("rdItemJenis");
+    if (options?.length) jenisPengeluaranOptionsMaster = options;
+
     const filterSelect = document.getElementById("rdFilterJenis");
-    if (itemSelect && !itemSelect.dataset.populated) {
-        itemSelect.innerHTML = options.map((j) => `<option value="${escapeHtml(j)}">${escapeHtml(j)}</option>`).join("");
-        itemSelect.dataset.populated = "1";
-    }
-    if (filterSelect && !filterSelect.dataset.populated) {
+    if (filterSelect && !filterSelect.dataset.populated && jenisPengeluaranOptionsMaster.length) {
         filterSelect.innerHTML = '<option value="">Semua Jenis Pengeluaran</option>' +
-            options.map((j) => `<option value="${escapeHtml(j)}">${escapeHtml(j)}</option>`).join("");
+            jenisPengeluaranOptionsMaster.map((j) => `<option value="${escapeHtml(j)}">${escapeHtml(j)}</option>`).join("");
         filterSelect.dataset.populated = "1";
+    }
+
+    updateItemJenisSelect();
+}
+
+// Jenis pengeluaran yang sudah dipakai di plan ini tidak boleh dipilih lagi
+// sampai item lamanya dihapus — mencegah duplikat kategori dalam satu plan.
+function updateItemJenisSelect() {
+    const itemSelect = document.getElementById("rdItemJenis");
+    const addBtn = document.getElementById("rdItemAddBtn");
+    if (!itemSelect || !jenisPengeluaranOptionsMaster.length) return;
+
+    const used = new Set((currentDetail?.items || []).map((it) => it.jenisPengeluaran));
+    const available = jenisPengeluaranOptionsMaster.filter((j) => !used.has(j));
+    const previousValue = itemSelect.value;
+
+    itemSelect.innerHTML = available.map((j) => `<option value="${escapeHtml(j)}">${escapeHtml(j)}</option>`).join("");
+    if (available.includes(previousValue)) itemSelect.value = previousValue;
+
+    const habis = available.length === 0;
+    itemSelect.disabled = habis;
+    if (addBtn) {
+        addBtn.disabled = habis;
+        addBtn.textContent = habis ? "Semua jenis sudah ditambahkan" : "+ Tambah Item";
     }
 }
 
@@ -206,6 +243,7 @@ function renderItemsTable() {
     }
 
     document.getElementById("rdItemsTotal").textContent = formatRupiah(currentDetail?.totalNominal || 0);
+    updateItemJenisSelect();
 }
 
 function renderDetail() {
@@ -305,6 +343,7 @@ async function addItem() {
         document.getElementById("rdItemNominal").value = "0";
         renderItemsTable();
         showAlert(result.message || "Item berhasil ditambahkan.");
+        await loadListing();
     } catch (err) {
         showAlert(err.message || "Gagal menambahkan item.", "error");
     }
@@ -320,6 +359,7 @@ async function deleteItem(itemId) {
         currentDetail = result.data;
         renderItemsTable();
         showAlert(result.message || "Item berhasil dihapus.");
+        await loadListing();
     } catch (err) {
         showAlert(err.message || "Gagal menghapus item.", "error");
     }
@@ -453,6 +493,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             e.preventDefault();
             addPersonilFromInput();
         }
+    });
+    document.getElementById("rdPersonilInput")?.addEventListener("input", (e) => {
+        personilPopulateDatalist(e.target.value);
     });
     document.getElementById("rdItemNominalPlus")?.addEventListener("click", () => {
         const el = document.getElementById("rdItemNominal");

@@ -176,6 +176,13 @@ class RealisasiDinasController extends Controller
             'nominal' => ['required', 'numeric', 'min:0'],
         ]);
 
+        // Satu jenis pengeluaran cuma boleh ada sekali per plan — kalau mau
+        // ubah nominalnya, hapus dulu item lama baru tambah yang baru.
+        $alreadyExists = $realisasiDinas->items()
+            ->where('jenis_pengeluaran', $data['jenis_pengeluaran'])
+            ->exists();
+        abort_if($alreadyExists, 422, "Jenis pengeluaran \"{$data['jenis_pengeluaran']}\" sudah ada di plan ini. Hapus item lama dulu kalau mau menggantinya.");
+
         $realisasiDinas->items()->create($data);
 
         return response()->json([
