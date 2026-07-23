@@ -1,5 +1,5 @@
 const SESSION_KEY = "akta_session";
-const CREATE_ROLES = ["admin", "manajer", "auditor", "koordinator"];
+const EDIT_ROLES = ["admin", "manajer", "auditor", "koordinator"];
 
 function getSession() {
     try {
@@ -68,36 +68,54 @@ const BULAN_LABEL = [
 ];
 
 let currentUser = null;
-let rdItems = [];
+let listItems = [];
 let personilChips = [];
-let preselectPlanId = null;
+let currentDetail = null; // header realisasi dinas yang sedang dibuka
+let currentPlanId = null;
 
-// ── Personil chip picker ──
+// ── Personil chip picker (dipakai di panel detail) ──
 
 function renderPersonilChips() {
     const el = document.getElementById("rdPersonilChips");
     if (!el) return;
+    const locked = !!currentDetail?.isLocked;
     el.innerHTML = personilChips.map((nama, idx) => `
         <span class="inline-flex items-center gap-1.5 rounded-full border border-blue-500/40 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-300">
             ${escapeHtml(nama)}
-            <button type="button" data-idx="${idx}" class="rdChipRemove text-blue-400 hover:text-blue-200">✕</button>
+            ${locked ? "" : `<button type="button" data-idx="${idx}" class="rdChipRemove text-blue-400 hover:text-blue-200">✕</button>`}
         </span>
     `).join("");
     el.querySelectorAll(".rdChipRemove").forEach((btn) => {
-        btn.addEventListener("click", () => {
+        btn.addEventListener("click", async () => {
             personilChips.splice(Number(btn.dataset.idx), 1);
             renderPersonilChips();
+            await savePersonil();
         });
     });
 }
 
-function addPersonilFromInput() {
+async function savePersonil() {
+    if (!currentDetail) return;
+    try {
+        const result = await fetchJson(`/api/realisasi-dinas/${currentDetail.id}/personil`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({ personil: personilChips }),
+        });
+        currentDetail = result.data;
+    } catch (err) {
+        showAlert(err.message || "Gagal menyimpan personil.", "error");
+    }
+}
+
+async function addPersonilFromInput() {
     const input = document.getElementById("rdPersonilInput");
     const nama = (input?.value || "").trim();
     if (!nama) return;
     if (!personilChips.includes(nama)) personilChips.push(nama);
     if (input) input.value = "";
     renderPersonilChips();
+    await savePersonil();
 }
 
 // ── Load reference data ──
@@ -127,20 +145,17 @@ async function loadPlanOptions() {
         select.innerHTML = '<option value="">Pilih plan audit...</option>' + options.map((p) => `
             <option value="${p.id}">${escapeHtml(p.cabang)} — ${escapeHtml(p.noSpt || "")} (${escapeHtml(formatTanggal(p.tglSelesai))})</option>
         `).join("");
-        if (preselectPlanId && options.some((p) => String(p.id) === String(preselectPlanId))) {
-            select.value = String(preselectPlanId);
-        }
     } catch (err) {
         showAlert(err.message || "Gagal memuat daftar plan audit.", "error");
     }
 }
 
 function populateJenisPengeluaranSelects(options) {
-    const formSelect = document.getElementById("rdJenisPengeluaran");
+    const itemSelect = document.getElementById("rdItemJenis");
     const filterSelect = document.getElementById("rdFilterJenis");
-    if (formSelect && !formSelect.dataset.populated) {
-        formSelect.innerHTML = options.map((j) => `<option value="${escapeHtml(j)}">${escapeHtml(j)}</option>`).join("");
-        formSelect.dataset.populated = "1";
+    if (itemSelect && !itemSelect.dataset.populated) {
+        itemSelect.innerHTML = options.map((j) => `<option value="${escapeHtml(j)}">${escapeHtml(j)}</option>`).join("");
+        itemSelect.dataset.populated = "1";
     }
     if (filterSelect && !filterSelect.dataset.populated) {
         filterSelect.innerHTML = '<option value="">Semua Jenis Pengeluaran</option>' +
@@ -157,55 +172,234 @@ function populateBulanFilter() {
     el.dataset.populated = "1";
 }
 
-// ── Table ──
+// ── Panel detail (satu plan yang dikunci) ──
 
-function renderTable() {
+function setEditingDisabled(disabled) {
+    document.getElementById("rdPersonilInput").disabled = disabled;
+    document.getElementById("rdPersonilAddBtn").disabled = disabled;
+    document.getElementById("rdFileInput").disabled = disabled;
+    document.getElementById("rdItemFormWrap").classList.toggle("opacity-50", disabled);
+    document.getElementById("rdItemFormWrap").classList.toggle("pointer-events-none", disabled);
+}
+
+function renderItemsTable() {
+    const tbody = document.getElementById("rdItemsTableBody");
+    const items = currentDetail?.items || [];
+    const locked = !!currentDetail?.isLocked;
+
+    if (!items.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="px-3 py-6 text-center text-sm text-slate-500">Belum ada item pengeluaran.</td></tr>';
+    } else {
+        tbody.innerHTML = items.map((it) => `
+            <tr>
+                <td class="px-3 py-2">${escapeHtml(it.jenisPengeluaran)}</td>
+                <td class="px-3 py-2 text-slate-400">${escapeHtml(it.catatan || "-")}</td>
+                <td class="px-3 py-2 text-right font-semibold">${formatRupiah(it.nominal)}</td>
+                <td class="px-3 py-2 text-right">
+                    ${locked ? '<span class="text-slate-600">-</span>' : `<button data-id="${it.id}" class="rdItemDeleteBtn rounded-lg border border-red-500/40 px-2.5 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/10 transition">Hapus</button>`}
+                </td>
+            </tr>
+        `).join("");
+        tbody.querySelectorAll(".rdItemDeleteBtn").forEach((btn) => {
+            btn.addEventListener("click", () => deleteItem(btn.dataset.id));
+        });
+    }
+
+    document.getElementById("rdItemsTotal").textContent = formatRupiah(currentDetail?.totalNominal || 0);
+}
+
+function renderDetail() {
+    if (!currentDetail) return;
+    const locked = currentDetail.isLocked;
+
+    document.getElementById("rdDetailPlanLabel").textContent = currentDetail.cabang || "-";
+    document.getElementById("rdDetailNoSpt").textContent = currentDetail.noSpt || "-";
+
+    const badge = document.getElementById("rdStatusBadge");
+    if (locked) {
+        badge.textContent = "🔒 Selesai (Dikunci)";
+        badge.className = "inline-flex rounded-full border px-3 py-1 text-xs font-bold border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
+    } else {
+        badge.textContent = "📝 Draft";
+        badge.className = "inline-flex rounded-full border px-3 py-1 text-xs font-bold border-amber-500/40 bg-amber-500/10 text-amber-300";
+    }
+
+    const noticeEl = document.getElementById("rdLockedNotice");
+    if (locked) {
+        noticeEl.textContent = `Realisasi Dinas ini sudah dikunci oleh ${currentDetail.lockedBy || "-"} pada ${formatTanggal(currentDetail.lockedAt)}. Tidak bisa diubah lagi kecuali admin membuka kunci.`;
+        noticeEl.classList.remove("hidden");
+    } else {
+        noticeEl.classList.add("hidden");
+    }
+
+    document.getElementById("rdSelesaiBtn").classList.toggle("hidden", locked || !EDIT_ROLES.includes(currentUser?.role));
+    document.getElementById("rdBukaKunciBtn").classList.toggle("hidden", !locked || currentUser?.role !== "admin");
+
+    personilChips = [...(currentDetail.personil || [])];
+    renderPersonilChips();
+
+    const buktiWrap = document.getElementById("rdBuktiExisting");
+    const buktiLink = document.getElementById("rdBuktiExistingLink");
+    if (currentDetail.buktiFile?.url) {
+        buktiLink.href = currentDetail.buktiFile.url;
+        buktiWrap.classList.remove("hidden");
+    } else {
+        buktiWrap.classList.add("hidden");
+    }
+
+    setEditingDisabled(locked);
+    renderItemsTable();
+}
+
+async function loadDetailForPlan(planId) {
+    try {
+        const result = await fetchJson(`/api/realisasi-dinas/plan/${planId}`, { headers: authHeaders() });
+        currentDetail = result.data;
+        populateJenisPengeluaranSelects(result.jenisPengeluaranOptions || []);
+        document.getElementById("rdPlanPickerCard")?.classList.add("hidden");
+        document.getElementById("rdDetailCard")?.classList.remove("hidden");
+        renderDetail();
+    } catch (err) {
+        showAlert(err.message || "Gagal memuat realisasi dinas untuk plan ini.", "error");
+    }
+}
+
+async function handleFileChange() {
+    const fileInput = document.getElementById("rdFileInput");
+    const fileName = document.getElementById("rdFileName");
+    if (!fileInput || !fileName || !currentDetail) return;
+    const file = fileInput.files?.[0];
+    fileName.textContent = file?.name || "Belum ada file";
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+        const result = await fetchJson(`/api/realisasi-dinas/${currentDetail.id}/bukti`, {
+            method: "POST",
+            headers: authHeaders(),
+            body: formData,
+        });
+        currentDetail = result.data;
+        showAlert(result.message || "Bukti berhasil diunggah.");
+        renderDetail();
+    } catch (err) {
+        showAlert(err.message || "Gagal mengunggah bukti.", "error");
+    }
+}
+
+async function addItem() {
+    if (!currentDetail) return;
+    const jenis = document.getElementById("rdItemJenis")?.value;
+    const catatan = document.getElementById("rdItemCatatan")?.value || "";
+    const nominal = document.getElementById("rdItemNominal")?.value || "0";
+
+    try {
+        const result = await fetchJson(`/api/realisasi-dinas/${currentDetail.id}/items`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({ jenis_pengeluaran: jenis, catatan, nominal }),
+        });
+        currentDetail = result.data;
+        document.getElementById("rdItemCatatan").value = "";
+        document.getElementById("rdItemNominal").value = "0";
+        renderItemsTable();
+        showAlert(result.message || "Item berhasil ditambahkan.");
+    } catch (err) {
+        showAlert(err.message || "Gagal menambahkan item.", "error");
+    }
+}
+
+async function deleteItem(itemId) {
+    if (!window.confirm("Hapus item pengeluaran ini?")) return;
+    try {
+        const result = await fetchJson(`/api/realisasi-dinas/items/${itemId}`, {
+            method: "DELETE",
+            headers: authHeaders(),
+        });
+        currentDetail = result.data;
+        renderItemsTable();
+        showAlert(result.message || "Item berhasil dihapus.");
+    } catch (err) {
+        showAlert(err.message || "Gagal menghapus item.", "error");
+    }
+}
+
+async function markSelesai() {
+    if (!currentDetail) return;
+    if (!window.confirm("Kunci Realisasi Dinas ini? Setelah dikunci, tidak bisa diubah lagi kecuali dibuka oleh admin.")) return;
+    try {
+        const result = await fetchJson(`/api/realisasi-dinas/${currentDetail.id}/selesai`, {
+            method: "POST",
+            headers: authHeaders(),
+        });
+        currentDetail = result.data;
+        showAlert(result.message || "Realisasi Dinas berhasil dikunci.");
+        renderDetail();
+        await loadListing();
+    } catch (err) {
+        showAlert(err.message || "Gagal mengunci realisasi dinas.", "error");
+    }
+}
+
+async function bukaKunci() {
+    if (!currentDetail) return;
+    if (!window.confirm("Buka kunci Realisasi Dinas ini?")) return;
+    try {
+        const result = await fetchJson(`/api/realisasi-dinas/${currentDetail.id}/buka-kunci`, {
+            method: "POST",
+            headers: authHeaders(),
+        });
+        currentDetail = result.data;
+        showAlert(result.message || "Realisasi Dinas berhasil dibuka kembali.");
+        renderDetail();
+        await loadListing();
+    } catch (err) {
+        showAlert(err.message || "Gagal membuka kunci.", "error");
+    }
+}
+
+// ── Listing / analisa (semua plan) ──
+
+function renderListing() {
     const tbody = document.getElementById("rdTableBody");
     if (!tbody) return;
 
-    if (!rdItems.length) {
+    if (!listItems.length) {
         tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-sm text-slate-500">Belum ada data realisasi dinas.</td></tr>';
         return;
     }
 
-    tbody.innerHTML = rdItems.map((item, idx) => {
-        const buktiLink = item.buktiFile?.url
-            ? `<a href="${escapeHtml(item.buktiFile.url)}" target="_blank" rel="noopener" class="text-blue-400 hover:underline">Lihat</a>`
-            : '<span class="text-slate-500">-</span>';
-        const canDelete = currentUser?.role === "admin" || currentUser?.username === item.createdBy;
-        const deleteBtn = canDelete
-            ? `<button data-id="${item.id}" class="rdDeleteBtn rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10 transition">Hapus</button>`
-            : '<span class="text-slate-600">-</span>';
+    tbody.innerHTML = listItems.map((item, idx) => {
+        const statusBadge = item.isLocked
+            ? '<span class="inline-flex rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">Selesai</span>'
+            : '<span class="inline-flex rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-300">Draft</span>';
 
         return `
             <tr>
                 <td class="px-4 py-3">${idx + 1}</td>
                 <td class="px-4 py-3">${escapeHtml(item.cabang || "-")}<br><span class="text-xs text-slate-500">${escapeHtml(item.noSpt || "")}</span></td>
-                <td class="px-4 py-3">${escapeHtml(formatTanggal(item.tanggalSettlement))}</td>
+                <td class="px-4 py-3">${escapeHtml(formatTanggal(item.createdAt))}</td>
                 <td class="px-4 py-3">${(item.personil || []).map(escapeHtml).join(", ") || "-"}</td>
-                <td class="px-4 py-3">${escapeHtml(item.jenisPengeluaran)}${item.catatan ? `<div class="mt-1 text-xs italic text-slate-500">"${escapeHtml(item.catatan)}"</div>` : ""}</td>
-                <td class="px-4 py-3 text-right font-semibold">${formatRupiah(item.nominal)}</td>
-                <td class="px-4 py-3 text-center">${buktiLink}</td>
-                <td class="px-4 py-3 text-right">${deleteBtn}</td>
+                <td class="px-4 py-3 text-center">${item.items?.length || 0}</td>
+                <td class="px-4 py-3 text-right font-semibold">${formatRupiah(item.totalNominal)}</td>
+                <td class="px-4 py-3 text-center">${statusBadge}</td>
+                <td class="px-4 py-3 text-right">
+                    <a href="/akta/realisasi-dinas?plan_id=${item.planAuditId}" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition">Buka</a>
+                </td>
             </tr>`;
     }).join("");
-
-    tbody.querySelectorAll(".rdDeleteBtn").forEach((btn) => {
-        btn.addEventListener("click", () => deleteItem(btn.dataset.id));
-    });
 }
 
-function updateStatCards(stats) {
-    const setText = (id, value) => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = value;
-    };
-    setText("rdStatTotal", formatRupiah(stats.totalNominal));
-    setText("rdStatCount", (stats.jumlahEntri ?? rdItems.length).toLocaleString("id-ID"));
-    setText("rdStatPlan", (stats.jumlahPlan ?? new Set(rdItems.map((r) => r.planAuditId)).size).toLocaleString("id-ID"));
+function updateStatCards() {
+    const total = listItems.reduce((sum, r) => sum + (Number(r.totalNominal) || 0), 0);
+    const selesaiCount = listItems.filter((r) => r.isLocked).length;
+    document.getElementById("rdStatTotal").textContent = formatRupiah(total);
+    document.getElementById("rdStatSelesai").textContent = selesaiCount.toLocaleString("id-ID");
+    document.getElementById("rdStatPlan").textContent = listItems.length.toLocaleString("id-ID");
 }
 
-async function loadData() {
+async function loadListing() {
     const params = new URLSearchParams();
     const jenis = document.getElementById("rdFilterJenis")?.value;
     const tahun = document.getElementById("rdFilterTahun")?.value;
@@ -216,95 +410,12 @@ async function loadData() {
 
     try {
         const result = await fetchJson(`/api/realisasi-dinas?${params.toString()}`, { headers: authHeaders() });
-        rdItems = result.data || [];
+        listItems = result.data || [];
         populateJenisPengeluaranSelects(result.jenisPengeluaranOptions || []);
-        renderTable();
-        const total = rdItems.reduce((sum, r) => sum + (Number(r.nominal) || 0), 0);
-        updateStatCards({ totalNominal: total, jumlahEntri: rdItems.length });
+        renderListing();
+        updateStatCards();
     } catch (err) {
         showAlert(err.message || "Gagal memuat data realisasi dinas.", "error");
-    }
-}
-
-// ── Form ──
-
-function handleFileChange() {
-    const fileInput = document.getElementById("rdFileInput");
-    const fileName = document.getElementById("rdFileName");
-    if (!fileInput || !fileName) return;
-    fileName.textContent = fileInput.files?.[0]?.name || "Belum ada file";
-}
-
-function resetForm() {
-    document.getElementById("rdForm")?.reset();
-    document.getElementById("rdFileName").textContent = "Belum ada file";
-    document.getElementById("rdNominal").value = "0";
-    personilChips = [];
-    renderPersonilChips();
-}
-
-async function handleSubmit(e) {
-    e.preventDefault();
-    const saveBtn = document.getElementById("rdSaveBtn");
-    const planId = document.getElementById("rdPlanSelect")?.value;
-    const tanggal = document.getElementById("rdTanggal")?.value;
-    const jenis = document.getElementById("rdJenisPengeluaran")?.value;
-    const catatan = document.getElementById("rdCatatan")?.value || "";
-    const nominal = document.getElementById("rdNominal")?.value || "0";
-    const fileInput = document.getElementById("rdFileInput");
-
-    if (!planId) {
-        showAlert("Pilih plan audit terlebih dahulu.", "error");
-        return;
-    }
-    if (!personilChips.length) {
-        showAlert("Tambahkan minimal satu personil.", "error");
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append("plan_audit_id", planId);
-    formData.append("tanggal_settlement", tanggal);
-    personilChips.forEach((nama) => formData.append("personil[]", nama));
-    formData.append("jenis_pengeluaran", jenis);
-    formData.append("catatan", catatan);
-    formData.append("nominal", nominal);
-    if (fileInput?.files?.[0]) formData.append("file", fileInput.files[0]);
-
-    if (saveBtn) {
-        saveBtn.disabled = true;
-        saveBtn.textContent = "Menyimpan...";
-    }
-    try {
-        const result = await fetchJson("/api/realisasi-dinas", {
-            method: "POST",
-            headers: authHeaders(),
-            body: formData,
-        });
-        showAlert(result.message || "Realisasi Dinas berhasil disimpan.");
-        resetForm();
-        await loadData();
-    } catch (err) {
-        showAlert(err.message || "Gagal menyimpan realisasi dinas.", "error");
-    } finally {
-        if (saveBtn) {
-            saveBtn.disabled = false;
-            saveBtn.textContent = "💾 Simpan Realisasi Dinas";
-        }
-    }
-}
-
-async function deleteItem(id) {
-    if (!window.confirm("Hapus data realisasi dinas ini?")) return;
-    try {
-        const result = await fetchJson(`/api/realisasi-dinas/${id}`, {
-            method: "DELETE",
-            headers: authHeaders(),
-        });
-        showAlert(result.message || "Data berhasil dihapus.");
-        await loadData();
-    } catch (err) {
-        showAlert(err.message || "Gagal menghapus data.", "error");
     }
 }
 
@@ -315,19 +426,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
     }
 
-    preselectPlanId = new URLSearchParams(window.location.search).get("plan_id");
-
-    if (CREATE_ROLES.includes(currentUser.role)) {
-        document.getElementById("rdFormCard")?.classList.remove("hidden");
-        await Promise.all([loadPlanOptions(), loadPersonilOptions()]);
-        if (preselectPlanId) {
-            document.getElementById("rdFormCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-    }
-
+    currentPlanId = new URLSearchParams(window.location.search).get("plan_id");
     populateBulanFilter();
 
-    document.getElementById("rdForm")?.addEventListener("submit", handleSubmit);
+    if (currentPlanId) {
+        await Promise.all([loadPersonilOptions(), loadDetailForPlan(currentPlanId)]);
+        document.getElementById("rdDetailCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (EDIT_ROLES.includes(currentUser.role)) {
+        document.getElementById("rdPlanPickerCard")?.classList.remove("hidden");
+        await loadPlanOptions();
+    }
+
+    document.getElementById("rdPlanStartBtn")?.addEventListener("click", () => {
+        const planId = document.getElementById("rdPlanSelect")?.value;
+        if (!planId) {
+            showAlert("Pilih plan audit terlebih dahulu.", "error");
+            return;
+        }
+        window.location.href = `/akta/realisasi-dinas?plan_id=${planId}`;
+    });
+
     document.getElementById("rdFileInput")?.addEventListener("change", handleFileChange);
     document.getElementById("rdPersonilAddBtn")?.addEventListener("click", addPersonilFromInput);
     document.getElementById("rdPersonilInput")?.addEventListener("keydown", (e) => {
@@ -336,21 +454,25 @@ document.addEventListener("DOMContentLoaded", async () => {
             addPersonilFromInput();
         }
     });
-    document.getElementById("rdNominalPlus")?.addEventListener("click", () => {
-        const el = document.getElementById("rdNominal");
+    document.getElementById("rdItemNominalPlus")?.addEventListener("click", () => {
+        const el = document.getElementById("rdItemNominal");
         el.value = (Number(el.value) || 0) + 1000;
     });
-    document.getElementById("rdNominalMinus")?.addEventListener("click", () => {
-        const el = document.getElementById("rdNominal");
+    document.getElementById("rdItemNominalMinus")?.addEventListener("click", () => {
+        const el = document.getElementById("rdItemNominal");
         el.value = Math.max(0, (Number(el.value) || 0) - 1000);
     });
-    document.getElementById("rdFilterApplyBtn")?.addEventListener("click", loadData);
+    document.getElementById("rdItemAddBtn")?.addEventListener("click", addItem);
+    document.getElementById("rdSelesaiBtn")?.addEventListener("click", markSelesai);
+    document.getElementById("rdBukaKunciBtn")?.addEventListener("click", bukaKunci);
+
+    document.getElementById("rdFilterApplyBtn")?.addEventListener("click", loadListing);
     document.getElementById("rdFilterResetBtn")?.addEventListener("click", () => {
         document.getElementById("rdFilterJenis").value = "";
         document.getElementById("rdFilterTahun").value = "";
         document.getElementById("rdFilterBulan").value = "";
-        loadData();
+        loadListing();
     });
 
-    await loadData();
+    await loadListing();
 });

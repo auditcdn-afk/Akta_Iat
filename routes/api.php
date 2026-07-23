@@ -304,13 +304,23 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,mrr');
     Route::delete('/mobil-dinas/{mobilDinasPengajuan}', [MobilDinasController::class, 'destroy']);
 
-    // ── Realisasi Dinas ──
+    // ── Realisasi Dinas ── (header dikunci per plan, item pengeluaran repeatable)
     Route::get('/realisasi-dinas', [RealisasiDinasController::class, 'index']);
     Route::get('/realisasi-dinas/plan-options', [RealisasiDinasController::class, 'planOptions']);
     Route::get('/realisasi-dinas/rekap', [RealisasiDinasController::class, 'rekap']);
-    Route::post('/realisasi-dinas', [RealisasiDinasController::class, 'store'])
+    Route::get('/realisasi-dinas/plan/{plan}', [RealisasiDinasController::class, 'showForPlan']);
+    Route::put('/realisasi-dinas/{realisasiDinas}/personil', [RealisasiDinasController::class, 'updatePersonil'])
         ->middleware('akta.role:admin,manajer,auditor,koordinator');
-    Route::delete('/realisasi-dinas/{realisasiDinas}', [RealisasiDinasController::class, 'destroy']);
+    Route::post('/realisasi-dinas/{realisasiDinas}/bukti', [RealisasiDinasController::class, 'uploadBukti'])
+        ->middleware('akta.role:admin,manajer,auditor,koordinator');
+    Route::post('/realisasi-dinas/{realisasiDinas}/items', [RealisasiDinasController::class, 'addItem'])
+        ->middleware('akta.role:admin,manajer,auditor,koordinator');
+    Route::delete('/realisasi-dinas/items/{realisasiDinasItem}', [RealisasiDinasController::class, 'deleteItem'])
+        ->middleware('akta.role:admin,manajer,auditor,koordinator');
+    Route::post('/realisasi-dinas/{realisasiDinas}/selesai', [RealisasiDinasController::class, 'selesai'])
+        ->middleware('akta.role:admin,manajer,auditor,koordinator');
+    Route::post('/realisasi-dinas/{realisasiDinas}/buka-kunci', [RealisasiDinasController::class, 'bukaKunci'])
+        ->middleware('akta.role:admin');
 
     // ── Grading (menu utama) ──
     Route::get('/gradings',         [GradingController::class, 'index']);

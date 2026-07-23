@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\PlanAudit;
 use App\Models\RealisasiDinas;
+use App\Models\RealisasiDinasItem;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -12,7 +13,7 @@ use Illuminate\Validation\Rule;
 
 class RealisasiDinasController extends Controller
 {
-    private const CREATE_ROLES = ['admin', 'manajer', 'auditor', 'koordinator'];
+    private const EDIT_ROLES = ['admin', 'manajer', 'auditor', 'koordinator'];
 
     public const JENIS_PENGELUARAN = [
         'Biaya Perobatan',
@@ -27,18 +28,37 @@ class RealisasiDinasController extends Controller
         'Lain-lain',
     ];
 
-    // ── GET /api/realisasi-dinas?plan_audit_id=&jenis_pengeluaran=&tahun=&bulan= ──
+    private function assertEditable(Request $request, RealisasiDinas $realisasiDinas): void
+    {
+        $user = $request->user();
+        abort_unless($user && in_array($user->role, self::EDIT_ROLES, true), 403, 'Anda tidak berwenang mengubah realisasi dinas.');
+        abort_if($realisasiDinas->isLocked(), 422, 'Realisasi Dinas ini sudah dikunci (selesai). Minta admin membuka kunci untuk mengubahnya.');
+    }
+
+    private function personilFromPlanTeam(PlanAudit $plan): array
+    {
+        return collect(array_merge([$plan->kepala_tim], $plan->tim ?? []))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    // ── GET /api/realisasi-dinas?jenis_pengeluaran=&tahun=&bulan=&cabang= ──
+    // Listing semua header untuk menu utama Realisasi Dinas.
 
     public function index(Request $request): JsonResponse
     {
         $rows = RealisasiDinas::query()
-            ->with('planAudit')
-            ->when($request->filled('plan_audit_id'), fn($q) => $q->where('plan_audit_id', $request->query('plan_audit_id')))
-            ->when($request->filled('jenis_pengeluaran'), fn($q) => $q->where('jenis_pengeluaran', $request->query('jenis_pengeluaran')))
-            ->when($request->filled('tahun'), fn($q) => $q->whereYear('tanggal_settlement', $request->query('tahun')))
-            ->when($request->filled('bulan'), fn($q) => $q->whereMonth('tanggal_settlement', $request->query('bulan')))
-            ->orderByDesc('tanggal_settlement')
-            ->orderByDesc('id')
+            ->with(['planAudit', 'items'])
+            ->when($request->filled('tahun'), fn($q) => $q->whereYear('created_at', $request->query('tahun')))
+            ->when($request->filled('bulan'), fn($q) => $q->whereMonth('created_at', $request->query('bulan')))
+            ->when($request->filled('cabang'), fn($q) => $q->whereHas('planAudit', fn($p) => $p->where('cabang', $request->query('cabang'))))
+            ->when($request->filled('jenis_pengeluaran'), function ($q) use ($request) {
+                $jenis = $request->query('jenis_pengeluaran');
+                $q->whereHas('items', fn($i) => $i->where('jenis_pengeluaran', $jenis));
+            })
+            ->orderByDesc('created_at')
             ->get();
 
         return response()->json([
@@ -47,12 +67,13 @@ class RealisasiDinasController extends Controller
         ]);
     }
 
-    // GET /api/realisasi-dinas/plan-options — plan yang sudah "done", untuk dropdown form.
+    // GET /api/realisasi-dinas/plan-options — plan "done" yang belum punya realisasi dinas.
 
     public function planOptions(Request $request): JsonResponse
     {
         $plans = PlanAudit::query()
             ->where('status', 'done')
+            ->doesntHave('realisasiDinas')
             ->orderByDesc('tgl_selesai')
             ->limit(200)
             ->get()
@@ -66,73 +87,162 @@ class RealisasiDinasController extends Controller
         return response()->json(['data' => $plans]);
     }
 
-    // ── POST /api/realisasi-dinas ─────────────────────────────────────────────
+    // ── GET /api/realisasi-dinas/plan/{plan} ─────────────────────────────────
+    // Ambil (atau buat baru) header realisasi dinas untuk satu plan — dikunci
+    // per plan ini, personil otomatis diisi dari tim/kepala tim plan tersebut.
 
-    public function store(Request $request): JsonResponse
+    public function showForPlan(Request $request, PlanAudit $plan): JsonResponse
     {
-        $user = $request->user();
-        abort_unless($user && in_array($user->role, self::CREATE_ROLES, true), 403, 'Anda tidak berwenang mencatat realisasi dinas.');
-
-        $data = $request->validate([
-            'plan_audit_id' => ['required', 'integer', 'exists:plan_audits,id'],
-            'tanggal_settlement' => ['required', 'date'],
-            'personil' => ['required', 'array', 'min:1'],
-            'personil.*' => ['string', 'max:150'],
-            'jenis_pengeluaran' => ['required', 'string', Rule::in(self::JENIS_PENGELUARAN)],
-            'catatan' => ['nullable', 'string', 'max:1000'],
-            'nominal' => ['required', 'numeric', 'min:0'],
-            'file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
-        ]);
-
-        $plan = PlanAudit::findOrFail($data['plan_audit_id']);
         abort_unless($plan->status === 'done', 422, 'Realisasi Dinas hanya bisa dicatat untuk plan yang sudah selesai (done).');
 
-        $buktiFile = null;
-        if ($request->hasFile('file')) {
-            $file = $request->file('file');
-            $path = $file->store('realisasi-dinas', 'public');
-            $buktiFile = [
+        $realisasi = RealisasiDinas::query()->where('plan_audit_id', $plan->id)->first();
+
+        if (!$realisasi) {
+            $user = $request->user();
+            abort_unless($user && in_array($user->role, self::EDIT_ROLES, true), 403, 'Anda tidak berwenang mencatat realisasi dinas.');
+
+            $realisasi = RealisasiDinas::create([
+                'plan_audit_id' => $plan->id,
+                'personil' => $this->personilFromPlanTeam($plan),
+                'status' => 'draft',
+                'created_by' => $user->username,
+            ]);
+        }
+
+        return response()->json([
+            'data' => $realisasi->load(['planAudit', 'items'])->toAktaArray(),
+            'jenisPengeluaranOptions' => self::JENIS_PENGELUARAN,
+        ]);
+    }
+
+    // ── PUT /api/realisasi-dinas/{realisasiDinas}/personil ───────────────────
+
+    public function updatePersonil(Request $request, RealisasiDinas $realisasiDinas): JsonResponse
+    {
+        $this->assertEditable($request, $realisasiDinas);
+
+        $data = $request->validate([
+            'personil' => ['required', 'array', 'min:1'],
+            'personil.*' => ['string', 'max:150'],
+        ]);
+
+        $realisasiDinas->update(['personil' => $data['personil']]);
+
+        return response()->json([
+            'message' => 'Personil berhasil diperbarui.',
+            'data' => $realisasiDinas->fresh(['planAudit', 'items'])->toAktaArray(),
+        ]);
+    }
+
+    // ── POST /api/realisasi-dinas/{realisasiDinas}/bukti ─────────────────────
+
+    public function uploadBukti(Request $request, RealisasiDinas $realisasiDinas): JsonResponse
+    {
+        $this->assertEditable($request, $realisasiDinas);
+
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+        ]);
+
+        if ($realisasiDinas->bukti_file['path'] ?? null) {
+            Storage::disk('public')->delete($realisasiDinas->bukti_file['path']);
+        }
+
+        $file = $request->file('file');
+        $path = $file->store('realisasi-dinas', 'public');
+        $realisasiDinas->update([
+            'bukti_file' => [
                 'name' => $file->getClientOriginalName(),
                 'path' => $path,
                 'url' => Storage::url($path),
-            ];
-        }
-
-        $realisasi = RealisasiDinas::create([
-            'plan_audit_id' => $data['plan_audit_id'],
-            'tanggal_settlement' => $data['tanggal_settlement'],
-            'personil' => $data['personil'],
-            'jenis_pengeluaran' => $data['jenis_pengeluaran'],
-            'catatan' => $data['catatan'] ?? null,
-            'nominal' => $data['nominal'],
-            'bukti_file' => $buktiFile,
-            'created_by' => $user->username,
+            ],
         ]);
 
         return response()->json([
-            'message' => 'Realisasi Dinas berhasil disimpan.',
-            'data' => $realisasi->fresh('planAudit')->toAktaArray(),
+            'message' => 'Bukti berhasil diunggah.',
+            'data' => $realisasiDinas->fresh(['planAudit', 'items'])->toAktaArray(),
+        ]);
+    }
+
+    // ── POST /api/realisasi-dinas/{realisasiDinas}/items ─────────────────────
+
+    public function addItem(Request $request, RealisasiDinas $realisasiDinas): JsonResponse
+    {
+        $this->assertEditable($request, $realisasiDinas);
+
+        $data = $request->validate([
+            'jenis_pengeluaran' => ['required', 'string', Rule::in(self::JENIS_PENGELUARAN)],
+            'catatan' => ['nullable', 'string', 'max:1000'],
+            'nominal' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $realisasiDinas->items()->create($data);
+
+        return response()->json([
+            'message' => 'Item pengeluaran berhasil ditambahkan.',
+            'data' => $realisasiDinas->fresh(['planAudit', 'items'])->toAktaArray(),
         ], 201);
     }
 
-    // ── DELETE /api/realisasi-dinas/{realisasiDinas} ─────────────────────────
+    // ── DELETE /api/realisasi-dinas/items/{realisasiDinasItem} ───────────────
 
-    public function destroy(Request $request, RealisasiDinas $realisasiDinas): JsonResponse
+    public function deleteItem(Request $request, RealisasiDinasItem $realisasiDinasItem): JsonResponse
+    {
+        $realisasiDinas = $realisasiDinasItem->realisasiDinas;
+        $this->assertEditable($request, $realisasiDinas);
+
+        $realisasiDinasItem->delete();
+
+        return response()->json([
+            'message' => 'Item pengeluaran berhasil dihapus.',
+            'data' => $realisasiDinas->fresh(['planAudit', 'items'])->toAktaArray(),
+        ]);
+    }
+
+    // ── POST /api/realisasi-dinas/{realisasiDinas}/selesai ───────────────────
+
+    public function selesai(Request $request, RealisasiDinas $realisasiDinas): JsonResponse
     {
         $user = $request->user();
-        abort_unless(
-            $user && ($user->role === 'admin' || $user->username === $realisasiDinas->created_by),
-            403,
-            'Anda tidak berwenang menghapus data ini.'
-        );
+        abort_unless($user && in_array($user->role, self::EDIT_ROLES, true), 403, 'Anda tidak berwenang mengunci realisasi dinas.');
+        abort_if($realisasiDinas->isLocked(), 422, 'Realisasi Dinas ini sudah dikunci sebelumnya.');
+        abort_if($realisasiDinas->items()->count() === 0, 422, 'Tambahkan minimal satu item pengeluaran sebelum menyelesaikan.');
 
-        $realisasiDinas->delete();
+        $realisasiDinas->update([
+            'status' => 'selesai',
+            'locked_at' => now(),
+            'locked_by' => $user->username,
+        ]);
 
-        return response()->json(['message' => 'Realisasi Dinas berhasil dihapus.']);
+        return response()->json([
+            'message' => 'Realisasi Dinas berhasil dikunci.',
+            'data' => $realisasiDinas->fresh(['planAudit', 'items'])->toAktaArray(),
+        ]);
+    }
+
+    // ── POST /api/realisasi-dinas/{realisasiDinas}/buka-kunci ────────────────
+    // Hanya admin yang boleh membuka kunci realisasi dinas yang sudah selesai.
+
+    public function bukaKunci(Request $request, RealisasiDinas $realisasiDinas): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user && $user->role === 'admin', 403, 'Hanya admin yang boleh membuka kunci realisasi dinas.');
+        abort_unless($realisasiDinas->isLocked(), 422, 'Realisasi Dinas ini belum dikunci.');
+
+        $realisasiDinas->update([
+            'status' => 'draft',
+            'locked_at' => null,
+            'locked_by' => null,
+        ]);
+
+        return response()->json([
+            'message' => 'Realisasi Dinas berhasil dibuka kembali.',
+            'data' => $realisasiDinas->fresh(['planAudit', 'items'])->toAktaArray(),
+        ]);
     }
 
     // ── GET /api/realisasi-dinas/rekap?tahun[]=&bulan[]=&jenis_pengeluaran[]=&cabang[]= ──
-    // Rekap untuk grafik dashboard: total per bulan, per jenis pengeluaran, per unit usaha.
+    // Rekap untuk grafik dashboard: total per bulan, per jenis pengeluaran, per unit usaha, per personil.
 
     public function rekap(Request $request): JsonResponse
     {
@@ -156,34 +266,52 @@ class RealisasiDinasController extends Controller
         $cabangList = collect(is_array($cabangInput) ? $cabangInput : array_filter([$cabangInput]))
             ->filter()->values();
 
-        $query = RealisasiDinas::query()->with('planAudit')->whereNotNull('tanggal_settlement');
+        $query = RealisasiDinas::query()->with(['planAudit', 'items']);
 
         if ($tahunList->isNotEmpty()) {
             $query->where(function ($q) use ($tahunList) {
                 foreach ($tahunList as $t) {
-                    $q->orWhereYear('tanggal_settlement', $t);
+                    $q->orWhereYear('created_at', $t);
                 }
             });
         }
         if ($bulanList->isNotEmpty()) {
             $query->where(function ($q) use ($bulanList) {
                 foreach ($bulanList as $b) {
-                    $q->orWhereMonth('tanggal_settlement', $b);
+                    $q->orWhereMonth('created_at', $b);
                 }
             });
-        }
-        if ($jenisList->isNotEmpty()) {
-            $query->whereIn('jenis_pengeluaran', $jenisList);
         }
         if ($cabangList->isNotEmpty()) {
             $query->whereHas('planAudit', fn($q) => $q->whereIn('cabang', $cabangList));
         }
+        if ($jenisList->isNotEmpty()) {
+            $query->whereHas('items', fn($q) => $q->whereIn('jenis_pengeluaran', $jenisList));
+        }
 
-        $rows = $query->get();
+        $headers = $query->get();
+
+        // Ratakan seluruh item dari header yang lolos filter, sekaligus bawa
+        // konteks header (bulan, cabang, personil) untuk agregasi per item.
+        $rows = collect();
+        foreach ($headers as $header) {
+            foreach ($header->items as $item) {
+                if ($jenisList->isNotEmpty() && !$jenisList->contains($item->jenis_pengeluaran)) {
+                    continue;
+                }
+                $rows->push([
+                    'bulan' => optional($header->created_at)->format('Y-m'),
+                    'tahun' => optional($header->created_at)->format('Y'),
+                    'cabang' => $header->planAudit?->cabang ?: '(Tanpa Unit)',
+                    'jenisPengeluaran' => $item->jenis_pengeluaran,
+                    'nominal' => (float) $item->nominal,
+                    'personil' => $header->personil ?? [],
+                ]);
+            }
+        }
 
         $tahunOptions = RealisasiDinas::query()
-            ->whereNotNull('tanggal_settlement')
-            ->pluck('tanggal_settlement')
+            ->pluck('created_at')
             ->map(fn($d) => (int) $d->format('Y'))
             ->unique()
             ->sortDesc()
@@ -201,7 +329,7 @@ class RealisasiDinasController extends Controller
             ->values();
 
         $byBulan = $rows
-            ->groupBy(fn($r) => optional($r->tanggal_settlement)->format('Y-m'))
+            ->groupBy('bulan')
             ->map(fn($group, $key) => [
                 'bulan' => $key,
                 'total' => (float) $group->sum('nominal'),
@@ -211,7 +339,7 @@ class RealisasiDinasController extends Controller
             ->values();
 
         $byJenis = $rows
-            ->groupBy(fn($r) => $r->jenis_pengeluaran ?: 'Lain-lain')
+            ->groupBy(fn($r) => $r['jenisPengeluaran'] ?: 'Lain-lain')
             ->map(fn($group, $key) => [
                 'jenisPengeluaran' => $key,
                 'total' => (float) $group->sum('nominal'),
@@ -221,7 +349,7 @@ class RealisasiDinasController extends Controller
             ->values();
 
         $byCabang = $rows
-            ->groupBy(fn($r) => $r->planAudit?->cabang ?: '(Tanpa Unit)')
+            ->groupBy('cabang')
             ->map(fn($group, $key) => [
                 'cabang' => $key,
                 'total' => (float) $group->sum('nominal'),
@@ -232,8 +360,8 @@ class RealisasiDinasController extends Controller
 
         $byPersonil = collect();
         foreach ($rows as $row) {
-            foreach (($row->personil ?? []) as $nama) {
-                $byPersonil->push(['nama' => $nama, 'nominal' => (float) $row->nominal]);
+            foreach (($row['personil'] ?? []) as $nama) {
+                $byPersonil->push(['nama' => $nama, 'nominal' => $row['nominal']]);
             }
         }
         $byPersonilAgg = $byPersonil
@@ -254,7 +382,7 @@ class RealisasiDinasController extends Controller
             'stats' => [
                 'totalNominal' => (float) $rows->sum('nominal'),
                 'jumlahEntri' => $rows->count(),
-                'jumlahPlan' => $rows->pluck('plan_audit_id')->unique()->count(),
+                'jumlahPlan' => $headers->pluck('plan_audit_id')->unique()->count(),
             ],
             'byBulan' => $byBulan,
             'byJenis' => $byJenis,
