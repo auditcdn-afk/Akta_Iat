@@ -709,7 +709,7 @@ async function smhScanUnit(q) {
             </div>
         </div>
 
-        <div class="rounded-xl border border-slate-700 bg-slate-800/50 p-4">
+        <div id="smhPlCard" class="rounded-xl border border-slate-700 bg-slate-800/50 p-4">
             ${smhPerlengkapanChecklist(perlengkapan, it.perlengkapanJson)}
         </div>
 
@@ -735,12 +735,13 @@ async function smhScanUnit(q) {
         });
     });
 
-    // Scroll ke hasil scan (form pemeriksaan + checklist perlengkapan) supaya
-    // auditor langsung bisa isi checklist tanpa geser layar manual — sebelumnya
-    // malah scroll ke baris di tabel "Daftar Unit On Hand", yang cuma referensi
-    // dan bukan tempat auditor kerja selanjutnya. Baris tabelnya tetap
-    // di-highlight (ring biru) sebagai penanda, tanpa memindah posisi scroll.
-    res.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Scroll LANGSUNG ke checklist Perlengkapan (bukan cuma ke atas kartu hasil
+    // scan) supaya auditor bisa langsung isi tanpa geser layar manual lagi — kalau
+    // discroll ke atas kartu saja, di layar HP/scanner genggam yang pendek, field
+    // tanggal/keterangan di atasnya bisa menghabiskan tinggi layar dan checklist-nya
+    // sendiri tetap ketutup harus discroll lagi. Baris tabel "Daftar Unit On Hand"
+    // tetap di-highlight (ring biru) sebagai penanda saja, tanpa memindah scroll ke situ.
+    (res.querySelector('#smhPlCard') || res).scrollIntoView({ behavior: 'smooth', block: 'start' });
     const row = document.querySelector(`#smhTableBody tr[data-item-id="${it.id}"]`);
     if (row) { row.classList.add('ring-2', 'ring-blue-400'); setTimeout(() => row.classList.remove('ring-2', 'ring-blue-400'), 2000); }
 }
