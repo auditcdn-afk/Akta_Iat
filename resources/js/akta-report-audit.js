@@ -181,6 +181,11 @@ function renderReportItems() {
                                     Penilaian
                                 </button>
                             ` : ""}
+                            ${canShowRealisasiDinasButton(plan) ? `
+                                <a href="/akta/realisasi-dinas?plan_id=${plan.id}" class="rounded-lg border border-violet-500/40 px-3 py-1.5 text-xs font-semibold text-violet-300 hover:bg-violet-500/10" data-plan-id="${plan.id}">
+                                    Realisasi Dinas
+                                </a>
+                            ` : ""}
                             ${canShowCrosscheckButton(plan) ? `
                                 <button type="button" class="open-crosscheck rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/10" data-plan-id="${plan.id}">
                                     ${plan.crosscheck ? "Ubah Crosscheck" : "Crosscheck"}
@@ -201,6 +206,11 @@ function renderReportItems() {
 // Tombol Penilaian hanya untuk koordinator/manajer, dan hanya saat plan sudah done.
 function canShowPenilaianButton(plan) {
     return ["koordinator", "manajer"].includes(currentUser?.role) && plan.status === "done";
+}
+
+// Tombol Realisasi Dinas: settlement biaya perjalanan dinas, hanya saat plan sudah done.
+function canShowRealisasiDinasButton(plan) {
+    return ["admin", "manajer", "auditor", "koordinator"].includes(currentUser?.role) && plan.status === "done";
 }
 
 const CROSSCHECK_LABEL = { ok: "OK", not_ok: "Not OK", selisih: "Selisih" };

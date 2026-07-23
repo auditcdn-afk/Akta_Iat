@@ -41,6 +41,7 @@ use App\Http\Controllers\Api\GradingController;
 use App\Http\Controllers\Api\BuPerformanceController;
 use App\Http\Controllers\Api\PulsaController;
 use App\Http\Controllers\Api\MobilDinasController;
+use App\Http\Controllers\Api\RealisasiDinasController;
 use App\Http\Controllers\Api\PinjamanCabangController;
 use Illuminate\Support\Facades\Route;
 
@@ -302,6 +303,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/mobil-dinas/{mobilDinasPengajuan}/complete', [MobilDinasController::class, 'complete'])
         ->middleware('akta.role:admin,mrr');
     Route::delete('/mobil-dinas/{mobilDinasPengajuan}', [MobilDinasController::class, 'destroy']);
+
+    // ── Realisasi Dinas ──
+    Route::get('/realisasi-dinas', [RealisasiDinasController::class, 'index']);
+    Route::get('/realisasi-dinas/plan-options', [RealisasiDinasController::class, 'planOptions']);
+    Route::get('/realisasi-dinas/rekap', [RealisasiDinasController::class, 'rekap']);
+    Route::post('/realisasi-dinas', [RealisasiDinasController::class, 'store'])
+        ->middleware('akta.role:admin,manajer,auditor,koordinator');
+    Route::delete('/realisasi-dinas/{realisasiDinas}', [RealisasiDinasController::class, 'destroy']);
 
     // ── Grading (menu utama) ──
     Route::get('/gradings',         [GradingController::class, 'index']);
