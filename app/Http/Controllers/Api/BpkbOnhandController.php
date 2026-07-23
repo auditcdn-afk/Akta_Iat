@@ -161,8 +161,19 @@ class BpkbOnhandController extends Controller
         $planId = $data['plan_audit_id'];
         $noBpkb = trim($data['no_bpkb']);
 
+        // No. BPKB di data import biasanya berformat "U-04886028", tapi hasil scan
+        // barcode fisiknya kadang tidak membawa tanda "-" ("U04886028") — kalau
+        // dicocokkan persis, unit yang sebenarnya sama jadi dianggap "di luar onhand".
+        // Bandingkan juga versi tanpa strip/spasi supaya tetap dikenali sebagai unit
+        // yang sama (sama seperti perbaikan No. Mesin/Rangka SMH & No. Part HGP/HGA).
+        $noBpkbNorm = strtoupper(preg_replace('/[\s\-]+/', '', $noBpkb));
+
         $item = BpkbOnhandItem::where('plan_audit_id', $planId)
-            ->where('no_bpkb', $noBpkb)->first();
+            ->where(function ($q) use ($noBpkb, $noBpkbNorm) {
+                $q->where('no_bpkb', $noBpkb)
+                  ->orWhereRaw("UPPER(REPLACE(REPLACE(no_bpkb, '-', ''), ' ', '')) = ?", [$noBpkbNorm]);
+            })
+            ->first();
 
         if ($item) {
             // Ada di onhand — tandai fisik ada

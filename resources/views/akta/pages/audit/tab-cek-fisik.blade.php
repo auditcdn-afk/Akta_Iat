@@ -74,6 +74,7 @@
                         + Tambah Baris
                     </button>
                 </div>
+                <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead><tr class="border-b border-slate-800 text-xs text-slate-400">
                         <th class="px-4 py-2 text-left w-36">Tanggal</th>
@@ -85,6 +86,7 @@
                     </tr></thead>
                     <tbody id="cfPenerimaanBody"></tbody>
                 </table>
+                </div>
             </div>
 
             {{-- Pengeluaran --}}
@@ -96,6 +98,7 @@
                         + Tambah Baris
                     </button>
                 </div>
+                <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead><tr class="border-b border-slate-800 text-xs text-slate-400">
                         <th class="px-4 py-2 text-left">No. Dokumen</th>
@@ -106,6 +109,7 @@
                     </tr></thead>
                     <tbody id="cfPengeluaranBody"></tbody>
                 </table>
+                </div>
             </div>
 
             {{-- Saldo Akhir / Fisik / Selisih --}}
@@ -113,6 +117,7 @@
                 <div class="border-b border-slate-700 bg-slate-800/60 px-5 py-2">
                     <span class="text-xs font-bold uppercase tracking-wide text-slate-200">📊 Saldo Akhir, Fisik &amp; Selisih</span>
                 </div>
+                <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead><tr class="border-b border-slate-800 text-xs text-slate-400">
                         <th class="px-4 py-2 text-left">Keterangan</th>
@@ -122,6 +127,7 @@
                     </tr></thead>
                     <tbody id="cfRingkasanBody"></tbody>
                 </table>
+                </div>
             </div>
 
         </div>

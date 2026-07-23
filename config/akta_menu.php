@@ -103,6 +103,14 @@ return [
             'admin_only' => false,
         ],
         [
+            'label' => 'Realisasi Dinas',
+            'route' => 'akta.realisasi-dinas',
+            'path' => '/akta/realisasi-dinas',
+            'code' => 'RD',
+            'admin_only' => false,
+            'roles' => ['admin', 'manajer', 'auditor', 'koordinator', 'coo'],
+        ],
+        [
             'label' => 'Pengguna',
             'route' => 'akta.pengguna',
             'path' => '/akta/pengguna',

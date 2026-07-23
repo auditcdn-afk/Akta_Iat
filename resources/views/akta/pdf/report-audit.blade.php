@@ -136,11 +136,11 @@ window.addEventListener('load', function() {
 <div class="section">
   <div class="section-title">1. PEMERIKSAAN KAS</div>
   <div class="section-body">
-    @if($kas->isEmpty())
+    @if(!$kas)
       <p class="empty">Belum ada data.</p>
     @else
-      @foreach($kas as $k)
       @php
+        $k = $kas;
         $d   = $k->detail_json ?? [];
         $kb  = $d['kas_besar'] ?? [];
         $kk  = $d['kas_kecil'] ?? [];
@@ -356,8 +356,6 @@ window.addEventListener('load', function() {
         </table>
       </div>
       @endif
-
-      @endforeach
     @endif
   </div>
 </div>
@@ -570,7 +568,7 @@ window.addEventListener('load', function() {
             $plJson = $item->perlengkapan_json ?? [];
             $plAda  = collect($plJson)->where('ada', true)->pluck('nama')->join(', ');
             $plTdk  = collect($plJson)->where('ada', false)->pluck('nama')->join(', ');
-            $rowBg  = ($item->status_fisik === 'tidak') ? 'background:#fff1f2;' : '';
+            $rowBg  = ($item->status_fisik === 'tidak_ada') ? 'background:#fff1f2;' : '';
           @endphp
           <tr style="{{ $rowBg }}">
             <td>{{ (int)$ii + 1 }}</td>
@@ -581,7 +579,7 @@ window.addEventListener('load', function() {
             <td>{{ $item->gudang ?? '-' }}</td>
             <td>{{ $item->no_spb ?? '-' }}</td>
             <td>{{ $item->tgl_spb ? \Carbon\Carbon::parse($item->tgl_spb)->format('d/m/Y') : '-' }}</td>
-            <td style="font-weight:700;color:{{ ($item->status_fisik === 'ada') ? '#059669' : (($item->status_fisik === 'tidak') ? '#dc2626' : '#374151') }}">
+            <td style="font-weight:700;color:{{ ($item->status_fisik === 'ada') ? '#059669' : (($item->status_fisik === 'tidak_ada') ? '#dc2626' : '#374151') }}">
               {{ strtoupper($item->status_fisik ?? '-') }}
             </td>
             <td style="font-size:9px;">
@@ -704,6 +702,7 @@ window.addEventListener('load', function() {
       $smhPlMap = [];
       foreach($smh as $s) {
           foreach(($s->items ?? collect()) as $item) {
+              if(($item->status_fisik ?? null) !== 'ada') continue;
               foreach(($item->perlengkapan_json ?? []) as $pl) {
                   $nm = trim($pl['nama'] ?? '');
                   if($nm === '') continue;
@@ -759,10 +758,19 @@ window.addEventListener('load', function() {
         @foreach($allJenis as $idx => $jns)
         @php
           $smhD  = $smhPlMap[$jns]  ?? ['smhSaldo'=>0,'smhFisik'=>0];
+          $hasLuar = isset($luarPlMap[$jns]);
           $luarD = $luarPlMap[$jns] ?? ['luarSaldo'=>0,'luarFisik'=>0,'luarSelisih'=>0,'penjelasan'=>[]];
           $smhSel  = $smhD['smhFisik'] - $smhD['smhSaldo'];
           $luarSel = $luarD['luarSelisih'];
-          $totalSel = $smhSel + $luarSel;
+          // "Saldo (buku)" Luar SMH dihitung dari sisa unit yang menurut Cek Fisik SMH
+          // belum punya perlengkapan ini (lihat audit-editor.js) — jadi angka itu SUDAH
+          // memuat selisih SMH di dalamnya. Kalau ada follow-up Luar SMH untuk jenis ini,
+          // $luarSel adalah angka yang sudah direkonsiliasi dan dipakai sebagai Total
+          // Selisih. Kalau belum ada follow-up sama sekali, tampilkan selisih checklist
+          // SMH apa adanya supaya tidak hilang. Menjumlahkan $smhSel + $luarSel (perilaku
+          // lama) menghitung kekurangan yang sama dua kali dan membuat Total Selisih
+          // tidak sinkron dengan kedua sisi tabel.
+          $totalSel = $hasLuar ? $luarSel : $smhSel;
           $grandSmhSaldo  += $smhD['smhSaldo'];
           $grandSmhFisik  += $smhD['smhFisik'];
           $grandSmhSel    += $smhSel;
@@ -771,6 +779,9 @@ window.addEventListener('load', function() {
           $grandLuarSel   += $luarSel;
           $grandTotalSel  += $totalSel;
           $ket = implode('; ', $luarD['penjelasan']);
+          if (!$hasLuar && $smhD['smhSaldo']) {
+              $ket = trim($ket.' Belum ada cek fisik Luar SMH untuk jenis ini — selisih di atas murni dari checklist Cek Fisik SMH.', '; ');
+          }
         @endphp
         <tr>
           <td>{{ $idx + 1 }}</td>
@@ -789,7 +800,7 @@ window.addEventListener('load', function() {
           </td>
           {{-- Total Selisih --}}
           <td style="text-align:center;font-weight:700;background:#fef9c3;color:{{ $totalSel < 0 ? '#dc2626' : ($totalSel > 0 ? '#d97706' : '#059669') }}">
-            @if($smhD['smhSaldo'] || $luarD['luarSaldo'])
+            @if($smhD['smhSaldo'] || $hasLuar)
               {{ $totalSel > 0 ? '+'.$totalSel : $totalSel }}
             @else -
             @endif
@@ -1238,7 +1249,7 @@ window.addEventListener('load', function() {
         </tr>
       </thead>
       <tbody>
-        @foreach($bpkbOnhand->take(200) as $i => $b)
+        @foreach($bpkbOnhand as $i => $b)
         @php $umur = (int)($b->umur ?? 0); $isReg90 = strtoupper($b->jenis ?? '') === 'REG' && $umur > 90; @endphp
         <tr style="{{ $isReg90 ? 'background:#fff7ed;' : '' }}">
           <td>{{ (int)$i+1 }}</td>
@@ -1255,9 +1266,6 @@ window.addEventListener('load', function() {
           <td style="font-size:9px">{{ $b->keterangan ?? '-' }}</td>
         </tr>
         @endforeach
-        @if($bpkbOnhand->count() > 200)
-        <tr><td colspan="10" style="font-style:italic;color:#6b7280;text-align:center">... dan {{ $bpkbOnhand->count()-200 }} item lainnya.</td></tr>
-        @endif
       </tbody>
     </table>
 

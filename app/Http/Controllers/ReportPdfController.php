@@ -47,7 +47,10 @@ class ReportPdfController extends Controller
     {
         $id = $plan->id;
 
-        $kas        = PemeriksaanKas::where('plan_audit_id', $id)->get();
+        // Satu plan hanya boleh punya satu pemeriksaan kas (lihat updateOrCreate
+        // di PemeriksaanKasController); ->latest()->first() sebagai jaga-jaga
+        // kalau ada data lama sebelum unique constraint ditambahkan.
+        $kas        = PemeriksaanKas::where('plan_audit_id', $id)->latest('id')->first();
         $smh        = PemeriksaanSmh::with('items')->where('plan_audit_id', $id)->get();
         $perlengkapan = PemeriksaanPerlengkapan::where('plan_audit_id', $id)->get();
         $bank       = PemeriksaanBank::where('plan_audit_id', $id)->get();

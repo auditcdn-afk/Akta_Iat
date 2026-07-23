@@ -9,6 +9,15 @@ return new class extends Migration {
     {
         $cols = Schema::getColumnListing('db_perlengkapan');
 
+        // SQLite tidak bisa drop kolom yang masih dipakai unique index — drop dulu
+        // index-nya kalau ada (mis. db_perlengkapan_nosin_unique dari migrasi
+        // 2026_06_22_000004), baru kolomnya, supaya tidak gagal di SQLite.
+        foreach (Schema::getIndexes('db_perlengkapan') as $index) {
+            if ($index['unique'] && array_intersect($index['columns'], ['tipe', 'nosin', 'aceh', 'riau', 'kepri', 'type'])) {
+                Schema::table('db_perlengkapan', fn(Blueprint $t) => $t->dropUnique($index['name']));
+            }
+        }
+
         // Drop legacy regional columns if present
         $legacyDrop = array_filter(['tipe', 'nosin', 'aceh', 'riau', 'kepri', 'type'], fn($c) => in_array($c, $cols));
         if ($legacyDrop) {

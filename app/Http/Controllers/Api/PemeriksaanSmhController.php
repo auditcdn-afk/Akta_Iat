@@ -198,9 +198,33 @@ class PemeriksaanSmhController extends Controller
 
         $planId = $request->query('plan_audit_id');
 
+        // No mesin/rangka hasil import Excel kadang ada spasi (mis. "JMK2E
+        // 1003815"), tapi barcode fisik di unit biasanya tidak ada spasi sama
+        // sekali. Bandingkan juga versi tanpa-spasi di kedua sisi supaya scan
+        // barcode tetap menemukan data yang tersimpan dengan spasi.
+        $qNoSpace = str_replace(' ', '', $q);
+
+        // Barcode fisik No. Rangka kadang berupa nomor rangka LENGKAP (mis.
+        // "MH1KFG112TK001838"), sedangkan yang tersimpan di data onhand hasil
+        // import SPB kadang sudah berupa versi ringkas/internal (mis.
+        // "KD1112TK722826") — beda total, bukan cuma beda spasi, jadi
+        // pencocokan substring di atas tidak akan pernah ketemu. Sebagai
+        // fallback, cocokkan juga 5 karakter TERAKHIR hasil scan terhadap 5
+        // karakter terakhir no_mesin/no_rangka yang tersimpan — bagian ekor
+        // nomor seri ini yang biasanya tetap sama di kedua format.
+        $qLast5 = strlen($qNoSpace) >= 5 ? substr($qNoSpace, -5) : null;
+
         $query = SmhOnhandItem::query()
-            ->where(fn($q2) => $q2->where('no_mesin', 'like', "%{$q}%")
-                ->orWhere('no_rangka', 'like', "%{$q}%"));
+            ->where(function ($q2) use ($q, $qNoSpace, $qLast5) {
+                $q2->where('no_mesin', 'like', "%{$q}%")
+                    ->orWhere('no_rangka', 'like', "%{$q}%")
+                    ->orWhereRaw("REPLACE(no_mesin, ' ', '') LIKE ?", ["%{$qNoSpace}%"])
+                    ->orWhereRaw("REPLACE(no_rangka, ' ', '') LIKE ?", ["%{$qNoSpace}%"]);
+                if ($qLast5 !== null) {
+                    $q2->orWhereRaw("SUBSTR(REPLACE(no_mesin, ' ', ''), -5) = ?", [$qLast5])
+                        ->orWhereRaw("SUBSTR(REPLACE(no_rangka, ' ', ''), -5) = ?", [$qLast5]);
+                }
+            });
 
         if ($planId) {
             $query->whereHas('pemeriksaan', fn($q2) => $q2->where('plan_audit_id', $planId));

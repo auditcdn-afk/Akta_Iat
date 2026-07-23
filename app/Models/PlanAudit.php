@@ -100,6 +100,11 @@ class PlanAudit extends Model
         return $this->hasOne(PlanAuditMandiriCrosscheck::class, 'plan_audit_id');
     }
 
+    public function realisasiDinas(): HasMany
+    {
+        return $this->hasMany(RealisasiDinas::class, 'plan_audit_id');
+    }
+
     /**
      * Syarat boleh menyatakan pemeriksaan selesai (status cabang_active -> done):
      * - Plan sudah berada di cabang (status cabang_active, cabang sudah mulai).

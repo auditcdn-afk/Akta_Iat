@@ -5,7 +5,7 @@
 @section('page_description', 'Ringkasan awal aplikasi audit')
 
 @push('scripts')
-    @vite(['resources/js/akta-dashboard-audit-mandiri.js', 'resources/js/akta-grafik-beban-sk.js'])
+    @vite(['resources/js/akta-dashboard-audit-mandiri.js', 'resources/js/akta-grafik-beban-sk.js', 'resources/js/akta-dashboard-realisasi-dinas.js'])
 @endpush
 
 @section('content')
@@ -69,6 +69,10 @@
     <button type="button" id="dashTabBtnBebanSk" data-dash-tab="bebanSk"
         class="dashTabBtn border-b-2 border-transparent px-4 py-2 text-sm font-semibold text-slate-400 hover:text-slate-200">
         Grafik Beban SK
+    </button>
+    <button type="button" id="dashTabBtnRealisasiDinas" data-dash-tab="realisasiDinas"
+        class="dashTabBtn border-b-2 border-transparent px-4 py-2 text-sm font-semibold text-slate-400 hover:text-slate-200">
+        Realisasi Dinas
     </button>
 </div>
 
@@ -186,7 +190,7 @@
             <h3 id="amdCcDetailTitle" class="text-sm font-bold text-slate-200">Rincian Cross-check</h3>
             <button type="button" id="amdCcDetailCloseBtn" class="text-slate-500 hover:text-slate-300">✕</button>
         </div>
-        <div class="mt-3 max-h-72 overflow-y-auto akta-scrollbar">
+        <div class="mt-3 max-h-72 overflow-auto akta-scrollbar">
             <table class="min-w-full divide-y divide-slate-800 text-sm">
                 <thead>
                     <tr>
@@ -228,7 +232,7 @@
         </div>
 
         <div class="overflow-hidden rounded-xl border border-slate-800">
-            <div class="max-h-[420px] overflow-y-auto">
+            <div class="max-h-[420px] overflow-auto">
                 <table class="min-w-full divide-y divide-slate-800 text-sm">
                     <thead class="sticky top-0 bg-slate-950/95">
                         <tr>
@@ -397,7 +401,7 @@
         </div>
 
         <div class="overflow-hidden rounded-xl border border-slate-800">
-            <div class="max-h-[360px] overflow-y-auto akta-scrollbar">
+            <div class="max-h-[360px] overflow-auto akta-scrollbar">
                 <table class="min-w-full divide-y divide-slate-800 text-sm">
                     <thead class="sticky top-0 bg-slate-950/95">
                         <tr>
@@ -417,12 +421,103 @@
 </section>
 </div>
 
+<div id="dashTabRealisasiDinas" class="dashTabPanel hidden">
+<section class="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-5">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h2 class="text-lg font-bold">Realisasi Dinas</h2>
+            <p class="mt-1 text-sm text-slate-400">Settlement biaya perjalanan dinas, dikelompokkan per bulan, jenis pengeluaran, dan unit usaha.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <div class="relative">
+                <button type="button" id="rdgTahunFilterBtn"
+                    class="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    <span id="rdgTahunFilterLabel">Semua Tahun</span>
+                    <svg class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                <div id="rdgTahunFilterPanel" class="rdg-filter-panel akta-scrollbar absolute right-0 z-20 mt-2 hidden max-h-64 w-36 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-lg"></div>
+            </div>
+            <div class="relative">
+                <button type="button" id="rdgBulanFilterBtn"
+                    class="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    <span id="rdgBulanFilterLabel">Semua Bulan</span>
+                    <svg class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                <div id="rdgBulanFilterPanel" class="rdg-filter-panel akta-scrollbar absolute right-0 z-20 mt-2 hidden max-h-64 w-44 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-lg"></div>
+            </div>
+            <div class="relative">
+                <button type="button" id="rdgJenisFilterBtn"
+                    class="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    <span id="rdgJenisFilterLabel">Semua Jenis Pengeluaran</span>
+                    <svg class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                <div id="rdgJenisFilterPanel" class="rdg-filter-panel akta-scrollbar absolute right-0 z-20 mt-2 hidden max-h-64 w-48 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-lg"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="rdgAlert" class="mt-4 hidden rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300"></div>
+
+    <div class="mt-5 grid gap-3 grid-cols-2 lg:grid-cols-3">
+        <div class="rounded-xl border border-slate-800 bg-gradient-to-br from-blue-500/10 to-transparent p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Nominal</p>
+            <p id="rdgStatTotal" class="mt-1 text-xl font-bold text-blue-300">Rp 0</p>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-gradient-to-br from-emerald-500/10 to-transparent p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Jumlah Entri</p>
+            <p id="rdgStatCount" class="mt-1 text-xl font-bold text-emerald-300">0</p>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-gradient-to-br from-violet-500/10 to-transparent p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Plan Audit Terkait</p>
+            <p id="rdgStatPlan" class="mt-1 text-xl font-bold text-violet-300">0</p>
+        </div>
+    </div>
+
+    <div class="mt-5 grid gap-5 xl:grid-cols-2">
+        <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
+            <h3 class="mb-3 text-sm font-bold text-slate-200">Tren Realisasi Dinas per Bulan</h3>
+            <canvas id="rdgTrendChart" height="220"></canvas>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
+            <h3 class="mb-3 text-sm font-bold text-slate-200">Nominal per Jenis Pengeluaran</h3>
+            <canvas id="rdgJenisChart" height="220"></canvas>
+        </div>
+    </div>
+
+    <div class="mt-5 grid gap-5 xl:grid-cols-2">
+        <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
+            <h3 class="mb-3 text-sm font-bold text-slate-200">Nominal per Unit Usaha</h3>
+            <div class="akta-scrollbar max-h-[320px] overflow-y-auto">
+                <div id="rdgCabangChartWrap" class="relative">
+                    <canvas id="rdgCabangChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
+            <h3 class="mb-3 text-sm font-bold text-slate-200">Nominal per Personil <span class="font-normal text-slate-500">(top 15)</span></h3>
+            <div class="akta-scrollbar max-h-[320px] overflow-y-auto">
+                <div id="rdgPersonilChartWrap" class="relative">
+                    <canvas id="rdgPersonilChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+</div>
+
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const buttons = document.querySelectorAll('.dashTabBtn');
         const panels = {
             auditMandiri: document.getElementById('dashTabAuditMandiri'),
             bebanSk: document.getElementById('dashTabBebanSk'),
+            realisasiDinas: document.getElementById('dashTabRealisasiDinas'),
         };
         buttons.forEach((btn) => {
             btn.addEventListener('click', () => {

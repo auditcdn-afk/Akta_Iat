@@ -38,9 +38,19 @@ return [
             'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => null,
-            'journal_mode' => null,
-            'synchronous' => null,
+            // Tanpa WAL, SQLite mengunci SELURUH file database secara eksklusif
+            // setiap kali ada 1 request yang menulis (scan, simpan pemeriksaan,
+            // hapus, dll) — semua request lain (dari user lain, atau tab lain)
+            // yang menyentuh database di saat bersamaan harus antre atau gagal
+            // "database is locked". Di aplikasi multi-user seperti ini, itu
+            // persis penyebab delay/macet yang terasa di mana-mana, bukan cuma
+            // di satu menu tertentu. WAL mode membuat pembaca tidak memblokir
+            // penulis dan sebaliknya, dan busy_timeout membuat request menunggu
+            // sebentar (bukan langsung gagal) kalau memang sedang ada penulisan
+            // lain yang berbarengan persis di baris yang sama.
+            'busy_timeout' => 5000,
+            'journal_mode' => 'wal',
+            'synchronous' => 'normal',
             'transaction_mode' => 'DEFERRED',
         ],
 

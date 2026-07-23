@@ -1,5 +1,14 @@
 const SESSION_KEY = "akta_session";
 
+// Notifikasi cross-tab: dipakai supaya menu Audit (akta-audit.js) langsung
+// menghilangkan/menyesuaikan baris plan begitu status atau keberadaannya
+// berubah di sini (misalnya dihapus), tanpa perlu reload manual.
+const PLAN_SYNC_CHANNEL = "akta_plan_sync";
+const planSyncChannel = "BroadcastChannel" in window ? new BroadcastChannel(PLAN_SYNC_CHANNEL) : null;
+function notifyPlanChanged(id, type) {
+    planSyncChannel?.postMessage({ type, id });
+}
+
 let plans = [];
 let currentUser = null;
 let usersList = [];
@@ -420,6 +429,7 @@ async function advancePlan(id) {
         body,
     });
     showAlert(payload.message || "Status berhasil diperbarui.");
+    notifyPlanChanged(id, "updated");
     await loadPlans();
 }
 
@@ -432,6 +442,7 @@ async function rejectPlan(id) {
 
     const payload = await fetchJson(`/api/plans/${id}/reject`, { method: "POST" });
     showAlert(payload.message || "Plan dikembalikan ke Draft.");
+    notifyPlanChanged(id, "updated");
     await loadPlans();
 }
 
@@ -444,6 +455,7 @@ async function deletePlan(id) {
 
     const payload = await fetchJson(`/api/plans/${id}`, { method: "DELETE" });
     showAlert(payload.message || "Plan audit berhasil dihapus.");
+    notifyPlanChanged(id, "deleted");
     await loadPlans();
 }
 

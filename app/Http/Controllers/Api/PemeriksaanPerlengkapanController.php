@@ -82,7 +82,8 @@ class PemeriksaanPerlengkapanController extends Controller
 
     public function smhSummary(Request $request): JsonResponse
     {
-        $planId = $request->query('plan_audit_id');
+        $planId  = $request->query('plan_audit_id');
+        $wilayah = $this->wilayahFromPlan($planId);
 
         $itemsQuery = SmhOnhandItem::query()
             ->whereNotNull('perlengkapan_json')
@@ -94,12 +95,37 @@ class PemeriksaanPerlengkapanController extends Controller
 
         $items = $itemsQuery->get();
 
-        // Total unit onhand untuk plan ini (semua item, tidak hanya yang punya perlengkapan_json)
-        $totalOnhandQuery = SmhOnhandItem::query();
+        // Semua unit onhand plan ini (dipakai untuk menghitung Saldo per jenis sesuai
+        // tipe motor — bukan cuma satu total gabungan semua tipe, lihat di bawah)
+        $allOnhandQuery = SmhOnhandItem::query();
         if ($planId) {
-            $totalOnhandQuery->whereHas('pemeriksaan', fn($q) => $q->where('plan_audit_id', $planId));
+            $allOnhandQuery->whereHas('pemeriksaan', fn($q) => $q->where('plan_audit_id', $planId));
         }
-        $totalOnhand = $totalOnhandQuery->count();
+        $allOnhand = $allOnhandQuery->get(['no_mesin']);
+
+        // "Saldo (buku)" untuk tiap jenis perlengkapan sebelumnya dihitung dari total
+        // SELURUH unit onhand (semua tipe motor digabung) — padahal tiap jenis
+        // perlengkapan (mis. "Kaca Spion PCX160") cuma relevan untuk tipe motor
+        // tertentu sesuai db_perlengkapan. Di sini kita bangun peta kode tipe motor
+        // (5 huruf prefix no_mesin) → daftar nama perlengkapan yang wajib ada untuk
+        // tipe itu, supaya Saldo tiap jenis cuma menghitung unit dari tipe motor yang
+        // memang membutuhkan jenis perlengkapan tersebut.
+        $kodeItemMap = [];
+        $rowsByKode  = DbPerlengkapan::all()->groupBy('kode');
+        foreach ($rowsByKode as $kode => $rows) {
+            $match = $rows->first(fn($r) => $wilayah && strtolower(trim($r->wilayah ?? '')) === $wilayah)
+                ?? $rows->first(fn($r) => empty($r->wilayah))
+                ?? $rows->first();
+            $kodeItemMap[$kode] = $match?->itemList() ?? [];
+        }
+
+        $totalOnhandPerJenis = [];
+        foreach ($allOnhand as $u) {
+            $prefix = strtoupper(substr(str_replace(' ', '', $u->no_mesin ?? ''), 0, 5));
+            foreach ($kodeItemMap[$prefix] ?? [] as $nm) {
+                $totalOnhandPerJenis[$nm] = ($totalOnhandPerJenis[$nm] ?? 0) + 1;
+            }
+        }
 
         // Hitung per item: ada vs total di setiap unit
         $summary = [];
@@ -108,7 +134,12 @@ class PemeriksaanPerlengkapanController extends Controller
                 $nama = trim($pl['nama'] ?? '');
                 if ($nama === '') continue;
                 if (!isset($summary[$nama])) {
-                    $summary[$nama] = ['nama' => $nama, 'ada' => 0, 'total' => 0, 'totalOnhand' => $totalOnhand];
+                    $summary[$nama] = [
+                        'nama'        => $nama,
+                        'ada'         => 0,
+                        'total'       => 0,
+                        'totalOnhand' => $totalOnhandPerJenis[$nama] ?? 0,
+                    ];
                 }
                 $summary[$nama]['total']++;
                 if ($pl['ada'] ?? false) $summary[$nama]['ada']++;

@@ -41,6 +41,7 @@ use App\Http\Controllers\Api\GradingController;
 use App\Http\Controllers\Api\BuPerformanceController;
 use App\Http\Controllers\Api\PulsaController;
 use App\Http\Controllers\Api\MobilDinasController;
+use App\Http\Controllers\Api\RealisasiDinasController;
 use App\Http\Controllers\Api\PinjamanCabangController;
 use Illuminate\Support\Facades\Route;
 
@@ -248,12 +249,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/audit-detail/hgp/batch-het',    [HgpController::class, 'batchHet']);
     Route::post('/audit-detail/hgp',             [HgpController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/hgp/scan-increment', [HgpController::class, 'scanIncrement'])
+        ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hgp/parse-excel', [HgpController::class, 'parseExcel'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── HGA (Accessories) ──
     Route::get('/audit-detail/hga',              [HgaController::class, 'show']);
     Route::post('/audit-detail/hga',             [HgaController::class, 'save'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/hga/scan-increment', [HgaController::class, 'scanIncrement'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hga/parse-excel',     [HgaController::class, 'parseExcel'])
         ->middleware('akta.role:admin,manajer,auditor');
@@ -298,6 +303,24 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/mobil-dinas/{mobilDinasPengajuan}/complete', [MobilDinasController::class, 'complete'])
         ->middleware('akta.role:admin,mrr');
     Route::delete('/mobil-dinas/{mobilDinasPengajuan}', [MobilDinasController::class, 'destroy']);
+
+    // ── Realisasi Dinas ── (header dikunci per plan, item pengeluaran repeatable)
+    Route::get('/realisasi-dinas', [RealisasiDinasController::class, 'index']);
+    Route::get('/realisasi-dinas/plan-options', [RealisasiDinasController::class, 'planOptions']);
+    Route::get('/realisasi-dinas/rekap', [RealisasiDinasController::class, 'rekap']);
+    Route::get('/realisasi-dinas/plan/{plan}', [RealisasiDinasController::class, 'showForPlan']);
+    Route::put('/realisasi-dinas/{realisasiDinas}/personil', [RealisasiDinasController::class, 'updatePersonil'])
+        ->middleware('akta.role:admin,manajer,auditor,koordinator');
+    Route::post('/realisasi-dinas/{realisasiDinas}/bukti', [RealisasiDinasController::class, 'uploadBukti'])
+        ->middleware('akta.role:admin,manajer,auditor,koordinator');
+    Route::post('/realisasi-dinas/{realisasiDinas}/items', [RealisasiDinasController::class, 'addItem'])
+        ->middleware('akta.role:admin,manajer,auditor,koordinator');
+    Route::delete('/realisasi-dinas/items/{realisasiDinasItem}', [RealisasiDinasController::class, 'deleteItem'])
+        ->middleware('akta.role:admin,manajer,auditor,koordinator');
+    Route::post('/realisasi-dinas/{realisasiDinas}/selesai', [RealisasiDinasController::class, 'selesai'])
+        ->middleware('akta.role:admin,manajer,auditor,koordinator');
+    Route::post('/realisasi-dinas/{realisasiDinas}/buka-kunci', [RealisasiDinasController::class, 'bukaKunci'])
+        ->middleware('akta.role:admin');
 
     // ── Grading (menu utama) ──
     Route::get('/gradings',         [GradingController::class, 'index']);

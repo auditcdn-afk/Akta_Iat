@@ -8,6 +8,15 @@
 
 const SESSION_KEY = "akta_session";
 
+// Sama seperti di akta-plan-audit.js: dengarkan notifikasi cross-tab supaya
+// baris plan yang dihapus/berubah status di menu Plan Audit langsung hilang
+// dari sini, meski halaman ini dibuka di tab lain dan tidak di-reload.
+const PLAN_SYNC_CHANNEL = "akta_plan_sync";
+const planSyncChannel = "BroadcastChannel" in window ? new BroadcastChannel(PLAN_SYNC_CHANNEL) : null;
+planSyncChannel?.addEventListener("message", () => {
+    loadPlans().catch((e) => showAlert(e.message, "error"));
+});
+
 let plans = [];
 export let currentUser = null;
 
@@ -298,4 +307,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (err) {
         showAlert(err.message || "Gagal memuat data audit.", "error");
     }
+});
+
+// Halaman dipulihkan dari bfcache (tombol back/forward) tidak memicu ulang
+// DOMContentLoaded, jadi tabel bisa menampilkan plan yang sudah dihapus di tab
+// lain sebelumnya. Muat ulang saat itu terjadi.
+window.addEventListener("pageshow", (e) => {
+    if (e.persisted) loadPlans().catch((err) => showAlert(err.message, "error"));
 });

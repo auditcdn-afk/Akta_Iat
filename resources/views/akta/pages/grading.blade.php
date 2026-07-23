@@ -119,6 +119,7 @@
         <div class="flex-1 overflow-y-auto p-5">
             {{-- Detail Penilaian --}}
             <div id="gdmPanelDetail">
+                <div class="overflow-x-auto">
                 <table class="min-w-full text-sm">
                     <thead class="text-xs uppercase tracking-wide text-slate-500">
                         <tr>
@@ -129,6 +130,7 @@
                     </thead>
                     <tbody id="gdmDetailBody" class="divide-y divide-slate-800 text-slate-300"></tbody>
                 </table>
+                </div>
             </div>
 
             {{-- Analisa --}}
