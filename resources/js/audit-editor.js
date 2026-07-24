@@ -1892,6 +1892,39 @@ async function loadBpkbTab() {
     bpkbRenderResult(res.items);
 }
 
+// Hitung ulang summary di browser dari bpkbData.items yang sudah ada di memory —
+// dipakai setelah scan/unscan supaya tidak perlu request ulang SELURUH daftar BPKB
+// onhand ke server (lihat bpkbUpsertLocal / bpkbRemoveLocal). Rumusnya sama persis
+// dengan BpkbOnhandController::index() di backend.
+function bpkbRecomputeSummary(items) {
+    const total     = items.length;
+    const reg       = items.filter(i => i.jenis === "REG").length;
+    const kds       = items.filter(i => i.jenis === "KDS").length;
+    const sudahScan = items.filter(i => i.sudahScan).length;
+    const belumScan = items.filter(i => !i.sudahScan).length;
+    const reg120    = items.filter(i => i.jenis === "REG" && (i.umur ?? 0) > 120).length;
+    const reg120Pct = reg > 0 ? Math.round((reg120 / reg) * 100 * 100) / 100 : 0;
+    return { total, reg, kds, sudahScan, belumScan, reg120, reg120Pct };
+}
+
+// Selipkan/timpa 1 item hasil scan ke bpkbData.items tanpa reload — item "found"
+// (sudah ada di onhand) menimpa entry yang ada, item "outside" (baru dibuat server
+// karena fisiknya di luar onhand) ditambahkan sebagai entry baru.
+function bpkbUpsertLocal(item) {
+    const items = bpkbData.items ?? (bpkbData.items = []);
+    const idx = items.findIndex(i => i.id === item.id);
+    if (idx >= 0) items[idx] = item; else items.unshift(item);
+}
+
+// Refresh stats + tabel dari state LOKAL (bpkbData.items) — dipanggil setelah
+// scan/unscan alih-alih loadBpkbTab() supaya tidak ada network round-trip +
+// query-ulang seluruh tabel ke server tiap kali user scan 1 barcode.
+function bpkbRenderLocal() {
+    bpkbData.summary = bpkbRecomputeSummary(bpkbData.items ?? []);
+    bpkbRenderStats(bpkbData.summary);
+    bpkbRenderResult(bpkbData.items ?? []);
+}
+
 function bpkbRenderStats(s) {
     const statsEl = document.getElementById("bpkbStats");
     const dbStatus = document.getElementById("bpkbDbStatus");
@@ -2003,7 +2036,19 @@ async function bpkbUnscan(e) {
     if (!confirm("Hapus scan item ini?")) return;
     try {
         await fetchJson(`/api/audit-detail/bpkb/scan/${id}`, { method: "DELETE", headers: authHeaders() });
-        await loadBpkbTab();
+        // Item "LUAR" (fisik diluar onhand) dihapus permanen oleh server saat unscan —
+        // item onhand biasa cuma direset status scan-nya. Cocokkan di sini tanpa
+        // reload supaya tidak ada network round-trip lagi untuk 1x batal-scan.
+        const items = bpkbData.items ?? [];
+        const idx = items.findIndex(i => String(i.id) === String(id));
+        if (idx >= 0) {
+            if (items[idx].jenis === "LUAR") {
+                items.splice(idx, 1);
+            } else {
+                items[idx] = { ...items[idx], sudahScan: false, keterangan: null, scanAt: null };
+            }
+        }
+        bpkbRenderLocal();
     } catch (err) {
         showAlert(err.message || "Gagal menghapus.", "error");
     }
@@ -2047,7 +2092,13 @@ async function bpkbScanSubmit() {
         }
         document.getElementById("bpkbScanInput").value = "";
         document.getElementById("bpkbSuggestions")?.classList.add("hidden");
-        await loadBpkbTab();
+        // Dulu di sini panggil loadBpkbTab() — request ulang SELURUH daftar BPKB
+        // onhand dari server tiap 1x scan. Kalau onhand-nya ratusan/ribuan unit,
+        // itu jadi delay nyata tiap scan (mirip masalah yang sudah diperbaiki di
+        // modul HGP). Sekarang cukup selipkan item hasil scan ke state lokal dan
+        // render ulang dari memory — tanpa network round-trip lagi.
+        bpkbUpsertLocal(item);
+        bpkbRenderLocal();
     } catch (err) {
         if (resultEl) { resultEl.innerHTML = `<span class="text-red-400">${err.message}</span>`; resultEl.classList.remove("hidden"); }
     }
@@ -2950,13 +3001,28 @@ function prRender() {
         </tr>`;
     }).join('');
 
-    // Keterangan input handlers
+    // Keterangan input handlers. Dulu blur di sini memanggil savePr() (kirim
+    // SELURUH array _prItems, bisa ratusan/ribuan baris) — sekarang cukup PATCH
+    // 1 baris (by index) supaya edit keterangan di 1 baris tidak ikut membawa
+    // seluruh daftar piutang tiap kali.
     tblBody.querySelectorAll('input[data-pr-idx]').forEach(inp => {
         inp.addEventListener('input', (e) => {
             const i = parseInt(e.target.dataset.prIdx, 10);
             if (_prItems[i]) _prItems[i].keterangan = e.target.value;
         });
-        inp.addEventListener('blur', () => savePr().catch(() => {}));
+        inp.addEventListener('blur', (e) => {
+            const i = parseInt(e.target.dataset.prIdx, 10);
+            savePrKeterangan(i, e.target.value).catch(() => {});
+        });
+    });
+}
+
+async function savePrKeterangan(index, keterangan) {
+    if (!activePlanId) return;
+    return await fetchJson('/api/audit-detail/piutang-reguler/keterangan', {
+        method:  'PATCH',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body:    JSON.stringify({ planAuditId: activePlanId, index, keterangan }),
     });
 }
 
@@ -3134,13 +3200,27 @@ function pcdnRender() {
             </td>
         </tr>`).join('');
 
-    // Sync keterangan edits back to _pcdnItems and auto-save on blur
+    // Sync keterangan edits back to _pcdnItems. Blur di sini dulu memanggil
+    // savePcdn() (kirim SELURUH array _pcdnItems) — sekarang PATCH 1 baris saja
+    // (by index), sama seperti perbaikan di Piutang Reguler.
     tbody.querySelectorAll('.pcdn-ket-input').forEach(inp => {
         inp.addEventListener('input', (e) => {
             const i = parseInt(e.target.dataset.pcdnIdx, 10);
             if (_pcdnItems[i]) _pcdnItems[i].keterangan = e.target.value;
         });
-        inp.addEventListener('blur', () => savePcdn().catch(() => {}));
+        inp.addEventListener('blur', (e) => {
+            const i = parseInt(e.target.dataset.pcdnIdx, 10);
+            savePcdnKeterangan(i, e.target.value).catch(() => {});
+        });
+    });
+}
+
+async function savePcdnKeterangan(index, keterangan) {
+    if (!activePlanId) return;
+    return await fetchJson('/api/audit-detail/piutang-cdn/keterangan', {
+        method:  'PATCH',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body:    JSON.stringify({ planAuditId: activePlanId, index, keterangan }),
     });
 }
 

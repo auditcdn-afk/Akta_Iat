@@ -226,6 +226,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/piutang-reguler/parse-excel', [PiutangRegulerController::class, 'parseExcel'])
         ->middleware('akta.role:admin,manajer,auditor');
+    Route::patch('/audit-detail/piutang-reguler/keterangan', [PiutangRegulerController::class, 'updateKeterangan'])
+        ->middleware('akta.role:admin,manajer,auditor');
 
     // ── Cek Fisik ──
     Route::get('/audit-detail/cek-fisik',  [CekFisikController::class, 'show']);
@@ -246,6 +248,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/audit-detail/piutang-cdn', [PiutangCdnController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/piutang-cdn/parse-excel', [PiutangCdnController::class, 'parseExcel'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::patch('/audit-detail/piutang-cdn/keterangan', [PiutangCdnController::class, 'updateKeterangan'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── HGP & AHM Oils ──
