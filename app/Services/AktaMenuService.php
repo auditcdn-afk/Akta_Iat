@@ -45,6 +45,7 @@ class AktaMenuService
 
         return Menu::active()
             ->rootLevel()
+            ->with('roles')
             ->orderBy('order')
             ->get()
             ->map(fn(Menu $m) => $this->toSidebarArray($m))
@@ -82,6 +83,7 @@ class AktaMenuService
     public function allItemsWithRoles(): array
     {
         return Menu::rootLevel()
+            ->with('roles')
             ->orderBy('order')
             ->get()
             ->map(fn(Menu $m) => $m->toAktaArray())
@@ -142,6 +144,8 @@ class AktaMenuService
 
     private function toSidebarArray(Menu $m): array
     {
+        $roles = $m->getAllowedRoles();
+
         return [
             'label'      => $m->label,
             'route'      => $m->route_name,
@@ -150,9 +154,9 @@ class AktaMenuService
             'icon'       => $m->icon,
             'is_active'  => $m->is_active,
             // Roles digunakan JS client-side untuk filter tampilan
-            'roles'      => $m->getAllowedRoles(),
+            'roles'      => $roles,
             // Backward-compat: admin_only true jika hanya role admin yang boleh
-            'admin_only' => $m->getAllowedRoles() === ['admin'],
+            'admin_only' => $roles === ['admin'],
         ];
     }
 

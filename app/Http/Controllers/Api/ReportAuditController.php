@@ -46,15 +46,120 @@ class ReportAuditController extends Controller
             });
         }
 
-        $plans = $query->get();
+        $plans = $query->with('crosscheck')->get();
+        $planIds = $plans->pluck('id');
 
-        $data = $plans->map(function (PlanAudit $plan) {
-            return $this->buildPlanSummary($plan);
+        // Dulu buildSummaryCounts() dipanggil per plan di dalam map() di bawah —
+        // itu ~15 query COUNT terpisah PER PLAN (task/rekomendasi/pica/SK × status).
+        // Untuk ratusan/ribuan plan (riwayat audit sejak 2016), itu jadi ribuan
+        // hingga puluhan ribu query dalam satu request, dan halaman Report Audit
+        // jadi lambat/hang. Sekarang cukup 4 query ter-agregasi (1 per tabel,
+        // GROUP BY plan_audit_id + status), lalu summary per plan dibaca dari
+        // hasilnya di memory — jumlah query tidak lagi tergantung jumlah plan.
+        $taskStats = $this->statusCountsByPlan(AuditTask::class, $planIds);
+        $recStats  = $this->statusCountsByPlan(AuditRecommendation::class, $planIds);
+        $picaStats = $this->statusCountsByPlan(Pica::class, $planIds);
+        $skStats   = $this->statusCountsByPlan(SuratKeputusan::class, $planIds);
+
+        $data = $plans->map(function (PlanAudit $plan) use ($taskStats, $recStats, $picaStats, $skStats) {
+            return [
+                'plan' => $this->normalizePlan($plan),
+                'summary' => $this->buildSummaryFromStats(
+                    $taskStats[$plan->id] ?? [],
+                    $recStats[$plan->id] ?? [],
+                    $picaStats[$plan->id] ?? [],
+                    $skStats[$plan->id] ?? [],
+                ),
+            ];
         })->values();
 
         return response()->json([
             'data' => $data,
         ]);
+    }
+
+    /**
+     * Hitung jumlah baris per (plan_audit_id, status) untuk $modelClass dalam SATU
+     * query (GROUP BY), lalu dikelompokkan per plan_audit_id → [status => jumlah].
+     * Dipakai oleh index() supaya jumlah query tidak ikut membesar seiring jumlah plan.
+     *
+     * @param class-string<\Illuminate\Database\Eloquent\Model> $modelClass
+     * @param \Illuminate\Support\Collection<int, int> $planIds
+     * @return array<int, array<string, int>>
+     */
+    private function statusCountsByPlan(string $modelClass, $planIds): array
+    {
+        if ($planIds->isEmpty()) {
+            return [];
+        }
+
+        return $modelClass::query()
+            ->whereIn('plan_audit_id', $planIds)
+            ->selectRaw('plan_audit_id, status, count(*) as cnt')
+            ->groupBy('plan_audit_id', 'status')
+            ->get()
+            ->groupBy('plan_audit_id')
+            ->map(fn($rows) => $rows->pluck('cnt', 'status')->all())
+            ->all();
+    }
+
+    /**
+     * Bentuk ringkasan yang sama persis dengan buildSummaryCounts(), tapi dari
+     * peta status→jumlah yang sudah dihitung sekali di index() — bukan query baru.
+     *
+     * @param array<string, int> $taskByStatus
+     * @param array<string, int> $recByStatus
+     * @param array<string, int> $picaByStatus
+     * @param array<string, int> $skByStatus
+     */
+    private function buildSummaryFromStats(array $taskByStatus, array $recByStatus, array $picaByStatus, array $skByStatus): array
+    {
+        $sum = fn(array $map, array $statuses) => array_sum(array_intersect_key($map, array_flip($statuses)));
+
+        $taskTotal = array_sum($taskByStatus);
+        $taskDone  = $sum($taskByStatus, ['done', 'selesai', 'completed']);
+
+        $recommendationTotal    = array_sum($recByStatus);
+        $recommendationApproved = $recByStatus['approved'] ?? 0;
+
+        $picaTotal  = array_sum($picaByStatus);
+        $picaClosed = $picaByStatus['closed'] ?? 0;
+
+        $skTotal   = array_sum($skByStatus);
+        $skSelesai = $skByStatus['selesai'] ?? 0;
+
+        $progressParts = [];
+        if ($taskTotal > 0) $progressParts[] = ($taskDone / $taskTotal) * 100;
+        if ($recommendationTotal > 0) $progressParts[] = ($recommendationApproved / $recommendationTotal) * 100;
+        if ($picaTotal > 0) $progressParts[] = ($picaClosed / $picaTotal) * 100;
+        if ($skTotal > 0) $progressParts[] = ($skSelesai / $skTotal) * 100;
+
+        $completionPercent = count($progressParts) > 0
+            ? round(array_sum($progressParts) / count($progressParts), 2)
+            : 0;
+
+        return [
+            'task_total' => $taskTotal,
+            'task_open' => $taskByStatus['open'] ?? 0,
+            'task_progress' => $sum($taskByStatus, ['progress', 'in_progress']),
+            'task_done' => $taskDone,
+
+            'recommendation_total' => $recommendationTotal,
+            'recommendation_waiting_approval' => $recByStatus['waiting_approval'] ?? 0,
+            'recommendation_approved' => $recommendationApproved,
+
+            'pica_total' => $picaTotal,
+            'pica_open' => $picaByStatus['open'] ?? 0,
+            'pica_progress' => $picaByStatus['progress'] ?? 0,
+            'pica_closed' => $picaClosed,
+
+            'sk_total' => $skTotal,
+            'sk_pending_manajer' => $skByStatus['pending_manajer'] ?? 0,
+            'sk_pending_afd' => $skByStatus['pending_afd'] ?? 0,
+            'sk_selesai' => $skSelesai,
+
+            'completion_percent' => $completionPercent,
+        ];
     }
 
     public function show(PlanAudit $plan): JsonResponse
@@ -140,14 +245,6 @@ class ReportAuditController extends Controller
                 'generated_at' => now()->toDateTimeString(),
             ],
         ]);
-    }
-
-    private function buildPlanSummary(PlanAudit $plan): array
-    {
-        return [
-            'plan' => $this->normalizePlan($plan),
-            'summary' => $this->buildSummaryCounts($plan),
-        ];
     }
 
     private function buildSummaryCounts(PlanAudit $plan): array
