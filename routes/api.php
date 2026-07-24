@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\PlanPenilaianController;
 use App\Http\Controllers\Api\SkPembebananController;
 use App\Http\Controllers\Api\SuratKeputusanController;
 use App\Http\Controllers\Api\ReportAuditController;
+use App\Http\Controllers\Api\ReportAuditExportController;
 use App\Http\Controllers\Api\PemeriksaanKasController;
 use App\Http\Controllers\Api\PemeriksaanBankController;
 use App\Http\Controllers\Api\PemeriksaanSmhController;
@@ -149,6 +150,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/report-audit', [ReportAuditController::class, 'index']);
     Route::get('/report-audit/summary', [ReportAuditController::class, 'summary']);
     Route::get('/report-audit/plans/{plan}', [ReportAuditController::class, 'show']);
+    Route::get('/report-audit/export-excel', [ReportAuditExportController::class, 'export']);
+    Route::post('/report-audit/refresh-flat', [ReportAuditExportController::class, 'refreshNow'])
+        ->middleware('akta.role:admin');
 
     Route::get('/audit-detail/kas', [PemeriksaanKasController::class, 'index']);
     Route::get('/audit-detail/kas/summary', [PemeriksaanKasController::class, 'summary']);

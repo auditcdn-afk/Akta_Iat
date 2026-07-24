@@ -13,3 +13,9 @@ Artisan::command('inspire', function () {
 // bertahun-tahun pemakaian. Butuh cron `php artisan schedule:run` tiap
 // menit di server (lihat crontab pada dokumentasi deploy Laravel).
 Schedule::command('sanctum:prune-expired --hours=24')->daily();
+
+// Bangun ulang tabel ringkasan report_audit_summaries + report_audit_checklist_items
+// (sumber data Power BI & export Excel) tiap 2 jam — bukan dihitung on-the-fly saat
+// dashboard/export dibuka, supaya query join+JSON yang berat tidak membebani aplikasi
+// yang dipakai auditor sehari-hari. Sesuaikan interval bila butuh data lebih "segar".
+Schedule::command('akta:refresh-report-audit-flat')->everyTwoHours()->withoutOverlapping();

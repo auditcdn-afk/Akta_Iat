@@ -8,6 +8,12 @@ Route::get('/', function () {
 
 Route::view('/akta/login', 'akta.login')->name('akta.login');
 
+// Jalan darurat untuk hosting FTP-only (tanpa SSH/cron) — lihat DeployController.
+// Nonaktif secara default: DeployController menolak semua request selama
+// DEPLOY_SECRET di .env kosong.
+Route::get('/deploy/migrate', [\App\Http\Controllers\DeployController::class, 'migrate']);
+Route::get('/deploy/refresh-report-audit', [\App\Http\Controllers\DeployController::class, 'refreshReportAudit']);
+
 Route::prefix('akta')->name('akta.')->group(function () {
     Route::view('/dashboard', 'akta.pages.dashboard')->name('dashboard');
 

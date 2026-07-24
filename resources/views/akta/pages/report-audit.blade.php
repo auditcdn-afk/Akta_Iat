@@ -35,10 +35,19 @@
                 class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">
                 Refresh
             </button>
+
+            <button id="exportReportAuditButton" type="button"
+                class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500">
+                📊 Export Excel
+            </button>
         </div>
     </div>
 
     <div id="reportAuditAlert" class="hidden rounded-xl border px-4 py-3 text-sm"></div>
+    <p class="text-xs text-slate-500">
+        Export dibangun dari data ringkasan yang disegarkan otomatis tiap 2 jam (lihat "Terakhir disegarkan"
+        di dalam file), bukan dihitung langsung saat tombol ditekan — supaya tidak membebani aplikasi.
+    </p>
 
     <div class="grid gap-4 md:grid-cols-4">
         <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
