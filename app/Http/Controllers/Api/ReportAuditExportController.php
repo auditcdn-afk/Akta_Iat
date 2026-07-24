@@ -8,6 +8,7 @@ use App\Models\ReportAuditSummary;
 use App\Services\ReportAuditFlattener;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -100,16 +101,16 @@ class ReportAuditExportController extends Controller
         $lastCol = count($headers);
 
         $refreshedAt = $rows->max('refreshed_at');
-        $sheet->setCellValueByColumnAndRow(1, 1, 'Data disegarkan per: '
+        $sheet->setCellValue([1, 1], 'Data disegarkan per: '
             . ($refreshedAt ? $refreshedAt->format('d/m/Y H:i') : '-')
             . ' (dijadwalkan tiap 2 jam, bukan real-time saat file ini dibuat)');
         $sheet->getStyle('A1')->getFont()->setItalic(true)->getColor()->setRGB('64748B');
 
         foreach ($headers as $i => $header) {
-            $sheet->setCellValueByColumnAndRow($i + 1, 2, $header);
+            $sheet->setCellValue([$i + 1, 2], $header);
         }
-        $headerRange = $sheet->getCellByColumnAndRow(1, 2)->getColumn() . '2:'
-            . $sheet->getCellByColumnAndRow($lastCol, 2)->getColumn() . '2';
+        $headerRange = Coordinate::stringFromColumnIndex(1) . '2:'
+            . Coordinate::stringFromColumnIndex($lastCol) . '2';
         $sheet->getStyle($headerRange)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
         $sheet->getStyle($headerRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('1E3A8A');
         $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
@@ -152,12 +153,12 @@ class ReportAuditExportController extends Controller
             ];
 
             foreach ($values as $i => $value) {
-                $sheet->setCellValueByColumnAndRow($i + 1, $rowIndex, $value);
+                $sheet->setCellValue([$i + 1, $rowIndex], $value);
             }
             $rowIndex++;
         }
 
-        $dataRange = 'A2:' . $sheet->getCellByColumnAndRow($lastCol, $rowIndex - 1)->getColumn() . ($rowIndex - 1);
+        $dataRange = 'A2:' . Coordinate::stringFromColumnIndex($lastCol) . ($rowIndex - 1);
         $sheet->getStyle($dataRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
         foreach (range(1, min($lastCol, 40)) as $colIdx) {
             $sheet->getColumnDimensionByColumn($colIdx)->setAutoSize(true);
