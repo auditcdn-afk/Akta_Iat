@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\TtpGantungController;
 use App\Http\Controllers\Api\CekFisikController;
 use App\Http\Controllers\Api\MtController;
 use App\Http\Controllers\Api\HgpController;
+use App\Http\Controllers\Api\RsaHgpController;
 use App\Http\Controllers\Api\HgaController;
 use App\Http\Controllers\Api\SmhTarikanController;
 use App\Http\Controllers\Api\LampiranController;
@@ -256,6 +257,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/audit-detail/hgp/scan-increment', [HgpController::class, 'scanIncrement'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hgp/parse-excel', [HgpController::class, 'parseExcel'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── RSA HGP & AHM Oils (varian sampling dari HGP & AHM Oils) ──
+    // lookup-het/batch-het sengaja memakai endpoint HgpController — master data
+    // HET bersifat referensi bersama, tidak spesifik per tool pemeriksaan.
+    Route::get('/audit-detail/rsa-hgp',              [RsaHgpController::class, 'show']);
+    Route::post('/audit-detail/rsa-hgp',             [RsaHgpController::class, 'save'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/rsa-hgp/scan-increment', [RsaHgpController::class, 'scanIncrement'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/rsa-hgp/parse-excel', [RsaHgpController::class, 'parseExcel'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── HGA (Accessories) ──

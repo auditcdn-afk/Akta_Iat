@@ -59,6 +59,10 @@
                 class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
                 HGP &amp; AHM Oils
             </button>
+            <button type="button" data-tab="rsa-hgp"
+                class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
+                RSA HGP &amp; AHM Oils
+            </button>
             <button type="button" data-tab="hga"
                 class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
                 HGA (Accessories)

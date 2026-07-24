@@ -21,6 +21,7 @@ return [
     'cek-fisik'       => 'Cek Fisik',
     'mt'              => 'MT',
     'hgp'             => 'HGP & AHM Oils',
+    'rsa-hgp'         => 'RSA HGP & AHM Oils',
     'hga'             => 'HGA (Accessories)',
     'smh-tarikan'     => 'SMH Tarikan',
     'lampiran'        => 'Lampiran',
