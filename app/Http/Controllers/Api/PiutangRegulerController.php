@@ -36,6 +36,35 @@ class PiutangRegulerController extends Controller
         return response()->json(['message' => 'Data tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
     }
 
+    // Update HANYA kolom "keterangan" 1 baris (by index), bukan kirim ulang seluruh
+    // array piutang (bisa ratusan/ribuan baris) setiap kali user selesai mengetik
+    // 1 keterangan dan pindah fokus (blur) — lihat komentar di prKetInput listener
+    // pada resources/js/audit-editor.js.
+    public function updateKeterangan(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'planAuditId' => 'required|integer|exists:plan_audits,id',
+            'index'       => 'required|integer|min:0',
+            'keterangan'  => 'nullable|string|max:1000',
+        ]);
+        $who = $request->user()?->username ?? $request->user()?->email;
+
+        $rec = PemeriksaanPiutangReguler::where('plan_audit_id', $data['planAuditId'])->first();
+        if (!$rec) {
+            return response()->json(['message' => 'Data piutang reguler belum ada untuk plan audit ini.'], 422);
+        }
+
+        $items = $rec->piutang_json ?? [];
+        if (!array_key_exists($data['index'], $items)) {
+            return response()->json(['message' => 'Baris piutang tidak ditemukan.'], 404);
+        }
+
+        $items[$data['index']]['keterangan'] = $data['keterangan'] ?? '';
+        $rec->update(['piutang_json' => $items, 'updated_by' => $who]);
+
+        return response()->json(['message' => 'Keterangan tersimpan.']);
+    }
+
     public function parseExcel(Request $request): JsonResponse
     {
         $request->validate(['file' => 'required|file']);

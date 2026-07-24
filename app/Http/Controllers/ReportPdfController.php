@@ -21,6 +21,7 @@ use App\Models\PemeriksaanMt;
 use App\Models\PemeriksaanPerlengkapan;
 use App\Models\PemeriksaanPiutangCdn;
 use App\Models\PemeriksaanPiutangReguler;
+use App\Models\PemeriksaanRsaHgp;
 use App\Models\PemeriksaanSmh;
 use App\Models\PemeriksaanSmhTarikan;
 use App\Models\PemeriksaanTtpGantung;
@@ -64,6 +65,7 @@ class ReportPdfController extends Controller
         $cekFisik   = PemeriksaanCekFisik::where('plan_audit_id', $id)->first();
         $mt         = PemeriksaanMt::where('plan_audit_id', $id)->first();
         $hgp        = PemeriksaanHgp::where('plan_audit_id', $id)->first();
+        $rsaHgp     = PemeriksaanRsaHgp::where('plan_audit_id', $id)->first();
         $hga        = PemeriksaanHga::where('plan_audit_id', $id)->first();
         $smhTarikan = PemeriksaanSmhTarikan::where('plan_audit_id', $id)->first();
         $lampiran   = PemeriksaanLampiran::where('plan_audit_id', $id)->first();
@@ -93,7 +95,7 @@ class ReportPdfController extends Controller
         return compact(
             'plan', 'plafon', 'kas', 'smh', 'perlengkapan', 'bank', 'materai',
             'bpkbOnhand', 'bpkbInproses', 'kwitansi', 'piutangReguler',
-            'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'hga',
+            'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'rsaHgp', 'hga',
             'smhTarikan', 'lampiran', 'lampiranEmbeds', 'visibleTabs'
         );
     }

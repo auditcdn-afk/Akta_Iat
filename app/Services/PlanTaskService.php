@@ -88,20 +88,82 @@ class PlanTaskService
     /**
      * Sinkronkan seluruh plan yang ada (untuk backfill plan lama).
      * Mengembalikan total task baru yang dibuat.
+     *
+     * Dulu ini memanggil syncPlan() per plan — tiap plan menjalankan 2-5 query
+     * (exists() per assignee + create()). Untuk riwayat plan yang sudah ribuan
+     * baris (dijalankan tiap jam via cache di AuditTaskController::index()),
+     * itu jadi ribuan query dalam satu request. Sekarang: SATU query untuk ambil
+     * seluruh pasangan (plan_audit_id, assigned_to) yang sudah ada, dicocokkan
+     * di memory, lalu task baru di-bulk-insert per batch — jumlah query tidak
+     * lagi tergantung jumlah plan.
      */
     public function syncAll(?string $actor = null): int
     {
-        $total = 0;
+        $existing = AuditTask::query()
+            ->get(['plan_audit_id', 'assigned_to'])
+            ->map(fn($row) => $row->plan_audit_id . '|' . $row->assigned_to)
+            ->flip();
+
+        $now = now();
+        $newRows = [];
 
         PlanAudit::query()
             ->orderBy('id')
-            ->chunk(100, function (Collection $plans) use (&$total, $actor) {
+            ->chunk(200, function (Collection $plans) use (&$newRows, &$existing, $actor, $now) {
                 foreach ($plans as $plan) {
-                    $total += $this->syncPlan($plan, $actor);
+                    $judul = trim(($plan->jenis_audit ?: 'Audit') . ' - ' . ($plan->cabang ?: '-'));
+
+                    foreach ($this->assignees($plan) as $assignee) {
+                        $key = $plan->id . '|' . $assignee;
+                        if (isset($existing[$key])) continue;
+                        $existing[$key] = true;
+
+                        $newRows[] = [
+                            'plan_audit_id' => $plan->id,
+                            'judul'         => $judul,
+                            'kategori'      => $plan->jenis_audit,
+                            'assigned_to'   => $assignee,
+                            'priority'      => 'normal',
+                            'status'        => 'todo',
+                            'due_date'      => $plan->tgl_plan,
+                            'catatan'       => 'Dibuat otomatis dari Plan Audit ' . $plan->no_spt
+                                . ($assignee === $plan->kepala_tim ? ' (Kepala Tim)' : ' (Tim Audit)'),
+                            'created_by'    => $actor ?: 'system',
+                            'updated_by'    => $actor ?: 'system',
+                            'created_at'    => $now,
+                            'updated_at'    => $now,
+                        ];
+                    }
+
+                    if ($plan->status === 'running' && $plan->cabang) {
+                        $key = $plan->id . '|' . $plan->cabang;
+                        if (!isset($existing[$key])) {
+                            $existing[$key] = true;
+
+                            $newRows[] = [
+                                'plan_audit_id' => $plan->id,
+                                'judul'         => $judul,
+                                'kategori'      => $plan->jenis_audit,
+                                'assigned_to'   => $plan->cabang,
+                                'priority'      => 'normal',
+                                'status'        => 'todo',
+                                'due_date'      => $plan->tgl_plan,
+                                'catatan'       => 'Tugas cabang: konfirmasi kedatangan auditor untuk plan ' . $plan->no_spt,
+                                'created_by'    => $actor ?: 'system',
+                                'updated_by'    => $actor ?: 'system',
+                                'created_at'    => $now,
+                                'updated_at'    => $now,
+                            ];
+                        }
+                    }
                 }
             });
 
-        return $total;
+        foreach (array_chunk($newRows, 500) as $batch) {
+            AuditTask::query()->insert($batch);
+        }
+
+        return count($newRows);
     }
 
     /**

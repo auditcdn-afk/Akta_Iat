@@ -34,6 +34,11 @@ class Menu extends Model
         return $this->hasMany(Menu::class, 'parent_id')->orderBy('order');
     }
 
+    public function roles(): HasMany
+    {
+        return $this->hasMany(MenuRole::class, 'menu_id');
+    }
+
     // ── Scopes ───────────────────────────────────────────────────
 
     /** Filter menu yang boleh dilihat oleh role tertentu (server-side). */
@@ -59,9 +64,17 @@ class Menu extends Model
 
     // ── Role helpers ─────────────────────────────────────────────
 
-    /** Daftar semua role yang boleh mengakses menu ini. */
+    /**
+     * Daftar semua role yang boleh mengakses menu ini. Kalau relasi roles()
+     * sudah di-eager-load (mis. Menu::with('roles')->get() di AktaMenuService),
+     * ini murni operasi in-memory — tanpa query baru per menu.
+     */
     public function getAllowedRoles(): array
     {
+        if ($this->relationLoaded('roles')) {
+            return $this->roles->pluck('role')->all();
+        }
+
         return DB::table('menu_roles')
             ->where('menu_id', $this->id)
             ->pluck('role')

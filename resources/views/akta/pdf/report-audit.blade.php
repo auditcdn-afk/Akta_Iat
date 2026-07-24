@@ -2428,6 +2428,130 @@ window.addEventListener('load', function() {
 @endif
 
 {{-- ═══════════════════════════════════════════════
+     14B. RSA HGP & AHM OILS (SAMPLING)
+     ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['rsa-hgp'] ?? true))
+<div class="section">
+  <div class="section-title">14B. RSA HGP &amp; AHM OILS (SAMPLING)</div>
+  <div class="section-body" style="padding:0;">
+    @if(!$rsaHgp)
+      <p class="empty" style="padding:12px;">Belum ada data.</p>
+    @else
+      @php
+        $rsaHgpItems = $rsaHgp->items_json ?? [];
+        $hN = fn($v) => (float)($v ?? 0);
+        $rsaHgpTotalSaldo   = array_sum(array_map(fn($it) => $hN($it['saldoAkhir'] ?? $it['saldoAwal'] ?? 0), $rsaHgpItems));
+        $rsaHgpTotalFisikOnly = array_sum(array_map(fn($it) => $hN($it['fisik'] ?? 0), $rsaHgpItems));
+        $rsaHgpTotalWo      = array_sum(array_map(fn($it) => $hN($it['wo'] ?? 0), $rsaHgpItems));
+        $rsaHgpTotalFisik   = $rsaHgpTotalFisikOnly + $rsaHgpTotalWo;
+        $rsaHgpTotalSelisih = array_sum(array_map(fn($it) => $hN($it['selisih'] ?? 0), $rsaHgpItems));
+        $rsaHgpTotalJumlah  = array_sum(array_map(fn($it) => $hN($it['hargaHet'] ?? 0) * $hN($it['selisih'] ?? 0), $rsaHgpItems));
+        $rsaHgpSelCount     = count(array_filter($rsaHgpItems, fn($it) => ($it['selisih'] ?? 0) != 0));
+        $fmtN = fn($v) => number_format((float)$v, 0, ',', '.');
+        $fmtSign = fn($v) => ($v > 0 ? '+' : '') . number_format((float)$v, 0, ',', '.');
+      @endphp
+
+      {{-- Summary cards --}}
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:12px 14px;border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;text-align:center;">
+          <div style="font-size:14px;font-weight:800;color:#1e40af;">{{ count($rsaHgpItems) }}</div>
+          <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">Total Item</div>
+        </div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;text-align:center;">
+          <div style="font-size:14px;font-weight:800;color:#059669;">{{ $fmtN($rsaHgpTotalFisik) }}</div>
+          <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">Total Fisik + WO</div>
+        </div>
+        <div style="background:#fff;border:1px solid {{ $rsaHgpTotalSelisih < 0 ? '#fee2e2' : '#e5e7eb' }};border-radius:8px;padding:10px 12px;text-align:center;">
+          <div style="font-size:14px;font-weight:800;color:{{ $rsaHgpTotalSelisih < 0 ? '#dc2626' : ($rsaHgpTotalSelisih > 0 ? '#d97706' : '#059669') }};">{{ $fmtSign($rsaHgpTotalSelisih) }}</div>
+          <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">Total Selisih Qty</div>
+        </div>
+        <div style="background:#fff;border:1px solid {{ $rsaHgpTotalJumlah < 0 ? '#fee2e2' : '#e5e7eb' }};border-radius:8px;padding:10px 12px;text-align:center;">
+          <div style="font-size:14px;font-weight:800;color:{{ $rsaHgpTotalJumlah < 0 ? '#dc2626' : ($rsaHgpTotalJumlah > 0 ? '#d97706' : '#059669') }};">{{ $fmtSign($rsaHgpTotalJumlah) }}</div>
+          <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">Nilai Selisih (Rp)</div>
+        </div>
+      </div>
+
+      @if($rsaHgp->total_ditemukan && $rsaHgp->sample_size && $rsaHgp->total_ditemukan > $rsaHgp->sample_size)
+      <p style="padding:8px 14px;margin:0;font-size:9px;color:#92400e;background:#fffbeb;border-bottom:1px solid #e5e7eb;">
+        ℹ️ Random Sampling Audit — tabel di bawah adalah {{ $rsaHgp->sample_size }} item hasil sampling otomatis
+        dari total {{ $rsaHgp->total_ditemukan }} item yang ditemukan saat import, bukan seluruh populasi.
+      </p>
+      @endif
+
+      @if(count($rsaHgpItems))
+      <div style="overflow-x:auto;">
+      <table style="font-size:9.5px;min-width:800px;">
+        <thead>
+          <tr>
+            <th style="width:28px;">#</th>
+            <th style="width:80px;">No. Part</th>
+            <th>Nama Part</th>
+            <th style="width:70px;text-align:center;">Tgl Periksa</th>
+            <th style="width:50px;text-align:right;">Saldo Akhir</th>
+            <th style="width:40px;text-align:right;">Fisik</th>
+            <th style="width:36px;text-align:right;color:#92400e;background:#fffbeb;">WO</th>
+            <th style="width:50px;text-align:right;">Akhir</th>
+            <th style="width:46px;text-align:right;">Selisih</th>
+            <th style="width:70px;text-align:right;">Harga HET</th>
+            <th style="width:80px;text-align:right;">Jumlah (Rp)</th>
+            <th>Keterangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          @php $rsaHgpGrandJumlah = 0; @endphp
+          @foreach($rsaHgpItems as $i => $it)
+            @php
+              $saldo   = $hN($it['saldoAkhir'] ?? $it['saldoAwal'] ?? 0);
+              $fisik   = $hN($it['fisik'] ?? 0);
+              $wo      = $hN($it['wo'] ?? 0);
+              $totalFisik = $fisik + $wo;
+              $akhir   = $hN($it['akhir'] ?? ($saldo - $totalFisik));
+              $selisih = $hN($it['selisih'] ?? ($totalFisik - $saldo));
+              $harga   = $hN($it['hargaHet'] ?? 0);
+              $jumlah  = $harga * $selisih;
+              $rsaHgpGrandJumlah += $jumlah;
+              $selColor = $selisih < 0 ? '#dc2626' : ($selisih > 0 ? '#d97706' : '#374151');
+              $jmlColor = $jumlah < 0 ? '#dc2626' : ($jumlah > 0 ? '#d97706' : '#374151');
+            @endphp
+            <tr>
+              <td>{{ (int)$i + 1 }}</td>
+              <td style="font-size:8.5px;color:#6b7280;">{{ $it['noPart'] ?? '-' }}</td>
+              <td style="font-weight:600;">{{ $it['sparepart'] ?? $it['nama'] ?? '-' }}</td>
+              <td style="text-align:center;color:#6b7280;">{{ $it['tgl'] ?? '-' }}</td>
+              <td style="text-align:right;">{{ $saldo > 0 ? $fmtN($saldo) : '0' }}</td>
+              <td style="text-align:right;font-weight:700;">{{ $fmtN($fisik) }}</td>
+              <td style="text-align:right;background:#fffbeb;color:#92400e;font-weight:{{ $wo > 0 ? '700' : '400' }};">{{ $wo > 0 ? $fmtN($wo) : '—' }}</td>
+              <td style="text-align:right;">{{ $fmtN($akhir) }}</td>
+              <td style="text-align:right;font-weight:700;color:{{ $selColor }};">{{ $selisih >= 0 ? '+' : '' }}{{ $fmtN($selisih) }}</td>
+              <td style="text-align:right;color:#6b7280;">{{ $harga > 0 ? $fmtN($harga) : '—' }}</td>
+              <td style="text-align:right;font-weight:700;color:{{ $jmlColor }};">{{ $jumlah != 0 ? ($jumlah >= 0 ? '+' : '') . $fmtN($jumlah) : '—' }}</td>
+              <td style="font-size:9px;color:#6b7280;">{{ $it['keterangan'] ?? '' }}</td>
+            </tr>
+          @endforeach
+          {{-- Total row --}}
+          <tr style="background:#f3f4f6;font-weight:700;border-top:2px solid #d1d5db;">
+            <td colspan="4" style="text-align:right;">TOTAL</td>
+            <td style="text-align:right;">{{ $fmtN($rsaHgpTotalSaldo) }}</td>
+            <td style="text-align:right;">{{ $fmtN($rsaHgpTotalFisikOnly) }}</td>
+            <td style="text-align:right;background:#fffbeb;color:#92400e;">{{ $rsaHgpTotalWo > 0 ? $fmtN($rsaHgpTotalWo) : '—' }}</td>
+            <td></td>
+            <td style="text-align:right;color:{{ $rsaHgpTotalSelisih < 0 ? '#dc2626' : ($rsaHgpTotalSelisih > 0 ? '#d97706' : '#374151') }};">{{ $fmtSign($rsaHgpTotalSelisih) }}</td>
+            <td></td>
+            <td style="text-align:right;color:{{ $rsaHgpGrandJumlah < 0 ? '#dc2626' : ($rsaHgpGrandJumlah > 0 ? '#d97706' : '#374151') }};">{{ $rsaHgpGrandJumlah != 0 ? $fmtSign($rsaHgpGrandJumlah) : '—' }}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+      @else
+        <p class="empty" style="padding:12px;">Tidak ada item.</p>
+      @endif
+    @endif
+  </div>
+</div>
+@endif
+
+{{-- ═══════════════════════════════════════════════
      15. HGA (ACCESSORIES)
      ═══════════════════════════════════════════════ --}}
 @if(($visibleTabs['hga'] ?? true))
