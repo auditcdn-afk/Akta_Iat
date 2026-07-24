@@ -23,7 +23,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 // mendekati struktur file rekap lama.
 class ReportAuditExportController extends Controller
 {
-    private const HO_ROLES = ['admin', 'manajer', 'auditor', 'koordinator', 'coo'];
+    private const HO_ROLES = ['admin', 'manajer', 'auditor', 'koordinator', 'coo', 'viewer'];
 
     // Kelompok pemeriksaan (jenis di audit_gradings) → kode singkat gaya rekap lama.
     private const JENIS_ABBR = [
