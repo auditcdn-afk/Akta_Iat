@@ -14,7 +14,7 @@ use Illuminate\Http\Request;
 class ReportAuditController extends Controller
 {
     // Role kantor pusat (HO) yang boleh melihat semua unit usaha.
-    private const HO_ROLES = ['admin', 'manajer', 'auditor', 'koordinator', 'coo'];
+    private const HO_ROLES = ['admin', 'manajer', 'auditor', 'koordinator', 'coo', 'viewer'];
 
     public function index(Request $request): JsonResponse
     {

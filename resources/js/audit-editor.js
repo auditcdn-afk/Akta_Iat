@@ -146,6 +146,7 @@ function switchTab(tab) {
     // fetch ulang dari server saat tab hgp dibuka lagi, jadi scan terakhir yang
     // belum sempat tersimpan bisa ketimpa kalau tidak di-flush dulu.
     if (tab !== "hgp" && typeof _flushHgpSaveDebounced === "function") _flushHgpSaveDebounced();
+    if (tab !== "rsa-hgp" && typeof _flushRsaHgpSaveDebounced === "function") _flushRsaHgpSaveDebounced();
     if (tab !== "hga" && typeof _flushHgaSaveDebounced === "function") _flushHgaSaveDebounced();
     document.querySelectorAll(".audit-tab-btn").forEach((btn) => {
         const active = btn.dataset.tab === tab;
@@ -196,6 +197,9 @@ function switchTab(tab) {
     }
     if (tab === "hgp") {
         loadHgpTab().catch((e) => showAlert(e.message, "error"));
+    }
+    if (tab === "rsa-hgp") {
+        loadRsaHgpTab().catch((e) => showAlert(e.message, "error"));
     }
     if (tab === "hga") {
         loadHgaTab().catch((e) => showAlert(e.message, "error"));
@@ -1651,6 +1655,7 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
     initCfForm();
     initMtForm();
     initHgpForm();
+    initRsaHgpForm();
     initHgaForm();
     initSmhTarikanForm();
     initLampiranForm();
@@ -4611,6 +4616,648 @@ function initHgpForm() {
         const msg = document.getElementById('hgpImportMsg');
         if (msg) { msg.classList.remove('hidden'); msg.textContent = 'Data dikosongkan. Silakan import ulang file Excel.'; }
         _doSaveHgp().catch(() => {});
+    });
+}
+
+/* ============================================================
+   RSA HGP & AHM Oils
+   ============================================================ */
+let _rsaHgpData = null; // { items: [ { sparepart, saldoAkhir, fisik, akhir, selisih, keterangan, tgl, logScan:[] } ] }
+
+function rsaHgpEmptyData() { return { items: [] }; }
+
+function rsaHgpN(v) {
+    if (v === null || v === undefined || v === '') return 0;
+    return parseFloat(v) || 0;
+}
+
+// Saldo baseline = saldo akhir sistem (fallback ke field lama saldoAwal)
+function rsaHgpSaldo(item) {
+    return rsaHgpN(item?.saldoAkhir ?? item?.saldoAwal);
+}
+
+function rsaHgpCalcItem(item) {
+    const fisik   = rsaHgpN(item.fisik);
+    const wo      = rsaHgpN(item.wo);           // WO menambah fisik
+    const total   = fisik + wo;
+    const saldo   = rsaHgpSaldo(item);
+    item.akhir    = saldo - total;           // Akhir = saldo - (fisik + wo)
+    item.selisih  = total - saldo;           // Selisih = (fisik + wo) - saldo
+}
+
+function rsaHgpUpdateStats() {
+    const items   = _rsaHgpData?.items || [];
+    const total   = items.length;
+    const selisih = items.filter(it => it.selisih !== 0).length;
+    const scan    = items.reduce((s, it) => s + (it.logScan?.length || 0), 0);
+    const el = id => document.getElementById(id);
+    if (el('rsaHgpStatTotal'))   el('rsaHgpStatTotal').textContent   = total;
+    if (el('rsaHgpStatSelisih')) el('rsaHgpStatSelisih').textContent = selisih;
+    if (el('rsaHgpStatScan'))    el('rsaHgpStatScan').textContent    = scan;
+    if (el('rsaHgpTableCount'))  el('rsaHgpTableCount').textContent  = `${total} Item`;
+}
+
+// Bangun HTML 1 baris tabel RSA HGP/AHM Oil. Dipisah dari rsaHgpRenderItems() supaya
+// bisa dipakai juga untuk update 1 baris saja setelah scan (rsaHgpUpdateSingleRow),
+// tanpa perlu render ulang SELURUH tabel tiap kali scan — daftar onhand ini
+// bisa ratusan/ribuan baris, jadi render ulang semuanya di tiap scan bikin
+// aplikasi terasa berat/nge-freeze terutama di HP scanner yang tidak sekencang
+// laptop.
+function rsaHgpRowHtml(it, i) {
+    const selisih  = rsaHgpN(it.selisih);
+    const selClass = selisih < 0 ? 'text-red-400 font-bold' : selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
+    const scan     = it.logScan?.length || 0;
+    const selSign  = selisih >= 0 ? '+' : '';
+    const harga    = rsaHgpN(it.hargaHet);
+    const jumlah   = harga * selisih;   // negatif = kekurangan, positif = kelebihan
+    const jumlahFmt = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
+    const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
+    const wo = rsaHgpN(it.wo);
+    return `<tr class="hover:bg-slate-800/40" data-rsa-hgp-row="${i}">
+        <td class="px-3 py-2 text-slate-400">${i + 1}</td>
+        <td class="px-3 py-2 text-slate-400 text-xs">${it.noPart || ''}</td>
+        <td class="px-3 py-2 text-slate-100 font-medium">${it.sparepart || ''}</td>
+        <td class="px-3 py-2 text-center text-slate-300">${it.tgl || '<span class="text-slate-600">—</span>'}</td>
+        <td class="px-3 py-2 text-right text-slate-300">${rsaHgpSaldo(it)}</td>
+        <td class="px-3 py-2 text-right text-slate-100 font-semibold">${rsaHgpN(it.fisik)}</td>
+        <td class="px-3 py-2 text-right">
+            <input type="number" min="0" data-rsa-hgp-i="${i}" data-rsa-hgp-f="wo"
+                value="${wo || ''}" placeholder="0"
+                class="rsa-hgp-inp w-16 rounded border border-amber-700/50 bg-amber-900/20 px-2 py-1 text-xs text-amber-300 text-right focus:border-amber-500 focus:outline-none">
+        </td>
+        <td class="px-3 py-2 text-right text-slate-300">${rsaHgpN(it.akhir)}</td>
+        <td class="px-3 py-2 text-right ${selClass}">${selSign}${selisih}</td>
+        <td class="px-3 py-2 text-right text-slate-300">${harga > 0 ? harga.toLocaleString('id-ID') : '<span class="text-slate-600">—</span>'}</td>
+        <td class="px-3 py-2 text-right ${jumlahClass}">${jumlahFmt}</td>
+        <td class="px-3 py-2">
+            <input type="text" data-rsa-hgp-i="${i}" data-rsa-hgp-f="keterangan"
+                value="${it.keterangan || ''}"
+                placeholder="Keterangan..."
+                class="rsa-hgp-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
+        </td>
+        <td class="px-3 py-2 text-xs">
+            <div class="flex flex-col gap-0.5 text-slate-400">
+                <span>Fisik Terscan : <span class="text-green-400 font-semibold">${scan}</span></span>
+                <span>Saldo Akhir : <span class="text-slate-300">${rsaHgpSaldo(it)}</span></span>
+                <span>Selisih Scan : <span class="${selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300'} font-semibold">${selSign}${selisih}</span></span>
+            </div>
+        </td>
+    </tr>`;
+}
+
+// Pasang listener input/blur utk kolom yang bisa diedit (wo, keterangan) pada
+// 1 baris <tr>. Dipanggil baik saat render penuh maupun update 1 baris.
+function rsaHgpAttachRowListeners(tr) {
+    tr.querySelectorAll('.rsa-hgp-inp').forEach(inp => {
+        inp.addEventListener('input', () => {
+            const i = parseInt(inp.dataset.rsaHgpI);
+            const f = inp.dataset.rsaHgpF;
+            if (f === 'wo') {
+                _rsaHgpData.items[i].wo = rsaHgpN(inp.value);
+                rsaHgpCalcItem(_rsaHgpData.items[i]);
+                // Update only the affected cells in-place (no full re-render)
+                const row = inp.closest('tr');
+                if (row) {
+                    const it = _rsaHgpData.items[i];
+                    const sel = rsaHgpN(it.selisih);
+                    const selSign = sel >= 0 ? '+' : '';
+                    const selClass = sel < 0 ? 'text-red-400 font-bold' : sel > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
+                    const harga = rsaHgpN(it.hargaHet);
+                    const jumlah = harga * sel;
+                    const jumlahFmt = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
+                    const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
+                    const cells = row.querySelectorAll('td');
+                    // col indices: 0=no,1=noPart,2=nama,3=tgl,4=saldo,5=fisik,6=wo-input,7=akhir,8=selisih,9=harga,10=jumlah,11=ket,12=log
+                    if (cells[7]) cells[7].textContent = rsaHgpN(it.akhir);
+                    if (cells[8]) { cells[8].textContent = `${selSign}${sel}`; cells[8].className = `px-3 py-2 text-right ${selClass}`; }
+                    if (cells[10]) { cells[10].textContent = jumlahFmt; cells[10].className = `px-3 py-2 text-right ${jumlahClass}`; }
+                }
+            } else {
+                _rsaHgpData.items[i][f] = inp.value;
+            }
+        });
+        inp.addEventListener('blur', () => { _doSaveRsaHgp().catch(() => {}); });
+    });
+}
+
+function rsaHgpRenderItems() {
+    const tbody = document.getElementById('rsaHgpTableBody');
+    if (!tbody) return;
+    const items = _rsaHgpData?.items || [];
+    if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
+        rsaHgpUpdateStats();
+        return;
+    }
+    tbody.innerHTML = items.map((it, i) => rsaHgpRowHtml(it, i)).join('');
+    rsaHgpAttachRowListeners(tbody);
+    rsaHgpUpdateStats();
+}
+
+// Update 1 baris saja di tabel (dipakai setelah scan barcode) — jauh lebih
+// ringan daripada render ulang seluruh tabel tiap kali scan, terutama kalau
+// data onhand-nya ratusan/ribuan baris.
+function rsaHgpUpdateSingleRow(idx) {
+    const tbody = document.getElementById('rsaHgpTableBody');
+    if (!tbody) return;
+    const row = tbody.querySelector(`tr[data-rsa-hgp-row="${idx}"]`);
+    const it  = _rsaHgpData.items[idx];
+    if (!row || !it) { rsaHgpRenderItems(); return; }
+    const tmp = document.createElement('tbody');
+    tmp.innerHTML = rsaHgpRowHtml(it, idx);
+    const newRow = tmp.firstElementChild;
+    rsaHgpAttachRowListeners(newRow);
+    row.replaceWith(newRow);
+    rsaHgpUpdateStats();
+}
+
+async function rsaHgpEnrichWithHet(items) {
+    if (!items || !items.length) return;
+    const kodes = [...new Set(items.map(it => it.noPart).filter(Boolean))];
+    if (!kodes.length) return;
+    try {
+        const res = await fetchJson('/api/audit-detail/hgp/batch-het', {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ kodes }),
+        });
+        const map = res.data || {};
+        items.forEach(it => {
+            const hit = it.noPart ? map[it.noPart] : null;
+            if (hit) {
+                if (!it.sparepart || it.sparepart === it.noPart) it.sparepart = hit.nama || it.sparepart;
+                it.hargaHet = rsaHgpN(hit.hargaHet);
+            }
+        });
+    } catch (_) {}
+}
+
+async function rsaHgpHandleFile(file) {
+    const msg = document.getElementById('rsaHgpImportMsg');
+    if (msg) { msg.classList.remove('hidden'); msg.textContent = 'Mengupload...'; }
+    try {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('planAuditId', activePlanId || '');
+        const res = await fetchJson('/api/audit-detail/rsa-hgp/parse-excel', {
+            method: 'POST',
+            headers: authHeaders(),
+            body: fd,
+        });
+        if (!res.data || !res.data.length) {
+            if (msg) msg.textContent = 'Tidak ada data ditemukan dalam file.';
+            return;
+        }
+        // RSA = Random Sampling Audit: server hanya mengembalikan sample (30 item normal,
+        // 50 item untuk unit usaha ber-role WHS) dari total item yang ditemukan di file,
+        // bukan seluruh data — beda dengan tool HGP & AHM Oils biasa yang memuat semua item.
+        const sampleNote = res.sampled
+            ? ` — disampling otomatis ${res.data.length} dari ${res.totalFound} item ditemukan (ukuran sample: ${res.sampleSize}).`
+            : '';
+        if (!_rsaHgpData) _rsaHgpData = rsaHgpEmptyData();
+        // Replace: import = master data baru. Pertahankan fisik & logScan untuk noPart yang cocok.
+        const prevByPart = {};
+        (_rsaHgpData.items || []).forEach(it => {
+            if (it.noPart) prevByPart[it.noPart.toLowerCase()] = it;
+        });
+        _rsaHgpData.items = res.data.map(it => {
+            const prev = it.noPart ? prevByPart[it.noPart.toLowerCase()] : null;
+            if (prev) {
+                it.fisik   = rsaHgpN(prev.fisik);
+                it.logScan = Array.isArray(prev.logScan) ? prev.logScan : [];
+                rsaHgpCalcItem(it);
+            }
+            return it;
+        });
+        _rsaHgpData.totalDitemukan = res.totalFound;
+        _rsaHgpData.sampleSize = res.sampleSize;
+        if (msg) { msg.textContent = `${res.data.length} item diimport${sampleNote} — memuat harga HET...`; }
+        await rsaHgpEnrichWithHet(_rsaHgpData.items);
+        if (msg) { msg.textContent = `${res.data.length} item diimport (data lama diganti).${sampleNote}`; }
+        rsaHgpRenderItems();
+        rsaHgpPopulateDatalist();
+        rsaHgpUpdateSampleInfo();
+        _doSaveRsaHgp().catch(() => {});
+    } catch (e) {
+        if (msg) msg.textContent = 'Gagal: ' + (e.message || 'Unknown error');
+    }
+}
+
+/* ---- Form pemeriksaan (scan / dropdown No. Part) ---- */
+let _rsaHgpSelIdx = -1; // index item yang sedang dipilih di form
+
+// Datalist native browser dengan ratusan/ribuan <option> dikenal bikin input jadi
+// patah-patah/delay (terutama di WebView Android bawaan alat scanner genggam seperti
+// Honeywell EDA52) — setiap fokus/blur/ketik di input yang terhubung ke datalist besar,
+// browser harus mengelola seluruh daftar option itu. Solusinya: JS yang menyaring
+// sendiri (murah, di memory) dan datalist cuma diisi HASIL SARINGAN yang dibatasi
+// jumlahnya, bukan seluruh data import.
+const RSA_HGP_DATALIST_MAX = 40;
+function rsaHgpPopulateDatalist(filterTerm) {
+    const dl = document.getElementById('rsaHgpPartList');
+    if (!dl) return;
+    const items = _rsaHgpData?.items || [];
+    const esc = s => (s || '').replace(/"/g, '&quot;');
+    const term = (filterTerm || '').trim().toLowerCase();
+    let list = term
+        ? items.filter(it => (it.noPart || '').toLowerCase().includes(term) || (it.sparepart || '').toLowerCase().includes(term))
+        : items;
+    list = list.slice(0, RSA_HGP_DATALIST_MAX);
+    dl.innerHTML = list.map(it => {
+        const noPart = esc(it.noPart || it.sparepart || '');
+        const nama   = esc(it.sparepart || '');
+        // Tampilkan No. Part sebagai nilai utama; nama part jadi keterangan
+        return `<option value="${noPart}" label="${noPart}${nama ? ' — ' + nama : ''}">${noPart}</option>`;
+    }).join('');
+}
+
+// No Part Honda biasanya berformat "35148-K78-N10", tapi barcode fisik di
+// kemasan kadang menyimpannya tanpa strip/spasi ("35148K78N10") atau malah
+// dengan panjang/prefix berbeda dari yang tersimpan di data import Excel.
+// Buang strip+spasi dulu sebelum dibandingkan, dan sediakan fallback 5
+// karakter terakhir (sama seperti perbaikan scan No. Mesin/Rangka SMH) untuk
+// kasus format barcode yang beda total dari data tersimpan.
+const rsaHgpNormalizeCode = (s) => (s || '').toString().trim().toLowerCase().replace(/[\s-]+/g, '');
+
+function rsaHgpFindIdx(code) {
+    const term = (code || '').trim().toLowerCase();
+    if (!term) return -1;
+    const items = _rsaHgpData?.items || [];
+    const termNorm = rsaHgpNormalizeCode(code);
+    const termLast5 = termNorm.length >= 5 ? termNorm.slice(-5) : null;
+
+    let idx = items.findIndex(it => (it.noPart || '').toLowerCase() === term);
+    if (idx < 0) idx = items.findIndex(it => (it.sparepart || '').toLowerCase() === term);
+    if (idx < 0) idx = items.findIndex(it => rsaHgpNormalizeCode(it.noPart) === termNorm);
+    if (idx < 0) idx = items.findIndex(it => (it.noPart || '').toLowerCase().includes(term));
+    if (idx < 0 && termLast5) idx = items.findIndex(it => rsaHgpNormalizeCode(it.noPart).endsWith(termLast5));
+    return idx;
+}
+
+function rsaHgpFormRecalc() {
+    const qty = rsaHgpN(document.getElementById('rsaHgpFormQty')?.value);
+    const it  = _rsaHgpSelIdx >= 0 ? _rsaHgpData.items[_rsaHgpSelIdx] : null;
+    const saldo = it ? rsaHgpSaldo(it) : 0;
+    // Preview: akhir setelah tambah qty baru ini (akumulasi ke fisik yang sudah ada)
+    const fisikTotal = rsaHgpN(it?.fisik) + qty;
+    const akhir = saldo - fisikTotal;
+    const selisih = fisikTotal - saldo;
+    const elAkhir = document.getElementById('rsaHgpFormAkhir');
+    const elSel   = document.getElementById('rsaHgpFormSelisih');
+    if (elAkhir) elAkhir.value = akhir;
+    if (elSel) {
+        elSel.value = (selisih >= 0 ? '+' : '') + selisih;
+        elSel.classList.remove('text-red-400', 'text-yellow-400', 'text-slate-300');
+        elSel.classList.add(selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300');
+    }
+    const log = document.getElementById('rsaHgpFormLog');
+    if (log) {
+        const scan = it ? (it.logScan?.length || 0) : 0;
+        log.textContent = `Fisik Terscan : ${scan} | Saldo Akhir : ${it ? saldo : '-'}`;
+    }
+}
+
+function rsaHgpFormSelectPart(code) {
+    const info = document.getElementById('rsaHgpFormPartInfo');
+    const idx  = rsaHgpFindIdx(code);
+    _rsaHgpSelIdx = idx;
+    if (idx < 0) {
+        if (info) { info.textContent = code ? `No. Part "${code}" tidak ditemukan dalam data import.` : ''; info.className = 'mt-0.5 text-xs text-red-400'; }
+        rsaHgpFormRecalc();
+        return;
+    }
+    const it = _rsaHgpData.items[idx];
+    if (info) { info.textContent = `${it.noPart || '-'} — ${it.sparepart || ''} | Saldo Akhir: ${rsaHgpSaldo(it)} | Fisik Terscan: ${rsaHgpN(it.fisik)} | Sisa: ${rsaHgpN(it.akhir)}`; info.className = 'mt-0.5 text-xs text-green-400'; }
+    document.getElementById('rsaHgpFormFields')?.classList.remove('hidden');
+    // Pre-fill dari record yang ada
+    const qtyEl = document.getElementById('rsaHgpFormQty');
+    const ketEl = document.getElementById('rsaHgpFormKet');
+    const tglEl = document.getElementById('rsaHgpFormTgl');
+    if (qtyEl) qtyEl.value = 0;  // qty ini untuk scan baru, bukan total
+    if (ketEl) ketEl.value = it.keterangan || '';
+    if (tglEl && it.tgl) tglEl.value = it.tgl;
+    rsaHgpFormRecalc();
+}
+
+// Simpan ke server di-debounce: scan barcode berturut-turut (device scanner bisa
+// beberapa kali per detik) tidak perlu masing-masing menunggu round-trip network +
+// tulis ulang seluruh items_json ke DB — cukup simpan sekali setelah scan berhenti
+// sejenak. _flushRsaHgpSaveDebounced() dipanggil sebelum pindah tab / tutup halaman
+// supaya scan terakhir tidak hilang.
+let _rsaHgpSaveDebounceTimer = null;
+function _doSaveRsaHgpDebounced(delay = 700) {
+    clearTimeout(_rsaHgpSaveDebounceTimer);
+    _rsaHgpSaveDebounceTimer = setTimeout(() => {
+        _rsaHgpSaveDebounceTimer = null;
+        _doSaveRsaHgp().catch(() => {});
+    }, delay);
+}
+function _flushRsaHgpSaveDebounced() {
+    if (!_rsaHgpSaveDebounceTimer) return;
+    clearTimeout(_rsaHgpSaveDebounceTimer);
+    _rsaHgpSaveDebounceTimer = null;
+    _doSaveRsaHgp().catch(() => {});
+}
+
+// Kirim HANYA delta scan (No. Part + qty) ke server, bukan seluruh daftar item —
+// _doSaveRsaHgp() mengirim SEMUA item (termasuk riwayat logScan tiap item) setiap kali
+// dipanggil; kalau daftar onhand-nya ratusan/ribuan item, payload itu bisa berat untuk
+// diupload dari alat scanner genggam (mis. Honeywell EDA52) yang jaringannya (WiFi
+// gudang/data seluler) belum tentu kencang. Endpoint ini hanya membawa 1 No. Part +
+// qty, jadi ukurannya tetap kecil berapa pun banyaknya item di data import.
+// Kalau request ini gagal (network putus dsb), fallback ke simpan penuh yang
+// di-debounce supaya datanya tidak hilang.
+async function _doScanRsaHgpIncrement(noPart, qty, idx) {
+    if (!activePlanId || !noPart) return;
+    try {
+        const res = await fetchJson('/api/audit-detail/rsa-hgp/scan-increment', {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ planAuditId: activePlanId, noPart, qty }),
+        });
+        // Selaraskan dengan hasil otoritatif server (jaga-jaga ada device lain yang
+        // ikut scan No. Part yang sama di waktu yang berdekatan).
+        if (res?.item && _rsaHgpData?.items?.[idx]) {
+            _rsaHgpData.items[idx] = { ..._rsaHgpData.items[idx], ...res.item };
+            rsaHgpUpdateSingleRow(idx);
+        }
+    } catch (_) {
+        _doSaveRsaHgpDebounced();
+    }
+}
+
+// Scan barcode: akumulasi fisik +1 setiap scan kode yang sama, tiap scan tercatat di log.
+// Setelah scan, form dikosongkan total agar siap scan berikutnya.
+let _rsaHgpScanGuard = false;
+function rsaHgpScanAccumulate(code) {
+    const msg  = document.getElementById('rsaHgpFormMsg');
+    const showMsg = (text, ok) => {
+        if (!msg) return;
+        msg.classList.remove('hidden');
+        msg.textContent = text;
+        msg.className = 'text-xs font-medium ' + (ok ? 'text-green-400' : 'text-red-400');
+    };
+    const term = (code || '').trim();
+    if (!term) return;
+
+    const idx = rsaHgpFindIdx(term);
+    if (idx < 0) {
+        showMsg(`✗ No. Part "${term}" tidak ditemukan dalam data import.`, false);
+        rsaHgpFormClearInputs();
+        return;
+    }
+
+    const it = _rsaHgpData.items[idx];
+    it.fisik = rsaHgpN(it.fisik) + 1;                       // akumulasi
+    if (!Array.isArray(it.logScan)) it.logScan = [];
+    it.logScan.push({ at: new Date().toISOString(), qty: 1 }); // history per scan
+    it.tgl = document.getElementById('rsaHgpFormTgl')?.value || it.tgl;
+    rsaHgpCalcItem(it);
+
+    rsaHgpUpdateSingleRow(idx);
+    _doScanRsaHgpIncrement(it.noPart, 1, idx);
+
+    // Pesan hasil scan, lalu kosongkan form untuk scan berikutnya
+    showMsg(`✓ ${it.noPart || it.sparepart} — ${it.sparepart} | Fisik: ${rsaHgpN(it.fisik)} | Akhir: ${it.akhir} | Selisih: ${it.selisih >= 0 ? '+' : ''}${it.selisih} (Terscan: ${it.logScan.length})`, true);
+    rsaHgpFormClearInputs();
+}
+
+// Kosongkan input form (tanpa menyentuh pesan hasil scan)
+function rsaHgpFormClearInputs() {
+    _rsaHgpSelIdx = -1;
+    const partInput = document.getElementById('rsaHgpFormPart');
+    const qtyEl = document.getElementById('rsaHgpFormQty');
+    const ketEl = document.getElementById('rsaHgpFormKet');
+    const akhirEl = document.getElementById('rsaHgpFormAkhir');
+    const selEl = document.getElementById('rsaHgpFormSelisih');
+    const info  = document.getElementById('rsaHgpFormPartInfo');
+    const log   = document.getElementById('rsaHgpFormLog');
+    document.getElementById('rsaHgpFormFields')?.classList.add('hidden');
+    if (partInput) {
+        _rsaHgpScanGuard = true;
+        partInput.value = '';
+        setTimeout(() => { _rsaHgpScanGuard = false; partInput.focus(); }, 0);
+    }
+    if (qtyEl)  qtyEl.value = 0;
+    if (ketEl)  ketEl.value = '';
+    if (akhirEl) akhirEl.value = 0;
+    if (selEl)  selEl.value = 0;
+    if (info)   info.textContent = '';
+    if (log)    log.textContent = 'Fisik Terscan : 0 | Saldo Akhir : -';
+}
+
+function rsaHgpFormSaveEntry() {
+    const msg = document.getElementById('rsaHgpFormMsg');
+    const showMsg = (text, ok) => {
+        if (!msg) return;
+        msg.classList.remove('hidden');
+        msg.textContent = text;
+        msg.className = 'text-xs font-medium ' + (ok ? 'text-green-400' : 'text-red-400');
+    };
+    if (_rsaHgpSelIdx < 0) { showMsg('Pilih / scan No. Part terlebih dahulu.', false); return; }
+    const it = _rsaHgpData.items[_rsaHgpSelIdx];
+    const qty = rsaHgpN(document.getElementById('rsaHgpFormQty')?.value);
+    if (qty <= 0) { showMsg('Qty harus lebih dari 0.', false); return; }
+    it.fisik = rsaHgpN(it.fisik) + qty;  // akumulasi, bukan replace
+    it.keterangan = document.getElementById('rsaHgpFormKet')?.value || '';
+    it.tgl = document.getElementById('rsaHgpFormTgl')?.value || it.tgl;
+    if (!Array.isArray(it.logScan)) it.logScan = [];
+    it.logScan.push({ at: new Date().toISOString(), qty });
+    rsaHgpCalcItem(it);
+    rsaHgpUpdateSingleRow(_rsaHgpSelIdx);
+    _doSaveRsaHgpDebounced();
+    showMsg(`✓ Tersimpan: ${it.noPart || it.sparepart} — Fisik ${rsaHgpN(it.fisik)}, Akhir ${it.akhir}, Selisih ${it.selisih >= 0 ? '+' : ''}${it.selisih}`, true);
+    rsaHgpFormClearInputs();
+}
+
+function rsaHgpFormReset() {
+    _rsaHgpSelIdx = -1;
+    const ids = ['rsaHgpFormPart', 'rsaHgpFormKet'];
+    ids.forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+    const qty = document.getElementById('rsaHgpFormQty'); if (qty) qty.value = 0;
+    const info = document.getElementById('rsaHgpFormPartInfo'); if (info) info.textContent = '';
+    const msg = document.getElementById('rsaHgpFormMsg'); if (msg) msg.classList.add('hidden');
+    rsaHgpFormRecalc();
+}
+
+async function loadRsaHgpTab() {
+    if (!activePlanId) { rsaHgpRenderItems(); return; }
+    const res = await fetchJson(`/api/audit-detail/rsa-hgp?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    if (res.data && Array.isArray(res.data.items) && res.data.items.length > 0) {
+        _rsaHgpData = { items: res.data.items, totalDitemukan: res.data.totalDitemukan, sampleSize: res.data.sampleSize };
+    }
+    if (!_rsaHgpData) _rsaHgpData = rsaHgpEmptyData();
+    (_rsaHgpData.items || []).forEach(it => rsaHgpCalcItem(it));
+    await rsaHgpEnrichWithHet(_rsaHgpData.items);
+    rsaHgpRenderItems();
+    rsaHgpPopulateDatalist();
+    rsaHgpUpdateSampleInfo();
+}
+
+// Tampilkan info sampling secara persisten (bukan cuma sesaat setelah import),
+// supaya auditor yang buka ulang tab ini tetap tahu berapa total item ditemukan
+// vs berapa yang disampling untuk discan.
+function rsaHgpUpdateSampleInfo() {
+    const el = document.getElementById('rsaHgpSampleInfo');
+    if (!el) return;
+    const total = _rsaHgpData?.totalDitemukan;
+    const size  = _rsaHgpData?.sampleSize;
+    if (!total || !size || total <= size) {
+        el.classList.add('hidden');
+        return;
+    }
+    el.classList.remove('hidden');
+    el.textContent = `ℹ️ Random Sampling Audit: ${size} item disampling otomatis dari ${total} item yang ditemukan di file import.`;
+}
+
+async function _doSaveRsaHgp() {
+    if (!activePlanId) throw new Error('Pilih plan audit terlebih dahulu.');
+    if (!_rsaHgpData) _rsaHgpData = rsaHgpEmptyData();
+    return await fetchJson('/api/audit-detail/rsa-hgp', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+            planAuditId: activePlanId,
+            items: _rsaHgpData.items,
+            totalDitemukan: _rsaHgpData.totalDitemukan,
+            sampleSize: _rsaHgpData.sampleSize,
+        }),
+    });
+}
+
+async function saveRsaHgp() {
+    const res = await _doSaveRsaHgp();
+    showAlert(res.message, 'success');
+}
+
+function initRsaHgpForm() {
+    const fileInput = document.getElementById('rsaHgpFileInput');
+    const dropzone  = document.getElementById('rsaHgpDropzone');
+
+    window.addEventListener('beforeunload', () => _flushRsaHgpSaveDebounced());
+
+    fileInput?.addEventListener('change', () => {
+        if (fileInput.files[0]) rsaHgpHandleFile(fileInput.files[0]);
+        fileInput.value = '';
+    });
+
+    dropzone?.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-blue-400'); });
+    dropzone?.addEventListener('dragleave', () => { dropzone.classList.remove('border-blue-400'); });
+    dropzone?.addEventListener('drop', e => {
+        e.preventDefault();
+        dropzone.classList.remove('border-blue-400');
+        const f = e.dataTransfer.files[0];
+        if (f) rsaHgpHandleFile(f);
+    });
+
+    document.getElementById('rsaHgpSaveBtn')?.addEventListener('click', () => {
+        saveRsaHgp().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
+    });
+
+    // Form pemeriksaan: scan / pilih No. Part
+    const partInput = document.getElementById('rsaHgpFormPart');
+    // Pilih dari dropdown → load (tanpa akumulasi). Scan + Enter → akumulasi fisik +1.
+    partInput?.addEventListener('change', () => {
+        if (_rsaHgpScanGuard) return;
+        if (partInput.value) rsaHgpFormSelectPart(partInput.value);
+    });
+    partInput?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); rsaHgpScanAccumulate(partInput.value); }
+    });
+    // Saring ulang datalist tiap ketik supaya isinya selalu kecil (lihat komentar di
+    // rsaHgpPopulateDatalist) — bukan cuma diisi sekali di awal dengan seluruh data import.
+    partInput?.addEventListener('input', () => rsaHgpPopulateDatalist(partInput.value));
+
+    const qtyInput = document.getElementById('rsaHgpFormQty');
+    qtyInput?.addEventListener('input', () => rsaHgpFormRecalc());
+    document.getElementById('rsaHgpFormQtyInc')?.addEventListener('click', () => {
+        if (qtyInput) { qtyInput.value = rsaHgpN(qtyInput.value) + 1; rsaHgpFormRecalc(); }
+    });
+    document.getElementById('rsaHgpFormQtyDec')?.addEventListener('click', () => {
+        if (qtyInput) { const v = rsaHgpN(qtyInput.value); qtyInput.value = v > 0 ? v - 1 : 0; rsaHgpFormRecalc(); }
+    });
+
+    document.getElementById('rsaHgpFormSaveBtn')?.addEventListener('click', () => rsaHgpFormSaveEntry());
+    document.getElementById('rsaHgpFormResetBtn')?.addEventListener('click', () => rsaHgpFormReset());
+
+    // Default tanggal hari ini
+    const tglEl = document.getElementById('rsaHgpFormTgl');
+    if (tglEl && !tglEl.value) tglEl.value = new Date().toISOString().slice(0, 10);
+
+    // Tambah Part Manual
+    const addPartBtn    = document.getElementById('rsaHgpAddPartBtn');
+    const addPartForm   = document.getElementById('rsaHgpAddPartForm');
+    const addPartNo     = document.getElementById('rsaHgpAddPartNo');
+    const addPartNama   = document.getElementById('rsaHgpAddPartNama');
+    const addPartSave   = document.getElementById('rsaHgpAddPartSave');
+    const addPartCancel = document.getElementById('rsaHgpAddPartCancel');
+    const addPartMsg    = document.getElementById('rsaHgpAddPartMsg');
+
+    addPartBtn?.addEventListener('click', () => {
+        addPartForm?.classList.toggle('hidden');
+        if (!addPartForm?.classList.contains('hidden')) addPartNo?.focus();
+    });
+    addPartCancel?.addEventListener('click', () => {
+        addPartForm?.classList.add('hidden');
+        if (addPartNo)  addPartNo.value  = '';
+        if (addPartNama) addPartNama.value = '';
+        if (addPartMsg) addPartMsg.classList.add('hidden');
+    });
+    addPartSave?.addEventListener('click', () => {
+        const noPart = (addPartNo?.value || '').trim();
+        const nama   = (addPartNama?.value || '').trim();
+        const showAddMsg = (text, ok) => {
+            if (!addPartMsg) return;
+            addPartMsg.classList.remove('hidden');
+            addPartMsg.textContent = text;
+            addPartMsg.className = 'text-xs ' + (ok ? 'text-emerald-400' : 'text-red-400');
+        };
+        if (!noPart) { showAddMsg('No. Part wajib diisi.', false); return; }
+        if (!_rsaHgpData) _rsaHgpData = rsaHgpEmptyData();
+        const exists = _rsaHgpData.items.some(it => (it.noPart || '').toLowerCase() === noPart.toLowerCase());
+        if (exists) { showAddMsg(`No. Part "${noPart}" sudah ada dalam daftar.`, false); return; }
+        const newItem = {
+            noPart, sparepart: nama || noPart,
+            saldoAkhir: 0, fisik: 0, wo: 0, akhir: 0, selisih: 0,
+            keterangan: '', tgl: new Date().toISOString().slice(0, 10), logScan: [],
+            _manual: true,
+        };
+        _rsaHgpData.items.push(newItem);
+        rsaHgpRenderItems();
+        rsaHgpPopulateDatalist();
+        _doSaveRsaHgp().catch(() => {});
+        showAddMsg(`✓ "${noPart}" ditambahkan ke daftar scan.`, true);
+        if (addPartNo)  addPartNo.value  = '';
+        if (addPartNama) addPartNama.value = '';
+        setTimeout(() => addPartForm?.classList.add('hidden'), 1500);
+    });
+    // Auto-fill nama dari db_het saat No. Part diketik
+    let _hetLookupTimer = null;
+    addPartNo?.addEventListener('input', () => {
+        clearTimeout(_hetLookupTimer);
+        const kode = (addPartNo.value || '').trim();
+        if (!kode || kode.length < 3) return;
+        _hetLookupTimer = setTimeout(async () => {
+            try {
+                const res = await fetchJson(`/api/audit-detail/hgp/lookup-het?kode=${encodeURIComponent(kode)}`, { headers: authHeaders() });
+                if (res.data?.nama && addPartNama && !addPartNama.value.trim()) {
+                    addPartNama.value = res.data.nama;
+                }
+            } catch (_) {}
+        }, 400);
+    });
+    addPartNo?.addEventListener('keydown', e => { if (e.key === 'Enter') addPartSave?.click(); });
+    addPartNama?.addEventListener('keydown', e => { if (e.key === 'Enter') addPartSave?.click(); });
+
+    document.getElementById('rsaHgpClearBtn')?.addEventListener('click', () => {
+        if (!confirm('Hapus semua data RSA HGP & AHM Oils? Data lama akan dikosongkan, lalu import ulang file Excel.')) return;
+        _rsaHgpData = rsaHgpEmptyData();
+        rsaHgpRenderItems();
+        rsaHgpPopulateDatalist();
+        rsaHgpFormReset();
+        const msg = document.getElementById('rsaHgpImportMsg');
+        if (msg) { msg.classList.remove('hidden'); msg.textContent = 'Data dikosongkan. Silakan import ulang file Excel.'; }
+        _doSaveRsaHgp().catch(() => {});
     });
 }
 

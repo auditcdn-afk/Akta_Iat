@@ -58,6 +58,9 @@
         {{-- Panel: HGP & AHM Oils --}}
         @include('akta.pages.audit.tab-hgp')
 
+        {{-- Panel: RSA HGP & AHM Oils --}}
+        @include('akta.pages.audit.tab-rsa-hgp')
+
         {{-- Panel: HGA (Accessories) --}}
         @include('akta.pages.audit.tab-hga')
 

@@ -1035,10 +1035,46 @@ function escapeHtml(value) {
         .replaceAll("'", "&#039;");
 }
 
+async function exportReportAuditExcel() {
+    const exportBtn = document.getElementById("exportReportAuditButton");
+
+    if (exportBtn) {
+        exportBtn.disabled = true;
+        exportBtn.textContent = "⏳ Menyiapkan...";
+    }
+    try {
+        const res = await fetch("/api/report-audit/export-excel", {
+            headers: authHeaders(),
+        });
+        if (!res.ok) {
+            throw new Error(`Gagal membuat file Excel (status ${res.status})`);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+        a.download = `report-audit-${stamp}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        showAlert(error.message || "Gagal export Excel.", "error");
+    } finally {
+        if (exportBtn) {
+            exportBtn.disabled = false;
+            exportBtn.textContent = "📊 Export Excel";
+        }
+    }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     document
         .getElementById("closeReportAuditDetailButton")
         ?.addEventListener("click", closeDetail);
+
+    document
+        .getElementById("exportReportAuditButton")
+        ?.addEventListener("click", exportReportAuditExcel);
 
     setupFilters();
     setupTableActions();

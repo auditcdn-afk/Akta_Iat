@@ -43,6 +43,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Deploy Secret (FTP-only hosting workaround)
+    |--------------------------------------------------------------------------
+    |
+    | Token pelindung untuk App\Http\Controllers\DeployController — dipakai
+    | pada hosting yang hanya menyediakan FTP (tanpa SSH/cron). Isi dengan
+    | string acak yang panjang. Kosongkan (jangan diisi) kalau tidak dipakai
+    | — controller akan menolak semua request selama nilainya kosong.
+    |
+    */
+
+    'deploy_secret' => env('DEPLOY_SECRET'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
     |
