@@ -211,7 +211,8 @@
                     </div>
                     <select id="atcJenisAuditInput"
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        <option value="Audit">Audit</option>
+                        <option value="Audit Full SO">Audit Full SO</option>
+                        <option value="Audit Full CSC">Audit Full CSC</option>
                         <option value="Audit Online Kas + Unit SMH">Audit Online Kas + Unit SMH</option>
                         <option value="Audit Online Kas + HGP & AHM Oils">Audit Online Kas + HGP & AHM Oils</option>
                         <option value="Audit Verifikasi HO">Audit Verifikasi HO</option>
