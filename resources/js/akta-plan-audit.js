@@ -365,6 +365,10 @@ function nextNoSptPreview() {
     return `${seq}/${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}/SPT-IAT`;
 }
 
+function firstJenisAuditOption() {
+    return document.querySelector("#jenisAudit option")?.value || "";
+}
+
 function openModal(plan = null) {
     const modal = document.getElementById("planModal");
     const title = document.getElementById("planModalTitle");
@@ -378,7 +382,7 @@ function openModal(plan = null) {
         title.textContent = "Edit Plan Audit";
         document.getElementById("planId").value = plan.id;
         document.getElementById("noSpt").value = plan.noSpt || "";
-        document.getElementById("jenisAudit").value = plan.jenisAudit || "Audit";
+        document.getElementById("jenisAudit").value = plan.jenisAudit || firstJenisAuditOption();
         document.getElementById("tglPlan").value = plan.tglPlan || "";
         document.getElementById("keterangan").value = plan.keterangan || "";
         renderCabangSelect(plan.cabang || "");
@@ -387,7 +391,7 @@ function openModal(plan = null) {
     } else {
         title.textContent = "Tambah Plan Audit";
         document.getElementById("planId").value = "";
-        document.getElementById("jenisAudit").value = "Audit";
+        document.getElementById("jenisAudit").value = firstJenisAuditOption();
         document.getElementById("noSpt").value = nextNoSptPreview();
         document.getElementById("tglPlan").value = todayIso();
     }
