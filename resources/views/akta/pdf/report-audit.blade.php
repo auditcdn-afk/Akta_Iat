@@ -356,6 +356,55 @@ window.addEventListener('load', function() {
         </table>
       </div>
       @endif
+
+      {{-- ── Register Blanko yang Belum Digunakan ── --}}
+      @php
+        $blankoH1 = $d['blanko_h1'] ?? [];
+        $blankoH2 = $d['blanko_h2'] ?? [];
+      @endphp
+      @if(count($blankoH1) || count($blankoH2))
+      <div style="margin-top:16px;">
+        <div style="font-weight:700;font-size:11px;color:#374151;border-bottom:2px solid #d1d5db;padding-bottom:3px;margin-bottom:8px;">D. REGISTER BLANKO YANG BELUM DIGUNAKAN</div>
+        <div style="display:flex;gap:16px;">
+          <div style="flex:1;">
+            <div style="margin-bottom:4px;font-size:10px;font-weight:700;color:#374151;">H1</div>
+            @if(count($blankoH1))
+            <table>
+              <thead><tr><th>Jenis</th><th>Nomor Range Blanko</th></tr></thead>
+              <tbody>
+                @foreach($blankoH1 as $b)
+                <tr>
+                  <td>{{ $b['jenis'] ?? '-' }}</td>
+                  <td>{{ $b['nomor'] ?? '-' }}</td>
+                </tr>
+                @endforeach
+              </tbody>
+            </table>
+            @else
+            <p class="empty">Belum ada data.</p>
+            @endif
+          </div>
+          <div style="flex:1;">
+            <div style="margin-bottom:4px;font-size:10px;font-weight:700;color:#374151;">H2</div>
+            @if(count($blankoH2))
+            <table>
+              <thead><tr><th>Jenis</th><th>Nomor Range Blanko</th></tr></thead>
+              <tbody>
+                @foreach($blankoH2 as $b)
+                <tr>
+                  <td>{{ $b['jenis'] ?? '-' }}</td>
+                  <td>{{ $b['nomor'] ?? '-' }}</td>
+                </tr>
+                @endforeach
+              </tbody>
+            </table>
+            @else
+            <p class="empty">Belum ada data.</p>
+            @endif
+          </div>
+        </div>
+      </div>
+      @endif
     @endif
   </div>
 </div>
