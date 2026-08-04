@@ -53,4 +53,26 @@ class DeployController extends Controller
         return response("OK - {$count} plan audit diproses pada " . now()->toDateTimeString(), 200)
             ->header('Content-Type', 'text/plain');
     }
+
+    // Bersihkan cache view/config/route lewat browser — dipakai setelah upload
+    // FTP supaya blade/PHP yang sudah diganti langsung kepakai, tanpa perlu
+    // `php artisan view:clear` yang tidak bisa dijalankan tanpa SSH.
+    public function clearCache(Request $request): Response
+    {
+        $this->checkToken($request);
+
+        Artisan::call('view:clear');
+        $output = Artisan::output();
+
+        Artisan::call('config:clear');
+        $output .= Artisan::output();
+
+        Artisan::call('route:clear');
+        $output .= Artisan::output();
+
+        Artisan::call('cache:clear');
+        $output .= Artisan::output();
+
+        return response($output, 200)->header('Content-Type', 'text/plain');
+    }
 }
