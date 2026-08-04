@@ -13,6 +13,7 @@ Route::view('/akta/login', 'akta.login')->name('akta.login');
 // DEPLOY_SECRET di .env kosong.
 Route::get('/deploy/migrate', [\App\Http\Controllers\DeployController::class, 'migrate']);
 Route::get('/deploy/refresh-report-audit', [\App\Http\Controllers\DeployController::class, 'refreshReportAudit']);
+Route::get('/deploy/clear-cache', [\App\Http\Controllers\DeployController::class, 'clearCache']);
 
 Route::prefix('akta')->name('akta.')->group(function () {
     Route::view('/dashboard', 'akta.pages.dashboard')->name('dashboard');
