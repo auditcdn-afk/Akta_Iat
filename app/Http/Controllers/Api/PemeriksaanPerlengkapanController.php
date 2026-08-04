@@ -175,7 +175,14 @@ class PemeriksaanPerlengkapanController extends Controller
         $data['created_by'] = $this->who($request);
         $data['updated_by'] = $this->who($request);
 
-        $rec = PemeriksaanPerlengkapan::create($data);
+        // updateOrCreate (bukan create) supaya jenis perlengkapan yang sama untuk
+        // plan yang sama hanya punya 1 baris. Kalau tidak, jenis yang sama diinput
+        // ulang (mis. auditor scan ulang item yang sama) akan bikin baris baru, dan
+        // total Saldo di tabel jadi ikut dobel, bukan tersinkron ke fisik terbaru.
+        $rec = PemeriksaanPerlengkapan::updateOrCreate(
+            ['plan_audit_id' => $data['plan_audit_id'], 'jenis_perlengkapan' => $data['jenis_perlengkapan']],
+            $data
+        );
 
         return response()->json(['message' => 'Data berhasil disimpan.', 'data' => $rec->toAktaArray()], 201);
     }
