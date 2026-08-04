@@ -87,13 +87,13 @@
 
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">No SPT</label>
-                    <input id="noSpt" type="text" placeholder="Diisi otomatis jika dikosongkan"
+                    <label class="mb-1 block text-sm font-medium text-slate-300">No SPT <span class="text-red-400">*</span></label>
+                    <input id="noSpt" type="text" required placeholder="Diisi otomatis jika dikosongkan"
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder-slate-600 outline-none focus:border-blue-500">
                 </div>
 
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Jenis Audit</label>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Jenis Audit <span class="text-red-400">*</span></label>
                     <select id="jenisAudit" required
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
                         <option value="Audit">Audit</option>
@@ -127,15 +127,20 @@
 
                 <div>
                     <label class="mb-1 block text-sm font-medium text-slate-300">Cabang <span class="text-red-400">*</span></label>
-                    <select id="cabang" required
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        <option value="">-- Pilih Cabang --</option>
-                    </select>
+                    <div class="relative">
+                        <input id="cabangInput" type="text" required autocomplete="off"
+                            placeholder="Ketik untuk cari cabang..."
+                            class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder-slate-600 outline-none focus:border-blue-500">
+                        <input type="hidden" id="cabang">
+                        <div id="cabangOptions"
+                            class="absolute z-10 mt-1 hidden max-h-56 w-full overflow-y-auto rounded-xl border border-slate-700 bg-slate-950 shadow-xl">
+                        </div>
+                    </div>
                 </div>
 
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-300">Kepala Tim</label>
-                    <select id="kepalaTim"
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Kepala Tim <span class="text-red-400">*</span></label>
+                    <select id="kepalaTim" required
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
                         <option value="">-- Pilih Kepala Tim --</option>
                     </select>
@@ -163,7 +168,7 @@
                 </button>
 
                 <button type="submit" id="savePlanButton"
-                    class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500">
+                    class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50">
                     Simpan
                 </button>
             </div>

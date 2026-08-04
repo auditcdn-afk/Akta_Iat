@@ -258,13 +258,45 @@ function renderPlans() {
 
 // ── Selects & checkboxes ──────────────────────────────────────────────────────
 
+// Cabang dipilih lewat combobox (input teks + daftar tersaring) supaya
+// pengguna bisa mengetik lebih dari satu huruf untuk menyaring daftar unit
+// usaha yang panjang, alih-alih men-scroll <select> biasa.
+function renderCabangOptions(filterText = "") {
+    const list = document.getElementById("cabangOptions");
+    if (!list) return;
+
+    const filter = filterText.trim().toLowerCase();
+    const matches = filter
+        ? unitUsahaList.filter((u) => u.unitUsaha?.toLowerCase().includes(filter))
+        : unitUsahaList;
+
+    if (!matches.length) {
+        list.innerHTML = `<p class="px-3 py-2 text-sm text-slate-500">Tidak ada cabang cocok.</p>`;
+        list.classList.remove("hidden");
+        return;
+    }
+
+    list.innerHTML = matches.map((u) => `
+        <button type="button" class="cabang-option block w-full px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-800"
+            data-value="${escapeHtml(u.unitUsaha)}">${escapeHtml(u.unitUsaha)}</button>
+    `).join("");
+    list.classList.remove("hidden");
+}
+
+function closeCabangOptions() {
+    document.getElementById("cabangOptions")?.classList.add("hidden");
+}
+
+function selectCabang(value) {
+    document.getElementById("cabang").value = value;
+    document.getElementById("cabangInput").value = value;
+    closeCabangOptions();
+}
+
 function renderCabangSelect(selected = "") {
-    const el = document.getElementById("cabang");
-    if (!el) return;
-    const options = unitUsahaList.map(
-        (u) => `<option value="${escapeHtml(u.unitUsaha)}" ${u.unitUsaha === selected ? "selected" : ""}>${escapeHtml(u.unitUsaha)}</option>`
-    ).join("");
-    el.innerHTML = `<option value="">-- Pilih Cabang --</option>${options}`;
+    document.getElementById("cabang").value = selected;
+    document.getElementById("cabangInput").value = selected;
+    closeCabangOptions();
 }
 
 function renderKepalaTimSelect(selected = "") {
@@ -381,8 +413,13 @@ function getFormPayload() {
     };
 }
 
+let isSavingPlan = false;
+
 async function savePlan(event) {
     event.preventDefault();
+
+    // Cegah klik ganda pada tombol Simpan membuat plan (dan No SPT) yang sama tersimpan berkali-kali.
+    if (isSavingPlan) return;
 
     if (!canCreatePlan() && !canEditPlan()) {
         showAlert("Role kamu tidak bisa menyimpan plan.", "error");
@@ -397,14 +434,29 @@ async function savePlan(event) {
         return;
     }
 
-    const payload = await fetchJson(isEdit ? `/api/plans/${id}` : "/api/plans", {
-        method: isEdit ? "PUT" : "POST",
-        body: JSON.stringify(getFormPayload()),
-    });
+    const form = getFormPayload();
+    if (!form.no_spt || !form.jenis_audit || !form.cabang || !form.kepala_tim) {
+        showAlert("No SPT, Jenis Audit, Cabang, dan Kepala Tim wajib diisi.", "error");
+        return;
+    }
 
-    closeModal();
-    showAlert(payload.message || "Plan audit berhasil disimpan.");
-    await loadPlans();
+    const saveButton = document.getElementById("savePlanButton");
+    isSavingPlan = true;
+    if (saveButton) saveButton.disabled = true;
+
+    try {
+        const payload = await fetchJson(isEdit ? `/api/plans/${id}` : "/api/plans", {
+            method: isEdit ? "PUT" : "POST",
+            body: JSON.stringify(form),
+        });
+
+        closeModal();
+        showAlert(payload.message || "Plan audit berhasil disimpan.");
+        await loadPlans();
+    } finally {
+        isSavingPlan = false;
+        if (saveButton) saveButton.disabled = false;
+    }
 }
 
 async function advancePlan(id) {
@@ -474,6 +526,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("openCreatePlanButton")?.addEventListener("click", () => openModal());
     document.getElementById("closePlanModalButton")?.addEventListener("click", closeModal);
     document.getElementById("cancelPlanFormButton")?.addEventListener("click", closeModal);
+
+    document.getElementById("cabangInput")?.addEventListener("input", (e) => {
+        const value = e.target.value;
+        const exact = unitUsahaList.find((u) => u.unitUsaha === value);
+        document.getElementById("cabang").value = exact ? exact.unitUsaha : "";
+        renderCabangOptions(value);
+    });
+    document.getElementById("cabangInput")?.addEventListener("focus", (e) => {
+        renderCabangOptions(e.target.value);
+    });
+    document.getElementById("cabangOptions")?.addEventListener("click", (e) => {
+        const option = e.target.closest(".cabang-option");
+        if (option) selectCabang(option.dataset.value);
+    });
+    document.addEventListener("click", (e) => {
+        if (!e.target.closest("#cabangInput") && !e.target.closest("#cabangOptions")) {
+            closeCabangOptions();
+        }
+    });
 
     document.getElementById("planForm")?.addEventListener("submit", async (e) => {
         try { await savePlan(e); }
