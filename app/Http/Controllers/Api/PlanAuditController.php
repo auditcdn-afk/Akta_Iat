@@ -363,7 +363,7 @@ class PlanAuditController extends Controller
             'tgl_plan'    => ['nullable', 'date'],
             'tgl_mulai'   => ['nullable', 'date'],
             'tgl_selesai' => ['nullable', 'date', 'after_or_equal:tgl_mulai'],
-            'kepala_tim'  => ['nullable', 'string', 'max:150'],
+            'kepala_tim'  => ['required', 'string', 'max:150'],
             'tim'         => ['nullable', 'array'],
             'tim.*'       => ['nullable', 'string', 'max:150'],
             'status'      => ['nullable', 'string', Rule::in($allStatuses)],
