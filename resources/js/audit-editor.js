@@ -4372,8 +4372,10 @@ function hgpFormRecalc() {
     }
     const log = document.getElementById('hgpFormLog');
     if (log) {
-        const scan = it ? (it.logScan?.length || 0) : 0;
-        log.textContent = `Fisik Terscan : ${scan} | Saldo Akhir : ${it ? saldo : '-'}`;
+        // Fisik Terscan = akumulasi qty yang sudah dimasukkan (termasuk qty yang
+        // baru diketik ini), bukan jumlah berapa kali tombol Simpan diklik —
+        // supaya history-nya jelas menunjukkan total unit, bukan jumlah entri log.
+        log.textContent = `Fisik Terscan : ${it ? fisikTotal : 0} | Saldo Akhir : ${it ? saldo : '-'}`;
     }
 }
 
@@ -4993,8 +4995,10 @@ function rsaHgpFormRecalc() {
     }
     const log = document.getElementById('rsaHgpFormLog');
     if (log) {
-        const scan = it ? (it.logScan?.length || 0) : 0;
-        log.textContent = `Fisik Terscan : ${scan} | Saldo Akhir : ${it ? saldo : '-'}`;
+        // Fisik Terscan = akumulasi qty yang sudah dimasukkan (termasuk qty yang
+        // baru diketik ini), bukan jumlah berapa kali tombol Simpan diklik —
+        // supaya history-nya jelas menunjukkan total unit, bukan jumlah entri log.
+        log.textContent = `Fisik Terscan : ${it ? fisikTotal : 0} | Saldo Akhir : ${it ? saldo : '-'}`;
     }
 }
 
@@ -5769,8 +5773,10 @@ function hgaFormRecalc() {
     }
     const log = document.getElementById('hgaFormLog');
     if (log) {
-        const scan = it ? (it.logScan?.length || 0) : 0;
-        log.textContent = `Fisik Terscan : ${scan} | Saldo Akhir : ${it ? saldo : '-'}`;
+        // Fisik Terscan = akumulasi qty yang sudah dimasukkan (termasuk qty yang
+        // baru diketik ini), bukan jumlah berapa kali tombol Simpan diklik —
+        // supaya history-nya jelas menunjukkan total unit, bukan jumlah entri log.
+        log.textContent = `Fisik Terscan : ${it ? fisikTotal : 0} | Saldo Akhir : ${it ? saldo : '-'}`;
     }
 }
 
