@@ -73,6 +73,18 @@ class DeployController extends Controller
         Artisan::call('cache:clear');
         $output .= Artisan::output();
 
+        // artisan cache/view/config clears only clear Laravel's own caches — they
+        // don't touch PHP's opcode cache. On hosts with OPcache enabled, an FTP
+        // upload of a changed .php file (controllers, models, etc.) can keep
+        // running the old compiled bytecode until OPcache re-checks the file on
+        // its own schedule. Reset it here too so a PHP file change takes effect
+        // immediately after hitting this endpoint, not just Blade view changes.
+        if (function_exists('opcache_reset')) {
+            $output .= opcache_reset() ? "OPcache: reset.\n" : "OPcache: reset gagal.\n";
+        } else {
+            $output .= "OPcache: tidak aktif di server ini, dilewati.\n";
+        }
+
         return response($output, 200)->header('Content-Type', 'text/plain');
     }
 }
