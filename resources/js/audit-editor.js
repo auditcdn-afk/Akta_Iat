@@ -4517,8 +4517,8 @@ function hgpFormSaveEntry() {
     if (_hgpSelIdx < 0) { showMsg('Pilih / scan No. Part terlebih dahulu.', false); return; }
     const it = _hgpData.items[_hgpSelIdx];
     const qty = hgpN(document.getElementById('hgpFormQty')?.value);
-    if (qty <= 0) { showMsg('Qty harus lebih dari 0.', false); return; }
-    it.fisik = hgpN(it.fisik) + qty;  // akumulasi, bukan replace
+    if (qty === 0) { showMsg('Qty tidak boleh 0.', false); return; }
+    it.fisik = hgpN(it.fisik) + qty;  // akumulasi (boleh minus untuk koreksi), bukan replace
     it.keterangan = document.getElementById('hgpFormKet')?.value || '';
     it.tgl = document.getElementById('hgpFormTgl')?.value || it.tgl;
     if (!Array.isArray(it.logScan)) it.logScan = [];
@@ -4612,7 +4612,7 @@ function initHgpForm() {
         if (qtyInput) { qtyInput.value = hgpN(qtyInput.value) + 1; hgpFormRecalc(); }
     });
     document.getElementById('hgpFormQtyDec')?.addEventListener('click', () => {
-        if (qtyInput) { const v = hgpN(qtyInput.value); qtyInput.value = v > 0 ? v - 1 : 0; hgpFormRecalc(); }
+        if (qtyInput) { qtyInput.value = hgpN(qtyInput.value) - 1; hgpFormRecalc(); }
     });
 
     document.getElementById('hgpFormSaveBtn')?.addEventListener('click', () => hgpFormSaveEntry());
@@ -5137,8 +5137,8 @@ function rsaHgpFormSaveEntry() {
     if (_rsaHgpSelIdx < 0) { showMsg('Pilih / scan No. Part terlebih dahulu.', false); return; }
     const it = _rsaHgpData.items[_rsaHgpSelIdx];
     const qty = rsaHgpN(document.getElementById('rsaHgpFormQty')?.value);
-    if (qty <= 0) { showMsg('Qty harus lebih dari 0.', false); return; }
-    it.fisik = rsaHgpN(it.fisik) + qty;  // akumulasi, bukan replace
+    if (qty === 0) { showMsg('Qty tidak boleh 0.', false); return; }
+    it.fisik = rsaHgpN(it.fisik) + qty;  // akumulasi (boleh minus untuk koreksi), bukan replace
     it.keterangan = document.getElementById('rsaHgpFormKet')?.value || '';
     it.tgl = document.getElementById('rsaHgpFormTgl')?.value || it.tgl;
     if (!Array.isArray(it.logScan)) it.logScan = [];
@@ -5254,7 +5254,7 @@ function initRsaHgpForm() {
         if (qtyInput) { qtyInput.value = rsaHgpN(qtyInput.value) + 1; rsaHgpFormRecalc(); }
     });
     document.getElementById('rsaHgpFormQtyDec')?.addEventListener('click', () => {
-        if (qtyInput) { const v = rsaHgpN(qtyInput.value); qtyInput.value = v > 0 ? v - 1 : 0; rsaHgpFormRecalc(); }
+        if (qtyInput) { qtyInput.value = rsaHgpN(qtyInput.value) - 1; rsaHgpFormRecalc(); }
     });
 
     document.getElementById('rsaHgpFormSaveBtn')?.addEventListener('click', () => rsaHgpFormSaveEntry());
@@ -5869,8 +5869,8 @@ function hgaFormSaveEntry() {
     if (_hgaSelIdx < 0) { showMsg('Pilih / scan No. Part terlebih dahulu.', false); return; }
     const it  = _hgaData.items[_hgaSelIdx];
     const qty = hgaN(document.getElementById('hgaFormQty')?.value);
-    if (qty <= 0) { showMsg('Qty harus lebih dari 0.', false); return; }
-    it.fisik = hgaN(it.fisik) + qty;
+    if (qty === 0) { showMsg('Qty tidak boleh 0.', false); return; }
+    it.fisik = hgaN(it.fisik) + qty;  // akumulasi (boleh minus untuk koreksi), bukan replace
     it.keterangan = document.getElementById('hgaFormKet')?.value || '';
     it.tgl = document.getElementById('hgaFormTgl')?.value || it.tgl;
     if (!Array.isArray(it.logScan)) it.logScan = [];
@@ -6034,7 +6034,7 @@ function initHgaForm() {
     const qtyInput = document.getElementById('hgaFormQty');
     qtyInput?.addEventListener('input', () => hgaFormRecalc());
     document.getElementById('hgaFormQtyInc')?.addEventListener('click', () => { if (qtyInput) { qtyInput.value = hgaN(qtyInput.value) + 1; hgaFormRecalc(); } });
-    document.getElementById('hgaFormQtyDec')?.addEventListener('click', () => { if (qtyInput) { const v = hgaN(qtyInput.value); qtyInput.value = v > 0 ? v - 1 : 0; hgaFormRecalc(); } });
+    document.getElementById('hgaFormQtyDec')?.addEventListener('click', () => { if (qtyInput) { qtyInput.value = hgaN(qtyInput.value) - 1; hgaFormRecalc(); } });
 
     document.getElementById('hgaFormSaveBtn')?.addEventListener('click', () => hgaFormSaveEntry());
     document.getElementById('hgaFormResetBtn')?.addEventListener('click', () => hgaFormClearInputs());

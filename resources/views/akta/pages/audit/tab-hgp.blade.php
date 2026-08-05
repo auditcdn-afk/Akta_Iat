@@ -102,7 +102,7 @@
                             <label class="text-xs font-semibold text-slate-300">Qty (Fisik Scan) <span class="text-red-400">*</span></label>
                             <div class="flex items-center gap-2">
                                 <button id="hgpFormQtyDec" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-slate-200 hover:bg-slate-600">−</button>
-                                <input type="number" id="hgpFormQty" value="0" min="0"
+                                <input type="number" id="hgpFormQty" value="0"
                                     class="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
                                 <button id="hgpFormQtyInc" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-slate-200 hover:bg-slate-600">+</button>
                             </div>
