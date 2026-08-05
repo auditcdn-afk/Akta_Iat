@@ -4541,12 +4541,13 @@ function hgpFormReset() {
 }
 
 async function loadHgpTab() {
-    if (!activePlanId) { hgpRenderItems(); return; }
+    if (!activePlanId) { _hgpData = null; hgpRenderItems(); return; }
     const res = await fetchJson(`/api/audit-detail/hgp?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
-    if (res.data && Array.isArray(res.data.items) && res.data.items.length > 0) {
-        _hgpData = { items: res.data.items };
-    }
-    if (!_hgpData) _hgpData = hgpEmptyData();
+    // Selalu timpa _hgpData dengan data plan yang baru dibuka (termasuk kalau
+    // kosong) — sebelumnya hanya ditimpa kalau items tidak kosong, jadi kalau
+    // pindah ke plan lain yang belum ada data HGP-nya, _hgpData tetap berisi
+    // data plan sebelumnya dan bisa ikut tersimpan ke plan yang salah.
+    _hgpData = (res.data && Array.isArray(res.data.items)) ? { items: res.data.items } : hgpEmptyData();
     (_hgpData.items || []).forEach(it => hgpCalcItem(it));
     await hgpEnrichWithHet(_hgpData.items);
     hgpRenderItems();
@@ -5161,12 +5162,15 @@ function rsaHgpFormReset() {
 }
 
 async function loadRsaHgpTab() {
-    if (!activePlanId) { rsaHgpRenderItems(); return; }
+    if (!activePlanId) { _rsaHgpData = null; rsaHgpRenderItems(); return; }
     const res = await fetchJson(`/api/audit-detail/rsa-hgp?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
-    if (res.data && Array.isArray(res.data.items) && res.data.items.length > 0) {
-        _rsaHgpData = { items: res.data.items, totalDitemukan: res.data.totalDitemukan, sampleSize: res.data.sampleSize };
-    }
-    if (!_rsaHgpData) _rsaHgpData = rsaHgpEmptyData();
+    // Selalu timpa _rsaHgpData dengan data plan yang baru dibuka (termasuk kalau
+    // kosong) — sebelumnya hanya ditimpa kalau items tidak kosong, jadi kalau
+    // pindah ke plan lain yang belum ada data RSA HGP-nya, _rsaHgpData tetap
+    // berisi data plan sebelumnya dan bisa ikut tersimpan ke plan yang salah.
+    _rsaHgpData = (res.data && Array.isArray(res.data.items))
+        ? { items: res.data.items, totalDitemukan: res.data.totalDitemukan, sampleSize: res.data.sampleSize }
+        : rsaHgpEmptyData();
     (_rsaHgpData.items || []).forEach(it => rsaHgpCalcItem(it));
     await rsaHgpEnrichWithHet(_rsaHgpData.items);
     rsaHgpRenderItems();
@@ -5983,12 +5987,13 @@ async function hgaHandlePtsFile(file) {
 }
 
 async function loadHgaTab() {
-    if (!activePlanId) { hgaRenderItems(); return; }
+    if (!activePlanId) { _hgaData = null; hgaRenderItems(); return; }
     const res = await fetchJson(`/api/audit-detail/hga?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
-    if (res.data && Array.isArray(res.data.items) && res.data.items.length > 0) {
-        _hgaData = { items: res.data.items };
-    }
-    if (!_hgaData) _hgaData = hgaEmptyData();
+    // Selalu timpa _hgaData dengan data plan yang baru dibuka (termasuk kalau
+    // kosong) — sebelumnya hanya ditimpa kalau items tidak kosong, jadi kalau
+    // pindah ke plan lain yang belum ada data HGA-nya, _hgaData tetap berisi
+    // data plan sebelumnya dan bisa ikut tersimpan ke plan yang salah.
+    _hgaData = (res.data && Array.isArray(res.data.items)) ? { items: res.data.items } : hgaEmptyData();
     (_hgaData.items || []).forEach(it => hgaCalcItem(it));
     await hgaEnrichWithHet(_hgaData.items);
     hgaRenderItems();
