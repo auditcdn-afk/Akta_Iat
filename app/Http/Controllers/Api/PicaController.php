@@ -377,6 +377,44 @@ class PicaController extends Controller
         return in_array($this->role($request), $this->closeRoles, true);
     }
 
+    /**
+     * Unggah berkas recheck untuk satu PICA.
+     *
+     * Sebelumnya ini closure di routes/api.php — dipindahkan ke controller agar
+     * route cache tidak perlu menyimpan closure ter-serialisasi.
+     */
+    public function uploadRecheck(Request $request, Pica $pica): JsonResponse
+    {
+        $request->validate(['file' => ['nullable', 'file', 'max:10240']]);
+
+        if ($request->hasFile('file')) {
+            $pica->recheck_file = $request->file('file')->store('pica-recheck', 'public');
+        }
+
+        // Hanya timpa jika nilai baru tidak kosong (proteksi data lama)
+        $note = $request->input('recheck_note');
+        if (!is_null($note) && $note !== '') {
+            $pica->recheck_note = $note;
+        }
+
+        $deadline = $request->input('recheck_deadline');
+        if (!is_null($deadline) && $deadline !== '') {
+            $pica->recheck_deadline = $deadline;
+        }
+
+        if (!$pica->recheck_at) {
+            $pica->recheck_at = now();
+        }
+
+        $pica->save();
+
+        return response()->json([
+            'ok'   => true,
+            'path' => $pica->recheck_file,
+            'url'  => $pica->recheck_file ? asset('storage/' . $pica->recheck_file) : null,
+        ]);
+    }
+
     private function role(Request $request): string
     {
         return strtolower((string) ($request->user()?->role ?? ''));

@@ -57,6 +57,12 @@ class DeployController extends Controller
     // Bersihkan cache view/config/route lewat browser — dipakai setelah upload
     // FTP supaya blade/PHP yang sudah diganti langsung kepakai, tanpa perlu
     // `php artisan view:clear` yang tidak bisa dijalankan tanpa SSH.
+    //
+    // Setelah dibersihkan, cache config, route, dan view langsung DIBANGUN
+    // ULANG. Tanpa ini aplikasi selamanya berjalan tanpa cache: seluruh berkas
+    // config dan routes/api.php (ratusan baris, puluhan import controller)
+    // harus di-parse ulang pada setiap request — dan di hosting FTP-only tidak
+    // ada cara lain menjalankan `php artisan optimize`.
     public function clearCache(Request $request): Response
     {
         $this->checkToken($request);
@@ -73,6 +79,8 @@ class DeployController extends Controller
         Artisan::call('cache:clear');
         $output .= Artisan::output();
 
+        $output .= $this->rebuildCaches();
+
         // artisan cache/view/config clears only clear Laravel's own caches — they
         // don't touch PHP's opcode cache. On hosts with OPcache enabled, an FTP
         // upload of a changed .php file (controllers, models, etc.) can keep
@@ -86,5 +94,29 @@ class DeployController extends Controller
         }
 
         return response($output, 200)->header('Content-Type', 'text/plain');
+    }
+
+    /**
+     * Bangun ulang cache config, route, dan view.
+     *
+     * Tiap langkah dibungkus try/catch: kalau salah satu gagal (misalnya
+     * direktori bootstrap/cache tidak bisa ditulis di hosting tertentu),
+     * aplikasi tetap jalan — hanya kembali ke mode tanpa cache yang lebih
+     * lambat — dan pesan kegagalannya ikut ditampilkan supaya bisa ditindak.
+     */
+    private function rebuildCaches(): string
+    {
+        $output = "\n--- Membangun ulang cache ---\n";
+
+        foreach (['config:cache', 'route:cache', 'view:cache'] as $command) {
+            try {
+                Artisan::call($command);
+                $output .= trim(Artisan::output()) . "\n";
+            } catch (\Throwable $e) {
+                $output .= "GAGAL {$command}: {$e->getMessage()}\n";
+            }
+        }
+
+        return $output;
     }
 }

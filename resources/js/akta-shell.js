@@ -1,18 +1,9 @@
-const SESSION_KEY = "akta_session";
+import { SESSION_KEY, readSession, cachedUser, updateCachedUser } from "./akta-session.js";
+
 const SIDEBAR_SCROLL_KEY = "akta_sidebar_scroll_top";
 
 function getSession() {
-    try {
-        const rawSession = sessionStorage.getItem(SESSION_KEY);
-
-        if (!rawSession) {
-            return null;
-        }
-
-        return JSON.parse(rawSession);
-    } catch {
-        return null;
-    }
+    return readSession();
 }
 
 function clearSession() {
@@ -112,7 +103,10 @@ async function checkDataStore(session) {
     }
 
     try {
-        const response = await fetch("/api/all-data", {
+        // Dulu endpoint ini memakai /api/all-data, yang mengunduh SELURUH isi
+        // data store hanya untuk menampilkan jumlah key-nya. Sekarang server
+        // yang menghitung dan hanya mengirim angkanya.
+        const response = await fetch("/api/all-data/summary", {
             headers: authHeaders(session),
         });
 
@@ -121,7 +115,7 @@ async function checkDataStore(session) {
         }
 
         const data = await response.json();
-        element.textContent = `${Object.keys(data).length} key`;
+        element.textContent = `${data.count} key`;
     } catch {
         element.textContent = "Error";
     }
@@ -213,6 +207,63 @@ function setupThemeToggle() {
     });
 }
 
+// Setiap klik menu memicu full page reload (aplikasi ini MPA, bukan SPA).
+// Dengan mengambil HTML halaman tujuan sejak kursor menyentuh menunya, dokumen
+// biasanya sudah ada di cache browser saat user benar-benar mengklik — sehingga
+// bagian "menunggu server" dari navigasi hilang tanpa mengubah arsitektur.
+function setupNavPrefetch() {
+    const prefetched = new Set();
+
+    const prefetch = (event) => {
+        const link = event.target.closest("a.akta-menu-item");
+
+        if (!link) {
+            return;
+        }
+
+        const href = link.getAttribute("href");
+
+        if (!href || href === "#") {
+            return;
+        }
+
+        // route() menghasilkan URL absolut, jadi href harus di-resolve dulu —
+        // bukan dicek dengan startsWith("/") — lalu dibatasi ke origin sendiri
+        // supaya link eksternal tidak ikut di-prefetch.
+        let target;
+
+        try {
+            target = new URL(href, window.location.href);
+        } catch {
+            return;
+        }
+
+        if (target.origin !== window.location.origin) {
+            return;
+        }
+
+        // Halaman yang sedang dibuka tidak perlu di-prefetch.
+        if (target.pathname === window.location.pathname) {
+            return;
+        }
+
+        if (prefetched.has(target.href)) {
+            return;
+        }
+
+        prefetched.add(target.href);
+
+        const hint = document.createElement("link");
+        hint.rel = "prefetch";
+        hint.as = "document";
+        hint.href = target.href;
+        document.head.appendChild(hint);
+    };
+
+    document.addEventListener("pointerenter", prefetch, { capture: true, passive: true });
+    document.addEventListener("touchstart", prefetch, { capture: true, passive: true });
+}
+
 function registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
     window.addEventListener("load", () => {
@@ -222,30 +273,22 @@ function registerServiceWorker() {
     });
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
+function applyUser(user) {
+    renderUser(user);
+    applyRoleVisibility(user);
+    guardAdminOnlyPage(user);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
     setupMobileMenu();
     setupSidebarScrollMemory();
     setupThemeToggle();
     registerServiceWorker();
+    setupNavPrefetch();
 
     const session = getSession();
 
     if (!session || !session.token) {
-        clearSession();
-        redirectToLogin();
-        return;
-    }
-
-    try {
-        const payload = await validateSession(session);
-        const user = payload.user;
-
-        renderUser(user);
-        applyRoleVisibility(user);
-        guardAdminOnlyPage(user);
-
-        await checkDataStore(session);
-    } catch {
         clearSession();
         redirectToLogin();
         return;
@@ -256,4 +299,33 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (logoutButton) {
         logoutButton.addEventListener("click", () => logout(session));
     }
+
+    // Objek user sudah tersimpan sejak login, jadi nama/role/menu bisa langsung
+    // digambar tanpa menunggu jaringan sama sekali.
+    const known = cachedUser();
+
+    if (known) {
+        applyUser(known);
+    }
+
+    // Validasi sesi tetap dilakukan, tapi di latar belakang — halaman tidak lagi
+    // menunggu satu round-trip penuh sebelum menampilkan apa pun. Kalau server
+    // menolak token, user tetap dilempar ke login; kalau data user di server
+    // berbeda (mis. role diubah admin), tampilan disegarkan di sini.
+    validateSession(session)
+        .then((payload) => {
+            const user = payload.user;
+
+            updateCachedUser(user);
+
+            if (!known || JSON.stringify(user) !== JSON.stringify(known)) {
+                applyUser(user);
+            }
+
+            return checkDataStore(session);
+        })
+        .catch(() => {
+            clearSession();
+            redirectToLogin();
+        });
 });

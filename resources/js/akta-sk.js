@@ -1,3 +1,5 @@
+import { cachedUser } from "./akta-session.js";
+
 const SESSION_KEY = "akta_session";
 
 let skItems = [];
@@ -192,6 +194,14 @@ async function fetchJson(url, options = {}) {
 }
 
 async function loadCurrentUser() {
+    // User sudah tersimpan sejak login, jadi tidak perlu round-trip ke
+    // /api/auth/me. Fallback ke server hanya untuk sesi format lama.
+    currentUser = cachedUser();
+
+    if (currentUser) {
+        return;
+    }
+
     const payload = await fetchJson("/api/auth/me");
     currentUser = payload.user;
 }
@@ -1502,10 +1512,15 @@ document.addEventListener("DOMContentLoaded", async () => {
                 ?.classList.add("hidden");
         }
 
-        await loadPlans();
-        await loadUserOptions();
-        await loadSkItems();
-        await loadMyDistribusi();
+        // Keempat pemuatan ini tidak saling bergantung — masing-masing mengisi
+        // elemen yang berbeda. Dijalankan berbarengan supaya total waktunya
+        // sama dengan yang paling lambat, bukan jumlah keempatnya.
+        await Promise.all([
+            loadPlans(),
+            loadUserOptions(),
+            loadSkItems(),
+            loadMyDistribusi(),
+        ]);
     } catch (error) {
         showAlert(error.message || "Gagal memuat SK.", "error");
     }

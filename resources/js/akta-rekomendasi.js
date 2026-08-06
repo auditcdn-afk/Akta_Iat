@@ -1,3 +1,5 @@
+import { cachedUser } from "./akta-session.js";
+
 const SESSION_KEY = 'akta_session';
 
 let recommendations = [];
@@ -162,6 +164,14 @@ async function fetchJson(url, options = {}) {
 }
 
 async function loadCurrentUser() {
+    // User sudah tersimpan sejak login, jadi tidak perlu round-trip ke
+    // /api/auth/me. Fallback ke server hanya untuk sesi format lama.
+    currentUser = cachedUser();
+
+    if (currentUser) {
+        return;
+    }
+
     const payload = await fetchJson('/api/auth/me');
     currentUser = payload.user;
 }
@@ -822,10 +832,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('openCreateRecommendationButton')?.classList.add('hidden');
         }
 
-        await loadPlans();
-        await loadTasks();
-        await loadPlanIdsWithSk();
-        await loadRecommendations();
+        // Keempatnya tidak saling bergantung saat diambil, jadi dijalankan
+        // berbarengan — bukan berurutan seperti sebelumnya.
+        await Promise.all([
+            loadPlans(),
+            loadTasks(),
+            loadPlanIdsWithSk(),
+            loadRecommendations(),
+        ]);
+
+        // renderRecommendations() membaca planIdsWithSk (untuk tombol "Buat SK").
+        // Karena urutan selesainya kini tidak dijamin, gambar ulang sekali
+        // setelah semuanya tiba supaya tombolnya pasti benar.
+        renderRecommendations();
     } catch (error) {
         showAlert(error.message || 'Gagal memuat rekomendasi.', 'error');
     }

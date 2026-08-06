@@ -1,3 +1,5 @@
+import { cachedUser } from "./akta-session.js";
+
 const SESSION_KEY = "akta_session";
 
 let reportItems = [];
@@ -54,6 +56,14 @@ async function fetchJson(url, options = {}) {
 }
 
 async function loadCurrentUser() {
+    // User sudah tersimpan sejak login, jadi tidak perlu round-trip ke
+    // /api/auth/me. Fallback ke server hanya untuk sesi format lama.
+    currentUser = cachedUser();
+
+    if (currentUser) {
+        return;
+    }
+
     const payload = await fetchJson("/api/auth/me");
     currentUser = payload.user;
 }
@@ -540,8 +550,7 @@ async function saveCrosscheck(event) {
         });
         showAlert(payload.message || "Crosscheck berhasil disimpan.");
         closeCrosscheck();
-        await loadReportSummary();
-        await loadReportItems();
+        await Promise.all([loadReportSummary(), loadReportItems()]);
     } catch (e) {
         showAlert(e.message, "error");
     }
@@ -838,8 +847,7 @@ function setupFilters() {
         .getElementById("reloadReportAuditButton")
         ?.addEventListener("click", async () => {
             try {
-                await loadReportSummary();
-                await loadReportItems();
+                await Promise.all([loadReportSummary(), loadReportItems()]);
                 showAlert("Report Audit berhasil dimuat ulang.");
             } catch (error) {
                 showAlert(
@@ -1081,8 +1089,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     try {
         await loadCurrentUser();
-        await loadReportSummary();
-        await loadReportItems();
+
+        // Ringkasan (kartu statistik) dan daftar item mengisi bagian layar yang
+        // berbeda — diambil berbarengan, bukan berurutan seperti sebelumnya.
+        await Promise.all([loadReportSummary(), loadReportItems()]);
     } catch (error) {
         showAlert(error.message || "Gagal memuat Report Audit.", "error");
     }

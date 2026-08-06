@@ -2,9 +2,9 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return redirect()->route('akta.login');
-});
+// Route::redirect / Route::view lebih ringan daripada closure saat rute di-cache
+// (closure ikut ter-serialisasi ke bootstrap/cache) — lihat DeployController.
+Route::redirect('/', '/akta/login');
 
 Route::view('/akta/login', 'akta.login')->name('akta.login');
 
@@ -51,12 +51,10 @@ Route::prefix('akta')->name('akta.')->group(function () {
 
     Route::view('/monitoring', 'akta.pages.monitoring')->name('monitoring');
 
-    Route::get('/pengaturan', function () {
-        return view('akta.pages.placeholder', [
-            'title' => 'Pengaturan',
-            'description' => 'Modul konfigurasi aplikasi, preferensi tampilan, dan pengaturan umum.',
-        ]);
-    })->name('pengaturan');
+    Route::view('/pengaturan', 'akta.pages.placeholder', [
+        'title' => 'Pengaturan',
+        'description' => 'Modul konfigurasi aplikasi, preferensi tampilan, dan pengaturan umum.',
+    ])->name('pengaturan');
 
     Route::view('/manajemen-menu', 'akta.pages.menu-management')->name('manajemen-menu');
 

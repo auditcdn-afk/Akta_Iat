@@ -1,3 +1,5 @@
+import { cachedUser } from "./akta-session.js";
+
 // ── Helpers ──────────────────────────────────────────────────────
 const SESSION_KEY = "akta_session";
 
@@ -932,11 +934,17 @@ function setupEvents() {
 document.addEventListener("DOMContentLoaded", async () => {
     setupEvents();
 
-    try {
-        const me = await fetchJson("/api/auth/me", { headers: authHeaders() });
-        currentUser = me.user;
-    } catch {
-        // proceed without admin features
+    // User sudah tersimpan sejak login — tab pertama tidak perlu menunggu
+    // satu round-trip ke /api/auth/me hanya untuk tahu role-nya.
+    currentUser = cachedUser();
+
+    if (!currentUser) {
+        try {
+            const me = await fetchJson("/api/auth/me", { headers: authHeaders() });
+            currentUser = me.user;
+        } catch {
+            // proceed without admin features
+        }
     }
 
     applyAdminUI();

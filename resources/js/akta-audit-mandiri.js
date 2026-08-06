@@ -1,3 +1,5 @@
+import { cachedUser } from "./akta-session.js";
+
 // ─── Session / Auth ───────────────────────────────────────────────────────────
 const SESSION_KEY = 'akta_session';
 function getSession() {
@@ -60,8 +62,15 @@ function todayLocal() {
 }
 
 async function loadCurrentUser() {
-    const payload = await fetchJson('/api/auth/me', { headers: authHeaders() });
-    _currentUser = payload.user;
+    // User sudah tersimpan sejak login, jadi tidak perlu round-trip ke
+    // /api/auth/me. Fallback ke server hanya untuk sesi format lama.
+    _currentUser = cachedUser();
+
+    if (!_currentUser) {
+        const payload = await fetchJson('/api/auth/me', { headers: authHeaders() });
+        _currentUser = payload.user;
+    }
+
     document.getElementById('amCabang').textContent = _currentUser?.unitUsaha || '-';
     document.getElementById('amCabangArea').textContent = _currentUser?.wilayah || '-';
 }

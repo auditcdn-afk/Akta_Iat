@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\Admin\MonitoringController;
 use App\Http\Controllers\Api\Admin\MenuController;
 use App\Http\Controllers\Api\Admin\RoleController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\UserDirectoryController;
 use App\Http\Controllers\Api\PlanAuditController;
 use App\Http\Controllers\Api\PlanAuditMandiriController;
 use App\Http\Controllers\Api\PlanAuditMandiriCrosscheckController;
@@ -402,32 +403,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/picas/{pica}/close', [PicaController::class, 'close'])
         ->middleware('akta.role:admin,manajer');
 
-    Route::post('/picas/{pica}/upload-recheck', function (\Illuminate\Http\Request $request, \App\Models\Pica $pica) {
-        $request->validate(['file' => ['nullable', 'file', 'max:10240']]);
-
-        if ($request->hasFile('file')) {
-            $path = $request->file('file')->store('pica-recheck', 'public');
-            $pica->recheck_file = $path;
-        }
-
-        // Hanya timpa jika nilai baru tidak kosong (proteksi data lama)
-        $note = $request->input('recheck_note');
-        if (!is_null($note) && $note !== '') $pica->recheck_note = $note;
-
-        $deadline = $request->input('recheck_deadline');
-        if (!is_null($deadline) && $deadline !== '') $pica->recheck_deadline = $deadline;
-
-        if (!$pica->recheck_at) $pica->recheck_at = now();
-        $pica->save();
-
-        return response()->json([
-            'ok'   => true,
-            'path' => $pica->recheck_file,
-            'url'  => $pica->recheck_file ? asset('storage/' . $pica->recheck_file) : null,
-        ]);
-    });
+    Route::post('/picas/{pica}/upload-recheck', [PicaController::class, 'uploadRecheck']);
 
     Route::get('/all-data', [DataStoreController::class, 'allData']);
+
+    // Hanya jumlah key — dipakai kartu status dashboard supaya tidak perlu
+    // mengunduh seluruh isi data store.
+    Route::get('/all-data/summary', [DataStoreController::class, 'allDataSummary']);
 
     Route::get('/data/{key}', [DataStoreController::class, 'read']);
 
@@ -437,44 +419,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/plan-users', [PlanAuditController::class, 'teamOptions']);
 
     // Daftar nama pengguna untuk datalist/autocomplete (semua role terautentikasi)
-    Route::get('/users/names', function () {
-        $users = \App\Models\User::where('is_disabled', false)
-            ->orderBy('name')
-            ->get(['name', 'username', 'unit_usaha']);
-        return response()->json([
-            'data' => $users->map(fn($u) => [
-                'label' => ($u->name ?: $u->username) . ($u->unit_usaha ? ' (' . $u->unit_usaha . ')' : ''),
-            ]),
-        ]);
-    });
+    Route::get('/users/names', [UserDirectoryController::class, 'names']);
 
     // Daftar pengguna (username + label) untuk pemilihan distribusi SK dll
-    Route::get('/users/options', function () {
-        $users = \App\Models\User::where('is_disabled', false)
-            ->orderBy('name')
-            ->get(['username', 'name', 'display_name', 'role', 'unit_usaha']);
-        return response()->json([
-            'data' => $users->map(fn($u) => [
-                'username' => $u->username,
-                'label' => ($u->display_name ?: $u->name ?: $u->username)
-                    . ' (' . ($u->role ?: '-') . ($u->unit_usaha ? ' • ' . $u->unit_usaha : '') . ')',
-            ]),
-        ]);
-    });
+    Route::get('/users/options', [UserDirectoryController::class, 'options']);
 
     // Opsi unit usaha berdasarkan role (untuk dropdown pinjaman cabang dll)
-    Route::get('/users/unit-usaha-by-role', function (\Illuminate\Http\Request $request) {
-        $role = $request->query('role', 'h1');
-        $options = \App\Models\User::where('role', $role)
-            ->whereNotNull('unit_usaha')
-            ->where('unit_usaha', '!=', '')
-            ->where('is_disabled', false)
-            ->orderBy('unit_usaha')
-            ->pluck('unit_usaha')
-            ->unique()
-            ->values();
-        return response()->json(['data' => $options]);
-    });
+    Route::get('/users/unit-usaha-by-role', [UserDirectoryController::class, 'unitUsahaByRole']);
     Route::get('/plans', [PlanAuditController::class, 'index']);
     Route::get('/plans/{plan}', [PlanAuditController::class, 'show']);
 
@@ -541,13 +492,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::prefix('admin')
         ->middleware('akta.role:admin')
         ->group(function () {
-            Route::get('/security-check', function () {
-                return response()->json([
-                    'ok' => true,
-                    'message' => 'Admin endpoint aktif.',
-                    'user' => request()->user()?->toAktaArray(),
-                ]);
-            });
+            Route::get('/security-check', [MonitoringController::class, 'securityCheck']);
 
             Route::apiResource('/users', UserController::class)
                 ->only(['index', 'store', 'update', 'destroy']);
