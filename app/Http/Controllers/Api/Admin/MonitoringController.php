@@ -14,6 +14,21 @@ use Illuminate\Support\Facades\DB;
 
 class MonitoringController extends Controller
 {
+    /**
+     * Cek cepat bahwa endpoint ber-middleware admin memang aktif.
+     *
+     * Sebelumnya closure di routes/api.php — dipindahkan ke controller agar
+     * route cache tidak perlu menyimpan closure ter-serialisasi.
+     */
+    public function securityCheck(Request $request): JsonResponse
+    {
+        return response()->json([
+            'ok' => true,
+            'message' => 'Admin endpoint aktif.',
+            'user' => $request->user()?->toAktaArray(),
+        ]);
+    }
+
     public function stats(): JsonResponse
     {
         $roles = User::query()

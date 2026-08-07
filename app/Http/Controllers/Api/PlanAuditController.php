@@ -76,8 +76,15 @@ class PlanAuditController extends Controller
             $user?->username,
         ]));
 
+        // Riwayat status hanya ditampilkan di modal detail satu plan, bukan di
+        // tabel daftar. Memuatnya untuk SETIAP plan membuat ukuran response
+        // tumbuh terus seiring bertambahnya riwayat, padahal hampir tidak
+        // pernah dipakai. Sekarang opt-in; modal detail mengambilnya lewat
+        // GET /api/plans/{plan} saat benar-benar dibuka.
+        $withLogs = $request->boolean('with_logs');
+
         $plans = PlanAudit::query()
-            ->with(['logs' => fn($q) => $q->orderBy('created_at')])
+            ->when($withLogs, fn($q) => $q->with(['logs' => fn($l) => $l->orderBy('created_at')]))
             ->when($onlyMine, function ($q) use ($identities, $user) {
                 // Role cabang (unit usaha, H1/H2/WHS): hanya boleh melihat plan
                 // milik unit usahanya sendiri. Auditor HO non-cabang: hanya plan
@@ -151,6 +158,10 @@ class PlanAuditController extends Controller
 
     public function show(PlanAudit $plan): JsonResponse
     {
+        // Riwayat status sudah tidak ikut di endpoint daftar, jadi di sini
+        // selalu dimuat — inilah sumber timeline pada modal detail.
+        $plan->load(['logs' => fn($q) => $q->orderBy('created_at')]);
+
         return response()->json(['ok' => true, 'data' => $plan->toAktaArray()]);
     }
 

@@ -1,4 +1,4 @@
-const SESSION_KEY = "akta_session";
+import { cachedUser, readSession } from "./akta-session.js";
 
 // Notifikasi cross-tab: dipakai supaya menu Audit (akta-audit.js) langsung
 // menghilangkan/menyesuaikan baris plan begitu status atau keberadaannya
@@ -63,12 +63,7 @@ const REJECTABLE = {
 };
 
 function getSession() {
-    try {
-        const raw = sessionStorage.getItem(SESSION_KEY);
-        return raw ? JSON.parse(raw) : null;
-    } catch {
-        return null;
-    }
+    return readSession();
 }
 
 function authHeaders() {
@@ -142,6 +137,14 @@ async function fetchJson(url, options = {}) {
 }
 
 async function loadCurrentUser() {
+    // User sudah tersimpan sejak login, jadi tidak perlu round-trip ke
+    // /api/auth/me. Fallback ke server hanya untuk sesi format lama.
+    currentUser = cachedUser();
+
+    if (currentUser) {
+        return;
+    }
+
     const payload = await fetchJson("/api/auth/me");
     currentUser = payload.user;
 }
@@ -154,6 +157,16 @@ async function loadPlanUsers() {
 async function loadUnitUsahaOptions() {
     const payload = await fetchJson("/api/database/unit-usaha-options");
     unitUsahaList = payload.data || [];
+}
+
+// Daftar auditor & cabang hanya dipakai modal Tambah/Edit Plan. Sebelumnya
+// keduanya di-await saat halaman dimuat sehingga tabel utama ikut menunggu —
+// satu round-trip penuh terbuang walau modal-nya belum tentu dibuka.
+let modalDataPromise = null;
+
+function ensureModalData() {
+    modalDataPromise ??= Promise.all([loadPlanUsers(), loadUnitUsahaOptions()]);
+    return modalDataPromise;
 }
 
 async function loadPlans() {
@@ -369,14 +382,11 @@ function firstJenisAuditOption() {
     return document.querySelector("#jenisAudit option")?.value || "";
 }
 
-function openModal(plan = null) {
+async function openModal(plan = null) {
     const modal = document.getElementById("planModal");
     const title = document.getElementById("planModalTitle");
 
     document.getElementById("planForm").reset();
-    renderCabangSelect();
-    renderKepalaTimSelect();
-    renderTimCheckboxes([]);
 
     if (plan) {
         title.textContent = "Edit Plan Audit";
@@ -385,9 +395,6 @@ function openModal(plan = null) {
         document.getElementById("jenisAudit").value = plan.jenisAudit || firstJenisAuditOption();
         document.getElementById("tglPlan").value = plan.tglPlan || "";
         document.getElementById("keterangan").value = plan.keterangan || "";
-        renderCabangSelect(plan.cabang || "");
-        renderKepalaTimSelect(plan.kepalaTim || "");
-        renderTimCheckboxes(plan.tim || []);
     } else {
         title.textContent = "Tambah Plan Audit";
         document.getElementById("planId").value = "";
@@ -396,8 +403,15 @@ function openModal(plan = null) {
         document.getElementById("tglPlan").value = todayIso();
     }
 
+    // Modal tampil dulu; daftar auditor/cabang menyusul begitu tiba.
     modal.classList.remove("hidden");
     modal.classList.add("flex");
+
+    await ensureModalData();
+
+    renderCabangSelect(plan?.cabang || "");
+    renderKepalaTimSelect(plan?.kepalaTim || "");
+    renderTimCheckboxes(plan?.tim || []);
 }
 
 function closeModal() {
@@ -527,7 +541,11 @@ function setupFilters() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-    document.getElementById("openCreatePlanButton")?.addEventListener("click", () => openModal());
+    const createButton = document.getElementById("openCreatePlanButton");
+    createButton?.addEventListener("click", () => openModal());
+    // Ambil data modal sejak kursor menyentuh tombolnya, supaya isinya sudah
+    // siap begitu modal terbuka.
+    createButton?.addEventListener("pointerenter", () => ensureModalData().catch(() => {}), { once: true });
     document.getElementById("closePlanModalButton")?.addEventListener("click", closeModal);
     document.getElementById("cancelPlanFormButton")?.addEventListener("click", closeModal);
 
@@ -566,7 +584,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (reject)  { await rejectPlan(reject.dataset.id);  return; }
             if (edit) {
                 const plan = plans.find((p) => String(p.id) === String(edit.dataset.id));
-                openModal(plan);
+                await openModal(plan);
                 return;
             }
             if (del) { await deletePlan(del.dataset.id); }
@@ -584,7 +602,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             document.getElementById("openCreatePlanButton")?.classList.add("hidden");
         }
 
-        await Promise.all([loadPlanUsers(), loadUnitUsahaOptions()]);
         await loadPlans();
     } catch (err) {
         showAlert(err.message || "Gagal memuat plan audit.", "error");

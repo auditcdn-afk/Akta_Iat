@@ -1,3 +1,5 @@
+import { cachedUser } from "./akta-session.js";
+
 // ── Plan list (Audit) ──────────────────────────────────────────────────────────
 // Ini adalah bundle "core": daftar plan + modal detail + filter, dimuat langsung
 // saat halaman Audit dibuka. Semua logika tab pemeriksaan (Kas, SMH, Plafon, dst.)
@@ -68,6 +70,14 @@ export async function fetchJson(url, options = {}) {
 }
 
 async function loadCurrentUser() {
+    // User sudah tersimpan sejak login, jadi tidak perlu round-trip ke
+    // /api/auth/me. Fallback ke server hanya untuk sesi format lama.
+    currentUser = cachedUser();
+
+    if (currentUser) {
+        return;
+    }
+
     const payload = await fetchJson("/api/auth/me", { headers: authHeaders() });
     currentUser = payload.user;
 }
@@ -188,7 +198,29 @@ function openAuditModal(plan) {
         detailRow("Tim Audit", (plan.tim || []).join(", ")),
         detailRow("Status", PLAN_STATUS_LABEL[plan.status] || plan.status),
     ].join("");
-    renderTimeline(plan.logs || []);
+    // Riwayat status tidak lagi ikut di endpoint daftar (lihat
+    // PlanAuditController::index) — diambil di sini, hanya untuk plan yang
+    // benar-benar dibuka. Modal tetap tampil seketika; timeline menyusul.
+    // Catatan: endpoint daftar mengirim `logs: []` (bukan undefined) saat relasi
+    // tidak dimuat, dan array kosong itu truthy — jadi yang dicek panjangnya.
+    if (plan.logs?.length) {
+        renderTimeline(plan.logs);
+    } else {
+        const timeline = document.getElementById("auditTimeline");
+
+        if (timeline) {
+            timeline.innerHTML = `<li class="text-xs text-slate-500">Memuat riwayat...</li>`;
+        }
+
+        fetchJson(`/api/plans/${plan.id}`, { headers: authHeaders() })
+            .then((res) => {
+                // Abaikan kalau user sudah pindah ke plan lain sementara ini.
+                if (document.getElementById("auditPlanId")?.value === String(plan.id)) {
+                    renderTimeline(res.data?.logs || []);
+                }
+            })
+            .catch(() => renderTimeline([]));
+    }
 
     const actions = document.getElementById("auditActions");
     actions.innerHTML = "";
