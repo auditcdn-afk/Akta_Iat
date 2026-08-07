@@ -754,6 +754,7 @@ async function smhScanUnit(q) {
 
 let plJenisAll  = [];   // semua jenis dari API
 let plSmhMap    = {};   // { nama: { ada, total } } dari smh-summary
+let plRows      = [];   // baris yang sudah tersimpan untuk plan ini
 let plEditId    = null; // id record sedang diedit
 
 async function loadPlForm() {
@@ -791,8 +792,14 @@ async function loadPlForm() {
 async function loadPlTable() {
     if (!activePlanId) return;
     const res = await fetchJson(`/api/audit-detail/perlengkapan?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
-    const rows = res.data || [];
-    renderPlTable(rows);
+    plRows = res.data || [];
+    renderPlTable(plRows);
+}
+
+/** Baris tersimpan untuk satu jenis, kalau ada. Server menyimpan 1 baris per jenis. */
+function plFindRow(nama) {
+    const key = (nama || '').trim().toLowerCase();
+    return plRows.find(r => (r.jenisPerlengkapan || '').trim().toLowerCase() === key) || null;
 }
 
 function renderPlTable(rows) {
@@ -860,12 +867,16 @@ function plResetForm() {
     document.getElementById('plSelisih').value     = 0;
     document.getElementById('plPenjelasan').value  = '';
     document.getElementById('plJenisSmhInfo')?.classList.add('hidden');
+    document.getElementById('plExistingInfo')?.classList.add('hidden');
     document.getElementById('plSimpanBtn').textContent = 'Simpan';
     plRecalcSelisih();
 }
 
 function plSelectJenis(nama) {
-    // Saldo = total onhand - unit SMH yang perlengkapan ini sudah ada (ada=true)
+    // Saldo = total onhand - unit SMH yang perlengkapan ini sudah ada (ada=true).
+    // Ini angka buku: berapa yang SEHARUSNYA ada di luar SMH. Nilainya tidak
+    // berkurang saat auditor mencatat hasil hitungan — kalau berkurang, Selisih
+    // kehilangan artinya karena patokannya ikut bergeser.
     const smh  = plSmhMap[nama];
     const info = document.getElementById('plJenisSmhInfo');
     if (smh) {
@@ -880,6 +891,34 @@ function plSelectJenis(nama) {
         document.getElementById('plSaldo').value = 0;
         if (info) info.classList.add('hidden');
     }
+
+    // Jenis ini mungkin sudah pernah dicatat. Server menyimpan 1 baris per jenis
+    // (updateOrCreate), jadi kalau form dibiarkan kosong lalu disimpan, hitungan
+    // yang lama tertimpa 0 tanpa peringatan. Muat isinya dan alihkan ke mode
+    // Update supaya angka yang sudah ada terlihat dan bisa disesuaikan.
+    const existing = plFindRow(nama);
+    const fisikEl  = document.getElementById('plFisik');
+    const penjEl   = document.getElementById('plPenjelasan');
+    const simpanEl = document.getElementById('plSimpanBtn');
+    const notice   = document.getElementById('plExistingInfo');
+
+    if (existing) {
+        plEditId = existing.id;
+        if (fisikEl)  fisikEl.value = existing.fisik ?? 0;
+        if (penjEl)   penjEl.value  = existing.penjelasan || '';
+        if (simpanEl) simpanEl.textContent = 'Update';
+        if (notice) {
+            notice.textContent = `Jenis ini sudah dicatat sebelumnya (Fisik ${existing.fisik ?? 0}). Ubah angkanya lalu klik Update.`;
+            notice.classList.remove('hidden');
+        }
+    } else {
+        plEditId = null;
+        if (fisikEl)  fisikEl.value = 0;
+        if (penjEl)   penjEl.value  = '';
+        if (simpanEl) simpanEl.textContent = 'Simpan';
+        notice?.classList.add('hidden');
+    }
+
     plRecalcSelisih();
 }
 

@@ -39,6 +39,9 @@
                         <option value="">-- Pilih Jenis Perlengkapan --</option>
                     </select>
                     <p id="plJenisSmhInfo" class="mt-1 text-xs text-blue-400 hidden"></p>
+                    {{-- Peringatan kalau jenis yang dipilih sudah pernah dicatat, supaya
+                         hitungan lama tidak tertimpa tanpa disadari. --}}
+                    <p id="plExistingInfo" class="mt-1 text-xs font-semibold text-amber-400 hidden"></p>
                 </div>
 
                 <div class="grid gap-4 sm:grid-cols-3">
