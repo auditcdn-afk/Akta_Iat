@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\DbHet;
 use App\Models\PemeriksaanHgp;
@@ -13,6 +14,8 @@ use PhpOffice\PhpSpreadsheet\Reader\Csv;
 
 class HgpController extends Controller
 {
+    use RequiresAuditorAuditee;
+
     public function show(Request $request): JsonResponse
     {
         $planId = $request->query('plan_audit_id');
@@ -23,6 +26,7 @@ class HgpController extends Controller
     public function save(Request $request): JsonResponse
     {
         $planId = $request->input('planAuditId') ?? $request->input('plan_audit_id');
+        $this->ensureAuditorFilled((int) $planId, 'hgp');
         $who    = $request->user()?->username ?? $request->user()?->email;
 
         $rec = PemeriksaanHgp::updateOrCreate(

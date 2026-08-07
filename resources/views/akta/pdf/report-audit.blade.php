@@ -135,6 +135,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['kas'] ?? true))
 <div class="section">
   <div class="section-title">1. PEMERIKSAAN KAS</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'kas'])
   <div class="section-body">
     @if(!$kas)
       <p class="empty">Belum ada data.</p>
@@ -416,6 +417,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['plafon'] ?? true))
 <div class="section">
   <div class="section-title">2. ANALISA PLAFON SMH</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'plafon'])
   <div class="section-body">
   @php
     $pl   = $plafon;
@@ -567,6 +569,8 @@ window.addEventListener('load', function() {
 @if((($visibleTabs['smh'] ?? true) || ($visibleTabs['perlengkapan'] ?? true)))
 <div class="section">
   <div class="section-title">3. PEMERIKSAAN SMH (Stock Motor Honda) &amp; PERLENGKAPAN</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'smh'])
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'perlengkapan'])
   <div class="section-body">
 
     {{-- ── A. SMH Cek Fisik Per Unit ── --}}
@@ -883,6 +887,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['bank'] ?? true))
 <div class="section">
   <div class="section-title">4. PEMERIKSAAN BANK</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'bank'])
   <div class="section-body">
     @if($bank->isEmpty())
       <p class="empty">Belum ada data.</p>
@@ -903,7 +908,6 @@ window.addEventListener('load', function() {
             <th style="text-align:left;padding:4px 8px;border:1px solid #c7d2fe;">#</th>
             <th style="text-align:left;padding:4px 8px;border:1px solid #c7d2fe;">Nama Bank</th>
             <th style="text-align:left;padding:4px 8px;border:1px solid #c7d2fe;">No Rekening</th>
-            <th style="text-align:left;padding:4px 8px;border:1px solid #c7d2fe;">Auditee</th>
             <th style="text-align:left;padding:4px 8px;border:1px solid #c7d2fe;">Tgl Periksa</th>
             <th style="text-align:right;padding:4px 8px;border:1px solid #c7d2fe;">Saldo Buku</th>
             <th style="text-align:right;padding:4px 8px;border:1px solid #c7d2fe;">Saldo Rekening Koran</th>
@@ -917,7 +921,6 @@ window.addEventListener('load', function() {
             <td style="padding:4px 8px;border:1px solid #e5e7eb;">{{ (int)$i+1 }}</td>
             <td style="padding:4px 8px;border:1px solid #e5e7eb;font-weight:700;">{{ $b->nama_bank ?? '-' }}</td>
             <td style="padding:4px 8px;border:1px solid #e5e7eb;font-family:monospace;">{{ $b->no_rekening ?? '-' }}</td>
-            <td style="padding:4px 8px;border:1px solid #e5e7eb;">{{ $b->auditee ?? '-' }}</td>
             <td style="padding:4px 8px;border:1px solid #e5e7eb;">{{ $b->tgl_periksa ? \Carbon\Carbon::parse($b->tgl_periksa)->format('d/m/Y') : '-' }}</td>
             <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;">{{ $fmt($b->saldo_buku ?? 0) }}</td>
             <td style="text-align:right;padding:4px 8px;border:1px solid #e5e7eb;">{{ $fmt($b->saldo_bank ?? 0) }}</td>
@@ -957,7 +960,6 @@ window.addEventListener('load', function() {
 
         {{-- Info rekening --}}
         <div class="kv-grid" style="margin-bottom:10px;">
-          <div class="kv"><span class="kv-label">Auditee:</span><span class="kv-val">{{ $b->auditee ?? '-' }}</span></div>
           <div class="kv"><span class="kv-label">Tgl Periksa:</span><span class="kv-val">{{ $b->tgl_periksa ? \Carbon\Carbon::parse($b->tgl_periksa)->format('d/m/Y') : '-' }}</span></div>
           <div class="kv"><span class="kv-label">Tgl Saldo Awal:</span><span class="kv-val">{{ $d['saldo_awal_tgl'] ?? '-' }}</span></div>
           <div class="kv"><span class="kv-label">Saldo Awal:</span><span class="kv-val" style="font-weight:700;">{{ $fmt($saldoAwal) }}</span></div>
@@ -1056,6 +1058,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['materai'] ?? true))
 <div class="section">
   <div class="section-title">5. PEMERIKSAAN MATERAI</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'materai'])
   <div class="section-body">
     @if($materai->isEmpty())
       <p class="empty">Belum ada data.</p>
@@ -1209,6 +1212,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['bpkb'] ?? true))
 <div class="section">
   <div class="section-title">6. ONHAND BPKB</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'bpkb'])
   <div class="section-body">
     @if($bpkbOnhand->isEmpty())
       <p class="empty">Belum ada data.</p>
@@ -1330,6 +1334,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['bpkb-inproses'] ?? true))
 <div class="section">
   <div class="section-title">7. BPKB INPROSES</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'bpkb-inproses'])
   <div class="section-body">
     @if($bpkbInproses->isEmpty())
       <p class="empty">Belum ada data.</p>
@@ -1581,6 +1586,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['kwitansi'] ?? true))
 <div class="section">
   <div class="section-title">8. KWITANSI GANTUNG</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'kwitansi'])
   <div class="section-body">
     @if(!$kwitansi)
       <p class="empty">Belum ada data.</p>
@@ -1710,6 +1716,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['piutang-reguler'] ?? true))
 <div class="section section-landscape">
   <div class="section-title">9. PIUTANG REGULER</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'piutang-reguler'])
   <div class="section-body">
     @if(!$piutangReguler)
       <p class="empty">Belum ada data.</p>
@@ -1847,6 +1854,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['piutang-cdn'] ?? true))
 <div class="section section-landscape">
   <div class="section-title">10. PIUTANG CDN</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'piutang-cdn'])
   <div class="section-body">
     @if(!$piutangCdn)
       <p class="empty">Belum ada data.</p>
@@ -1967,6 +1975,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['ttp-gantung'] ?? true))
 <div class="section">
   <div class="section-title">11. TTP GANTUNG</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'ttp-gantung'])
   <div class="section-body">
     @if(!$ttpGantung)
       <p class="empty">Belum ada data.</p>
@@ -2114,6 +2123,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['cek-fisik'] ?? true))
 <div class="section">
   <div class="section-title">12. CEK FISIK (Blangko Cek Fisik &amp; STUJ)</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'cek-fisik'])
   <div class="section-body">
     @if(!$cekFisik)
       <p class="empty">Belum ada data.</p>
@@ -2249,6 +2259,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['mt'] ?? true))
 <div class="section">
   <div class="section-title">13. MT (Mechanic Truster Tools)</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'mt'])
   <div class="section-body" style="padding:0;">
     @if(!$mt)
       <p class="empty" style="padding:12px;">Belum ada data.</p>
@@ -2366,6 +2377,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['hgp'] ?? true))
 <div class="section">
   <div class="section-title">14. HGP &amp; AHM OILS</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'hgp'])
   <div class="section-body" style="padding:0;">
     @if(!$hgp)
       <p class="empty" style="padding:12px;">Belum ada data.</p>
@@ -2483,6 +2495,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['rsa-hgp'] ?? true))
 <div class="section">
   <div class="section-title">14B. RSA HGP &amp; AHM OILS (SAMPLING)</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'rsa-hgp'])
   <div class="section-body" style="padding:0;">
     @if(!$rsaHgp)
       <p class="empty" style="padding:12px;">Belum ada data.</p>
@@ -2607,6 +2620,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['hga'] ?? true))
 <div class="section">
   <div class="section-title">15. HGA (Accessories)</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'hga'])
   <div class="section-body" style="padding:0;">
     @if(!$hga)
       <p class="empty" style="padding:12px;">Belum ada data.</p>
@@ -2738,6 +2752,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['smh-tarikan'] ?? true))
 <div class="section">
   <div class="section-title">16. SMH TARIKAN</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'smh-tarikan'])
   <div class="section-body" style="padding:0;">
     @if(!$smhTarikan)
       <p class="empty" style="padding:12px;">Belum ada data.</p>
@@ -2847,6 +2862,7 @@ window.addEventListener('load', function() {
 @if(($visibleTabs['lampiran'] ?? true))
 <div class="section">
   <div class="section-title">17. LAMPIRAN AUDIT</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'lampiran'])
   <div class="section-body" style="padding:0;">
     @if(!$lampiran)
       <p class="empty" style="padding:12px;">Belum ada lampiran.</p>

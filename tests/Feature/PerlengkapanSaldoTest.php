@@ -85,6 +85,18 @@ class PerlengkapanSaldoTest extends TestCase
         return $pmx;
     }
 
+    // Sejak Nama Auditor/Auditee wajib per (plan, tool), simpan/update di tool
+    // manapun (termasuk perlengkapan) ditolak sampai widget-nya terisi — lihat
+    // RequiresAuditorAuditee dan PemeriksaanAuditorTest.php.
+    private function fillAuditorAuditee(): void
+    {
+        $this->postJson('/api/audit-detail/auditor', [
+            'plan_audit_id' => $this->plan->id,
+            'tool'          => 'perlengkapan',
+            'nama_auditee'  => 'Budi (Kepala Cabang)',
+        ])->assertOk();
+    }
+
     /** @return array<string, array<string, mixed>> */
     private function summaryByNama(): array
     {
@@ -190,6 +202,8 @@ class PerlengkapanSaldoTest extends TestCase
 
     public function test_saldo_tersimpan_diturunkan_server_bukan_dari_kiriman_klien(): void
     {
+        $this->fillAuditorAuditee();
+
         $this->importOnhand([
             ['no_mesin' => 'KCD2E 1053089'],
             ['no_mesin' => 'KCD2E 1053090'],
@@ -220,6 +234,8 @@ class PerlengkapanSaldoTest extends TestCase
 
     public function test_baris_lama_dengan_saldo_salah_terkoreksi_saat_diupdate(): void
     {
+        $this->fillAuditorAuditee();
+
         $this->importOnhand([
             ['no_mesin' => 'KCD2E 1053089'],
             ['no_mesin' => 'KCD2E 1053090'],

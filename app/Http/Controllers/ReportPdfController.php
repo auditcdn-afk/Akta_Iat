@@ -8,6 +8,7 @@ use App\Models\DbHargaSmh;
 use App\Models\DbPlafon;
 use App\Models\DbUnitUsaha;
 use App\Models\PlanAuditMandiri;
+use App\Models\PemeriksaanAuditor;
 use App\Models\PemeriksaanBank;
 use App\Models\PemeriksaanBpkbInproses;
 use App\Models\PemeriksaanCekFisik;
@@ -70,6 +71,11 @@ class ReportPdfController extends Controller
         $smhTarikan = PemeriksaanSmhTarikan::where('plan_audit_id', $id)->first();
         $lampiran   = PemeriksaanLampiran::where('plan_audit_id', $id)->first();
 
+        // Nama Auditor & Auditee tiap tool — satu query, dikelompokkan per tool
+        // key (config('audit_tabs')) supaya tiap section blade tinggal ambil
+        // $auditors['kas'] dsb, alih-alih 19 query terpisah.
+        $auditors = PemeriksaanAuditor::where('plan_audit_id', $id)->get()->keyBy('tool');
+
         $lampiranEmbeds = [];
         if ($lampiran) {
             foreach ($lampiran->files_json ?? [] as $f) {
@@ -96,7 +102,7 @@ class ReportPdfController extends Controller
             'plan', 'plafon', 'kas', 'smh', 'perlengkapan', 'bank', 'materai',
             'bpkbOnhand', 'bpkbInproses', 'kwitansi', 'piutangReguler',
             'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'rsaHgp', 'hga',
-            'smhTarikan', 'lampiran', 'lampiranEmbeds', 'visibleTabs'
+            'smhTarikan', 'lampiran', 'lampiranEmbeds', 'visibleTabs', 'auditors'
         );
     }
 

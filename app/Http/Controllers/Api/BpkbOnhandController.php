@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\BpkbOnhandItem;
 use Illuminate\Http\JsonResponse;
@@ -10,6 +11,8 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class BpkbOnhandController extends Controller
 {
+    use RequiresAuditorAuditee;
+
     // ── GET /api/audit-detail/bpkb?plan_audit_id= ────────────────────────────
 
     public function index(Request $request): JsonResponse
@@ -56,6 +59,7 @@ class BpkbOnhandController extends Controller
         ]);
 
         $planId = $request->input('plan_audit_id');
+        $this->ensureAuditorFilled((int) $planId, 'bpkb');
         $who    = $request->user()?->username ?? $request->user()?->email ?? null;
 
         $path = $request->file('file')->getRealPath();

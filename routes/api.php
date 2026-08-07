@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\SkPembebananController;
 use App\Http\Controllers\Api\SuratKeputusanController;
 use App\Http\Controllers\Api\ReportAuditController;
 use App\Http\Controllers\Api\ReportAuditExportController;
+use App\Http\Controllers\Api\PemeriksaanAuditorController;
 use App\Http\Controllers\Api\PemeriksaanKasController;
 use App\Http\Controllers\Api\PemeriksaanBankController;
 use App\Http\Controllers\Api\PemeriksaanSmhController;
@@ -155,6 +156,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/report-audit/export-excel', [ReportAuditExportController::class, 'export']);
     Route::post('/report-audit/refresh-flat', [ReportAuditExportController::class, 'refreshNow'])
         ->middleware('akta.role:admin');
+
+    // Nama Auditor & Nama Auditee — satu pasang per (plan_audit_id, tool),
+    // dipakai widget bersama di atas tab-tab pemeriksaan.
+    Route::get('/audit-detail/auditor', [PemeriksaanAuditorController::class, 'show']);
+    Route::post('/audit-detail/auditor', [PemeriksaanAuditorController::class, 'store']);
 
     Route::get('/audit-detail/kas', [PemeriksaanKasController::class, 'index']);
     Route::get('/audit-detail/kas/summary', [PemeriksaanKasController::class, 'summary']);

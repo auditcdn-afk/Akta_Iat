@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\PemeriksaanBpkbInproses;
 use Illuminate\Http\JsonResponse;
@@ -9,6 +10,8 @@ use Illuminate\Http\Request;
 
 class BpkbInprosesController extends Controller
 {
+    use RequiresAuditorAuditee;
+
     // ── GET /api/audit-detail/bpkb-inproses?plan_audit_id= ───────────────────
 
     public function show(Request $request): JsonResponse
@@ -23,6 +26,7 @@ class BpkbInprosesController extends Controller
     public function save(Request $request): JsonResponse
     {
         $planId = $request->input('planAuditId') ?? $request->input('plan_audit_id');
+        $this->ensureAuditorFilled((int) $planId, 'bpkb-inproses');
         $who    = $request->user()?->username ?? $request->user()?->email;
 
         $payload = [

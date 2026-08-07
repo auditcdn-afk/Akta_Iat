@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\DbUnitUsaha;
 use App\Models\PemeriksaanRsaHgp;
@@ -20,6 +21,8 @@ use PhpOffice\PhpSpreadsheet\Reader\Csv;
 // tidak spesifik per tool.
 class RsaHgpController extends Controller
 {
+    use RequiresAuditorAuditee;
+
     private const DEFAULT_SAMPLE_SIZE = 30;
     private const WHS_SAMPLE_SIZE = 50;
 
@@ -33,6 +36,7 @@ class RsaHgpController extends Controller
     public function save(Request $request): JsonResponse
     {
         $planId = $request->input('planAuditId') ?? $request->input('plan_audit_id');
+        $this->ensureAuditorFilled((int) $planId, 'rsa-hgp');
         $who    = $request->user()?->username ?? $request->user()?->email;
 
         $data = ['items_json' => $request->input('items', []), 'updated_by' => $who];

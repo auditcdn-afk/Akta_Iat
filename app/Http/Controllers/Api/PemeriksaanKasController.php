@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\PemeriksaanKas;
 use App\Models\PlanAudit;
@@ -11,6 +12,8 @@ use Illuminate\Support\Facades\Validator;
 
 class PemeriksaanKasController extends Controller
 {
+    use RequiresAuditorAuditee;
+
     private array $writeRoles = ['admin', 'manajer', 'auditor'];
 
     public function index(Request $request): JsonResponse
@@ -67,6 +70,7 @@ class PemeriksaanKasController extends Controller
         $data = $this->validatePayload($payload, true);
 
         $this->ensureCanWrite($request, (int) ($data['plan_audit_id'] ?? 0));
+        $this->ensureAuditorFilled((int) $data['plan_audit_id'], 'kas');
 
         $this->fillFromPlan($data, (int) $data['plan_audit_id']);
         $this->calculateSelisih($data);
@@ -94,6 +98,7 @@ class PemeriksaanKasController extends Controller
     public function update(Request $request, PemeriksaanKas $pemeriksaanKas): JsonResponse
     {
         $this->ensureCanWrite($request, (int) $pemeriksaanKas->plan_audit_id);
+        $this->ensureAuditorFilled((int) $pemeriksaanKas->plan_audit_id, 'kas');
 
         $payload = $this->normalizePayload($request);
         $data = $this->validatePayload($payload, false);

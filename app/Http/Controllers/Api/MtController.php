@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\DbMt;
 use App\Models\PemeriksaanMt;
@@ -10,6 +11,8 @@ use Illuminate\Http\Request;
 
 class MtController extends Controller
 {
+    use RequiresAuditorAuditee;
+
     public function show(Request $request): JsonResponse
     {
         $planId = $request->query('plan_audit_id');
@@ -20,6 +23,7 @@ class MtController extends Controller
     public function save(Request $request): JsonResponse
     {
         $planId = $request->input('planAuditId') ?? $request->input('plan_audit_id');
+        $this->ensureAuditorFilled((int) $planId, 'mt');
         $who    = $request->user()?->username ?? $request->user()?->email;
 
         $rec = PemeriksaanMt::updateOrCreate(

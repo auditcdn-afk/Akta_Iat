@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\PemeriksaanMaterai;
 use Illuminate\Http\JsonResponse;
@@ -9,6 +10,8 @@ use Illuminate\Http\Request;
 
 class PemeriksaanMateraiController extends Controller
 {
+    use RequiresAuditorAuditee;
+
     // ── GET /api/audit-detail/materai ────────────────────────────────────────
 
     public function index(Request $request): JsonResponse
@@ -29,8 +32,10 @@ class PemeriksaanMateraiController extends Controller
             'plan_audit_id' => 'required|integer|exists:plan_audits,id',
         ]);
 
-        $html    = file_get_contents($request->file('file')->getRealPath());
         $planId  = $request->input('plan_audit_id');
+        $this->ensureAuditorFilled((int) $planId, 'materai');
+
+        $html    = file_get_contents($request->file('file')->getRealPath());
         $who     = $request->user()?->username ?? $request->user()?->email ?? null;
 
         $parsed  = $this->parseHtml($html);

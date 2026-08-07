@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\DbPerlengkapan;
 use App\Models\DbUnitUsaha;
@@ -15,6 +16,8 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class PemeriksaanSmhController extends Controller
 {
+    use RequiresAuditorAuditee;
+
     private array $writeRoles = ['admin', 'manajer', 'auditor'];
 
     // ── GET /api/audit-detail/smh ─────────────────────────────────────────────
@@ -39,6 +42,7 @@ class PemeriksaanSmhController extends Controller
         ]);
 
         $this->ensureCanWrite($request, (int) $request->input('plan_audit_id'));
+        $this->ensureAuditorFilled((int) $request->input('plan_audit_id'), 'smh');
 
         $file = $request->file('file');
         $spreadsheet = IOFactory::load($file->getRealPath());
@@ -359,6 +363,7 @@ class PemeriksaanSmhController extends Controller
     public function storeManual(Request $request): JsonResponse
     {
         $this->ensureCanWrite($request, (int) $request->input('plan_audit_id'));
+        $this->ensureAuditorFilled((int) $request->input('plan_audit_id'), 'smh');
 
         $data = $request->validate([
             'plan_audit_id' => ['required', 'integer', 'exists:plan_audits,id'],

@@ -225,6 +225,80 @@ function switchTab(tab) {
     if (tab === "perlengkapan") {
         loadPlForm().catch((e) => showAlert(e.message, "error"));
     }
+
+    loadAuditorWidget(tab).catch(() => {});
+}
+
+// ── Nama Auditor & Nama Auditee (widget bersama di atas semua tab) ─────────────
+// Satu pasang per (plan_audit_id, tool aktif). Nama Auditor selalu dari akun
+// login (readonly, ditentukan server) — lihat PemeriksaanAuditorController.
+// Menyimpan data tool apa pun (Kas, Bank, dst) akan ditolak backend selama
+// pasangan ini untuk tool tersebut belum ada, jadi widget ini harus diisi
+// duluan sebelum tombol Simpan di tab manapun bisa berhasil.
+
+let auditorWidgetTool = null;
+
+async function loadAuditorWidget(tool) {
+    if (!activePlanId || !tool) return;
+    auditorWidgetTool = tool;
+
+    const label = document.querySelector(`.audit-tab-btn[data-tab="${tool}"]`)?.textContent?.trim();
+    setText("auditorWidgetToolLabel", label || tool);
+
+    const statusEl = document.getElementById("auditorWidgetStatus");
+    statusEl?.classList.add("hidden");
+
+    try {
+        const payload = await fetchJson(
+            `/api/audit-detail/auditor?plan_audit_id=${activePlanId}&tool=${tool}`,
+            { headers: authHeaders() },
+        );
+        const data = payload.data || {};
+
+        // Tab bisa saja sudah berganti lagi sebelum response ini tiba (klik cepat
+        // antar tab) — jangan timpa widget kalau sudah tidak relevan.
+        if (auditorWidgetTool !== tool) return;
+
+        document.getElementById("auditorWidgetAuditor").value = data.namaAuditor || "";
+        document.getElementById("auditorWidgetAuditee").value = data.namaAuditee || "";
+        statusEl?.classList.toggle("hidden", !data.updatedAt);
+    } catch {
+        // Widget gagal dimuat tidak boleh menghalangi tab tetap dipakai —
+        // tombol Simpan tool itu sendiri yang nanti akan menolak dengan jelas
+        // kalau memang Nama Auditor/Auditee belum tersimpan.
+    }
+}
+
+async function saveAuditorWidget() {
+    if (!activePlanId || !auditorWidgetTool) return;
+
+    const namaAuditee = document.getElementById("auditorWidgetAuditee")?.value.trim() || "";
+    if (!namaAuditee) {
+        showAlert("Isi Nama Auditee terlebih dahulu.", "error");
+        return;
+    }
+
+    const btn = document.getElementById("auditorWidgetSaveBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Menyimpan..."; }
+
+    try {
+        const payload = await fetchJson("/api/audit-detail/auditor", {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({
+                plan_audit_id: activePlanId,
+                tool: auditorWidgetTool,
+                nama_auditee: namaAuditee,
+            }),
+        });
+        document.getElementById("auditorWidgetAuditor").value = payload.data?.namaAuditor || "";
+        document.getElementById("auditorWidgetStatus")?.classList.remove("hidden");
+        showAlert("Nama Auditor & Auditee tersimpan.");
+    } catch (err) {
+        showAlert(err.message || "Gagal menyimpan Nama Auditor/Auditee.", "error");
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = "Simpan"; }
+    }
 }
 
 // ── Form Pemeriksaan Kas (Kas Besar, Kas Kecil, Pecahan, Blanko) ───────────────
@@ -1377,6 +1451,9 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
     });
 
     document.getElementById("closePemeriksaanBtn")?.addEventListener("click", closePemeriksaan);
+    document.getElementById("auditorWidgetSaveBtn")?.addEventListener("click", () => {
+        saveAuditorWidget();
+    });
     document.getElementById("revisiPemeriksaanSelesaiBtn")?.addEventListener("click", () => {
         selesaiRevisiPemeriksaan().catch((err) => showAlert(err.message, "error"));
     });

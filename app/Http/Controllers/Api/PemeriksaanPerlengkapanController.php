@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\DbPerlengkapan;
 use App\Models\DbUnitUsaha;
@@ -14,6 +15,8 @@ use Illuminate\Http\Request;
 
 class PemeriksaanPerlengkapanController extends Controller
 {
+    use RequiresAuditorAuditee;
+
     private array $writeRoles = ['admin', 'manajer', 'auditor'];
 
     // ── GET /api/audit-detail/perlengkapan ───────────────────────────────────
@@ -234,6 +237,7 @@ class PemeriksaanPerlengkapanController extends Controller
     public function store(Request $request): JsonResponse
     {
         $this->ensureCanWrite($request, (int) $request->input('plan_audit_id'));
+        $this->ensureAuditorFilled((int) $request->input('plan_audit_id'), 'perlengkapan');
 
         $data = $request->validate([
             'plan_audit_id'     => 'required|integer|exists:plan_audits,id',
@@ -274,6 +278,7 @@ class PemeriksaanPerlengkapanController extends Controller
     public function update(Request $request, PemeriksaanPerlengkapan $pemeriksaanPerlengkapan): JsonResponse
     {
         $this->ensureCanWrite($request, (int) $pemeriksaanPerlengkapan->plan_audit_id);
+        $this->ensureAuditorFilled((int) $pemeriksaanPerlengkapan->plan_audit_id, 'perlengkapan');
 
         $data = $request->validate([
             'no_plan'           => 'nullable|string|max:100',

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\PemeriksaanLampiran;
 use Illuminate\Http\JsonResponse;
@@ -12,6 +13,8 @@ use setasign\Fpdi\Fpdi;
 
 class LampiranController extends Controller
 {
+    use RequiresAuditorAuditee;
+
     private const ALLOWED = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
 
     public function show(Request $request): JsonResponse
@@ -36,6 +39,7 @@ class LampiranController extends Controller
         }
 
         $planId   = $request->input('plan_audit_id');
+        $this->ensureAuditorFilled((int) $planId, 'lampiran');
         $who      = $request->user()?->username ?? $request->user()?->email;
         $dir      = "lampiran/{$planId}";
         $filename = Str::uuid() . '.' . $ext;
