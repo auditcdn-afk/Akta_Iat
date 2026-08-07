@@ -170,6 +170,24 @@ class PerlengkapanSaldoTest extends TestCase
         $this->assertNotContains('Kaca Spion Beat', $jenis);
     }
 
+    public function test_wilayah_dicocokkan_tanpa_peduli_huruf_besar_kecil(): void
+    {
+        // db_unit_usaha menyimpan wilayah huruf besar ("RIAU") sementara importir
+        // perlengkapan menyimpannya huruf kecil ("riau") — kombinasi yang memang
+        // terjadi di produksi.
+        DbUnitUsaha::query()->where('unit_usaha', 'CVSK H1')->update(['wilayah' => 'RIAU']);
+
+        $this->importOnhand([
+            ['no_mesin' => 'KCD2E 1053089'],
+            ['no_mesin' => 'KCD2E 1053090'],
+        ]);
+
+        $summary = $this->summaryByNama();
+
+        $this->assertSame(2, $summary['Kaca Spion Revo']['totalOnhand']);
+        $this->assertSame(2, $summary['Helm Revo']['totalOnhand']);
+    }
+
     public function test_saldo_tersimpan_diturunkan_server_bukan_dari_kiriman_klien(): void
     {
         $this->importOnhand([
