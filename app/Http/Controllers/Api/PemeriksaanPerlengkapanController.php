@@ -35,6 +35,16 @@ class PemeriksaanPerlengkapanController extends Controller
     {
         $planId = $request->query('plan_audit_id');
 
+        // Dasar daftar jenis = perlengkapan yang MEMANG dibutuhkan unit-unit onhand
+        // plan ini (tipe motor onhand disilangkan ke db_perlengkapan). Sebelumnya
+        // daftar ini hanya dibangun dari perlengkapan_json — yang baru terisi
+        // setelah unit diperiksa fisik satu per satu — sehingga tepat setelah
+        // impor onhand daftarnya jatuh ke fallback yang menampilkan seluruh
+        // katalog wilayah, termasuk tipe motor yang tidak ada di cabang itu.
+        $expected = $this->expectedPerJenis($planId);
+        arsort($expected);
+        $result = array_keys($expected);
+
         // Ambil semua item onhand dari plan ini
         $itemsQuery = SmhOnhandItem::query()
             ->whereNotNull('perlengkapan_json');
@@ -43,33 +53,31 @@ class PemeriksaanPerlengkapanController extends Controller
             $itemsQuery->whereHas('pemeriksaan', fn($q) => $q->where('plan_audit_id', $planId));
         }
 
-        $items = $itemsQuery->get();
-
-        // Kumpulkan semua nama perlengkapan unik dari semua unit yang sudah diperiksa
-        $allNama = [];
-        foreach ($items as $item) {
-            $plJson = $item->perlengkapan_json ?? [];
-            foreach ($plJson as $pl) {
+        // Nama yang tercatat saat periksa fisik tapi tidak ada di db_perlengkapan
+        // (mis. ditambahkan manual auditor) tetap ikut, supaya tidak hilang.
+        $extra = [];
+        foreach ($itemsQuery->get() as $item) {
+            foreach ($item->perlengkapan_json ?? [] as $pl) {
                 $nama = trim($pl['nama'] ?? '');
-                if ($nama !== '') {
-                    $allNama[$nama] = ($allNama[$nama] ?? 0) + 1;
+                if ($nama !== '' && !isset($expected[$nama])) {
+                    $extra[$nama] = ($extra[$nama] ?? 0) + 1;
                 }
             }
         }
 
-        // Urutkan berdasarkan frekuensi kemunculan
-        arsort($allNama);
+        arsort($extra);
+        $result = array_merge($result, array_keys($extra));
 
-        $result = array_keys($allNama);
-
-        // Jika belum ada data onhand, fallback ke db_perlengkapan
+        // Belum ada onhand sama sekali: tampilkan katalog wilayahnya supaya
+        // auditor masih bisa mencatat perlengkapan secara manual.
         if (empty($result) && $planId) {
             $wilayah = $this->wilayahFromPlan($planId);
-            $dbRows  = DbPerlengkapan::when($wilayah, fn($q) => $q->where('wilayah', $wilayah))
-                ->get();
+            $dbRows  = DbPerlengkapan::all()
+                ->filter(fn($r) => !$wilayah || strtolower(trim($r->wilayah ?? '')) === $wilayah || blank($r->wilayah));
+
             foreach ($dbRows as $row) {
                 foreach ($row->itemList() as $nama) {
-                    if (!in_array($nama, $result)) $result[] = $nama;
+                    if (!in_array($nama, $result, true)) $result[] = $nama;
                 }
             }
         }
@@ -82,8 +90,37 @@ class PemeriksaanPerlengkapanController extends Controller
 
     public function smhSummary(Request $request): JsonResponse
     {
-        $planId  = $request->query('plan_audit_id');
-        $wilayah = $this->wilayahFromPlan($planId);
+        return response()->json([
+            'data' => array_values($this->summaryPerJenis($request->query('plan_audit_id'))),
+        ]);
+    }
+
+    /**
+     * Rekap per jenis perlengkapan: berapa unit yang membutuhkannya (totalOnhand),
+     * berapa yang sudah dicek (total), dan berapa yang perlengkapannya ada (ada).
+     *
+     * Seed-nya dari SELURUH unit onhand, bukan hanya yang sudah diperiksa fisik.
+     * Ini inti perbaikannya: sebelumnya rekap ini hanya dibangun dari unit
+     * ber-status_fisik "ada", sehingga tepat setelah impor onhand (belum ada satu
+     * pun unit diperiksa) hasilnya array kosong dan form "Perlengkapan di luar
+     * SMH" menampilkan Saldo 0 untuk semua jenis — seolah data onhand tidak
+     * tersinkron dengan db_perlengkapan.
+     *
+     * @return array<string, array{nama: string, ada: int, total: int, totalOnhand: int}>
+     */
+    private function summaryPerJenis(?string $planId): array
+    {
+        $totalOnhandPerJenis = $this->expectedPerJenis($planId);
+
+        $summary = [];
+        foreach ($totalOnhandPerJenis as $nama => $totalOnhand) {
+            $summary[$nama] = [
+                'nama'        => $nama,
+                'ada'         => 0,
+                'total'       => 0,
+                'totalOnhand' => $totalOnhand,
+            ];
+        }
 
         $itemsQuery = SmhOnhandItem::query()
             ->whereNotNull('perlengkapan_json')
@@ -93,60 +130,103 @@ class PemeriksaanPerlengkapanController extends Controller
             $itemsQuery->whereHas('pemeriksaan', fn($q) => $q->where('plan_audit_id', $planId));
         }
 
-        $items = $itemsQuery->get();
-
-        // Semua unit onhand plan ini (dipakai untuk menghitung Saldo per jenis sesuai
-        // tipe motor — bukan cuma satu total gabungan semua tipe, lihat di bawah)
-        $allOnhandQuery = SmhOnhandItem::query();
-        if ($planId) {
-            $allOnhandQuery->whereHas('pemeriksaan', fn($q) => $q->where('plan_audit_id', $planId));
-        }
-        $allOnhand = $allOnhandQuery->get(['no_mesin']);
-
-        // "Saldo (buku)" untuk tiap jenis perlengkapan sebelumnya dihitung dari total
-        // SELURUH unit onhand (semua tipe motor digabung) — padahal tiap jenis
-        // perlengkapan (mis. "Kaca Spion PCX160") cuma relevan untuk tipe motor
-        // tertentu sesuai db_perlengkapan. Di sini kita bangun peta kode tipe motor
-        // (5 huruf prefix no_mesin) → daftar nama perlengkapan yang wajib ada untuk
-        // tipe itu, supaya Saldo tiap jenis cuma menghitung unit dari tipe motor yang
-        // memang membutuhkan jenis perlengkapan tersebut.
-        $kodeItemMap = [];
-        $rowsByKode  = DbPerlengkapan::all()->groupBy('kode');
-        foreach ($rowsByKode as $kode => $rows) {
-            $match = $rows->first(fn($r) => $wilayah && strtolower(trim($r->wilayah ?? '')) === $wilayah)
-                ?? $rows->first(fn($r) => empty($r->wilayah))
-                ?? $rows->first();
-            $kodeItemMap[$kode] = $match?->itemList() ?? [];
-        }
-
-        $totalOnhandPerJenis = [];
-        foreach ($allOnhand as $u) {
-            $prefix = strtoupper(substr(str_replace(' ', '', $u->no_mesin ?? ''), 0, 5));
-            foreach ($kodeItemMap[$prefix] ?? [] as $nm) {
-                $totalOnhandPerJenis[$nm] = ($totalOnhandPerJenis[$nm] ?? 0) + 1;
-            }
-        }
-
-        // Hitung per item: ada vs total di setiap unit
-        $summary = [];
-        foreach ($items as $item) {
+        // Timpa dengan hasil pemeriksaan fisik: ada vs total di setiap unit.
+        foreach ($itemsQuery->get() as $item) {
             foreach ($item->perlengkapan_json ?? [] as $pl) {
                 $nama = trim($pl['nama'] ?? '');
                 if ($nama === '') continue;
-                if (!isset($summary[$nama])) {
-                    $summary[$nama] = [
-                        'nama'        => $nama,
-                        'ada'         => 0,
-                        'total'       => 0,
-                        'totalOnhand' => $totalOnhandPerJenis[$nama] ?? 0,
-                    ];
-                }
+
+                $summary[$nama] ??= [
+                    'nama'        => $nama,
+                    'ada'         => 0,
+                    'total'       => 0,
+                    'totalOnhand' => $totalOnhandPerJenis[$nama] ?? 0,
+                ];
+
                 $summary[$nama]['total']++;
                 if ($pl['ada'] ?? false) $summary[$nama]['ada']++;
             }
         }
 
-        return response()->json(['data' => array_values($summary)]);
+        return $summary;
+    }
+
+    /**
+     * Saldo buku satu jenis perlengkapan = unit yang membutuhkannya dikurangi
+     * unit yang perlengkapannya sudah ditemukan saat periksa fisik.
+     *
+     * Diturunkan di server, bukan diambil dari request: field Saldo di form
+     * memang berlabel "Otomatis dari data onhand" dan tidak diisi manual, dan
+     * ReportPdfController membaca nilai tersimpan ini apa adanya. Kalau angka
+     * kiriman klien yang dipercaya, baris yang tersimpan saat rekap masih kosong
+     * akan mengendap dengan Saldo 0 dan Selisih yang ikut salah.
+     */
+    private function saldoFor(?string $planId, string $jenis): float
+    {
+        $row = $this->summaryPerJenis($planId)[trim($jenis)] ?? null;
+
+        if (!$row) {
+            return 0.0;
+        }
+
+        return (float) max(0, $row['totalOnhand'] - $row['ada']);
+    }
+
+    /**
+     * Jumlah unit onhand yang membutuhkan tiap jenis perlengkapan.
+     *
+     * Tiap jenis perlengkapan (mis. "Kaca Spion PCX160") hanya relevan untuk tipe
+     * motor tertentu, jadi hitungannya bukan total seluruh unit onhand digabung.
+     * Tipe motor diambil dari 5 huruf pertama no mesin dan dicocokkan ke
+     * db_perlengkapan.kode — konvensi yang sama dipakai
+     * PemeriksaanSmhController::syncPerlengkapan().
+     *
+     * @return array<string, int> nama perlengkapan => jumlah unit
+     */
+    private function expectedPerJenis(?string $planId): array
+    {
+        $kodeItemMap = $this->kodeItemMap($this->wilayahFromPlan($planId));
+
+        $onhandQuery = SmhOnhandItem::query();
+
+        if ($planId) {
+            $onhandQuery->whereHas('pemeriksaan', fn($q) => $q->where('plan_audit_id', $planId));
+        }
+
+        $expected = [];
+
+        foreach ($onhandQuery->get(['no_mesin']) as $unit) {
+            $kode = strtoupper(substr(str_replace(' ', '', $unit->no_mesin ?? ''), 0, 5));
+
+            foreach ($kodeItemMap[$kode] ?? [] as $nama) {
+                $expected[$nama] = ($expected[$nama] ?? 0) + 1;
+            }
+        }
+
+        return $expected;
+    }
+
+    /**
+     * Peta kode tipe motor => daftar nama perlengkapan yang wajib ada.
+     *
+     * Satu kode bisa punya beberapa baris (per wilayah); dipilih yang cocok
+     * wilayahnya, lalu baris tanpa wilayah, lalu apa pun yang ada.
+     *
+     * @return array<string, array<int, string>>
+     */
+    private function kodeItemMap(?string $wilayah): array
+    {
+        $map = [];
+
+        foreach (DbPerlengkapan::all()->groupBy('kode') as $kode => $rows) {
+            $match = $rows->first(fn($r) => $wilayah && strtolower(trim($r->wilayah ?? '')) === $wilayah)
+                ?? $rows->first(fn($r) => blank($r->wilayah))
+                ?? $rows->first();
+
+            $map[$kode] = $match?->itemList() ?? [];
+        }
+
+        return $map;
     }
 
     // ── POST /api/audit-detail/perlengkapan ──────────────────────────────────
@@ -167,9 +247,11 @@ class PemeriksaanPerlengkapanController extends Controller
             'penjelasan'        => 'nullable|string|max:1000',
         ]);
 
-        $saldo = (float) ($data['saldo'] ?? 0);
-        $fisik = (int)   ($data['fisik'] ?? 0);
+        // Saldo diturunkan dari data onhand terkini, bukan dari request.
+        $saldo = $this->saldoFor((string) $data['plan_audit_id'], $data['jenis_perlengkapan']);
+        $fisik = (int) ($data['fisik'] ?? 0);
 
+        $data['saldo'] = $saldo;
         // selisih = fisik - saldo (kelebihan/kekurangan fisik vs saldo buku)
         $data['selisih']    = $fisik - $saldo;
         $data['created_by'] = $this->who($request);
@@ -204,8 +286,14 @@ class PemeriksaanPerlengkapanController extends Controller
             'penjelasan'        => 'nullable|string|max:1000',
         ]);
 
-        $saldo = (float) ($data['saldo'] ?? $pemeriksaanPerlengkapan->saldo);
-        $fisik = (int)   ($data['fisik'] ?? $pemeriksaanPerlengkapan->fisik);
+        // Sama seperti store(): Saldo diturunkan dari data onhand terkini, jadi
+        // baris lama yang tersimpan dengan Saldo salah ikut terkoreksi saat
+        // di-update — tanpa perlu menghapus dan membuat ulang barisnya.
+        $jenis = $data['jenis_perlengkapan'] ?? $pemeriksaanPerlengkapan->jenis_perlengkapan;
+        $saldo = $this->saldoFor((string) $pemeriksaanPerlengkapan->plan_audit_id, (string) $jenis);
+        $fisik = (int) ($data['fisik'] ?? $pemeriksaanPerlengkapan->fisik);
+
+        $data['saldo']      = $saldo;
         $data['selisih']    = $fisik - $saldo;
         $data['updated_by'] = $this->who($request);
 
