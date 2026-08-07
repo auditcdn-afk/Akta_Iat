@@ -99,6 +99,14 @@ class DeployController extends Controller
     /**
      * Bangun ulang cache config, route, dan view.
      *
+     * Hasil tiap langkah dilaporkan berdasarkan ADA/TIDAKNYA berkas cache di
+     * disk, bukan dari Artisan::output(). Alasannya: `config:cache` dan
+     * `route:cache` mem-bootstrap instance aplikasi baru untuk membaca
+     * konfigurasi/rute yang segar, sehingga pesan suksesnya masuk ke buffer
+     * output aplikasi baru itu dan buffer pemanggil tetap kosong — padahal
+     * berkasnya sebenarnya berhasil ditulis. Mengandalkan output di sini akan
+     * membuat endpoint ini melaporkan "kosong" pada kondisi yang justru sukses.
+     *
      * Tiap langkah dibungkus try/catch: kalau salah satu gagal (misalnya
      * direktori bootstrap/cache tidak bisa ditulis di hosting tertentu),
      * aplikasi tetap jalan — hanya kembali ke mode tanpa cache yang lebih
@@ -106,12 +114,32 @@ class DeployController extends Controller
      */
     private function rebuildCaches(): string
     {
+        $app = app();
+
+        // Berkas yang harus ada setelah tiap perintah sukses. View tidak punya
+        // satu berkas penanda, jadi cukup dipakai output Artisan-nya.
+        $artifacts = [
+            'config:cache' => $app->getCachedConfigPath(),
+            'route:cache'  => $app->getCachedRoutesPath(),
+            'view:cache'   => null,
+        ];
+
         $output = "\n--- Membangun ulang cache ---\n";
 
-        foreach (['config:cache', 'route:cache', 'view:cache'] as $command) {
+        foreach ($artifacts as $command => $artifact) {
             try {
                 Artisan::call($command);
-                $output .= trim(Artisan::output()) . "\n";
+
+                if ($artifact === null) {
+                    $output .= trim(Artisan::output()) . "\n";
+                    continue;
+                }
+
+                clearstatcache(true, $artifact);
+
+                $output .= file_exists($artifact)
+                    ? sprintf("%s: OK (%s, %d byte)\n", $command, basename($artifact), filesize($artifact))
+                    : sprintf("%s: GAGAL — %s tidak terbentuk.\n", $command, basename($artifact));
             } catch (\Throwable $e) {
                 $output .= "GAGAL {$command}: {$e->getMessage()}\n";
             }
