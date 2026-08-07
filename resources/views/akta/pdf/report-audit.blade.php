@@ -526,7 +526,9 @@ window.addEventListener('load', function() {
                   <th style="padding:2px 6px;border:1px solid #e2e8f0;">No Mesin</th>
                   <th style="padding:2px 6px;border:1px solid #e2e8f0;">Kode Model</th>
                   <th style="padding:2px 6px;border:1px solid #e2e8f0;">Nama SMH</th>
-                  <th style="text-align:right;padding:2px 6px;border:1px solid #e2e8f0;">Harga</th>
+                  {{-- Harga per unit sengaja tidak ditampilkan di laporan. Nilai
+                       agregatnya tetap ada di kolom Total Nilai SMH dan di ringkasan
+                       plafon, yang memang jadi inti analisisnya. --}}
                 </tr>
               </thead>
               <tbody>
@@ -536,7 +538,6 @@ window.addEventListener('load', function() {
                   <td style="padding:2px 6px;border:1px solid #e2e8f0;font-family:monospace;">{{ $det['noMesin'] ?? '-' }}</td>
                   <td style="padding:2px 6px;border:1px solid #e2e8f0;">{{ $det['kodeModel'] ?? '-' }}</td>
                   <td style="padding:2px 6px;border:1px solid #e2e8f0;">{{ $det['namaSmh'] ?? '— harga tidak ditemukan —' }}</td>
-                  <td style="text-align:right;padding:2px 6px;border:1px solid #e2e8f0;">{{ $det['harga'] !== null ? $fmt2($det['harga']) : '-' }}</td>
                 </tr>
                 @endforeach
               </tbody>
