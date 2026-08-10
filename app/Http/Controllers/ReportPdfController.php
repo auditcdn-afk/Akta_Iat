@@ -27,6 +27,7 @@ use App\Models\PemeriksaanSmh;
 use App\Models\PemeriksaanSmhTarikan;
 use App\Models\PemeriksaanTtpGantung;
 use App\Models\PlanAudit;
+use App\Services\PerlengkapanOnhand;
 use App\Models\SmhOnhandItem;
 use Illuminate\Http\Response;
 use Illuminate\View\View;
@@ -55,6 +56,13 @@ class ReportPdfController extends Controller
         $kas        = PemeriksaanKas::where('plan_audit_id', $id)->latest('id')->first();
         $smh        = PemeriksaanSmh::with('items')->where('plan_audit_id', $id)->get();
         $perlengkapan = PemeriksaanPerlengkapan::where('plan_audit_id', $id)->get();
+
+        // Jumlah unit onhand yang MEMBUTUHKAN tiap jenis perlengkapan, dari sumber
+        // yang sama dengan Saldo buku "Perlengkapan di luar SMH" di tab Perlengkapan.
+        // Bagian C (Rekap Gabungan) dulu menghitung penyebutnya sendiri — hanya unit
+        // yang status fisiknya 'ada' dan checklist-nya sudah tersinkron — sehingga
+        // kedua sisi tabel tidak pernah bisa direkonsiliasi.
+        $perlengkapanOnhand = app(PerlengkapanOnhand::class)->summaryPerJenis((string) $id);
         $bank       = PemeriksaanBank::where('plan_audit_id', $id)->get();
         $materai    = PemeriksaanMaterai::where('plan_audit_id', $id)->get();
         $bpkbOnhand = BpkbOnhandItem::where('plan_audit_id', $id)->get();
@@ -102,7 +110,8 @@ class ReportPdfController extends Controller
             'plan', 'plafon', 'kas', 'smh', 'perlengkapan', 'bank', 'materai',
             'bpkbOnhand', 'bpkbInproses', 'kwitansi', 'piutangReguler',
             'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'rsaHgp', 'hga',
-            'smhTarikan', 'lampiran', 'lampiranEmbeds', 'visibleTabs', 'auditors'
+            'smhTarikan', 'lampiran', 'lampiranEmbeds', 'visibleTabs', 'auditors',
+            'perlengkapanOnhand'
         );
     }
 
