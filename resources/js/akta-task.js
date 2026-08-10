@@ -271,7 +271,31 @@ function openModal(task) {
     const modal = document.getElementById("taskModal");
     const plan = task.planAudit || {};
 
-    renderTimeline(plan.logs);
+    // Riwayat status tidak lagi ikut di endpoint daftar (lihat AuditTaskController::index)
+    // — dulu itu memaksa satu query per task dan payload yang tumbuh terus. Diambil di
+    // sini saja, saat modal benar-benar dibuka. Perhatikan `logs` selalu ada sebagai
+    // array kosong ketika tidak dimuat, dan array kosong itu truthy — jadi yang dicek
+    // panjangnya.
+    if (plan.logs?.length) {
+        renderTimeline(plan.logs);
+    } else if (plan.id) {
+        const timeline = document.getElementById("planTimeline");
+
+        if (timeline) {
+            timeline.innerHTML = `<li class="text-xs text-slate-500">Memuat riwayat...</li>`;
+        }
+
+        fetchJson(`/api/plans/${plan.id}`, { headers: authHeaders() })
+            .then((res) => {
+                // Abaikan kalau user sudah pindah ke task lain sementara ini.
+                if (document.getElementById("taskId")?.value === String(task.id)) {
+                    renderTimeline(res.data?.logs || []);
+                }
+            })
+            .catch(() => renderTimeline([]));
+    } else {
+        renderTimeline([]);
+    }
 
     document.getElementById("taskForm").reset();
     document.getElementById("taskId").value = task.id;

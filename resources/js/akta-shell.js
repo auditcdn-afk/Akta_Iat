@@ -95,32 +95,6 @@ async function validateSession(session) {
     return response.json();
 }
 
-async function checkDataStore(session) {
-    const element = document.getElementById("dashboardDataStoreStatus");
-
-    if (!element) {
-        return;
-    }
-
-    try {
-        // Dulu endpoint ini memakai /api/all-data, yang mengunduh SELURUH isi
-        // data store hanya untuk menampilkan jumlah key-nya. Sekarang server
-        // yang menghitung dan hanya mengirim angkanya.
-        const response = await fetch("/api/all-data/summary", {
-            headers: authHeaders(session),
-        });
-
-        if (!response.ok) {
-            throw new Error("Data store gagal.");
-        }
-
-        const data = await response.json();
-        element.textContent = `${data.count} key`;
-    } catch {
-        element.textContent = "Error";
-    }
-}
-
 async function logout(session) {
     try {
         await fetch("/api/auth/logout", {
@@ -215,7 +189,12 @@ function setupNavPrefetch() {
     const prefetched = new Set();
 
     const prefetch = (event) => {
-        const link = event.target.closest("a.akta-menu-item");
+        // Listener dipasang di `document` dengan capture, jadi event juga lewat
+        // saat sasarannya bukan elemen — node `document` sendiri, misalnya, yang
+        // tidak punya closest(). Tanpa penjagaan ini, tiap kursor melintasi batas
+        // dokumen akan melempar "target.closest is not a function" ke konsol.
+        const asal = event.target;
+        const link = asal instanceof Element ? asal.closest("a.akta-menu-item") : null;
 
         if (!link) {
             return;
@@ -321,8 +300,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!known || JSON.stringify(user) !== JSON.stringify(known)) {
                 applyUser(user);
             }
-
-            return checkDataStore(session);
         })
         .catch(() => {
             clearSession();

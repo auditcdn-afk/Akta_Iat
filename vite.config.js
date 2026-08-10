@@ -6,7 +6,6 @@ export default defineConfig({
         laravel({
             input: [
                 'resources/css/app.css',
-                'resources/js/app.js',
                 'resources/js/akta-shell.js',
                 'resources/js/akta-auth.js',
                 'resources/js/akta-database.js',

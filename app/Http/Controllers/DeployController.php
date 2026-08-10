@@ -79,6 +79,8 @@ class DeployController extends Controller
         Artisan::call('cache:clear');
         $output .= Artisan::output();
 
+        $output .= $this->clearPackageManifest();
+
         $output .= $this->rebuildCaches();
 
         // artisan cache/view/config clears only clear Laravel's own caches — they
@@ -112,6 +114,47 @@ class DeployController extends Controller
      * aplikasi tetap jalan — hanya kembali ke mode tanpa cache yang lebih
      * lambat — dan pesan kegagalannya ikut ditampilkan supaya bisa ditindak.
      */
+    /**
+     * Hapus daftar paket hasil auto-discovery Laravel
+     * (bootstrap/cache/packages.php & services.php).
+     *
+     * Kedua berkas ini hanya ditulis ulang oleh `composer install/update` — bukan
+     * oleh perintah artisan clear mana pun. Di hosting FTP-only composer tidak
+     * pernah dijalankan, jadi isinya bisa tertinggal menyebut paket yang sudah
+     * tidak ada lagi di vendor/. Menghapusnya di sini aman: Laravel membangun
+     * ulang daftar itu otomatis pada request berikutnya, berdasarkan isi vendor/
+     * yang sebenarnya.
+     *
+     * BATASNYA — dan ini penting saat menghapus paket composer: daftar paket
+     * dibaca saat framework bootstrap, JAUH sebelum routing. Kalau vendor/ sudah
+     * kehilangan sebuah paket sementara berkas ini masih menyebutnya, seluruh
+     * aplikasi mati dengan "Class ... ServiceProvider not found" — termasuk
+     * endpoint ini sendiri, sehingga tidak bisa dipakai untuk memulihkannya.
+     * Satu-satunya jalan keluar saat itu adalah menghapus kedua berkas ini
+     * lewat FTP. Karena itu: JANGAN menghapus isi vendor/ lewat FTP. Pembersihan
+     * berkas ini di sini bersifat pencegahan (dipanggil selagi aplikasi masih
+     * hidup), bukan penyelamat setelah terlanjur rusak.
+     */
+    private function clearPackageManifest(): string
+    {
+        $output = '';
+
+        foreach (['packages.php', 'services.php'] as $berkas) {
+            $path = base_path('bootstrap/cache/' . $berkas);
+
+            if (!file_exists($path)) {
+                $output .= "{$berkas}: tidak ada, dilewati.\n";
+                continue;
+            }
+
+            $output .= @unlink($path)
+                ? "{$berkas}: dihapus, akan dibangun ulang otomatis.\n"
+                : "{$berkas}: GAGAL dihapus — periksa izin folder bootstrap/cache.\n";
+        }
+
+        return $output;
+    }
+
     private function rebuildCaches(): string
     {
         $app = app();

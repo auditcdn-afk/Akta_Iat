@@ -16,6 +16,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'akta.role' => \App\Http\Middleware\EnsureAktaRole::class,
         ]);
 
+        // Ke mana pengunjung yang belum login diarahkan. Tanpa ini Laravel
+        // memakai rute bernama 'login' bawaan Breeze — yang sudah dihapus karena
+        // aplikasi punya halaman login sendiri di /akta/login. Request API yang
+        // mengirim header Accept: application/json tetap dapat balasan 401,
+        // bukan pengalihan; ini hanya berlaku untuk kunjungan lewat browser.
+        $middleware->redirectGuestsTo(fn() => route('akta.login'));
+
         // Percayai reverse proxy/load balancer (nginx, Cloudflare, dll) di hosting
         // produksi supaya HTTPS, IP klien, dan URL yang dihasilkan Laravel benar.
         $middleware->trustProxies(at: '*');

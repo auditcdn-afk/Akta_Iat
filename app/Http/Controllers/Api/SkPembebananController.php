@@ -40,6 +40,20 @@ class SkPembebananController extends Controller
 
     // GET /api/sk-pembebanan/rekap?tahun[]=&bulan[]=&jenis_unit[]=&status[]=
     // Rekap beban SK untuk grafik: total per bulan, per unit usaha, dan per status.
+    /**
+     * Potong tanggal mentah dari database ('2026-01-20' atau '2026-01-20 00:00:00')
+     * menjadi 'Y' ($panjang 4) atau 'Y-m' ($panjang 7).
+     *
+     * Dipakai menggantikan optional($r->tgl_audit)->format(...) sejak baris rekap
+     * tidak lagi dihidrasi jadi model Eloquent — membuat objek Carbon untuk tiap
+     * baris hanya demi mengambil tahun/bulannya jauh lebih mahal daripada substr.
+     * Baris tanpa tanggal tetap menghasilkan null, sama seperti optional() dulu.
+     */
+    private function periode(?string $tanggal, int $panjang): ?string
+    {
+        return $tanggal ? substr($tanggal, 0, $panjang) : null;
+    }
+
     public function rekap(Request $request): JsonResponse
     {
         $tahunInput = $request->query('tahun');
@@ -92,10 +106,22 @@ class SkPembebananController extends Controller
             $query->whereIn('unit_usaha', $unitUsahaList);
         }
 
-        $rows = $query->get(['unit_usaha', 'jenis_unit', 'status', 'total_pembebanan', 'tgl_audit', 'personil']);
+        // toBase() melewati hidrasi model Eloquent: yang dibutuhkan di sini cuma
+        // angka untuk grafik, bukan objek SkPembebanan lengkap. Casting `tgl_audit`
+        // ke Carbon dan `personil` ke array untuk tiap baris adalah bagian termahal
+        // dari endpoint ini — pada 8.000 baris, hidrasi model saja ~118 ms sementara
+        // query builder mentah ~18 ms. Konsekuensinya di bawah: `tgl_audit` kini
+        // berupa string 'Y-m-d ...' (dipotong dengan substr, bukan Carbon::format)
+        // dan `personil` berupa string JSON (di-decode manual sekali per baris).
+        $rows = $query->toBase()->get(['unit_usaha', 'jenis_unit', 'status', 'total_pembebanan', 'tgl_audit', 'personil']);
 
+        // Dulu: memuat SELURUH kolom tgl_audit lalu di-Carbon-kan satu per satu
+        // hanya untuk mendapat 3 angka tahun (~205 ms pada 8.000 baris). Sekarang
+        // DISTINCT-nya dikerjakan database.
         $tahunOptions = SkPembebanan::query()
             ->whereNotNull('tgl_audit')
+            ->distinct()
+            ->orderByDesc('tgl_audit')
             ->pluck('tgl_audit')
             ->map(fn($d) => (int) $d->format('Y'))
             ->unique()
@@ -105,9 +131,13 @@ class SkPembebananController extends Controller
             $tahunOptions = collect([now()->year]);
         }
 
+        // Idem: dulu seluruh tabel dihidrasi jadi model hanya untuk mengumpulkan
+        // ~30 nama unit usaha (~141 ms pada 8.000 baris).
         $unitUsahaOptions = SkPembebanan::query()
             ->whereNotNull('unit_usaha')
             ->orderBy('unit_usaha')
+            ->toBase()
+            ->distinct()
             ->get(['unit_usaha', 'jenis_unit'])
             ->groupBy('unit_usaha')
             ->map(fn($group, $key) => [
@@ -117,7 +147,7 @@ class SkPembebananController extends Controller
             ->values();
 
         $byBulan = $rows
-            ->groupBy(fn($r) => optional($r->tgl_audit)->format('Y-m'))
+            ->groupBy(fn($r) => $this->periode($r->tgl_audit, 7))
             ->map(fn($group, $key) => [
                 'bulan' => $key,
                 'total' => (float) $group->sum('total_pembebanan'),
@@ -147,7 +177,7 @@ class SkPembebananController extends Controller
             ->values();
 
         $byTahun = $rows
-            ->groupBy(fn($r) => optional($r->tgl_audit)->format('Y'))
+            ->groupBy(fn($r) => $this->periode($r->tgl_audit, 4))
             ->map(fn($group, $key) => [
                 'tahun' => $key,
                 'total' => (float) $group->sum('total_pembebanan'),
@@ -161,7 +191,9 @@ class SkPembebananController extends Controller
         $allRincian = collect();
         $allPersonil = collect();
         foreach ($rows as $row) {
-            foreach (($row->personil ?? []) as $p) {
+            // `personil` masih berupa string JSON karena baris tidak lagi dihidrasi
+            // jadi model (lihat toBase() di atas), jadi di-decode di sini saja.
+            foreach ((json_decode($row->personil ?? '', true) ?: []) as $p) {
                 $allPersonil->push([
                     'nama' => $p['nama'] ?? '(Tanpa Nama)',
                     'jabatan' => $p['jabatan'] ?? '-',

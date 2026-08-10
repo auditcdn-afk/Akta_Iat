@@ -1,4 +1,5 @@
-import Chart from "chart.js/auto";
+import Chart from "./akta-chart.js";
+import { whenTabVisible } from "./akta-dashboard-tabs.js";
 
 const SESSION_KEY = "akta_session";
 
@@ -339,5 +340,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!getSession()) return;
 
     populateStaticFilters();
-    loadRekap();
+
+    // Rekap realisasi dinas menggabungkan seluruh header + item; jangan
+    // dijalankan selama tabnya masih tersembunyi. Lihat akta-dashboard-tabs.js.
+    whenTabVisible("dashTabRealisasiDinas", loadRekap);
 });

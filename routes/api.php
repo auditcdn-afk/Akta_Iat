@@ -411,11 +411,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::post('/picas/{pica}/upload-recheck', [PicaController::class, 'uploadRecheck']);
 
-    Route::get('/all-data', [DataStoreController::class, 'allData']);
-
-    // Hanya jumlah key — dipakai kartu status dashboard supaya tidak perlu
-    // mengunduh seluruh isi data store.
-    Route::get('/all-data/summary', [DataStoreController::class, 'allDataSummary']);
+    // /all-data dan /all-data/summary dihapus: keduanya hanya dipakai kartu
+    // status di halaman dashboard lama (resources/views/akta/dashboard.blade.php)
+    // yang sudah tidak punya rute dan ikut dihapus. /all-data khususnya membaca
+    // SETIAP key data store lalu mengirim seluruh isinya ke browser — tiap
+    // pemuatan halaman ikut menanggung satu request ke sana tanpa ada yang
+    // menampilkan hasilnya.
 
     Route::get('/data/{key}', [DataStoreController::class, 'read']);
 

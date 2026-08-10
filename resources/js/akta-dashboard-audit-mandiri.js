@@ -1,4 +1,4 @@
-import Chart from "chart.js/auto";
+import Chart from "./akta-chart.js";
 
 // Plugin custom: gambar label "Achieve %" di atas/samping bar Realisasi,
 // supaya persentase capaian langsung terlihat tanpa perlu hover.
