@@ -752,19 +752,19 @@ window.addEventListener('load', function() {
 
     {{-- ── C. Rekap Gabungan Perlengkapan ── --}}
     @php
-      // Bangun map dari SMH fisik: nama → {smhSaldo (total diperiksa), smhFisik (ada)}
+      // Map SMH: nama → {smhSaldo (unit yang MEMBUTUHKAN), smhFisik (yang ditemukan)}.
+      //
+      // Penyebutnya (smhSaldo) diambil dari App\Services\PerlengkapanOnhand —
+      // sumber yang sama dengan Saldo buku "Perlengkapan di luar SMH" di tab
+      // Perlengkapan. Dulu bagian ini menghitung sendiri dengan hanya menjumlah
+      // unit yang status fisiknya 'ada' DAN checklist perlengkapannya sudah
+      // tersinkron. Unit yang tidak ditemukan fisik — atau yang checklist-nya
+      // belum diisi — tetap membutuhkan perlengkapannya, jadi mengeluarkannya
+      // dari penyebut membuat kekurangan pada sisi SMH lebih kecil daripada
+      // Saldo Luar SMH, dan kedua sisi tabel tidak pernah bisa direkonsiliasi.
       $smhPlMap = [];
-      foreach($smh as $s) {
-          foreach(($s->items ?? collect()) as $item) {
-              if(($item->status_fisik ?? null) !== 'ada') continue;
-              foreach(($item->perlengkapan_json ?? []) as $pl) {
-                  $nm = trim($pl['nama'] ?? '');
-                  if($nm === '') continue;
-                  if(!isset($smhPlMap[$nm])) $smhPlMap[$nm] = ['smhSaldo'=>0, 'smhFisik'=>0];
-                  $smhPlMap[$nm]['smhSaldo']++;
-                  if($pl['ada'] ?? false) $smhPlMap[$nm]['smhFisik']++;
-              }
-          }
+      foreach($perlengkapanOnhand as $nm => $row) {
+          $smhPlMap[$nm] = ['smhSaldo' => $row['totalOnhand'], 'smhFisik' => $row['ada']];
       }
       // Bangun map dari perlengkapan luar SMH: jenis → {luarSaldo, luarFisik, luarSelisih, penjelasan[]}
       $luarPlMap = [];
