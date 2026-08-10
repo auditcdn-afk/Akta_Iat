@@ -67,7 +67,15 @@ class PlanAuditController extends Controller
     {
         $user = $request->user();
         $role = $user?->role;
-        $onlyMine = !in_array($role, self::HO_ROLES, true);
+
+        // Role 'auditor' sengaja DIKELUARKAN dari HO_ROLES di sini walau secara
+        // teknis ada di daftar itu (dipakai juga untuk cek transisi status di
+        // canAdvance() — HO_ROLES tidak diubah supaya logika itu tidak ikut
+        // berubah). Auditor lapangan hanya boleh melihat plan yang mereka
+        // terlibat sebagai kepala tim/anggota tim (lihat filter di bawah) —
+        // bukan seluruh plan seperti admin/manajer/koordinator/coo yang memang
+        // perlu visibilitas penuh untuk approval & monitoring pipeline.
+        $onlyMine = $role === 'auditor' || !in_array($role, self::HO_ROLES, true);
 
         // Identitas auditor (display_name / name / username)
         $identities = array_values(array_filter([
