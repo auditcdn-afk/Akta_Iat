@@ -273,19 +273,22 @@ class RealisasiDinasController extends Controller
         $cabangList = collect(is_array($cabangInput) ? $cabangInput : array_filter([$cabangInput]))
             ->filter()->values();
 
-        $query = RealisasiDinas::query()->with(['planAudit', 'items']);
+        // Kolom sengaja diberi awalan nama tabel: query ini di bawah di-join ke
+        // realisasi_dinas_items dan plan_audits yang sama-sama punya created_at,
+        // jadi tanpa awalan itu database akan menolak karena kolomnya ambigu.
+        $query = RealisasiDinas::query();
 
         if ($tahunList->isNotEmpty()) {
             $query->where(function ($q) use ($tahunList) {
                 foreach ($tahunList as $t) {
-                    $q->orWhereYear('created_at', $t);
+                    $q->orWhereYear('realisasi_dinas.created_at', $t);
                 }
             });
         }
         if ($bulanList->isNotEmpty()) {
             $query->where(function ($q) use ($bulanList) {
                 foreach ($bulanList as $b) {
-                    $q->orWhereMonth('created_at', $b);
+                    $q->orWhereMonth('realisasi_dinas.created_at', $b);
                 }
             });
         }
@@ -296,28 +299,49 @@ class RealisasiDinasController extends Controller
             $query->whereHas('items', fn($q) => $q->whereIn('jenis_pengeluaran', $jenisList));
         }
 
-        $headers = $query->get();
+        // Jumlah plan berbeda dihitung atas HEADER yang lolos filter (bukan atas
+        // baris hasil join di bawah, yang sudah terlanjur dilipatgandakan oleh
+        // jumlah item tiap header).
+        $jumlahPlan = (clone $query)->toBase()->distinct()->count('realisasi_dinas.plan_audit_id');
 
         // Ratakan seluruh item dari header yang lolos filter, sekaligus bawa
         // konteks header (bulan, cabang, personil) untuk agregasi per item.
-        $rows = collect();
-        foreach ($headers as $header) {
-            foreach ($header->items as $item) {
-                if ($jenisList->isNotEmpty() && !$jenisList->contains($item->jenis_pengeluaran)) {
-                    continue;
-                }
-                $rows->push([
-                    'bulan' => optional($header->created_at)->format('Y-m'),
-                    'tahun' => optional($header->created_at)->format('Y'),
-                    'cabang' => $header->planAudit?->cabang ?: '(Tanpa Unit)',
-                    'jenisPengeluaran' => $item->jenis_pengeluaran,
-                    'nominal' => (float) $item->nominal,
-                    'personil' => $header->personil ?? [],
-                ]);
-            }
-        }
+        //
+        // Dulu bagian ini memuat tiap header sebagai model Eloquent lengkap dengan
+        // relasi items + planAudit, lalu meratakannya dengan loop bersarang di PHP.
+        // Untuk 8.000 header (24.000 item) itu berarti puluhan ribu objek model
+        // dibuat hanya untuk menghasilkan ~4 KB data grafik — endpoint ini terukur
+        // ~2,6 detik. Sekarang database yang menggabungkan dan meratakan, dan PHP
+        // hanya menerima baris datar apa adanya.
+        $flat = (clone $query)->toBase()
+            ->join('realisasi_dinas_items', 'realisasi_dinas_items.realisasi_dinas_id', '=', 'realisasi_dinas.id')
+            ->leftJoin('plan_audits', 'plan_audits.id', '=', 'realisasi_dinas.plan_audit_id')
+            ->when($jenisList->isNotEmpty(), fn($q) => $q->whereIn('realisasi_dinas_items.jenis_pengeluaran', $jenisList->all()))
+            ->get([
+                'realisasi_dinas.created_at as header_created_at',
+                'realisasi_dinas.personil as personil',
+                'plan_audits.cabang as cabang',
+                'realisasi_dinas_items.jenis_pengeluaran as jenis_pengeluaran',
+                'realisasi_dinas_items.nominal as nominal',
+            ]);
 
+        $rows = $flat->map(fn($r) => [
+            // created_at mentah berupa string 'Y-m-d H:i:s', jadi bulan/tahun cukup
+            // dipotong — tidak perlu membuat objek Carbon per baris.
+            'bulan' => $r->header_created_at ? substr($r->header_created_at, 0, 7) : null,
+            'tahun' => $r->header_created_at ? substr($r->header_created_at, 0, 4) : null,
+            'cabang' => $r->cabang ?: '(Tanpa Unit)',
+            'jenisPengeluaran' => $r->jenis_pengeluaran,
+            'nominal' => (float) $r->nominal,
+            // `personil` tidak lagi otomatis di-cast karena barisnya bukan model.
+            'personil' => json_decode($r->personil ?? '', true) ?: [],
+        ]);
+
+        // Cukup tahun-tahun yang berbeda; sebelumnya SELURUH kolom created_at ditarik
+        // lalu di-Carbon-kan satu per satu hanya untuk mendapat segelintir angka.
         $tahunOptions = RealisasiDinas::query()
+            ->distinct()
+            ->orderByDesc('created_at')
             ->pluck('created_at')
             ->map(fn($d) => (int) $d->format('Y'))
             ->unique()
@@ -331,6 +355,7 @@ class RealisasiDinasController extends Controller
             ->whereHas('realisasiDinas')
             ->whereNotNull('cabang')
             ->orderBy('cabang')
+            ->distinct()
             ->pluck('cabang')
             ->unique()
             ->values();
@@ -389,7 +414,7 @@ class RealisasiDinasController extends Controller
             'stats' => [
                 'totalNominal' => (float) $rows->sum('nominal'),
                 'jumlahEntri' => $rows->count(),
-                'jumlahPlan' => $headers->pluck('plan_audit_id')->unique()->count(),
+                'jumlahPlan' => $jumlahPlan,
             ],
             'byBulan' => $byBulan,
             'byJenis' => $byJenis,

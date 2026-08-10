@@ -1,4 +1,5 @@
-import Chart from "chart.js/auto";
+import Chart from "./akta-chart.js";
+import { whenTabVisible } from "./akta-dashboard-tabs.js";
 
 const SESSION_KEY = "akta_session";
 
@@ -583,5 +584,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     populateStaticFilters();
     document.getElementById("gbUnitSearch")?.addEventListener("input", renderUnitSection);
-    loadRekap();
+
+    // Rekap beban SK memindai seluruh tabel; jangan dijalankan selama tabnya
+    // masih tersembunyi. Lihat akta-dashboard-tabs.js.
+    whenTabVisible("dashTabBebanSk", loadRekap);
 });

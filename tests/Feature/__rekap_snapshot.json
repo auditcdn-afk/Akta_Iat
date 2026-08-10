@@ -1,0 +1,426 @@
+{
+    "/api/sk-pembebanan/rekap": {
+        "ok": true,
+        "tahunOptions": [
+            2026,
+            2025
+        ],
+        "unitUsahaOptions": [
+            {
+                "unitUsaha": "CSC A",
+                "jenisUnit": "H1"
+            },
+            {
+                "unitUsaha": "CSC B",
+                "jenisUnit": "H2"
+            },
+            {
+                "unitUsaha": "CSC C",
+                "jenisUnit": null
+            }
+        ],
+        "stats": {
+            "totalBeban": 5000000,
+            "totalFinal": 4500000,
+            "totalDraft": 500000,
+            "jumlahFinal": 3,
+            "jumlahDraft": 1
+        },
+        "byBulan": [
+            {
+                "bulan": "2025-03",
+                "total": 1500000,
+                "jumlahSk": 1
+            },
+            {
+                "bulan": "2026-01",
+                "total": 2750000,
+                "jumlahSk": 2
+            },
+            {
+                "bulan": "2026-07",
+                "total": 750000,
+                "jumlahSk": 1
+            }
+        ],
+        "byUnit": [
+            {
+                "unitUsaha": "CSC B",
+                "jenisUnit": "H2",
+                "total": 2250000,
+                "jumlahSk": 1
+            },
+            {
+                "unitUsaha": "CSC A",
+                "jenisUnit": "H1",
+                "total": 2000000,
+                "jumlahSk": 2
+            },
+            {
+                "unitUsaha": "CSC C",
+                "jenisUnit": null,
+                "total": 750000,
+                "jumlahSk": 1
+            }
+        ],
+        "byJenisUnit": [
+            {
+                "jenisUnit": "H1",
+                "total": 2000000,
+                "jumlahSk": 2
+            },
+            {
+                "jenisUnit": "H2",
+                "total": 2250000,
+                "jumlahSk": 1
+            },
+            {
+                "jenisUnit": "lainnya",
+                "total": 750000,
+                "jumlahSk": 1
+            }
+        ],
+        "byTahun": [
+            {
+                "tahun": 2025,
+                "total": 1500000,
+                "jumlahSk": 1
+            },
+            {
+                "tahun": 2026,
+                "total": 3500000,
+                "jumlahSk": 3
+            }
+        ],
+        "byItemPembebanan": [
+            {
+                "kategori": "Transport",
+                "total": 1225000,
+                "jumlah": 4
+            },
+            {
+                "kategori": "Penginapan",
+                "total": 1225000,
+                "jumlah": 4
+            }
+        ],
+        "byPersonil": [
+            {
+                "nama": "Sari",
+                "jabatan": "Anggota",
+                "total": 1250000,
+                "jumlahKasus": 2
+            },
+            {
+                "nama": "Budi",
+                "jabatan": "Ketua Tim",
+                "total": 1200000,
+                "jumlahKasus": 2
+            }
+        ],
+        "byJabatan": [
+            {
+                "jabatan": "Anggota",
+                "total": 1250000,
+                "jumlahKasus": 2
+            },
+            {
+                "jabatan": "Ketua Tim",
+                "total": 1200000,
+                "jumlahKasus": 2
+            }
+        ]
+    },
+    "/api/sk-pembebanan/rekap?tahun=2026": {
+        "ok": true,
+        "tahunOptions": [
+            2026,
+            2025
+        ],
+        "unitUsahaOptions": [
+            {
+                "unitUsaha": "CSC A",
+                "jenisUnit": "H1"
+            },
+            {
+                "unitUsaha": "CSC B",
+                "jenisUnit": "H2"
+            },
+            {
+                "unitUsaha": "CSC C",
+                "jenisUnit": null
+            }
+        ],
+        "stats": {
+            "totalBeban": 3500000,
+            "totalFinal": 3000000,
+            "totalDraft": 500000,
+            "jumlahFinal": 2,
+            "jumlahDraft": 1
+        },
+        "byBulan": [
+            {
+                "bulan": "2026-01",
+                "total": 2750000,
+                "jumlahSk": 2
+            },
+            {
+                "bulan": "2026-07",
+                "total": 750000,
+                "jumlahSk": 1
+            }
+        ],
+        "byUnit": [
+            {
+                "unitUsaha": "CSC B",
+                "jenisUnit": "H2",
+                "total": 2250000,
+                "jumlahSk": 1
+            },
+            {
+                "unitUsaha": "CSC C",
+                "jenisUnit": null,
+                "total": 750000,
+                "jumlahSk": 1
+            },
+            {
+                "unitUsaha": "CSC A",
+                "jenisUnit": "H1",
+                "total": 500000,
+                "jumlahSk": 1
+            }
+        ],
+        "byJenisUnit": [
+            {
+                "jenisUnit": "H1",
+                "total": 500000,
+                "jumlahSk": 1
+            },
+            {
+                "jenisUnit": "H2",
+                "total": 2250000,
+                "jumlahSk": 1
+            },
+            {
+                "jenisUnit": "lainnya",
+                "total": 750000,
+                "jumlahSk": 1
+            }
+        ],
+        "byTahun": [
+            {
+                "tahun": 2026,
+                "total": 3500000,
+                "jumlahSk": 3
+            }
+        ],
+        "byItemPembebanan": [
+            {
+                "kategori": "Transport",
+                "total": 775000,
+                "jumlah": 3
+            },
+            {
+                "kategori": "Penginapan",
+                "total": 775000,
+                "jumlah": 3
+            }
+        ],
+        "byPersonil": [
+            {
+                "nama": "Sari",
+                "jabatan": "Anggota",
+                "total": 1250000,
+                "jumlahKasus": 2
+            },
+            {
+                "nama": "Budi",
+                "jabatan": "Ketua Tim",
+                "total": 300000,
+                "jumlahKasus": 1
+            }
+        ],
+        "byJabatan": [
+            {
+                "jabatan": "Anggota",
+                "total": 1250000,
+                "jumlahKasus": 2
+            },
+            {
+                "jabatan": "Ketua Tim",
+                "total": 300000,
+                "jumlahKasus": 1
+            }
+        ]
+    },
+    "/api/realisasi-dinas/rekap": {
+        "ok": true,
+        "tahunOptions": [
+            2026
+        ],
+        "cabangOptions": [
+            "CSC A",
+            "CSC B"
+        ],
+        "jenisPengeluaranOptions": [
+            "Biaya Perobatan",
+            "Transportasi Laut",
+            "Akomodasi",
+            "Transportasi Darat",
+            "Konsumsi",
+            "Pramenu",
+            "Transportasi Udara",
+            "Laundry",
+            "Komunikasi",
+            "Lain-lain"
+        ],
+        "stats": {
+            "totalNominal": 1250000,
+            "jumlahEntri": 3,
+            "jumlahPlan": 2
+        },
+        "byBulan": [
+            {
+                "bulan": "2026-02",
+                "total": 1000000,
+                "jumlah": 2
+            },
+            {
+                "bulan": "2026-05",
+                "total": 250000,
+                "jumlah": 1
+            }
+        ],
+        "byJenis": [
+            {
+                "jenisPengeluaran": "Transport",
+                "total": 650000,
+                "jumlah": 2
+            },
+            {
+                "jenisPengeluaran": "Penginapan",
+                "total": 600000,
+                "jumlah": 1
+            }
+        ],
+        "byCabang": [
+            {
+                "cabang": "CSC A",
+                "total": 1000000,
+                "jumlah": 2
+            },
+            {
+                "cabang": "CSC B",
+                "total": 250000,
+                "jumlah": 1
+            }
+        ],
+        "byPersonil": [
+            {
+                "nama": "Budi",
+                "total": 1000000,
+                "jumlah": 2
+            },
+            {
+                "nama": "Ketua Tim",
+                "total": 1000000,
+                "jumlah": 2
+            },
+            {
+                "nama": "Sari",
+                "total": 250000,
+                "jumlah": 1
+            },
+            {
+                "nama": "Anggota",
+                "total": 250000,
+                "jumlah": 1
+            }
+        ]
+    },
+    "/api/realisasi-dinas/rekap?tahun=2026": {
+        "ok": true,
+        "tahunOptions": [
+            2026
+        ],
+        "cabangOptions": [
+            "CSC A",
+            "CSC B"
+        ],
+        "jenisPengeluaranOptions": [
+            "Biaya Perobatan",
+            "Transportasi Laut",
+            "Akomodasi",
+            "Transportasi Darat",
+            "Konsumsi",
+            "Pramenu",
+            "Transportasi Udara",
+            "Laundry",
+            "Komunikasi",
+            "Lain-lain"
+        ],
+        "stats": {
+            "totalNominal": 1250000,
+            "jumlahEntri": 3,
+            "jumlahPlan": 2
+        },
+        "byBulan": [
+            {
+                "bulan": "2026-02",
+                "total": 1000000,
+                "jumlah": 2
+            },
+            {
+                "bulan": "2026-05",
+                "total": 250000,
+                "jumlah": 1
+            }
+        ],
+        "byJenis": [
+            {
+                "jenisPengeluaran": "Transport",
+                "total": 650000,
+                "jumlah": 2
+            },
+            {
+                "jenisPengeluaran": "Penginapan",
+                "total": 600000,
+                "jumlah": 1
+            }
+        ],
+        "byCabang": [
+            {
+                "cabang": "CSC A",
+                "total": 1000000,
+                "jumlah": 2
+            },
+            {
+                "cabang": "CSC B",
+                "total": 250000,
+                "jumlah": 1
+            }
+        ],
+        "byPersonil": [
+            {
+                "nama": "Budi",
+                "total": 1000000,
+                "jumlah": 2
+            },
+            {
+                "nama": "Ketua Tim",
+                "total": 1000000,
+                "jumlah": 2
+            },
+            {
+                "nama": "Sari",
+                "total": 250000,
+                "jumlah": 1
+            },
+            {
+                "nama": "Anggota",
+                "total": 250000,
+                "jumlah": 1
+            }
+        ]
+    }
+}

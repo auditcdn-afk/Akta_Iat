@@ -21,27 +21,6 @@ class DataStoreController extends Controller
         ]);
     }
 
-    public function allData(AppDataStore $store): JsonResponse
-    {
-        return response()->json($store->all());
-    }
-
-    /**
-     * Jumlah data key saja — tanpa isinya.
-     *
-     * Kartu status di dashboard hanya menampilkan angka ini. Sebelumnya ia
-     * memanggil /api/all-data, yang membaca setiap key dari database dan
-     * mengirim seluruh isi data store ke browser hanya untuk dihitung
-     * panjangnya.
-     */
-    public function allDataSummary(): JsonResponse
-    {
-        return response()->json([
-            'ok'    => true,
-            'count' => count(DataKeys::all()),
-        ]);
-    }
-
     public function read(string $key, AppDataStore $store): JsonResponse
     {
         if (! DataKeys::allowed($key)) {

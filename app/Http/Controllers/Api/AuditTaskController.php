@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditTask;
+use App\Models\BuPerformance;
 use App\Services\ActivityLogger;
 use App\Services\PlanTaskService;
 use Illuminate\Http\JsonResponse;
@@ -64,8 +65,15 @@ class AuditTaskController extends Controller
         // - Selain itu, task yang sudah selesai (status done) selalu disembunyikan.
         $approvalStage = self::APPROVAL_STAGE[$role] ?? null;
 
+        // Riwayat status plan hanya ditampilkan di modal detail satu task, bukan di
+        // tabel daftar. Ikut memuatnya di endpoint daftar berarti satu query per task
+        // plus payload yang tumbuh terus seiring riwayat bertambah — untuk 600 task
+        // itu ~600 query dan >1,6 MB JSON. Sekarang opt-in lewat ?with_logs=1.
+        $withLogs = $request->boolean('with_logs');
+
         $tasks = AuditTask::query()
-            ->with(['planAudit.logs' => fn($q) => $q->orderBy('created_at')])
+            ->with(['planAudit'])
+            ->when($withLogs, fn($q) => $q->with(['planAudit.logs' => fn($l) => $l->orderBy('created_at')]))
             ->when($approvalStage, function ($query) use ($approvalStage) {
                 $query->whereHas('planAudit', fn($q) => $q->where('status', $approvalStage));
             })
@@ -106,8 +114,13 @@ class AuditTaskController extends Controller
                 $query->where('priority', $request->query('priority'));
             })
             ->latest()
-            ->get()
-            ->map(fn(AuditTask $task) => $task->toAktaArray());
+            ->get();
+
+        // Dihitung sekali untuk seluruh daftar (bukan per-task) supaya canMarkSelesai()
+        // tidak menjalankan satu query BuPerformance untuk tiap task cabang_active.
+        $buPerformanceUnits = BuPerformance::query()->distinct()->pluck('unit_usaha')->all();
+
+        $tasks = $tasks->map(fn(AuditTask $task) => $task->toAktaArray($buPerformanceUnits));
 
         return response()->json([
             'ok' => true,

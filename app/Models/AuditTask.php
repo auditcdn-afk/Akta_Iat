@@ -45,7 +45,13 @@ class AuditTask extends Model
         return $this->belongsTo(PlanAudit::class, 'plan_audit_id');
     }
 
-    public function toAktaArray(): array
+    /**
+     * @param array<int,string>|null $unitUsahaWithBuPerformance Daftar unit_usaha yang sudah
+     *        punya BuPerformance, dihitung sekali oleh pemanggil saat me-list banyak task,
+     *        supaya canMarkSelesai() tidak menjalankan satu query per task (N+1).
+     *        Null = query langsung, dipakai saat toAktaArray() untuk satu task saja.
+     */
+    public function toAktaArray(?array $unitUsahaWithBuPerformance = null): array
     {
         return [
             'id' => $this->id,
@@ -60,10 +66,16 @@ class AuditTask extends Model
                 'kepalaTim' => $this->planAudit->kepala_tim,
                 'tim' => $this->planAudit->tim ?: [],
                 'status' => $this->planAudit->status,
-                'canMarkSelesai' => $this->planAudit->canMarkSelesai(),
+                'canMarkSelesai' => $this->planAudit->canMarkSelesai($unitUsahaWithBuPerformance),
+                // Riwayat status hanya dipakai modal detail satu task (renderTimeline
+                // di akta-task.js), tidak pernah oleh tabel daftar. Memuatnya untuk
+                // SETIAP task berarti satu query per task plus payload yang tumbuh
+                // terus seiring riwayat bertambah. Sekarang hanya ikut kalau relasinya
+                // memang sudah di-eager-load oleh pemanggil (?with_logs=1); modal
+                // mengambilnya sendiri lewat GET /api/plans/{plan}.
                 'logs' => $this->planAudit->relationLoaded('logs')
                     ? $this->planAudit->logs->map->toAktaArray()->all()
-                    : $this->planAudit->logs()->orderBy('created_at')->get()->map->toAktaArray()->all(),
+                    : [],
             ] : null,
             'judul' => $this->judul,
             'kategori' => $this->kategori,
