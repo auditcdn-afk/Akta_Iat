@@ -189,7 +189,12 @@ function setupNavPrefetch() {
     const prefetched = new Set();
 
     const prefetch = (event) => {
-        const link = event.target.closest("a.akta-menu-item");
+        // Listener dipasang di `document` dengan capture, jadi event juga lewat
+        // saat sasarannya bukan elemen — node `document` sendiri, misalnya, yang
+        // tidak punya closest(). Tanpa penjagaan ini, tiap kursor melintasi batas
+        // dokumen akan melempar "target.closest is not a function" ke konsol.
+        const asal = event.target;
+        const link = asal instanceof Element ? asal.closest("a.akta-menu-item") : null;
 
         if (!link) {
             return;

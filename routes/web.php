@@ -61,14 +61,8 @@ Route::prefix('akta')->name('akta.')->group(function () {
     Route::view('/profile', 'akta.pages.profile')->name('profile');
 });
 
-/*
-|--------------------------------------------------------------------------
-| Breeze Routes
-|--------------------------------------------------------------------------
-*/
-
-Route::view('dashboard', 'dashboard')
-    ->middleware(['auth', 'verified'])
-    ->name('dashboard');
-
-require __DIR__ . '/auth.php';
+// Scaffolding Laravel Breeze (rute /login, /register, /forgot-password,
+// /dashboard, /profile bawaan) sudah dihapus: aplikasi ini punya alur login
+// sendiri di /akta/login dengan token Sanctum, dan halaman profilnya sendiri
+// di /akta/profile. Tidak ada satu pun halaman akta yang memakainya.
+// Pengalihan pengunjung yang belum login diatur di bootstrap/app.php.
