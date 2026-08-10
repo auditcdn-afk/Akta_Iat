@@ -4384,6 +4384,7 @@ async function hgpHandleFile(file) {
     try {
         const fd = new FormData();
         fd.append('file', file);
+        fd.append('plan_audit_id', activePlanId);
         const res = await fetchJson('/api/audit-detail/hgp/parse-excel', {
             method: 'POST',
             headers: authHeaders(),
@@ -4393,6 +4394,12 @@ async function hgpHandleFile(file) {
             if (msg) msg.textContent = 'Tidak ada data ditemukan dalam file.';
             return;
         }
+        // Khusus jenis audit "Audit Online Kas + HGP & AHM Oils", server men-sampling
+        // acak (lihat HgpController::shouldSample) — jenis audit lain memuat semua item
+        // seperti biasa dan res.sampled akan selalu false.
+        const sampleNote = res.sampled
+            ? ` — disampling otomatis ${res.data.length} dari ${res.totalFound} item ditemukan (ukuran sample: ${res.sampleSize}).`
+            : '';
         if (!_hgpData) _hgpData = hgpEmptyData();
         // Replace: import = master data baru. Pertahankan fisik & logScan untuk noPart yang cocok.
         const prevByPart = {};
@@ -4408,9 +4415,9 @@ async function hgpHandleFile(file) {
             }
             return it;
         });
-        if (msg) { msg.textContent = `${res.data.length} item diimport — memuat harga HET...`; }
+        if (msg) { msg.textContent = `${res.data.length} item diimport${sampleNote} — memuat harga HET...`; }
         await hgpEnrichWithHet(_hgpData.items);
-        if (msg) { msg.textContent = `${res.data.length} item diimport (data lama diganti).`; }
+        if (msg) { msg.textContent = `${res.data.length} item diimport (data lama diganti).${sampleNote}`; }
         hgpRenderItems();
         hgpPopulateDatalist();
         _doSaveHgp().catch(() => {});

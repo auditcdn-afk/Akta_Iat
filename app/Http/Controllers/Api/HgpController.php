@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\DbHet;
 use App\Models\PemeriksaanHgp;
+use App\Models\PlanAudit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
@@ -15,6 +16,15 @@ use PhpOffice\PhpSpreadsheet\Reader\Csv;
 class HgpController extends Controller
 {
     use RequiresAuditorAuditee;
+
+    // Khusus jenis audit ini, tool "HGP & AHM Oils" (bukan tool terpisah
+    // "RSA HGP & AHM Oils") ikut disampling acak 30 item saat import — item
+    // lengkap dari file tetap ada di sistem (hanya HET DB dsb), tapi yang
+    // dimuat untuk diperiksa hanya sample-nya. Jenis audit lain yang memakai
+    // tool ini (Audit Full SO, Audit Kas + HGP & AHM Oils, dst) tidak
+    // terpengaruh — tetap menampilkan seluruh item seperti sebelumnya.
+    private const SAMPLED_JENIS_AUDIT = 'Audit Online Kas + HGP & AHM Oils';
+    private const SAMPLE_SIZE = 30;
 
     public function show(Request $request): JsonResponse
     {
@@ -209,7 +219,55 @@ class HgpController extends Controller
             }
         }
 
-        return response()->json(['data' => $items, 'total' => count($items)]);
+        $totalFound = count($items);
+        $planId     = $request->input('planAuditId') ?? $request->input('plan_audit_id');
+
+        if ($this->shouldSample($planId)) {
+            [$items, $sampled] = $this->applySample($items, self::SAMPLE_SIZE);
+
+            return response()->json([
+                'data'       => $items,
+                'total'      => count($items),
+                'totalFound' => $totalFound,
+                'sampleSize' => self::SAMPLE_SIZE,
+                'sampled'    => $sampled,
+            ]);
+        }
+
+        return response()->json(['data' => $items, 'total' => $totalFound]);
+    }
+
+    private function shouldSample(mixed $planId): bool
+    {
+        if (!$planId) {
+            return false;
+        }
+
+        return PlanAudit::where('id', $planId)
+            ->where('jenis_audit', self::SAMPLED_JENIS_AUDIT)
+            ->exists();
+    }
+
+    // Sama seperti RsaHgpController::applySample() — sample diambil acak tapi
+    // dikembalikan dalam urutan asli file (bukan urutan acak) supaya lebih
+    // mudah dibaca auditor saat scan. Kalau jumlah item <= sampleSize, tidak
+    // perlu disampling, kembalikan semuanya apa adanya.
+    private function applySample(array $items, int $sampleSize): array
+    {
+        $total = count($items);
+        if ($total <= $sampleSize) {
+            return [$items, false];
+        }
+
+        $keys = array_rand($items, $sampleSize);
+        if (!is_array($keys)) {
+            $keys = [$keys];
+        }
+        sort($keys);
+
+        $sampled = array_values(array_map(fn($k) => $items[$k], $keys));
+
+        return [$sampled, true];
     }
 
     public function lookupHet(Request $request): JsonResponse
