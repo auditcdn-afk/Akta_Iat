@@ -924,18 +924,151 @@ function plRecalcSelisih() {
     }
 }
 
+// ── Combobox jenis perlengkapan ──────────────────────────────────────────────
+//
+// Daftarnya bisa puluhan baris (satu per tipe motor × perlengkapan), dan
+// <select> biasa memaksa auditor menggulir mencarinya. Di sini diganti combobox:
+// ketik beberapa huruf untuk menyaring, panah atas/bawah untuk berpindah, Enter
+// untuk memakai.
+//
+// Nilai yang dipakai form adalah #plJenis (hidden), bukan teks di #plJenisInput
+// — supaya ketikan yang belum tuntas tidak pernah ikut tersimpan sebagai nama
+// jenis perlengkapan.
+
+let plJenisMatches   = [];   // hasil saring yang sedang ditampilkan
+let plJenisHighlight = -1;   // indeks opsi yang sedang disorot keyboard
+
+/** Jenis yang benar-benar dipilih — bukan teks yang sedang diketik. */
+function plSelectedJenis() {
+    return document.getElementById('plJenis')?.value.trim() || '';
+}
+
+function plSetJenis(nama) {
+    const input  = document.getElementById('plJenisInput');
+    const hidden = document.getElementById('plJenis');
+    if (input)  input.value  = nama || '';
+    if (hidden) hidden.value = nama || '';
+}
+
+/**
+ * Saring daftar jenis, dengan yang DIAWALI kata kunci didahulukan sebelum yang
+ * sekadar mengandungnya. Mengetik "B" jadi memunculkan "Baterai 3 Ah" dan
+ * "Buku service Beat" lebih dulu, bukan "Kaca Spion BeAT".
+ */
+function plFilterJenis(keyword) {
+    const q = keyword.trim().toLowerCase();
+    if (!q) return plJenisAll.slice();
+
+    const awalan = [];
+    const sisipan = [];
+
+    plJenisAll.forEach((nama) => {
+        const pos = nama.toLowerCase().indexOf(q);
+        if (pos === 0) awalan.push(nama);
+        else if (pos > 0) sisipan.push(nama);
+    });
+
+    return awalan.concat(sisipan);
+}
+
+/** Tandai bagian nama yang cocok dengan yang diketik. */
+function plTandaiCocok(nama, keyword) {
+    const q = keyword.trim();
+    if (!q) return escapeHtml(nama);
+
+    const pos = nama.toLowerCase().indexOf(q.toLowerCase());
+    if (pos < 0) return escapeHtml(nama);
+
+    return escapeHtml(nama.slice(0, pos))
+        + '<mark class="rounded bg-blue-500/30 px-0.5 text-blue-200">' + escapeHtml(nama.slice(pos, pos + q.length)) + '</mark>'
+        + escapeHtml(nama.slice(pos + q.length));
+}
+
+function plRenderJenisOptions(keyword = '') {
+    const box   = document.getElementById('plJenisOptions');
+    const input = document.getElementById('plJenisInput');
+    if (!box) return;
+
+    plJenisMatches   = plFilterJenis(keyword);
+    plJenisHighlight = plJenisMatches.length ? 0 : -1;
+
+    // Sorot opsi yang sedang terpilih saat daftar dibuka tanpa mengetik apa pun,
+    // supaya auditor langsung melihat di mana posisinya.
+    const terpilih = plSelectedJenis();
+    if (!keyword.trim() && terpilih) {
+        const idx = plJenisMatches.indexOf(terpilih);
+        if (idx >= 0) plJenisHighlight = idx;
+    }
+
+    if (!plJenisMatches.length) {
+        box.innerHTML = `<p class="px-3 py-3 text-sm text-slate-500">Tidak ada jenis yang cocok dengan “${escapeHtml(keyword.trim())}”.</p>`;
+    } else {
+        box.innerHTML = plJenisMatches.map((nama, i) => {
+            // Sisa = saldo buku yang belum tertanggung; jenis dengan sisa 0 tidak
+            // perlu ditindaklanjuti, jadi tidak diberi lencana sama sekali.
+            const smh   = plSmhMap[nama];
+            const sisa  = smh ? Math.max(0, (smh.totalOnhand || 0) - smh.ada) : 0;
+            const sudah = plFindRow(nama);
+
+            return `
+            <button type="button" role="option" id="plJenisOpt-${i}" data-index="${i}"
+                data-value="${escapeHtml(nama)}" aria-selected="false"
+                class="pl-jenis-option flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-200 transition-colors hover:bg-slate-800/70">
+                <span class="min-w-0 flex-1 truncate">${plTandaiCocok(nama, keyword)}</span>
+                ${sisa ? `<span class="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-300">sisa ${sisa}</span>` : ''}
+                ${sudah ? `<span class="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300">tercatat</span>` : ''}
+            </button>`;
+        }).join('');
+    }
+
+    box.classList.remove('hidden');
+    input?.setAttribute('aria-expanded', 'true');
+    document.getElementById('plJenisChevron')?.classList.add('rotate-180');
+    plSyncJenisHighlight();
+}
+
+function plSyncJenisHighlight() {
+    const box = document.getElementById('plJenisOptions');
+    if (!box) return;
+
+    box.querySelectorAll('.pl-jenis-option').forEach((el, i) => {
+        const aktif = i === plJenisHighlight;
+        el.classList.toggle('bg-slate-800', aktif);
+        el.classList.toggle('text-white', aktif);
+        el.setAttribute('aria-selected', aktif ? 'true' : 'false');
+        if (aktif) el.scrollIntoView({ block: 'nearest' });
+    });
+
+    document.getElementById('plJenisInput')
+        ?.setAttribute('aria-activedescendant', plJenisHighlight >= 0 ? `plJenisOpt-${plJenisHighlight}` : '');
+}
+
+function plCloseJenisOptions() {
+    document.getElementById('plJenisOptions')?.classList.add('hidden');
+    document.getElementById('plJenisInput')?.setAttribute('aria-expanded', 'false');
+    document.getElementById('plJenisChevron')?.classList.remove('rotate-180');
+    plJenisHighlight = -1;
+}
+
+/** Pakai satu jenis: simpan nilainya, tutup daftar, lalu muat angkanya. */
+function plCommitJenis(nama) {
+    plSetJenis(nama);
+    plCloseJenisOptions();
+    plSelectJenis(nama);
+}
+
 function plPopulateJenisSelect() {
-    const sel = document.getElementById('plJenisInput');
-    if (!sel) return;
-    const current = sel.value;
-    sel.innerHTML = '<option value="">-- Pilih Jenis Perlengkapan --</option>' +
-        plJenisAll.map(n => `<option value="${escapeHtml(n)}"${n === current ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
+    // Daftar baru dimuat; kalau panelnya sedang terbuka, segarkan isinya.
+    const box = document.getElementById('plJenisOptions');
+    if (box && !box.classList.contains('hidden')) {
+        plRenderJenisOptions(document.getElementById('plJenisInput')?.value || '');
+    }
 }
 
 function plResetForm() {
     plEditId = null;
-    const sel = document.getElementById('plJenisInput');
-    if (sel) sel.value = '';
+    plSetJenis('');
+    plCloseJenisOptions();
     document.getElementById('plSaldo').value       = 0;
     document.getElementById('plFisik').value       = 0;
     document.getElementById('plSelisih').value     = 0;
@@ -997,8 +1130,73 @@ function plSelectJenis(nama) {
 }
 
 function initPlForm() {
-    // Jenis perlengkapan dropdown
-    document.getElementById('plJenisInput')?.addEventListener('change', e => plSelectJenis(e.target.value));
+    // ── Combobox jenis perlengkapan ──
+    const jenisInput = document.getElementById('plJenisInput');
+    const jenisBox   = document.getElementById('plJenisOptions');
+
+    jenisInput?.addEventListener('input', e => plRenderJenisOptions(e.target.value));
+    jenisInput?.addEventListener('focus', () => plRenderJenisOptions(''));
+
+    document.getElementById('plJenisToggle')?.addEventListener('click', () => {
+        if (jenisBox?.classList.contains('hidden')) {
+            plRenderJenisOptions('');
+            jenisInput?.focus();
+        } else {
+            plCloseJenisOptions();
+        }
+    });
+
+    jenisInput?.addEventListener('keydown', (e) => {
+        const terbuka = jenisBox && !jenisBox.classList.contains('hidden');
+
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (!terbuka) { plRenderJenisOptions(jenisInput.value); return; }
+            if (!plJenisMatches.length) return;
+            const arah = e.key === 'ArrowDown' ? 1 : -1;
+            plJenisHighlight = (plJenisHighlight + arah + plJenisMatches.length) % plJenisMatches.length;
+            plSyncJenisHighlight();
+            return;
+        }
+
+        if (e.key === 'Home' || e.key === 'End') {
+            if (!terbuka || !plJenisMatches.length) return;
+            e.preventDefault();
+            plJenisHighlight = e.key === 'Home' ? 0 : plJenisMatches.length - 1;
+            plSyncJenisHighlight();
+            return;
+        }
+
+        if (e.key === 'Enter') {
+            if (terbuka && plJenisHighlight >= 0) {
+                e.preventDefault();
+                plCommitJenis(plJenisMatches[plJenisHighlight]);
+            }
+            return;
+        }
+
+        if (e.key === 'Escape' && terbuka) {
+            e.preventDefault();
+            plCloseJenisOptions();
+            jenisInput.value = plSelectedJenis();   // buang ketikan yang batal
+        }
+    });
+
+    // mousedown, bukan click: ia berjalan sebelum input kehilangan fokus, jadi
+    // pilihan sempat terproses sebelum handler blur menutup daftarnya.
+    jenisBox?.addEventListener('mousedown', (e) => {
+        const opt = e.target.closest('.pl-jenis-option');
+        if (!opt) return;
+        e.preventDefault();
+        plCommitJenis(opt.dataset.value);
+    });
+
+    // Ketikan yang tidak jadi dipilih dikembalikan ke nilai terakhir, supaya
+    // kolomnya tidak pernah menampilkan nama jenis yang sebenarnya tidak dipilih.
+    jenisInput?.addEventListener('blur', () => {
+        plCloseJenisOptions();
+        jenisInput.value = plSelectedJenis();
+    });
 
     // Fisik ± buttons
     document.getElementById('plFisikPlus')?.addEventListener('click', () => {
@@ -1019,7 +1217,7 @@ function initPlForm() {
 
     // Simpan
     document.getElementById('plSimpanBtn')?.addEventListener('click', async () => {
-        const jenis = document.getElementById('plJenisInput')?.value.trim();
+        const jenis = plSelectedJenis();
         if (!jenis) { showAlert('Pilih jenis perlengkapan terlebih dahulu.', 'error'); return; }
         const btn = document.getElementById('plSimpanBtn');
         btn.disabled = true; btn.textContent = 'Menyimpan...';
@@ -1059,8 +1257,7 @@ function initPlForm() {
             const rec = (res.data || []).find(r => r.id === id);
             if (!rec) return;
             plEditId = id;
-            const sel = document.getElementById('plJenisInput');
-            if (sel) sel.value = rec.jenisPerlengkapan || '';
+            plSetJenis(rec.jenisPerlengkapan || '');
             // Hitung ulang Saldo dari data onhand/SMH terkini (bukan pakai rec.saldo
             // yang tersimpan) — supaya kalau data onhand/SMH sudah berubah sejak baris
             // ini dibuat, Selisih yang ditampilkan tetap mencerminkan kondisi terkini,
@@ -1070,7 +1267,7 @@ function initPlForm() {
             document.getElementById('plPenjelasan').value   = rec.penjelasan || '';
             document.getElementById('plSimpanBtn').textContent = 'Update';
             plRecalcSelisih();
-            sel?.focus();
+            document.getElementById('plJenisInput')?.focus();
             return;
         }
         const delBtn = e.target.closest('[data-pl-del]');

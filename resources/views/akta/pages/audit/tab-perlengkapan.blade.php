@@ -33,11 +33,32 @@
                 </div>
 
                 <div>
-                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis Perlengkapan <span class="text-red-400">*</span></label>
-                    <select id="plJenisInput"
-                        class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                        <option value="">-- Pilih Jenis Perlengkapan --</option>
-                    </select>
+                    <label for="plJenisInput" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis Perlengkapan <span class="text-red-400">*</span></label>
+
+                    {{-- Combobox, bukan <select> biasa: daftar jenis bisa puluhan baris
+                         (satu per tipe motor × perlengkapan), jadi auditor mengetik
+                         beberapa huruf untuk menyaringnya. Nilai yang benar-benar
+                         dikirim ke server ada di #plJenis; isi #plJenisInput hanyalah
+                         teks yang sedang diketik. --}}
+                    <div id="plJenisCombo" class="relative">
+                        <input id="plJenisInput" type="text" autocomplete="off" role="combobox"
+                            aria-expanded="false" aria-controls="plJenisOptions" aria-autocomplete="list"
+                            placeholder="Ketik untuk mencari — misalnya “B” untuk Baterai atau Buku service"
+                            class="w-full rounded-lg border border-slate-700 bg-slate-800 py-2 pl-3 pr-9 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-blue-500">
+                        <input type="hidden" id="plJenis">
+
+                        <button type="button" id="plJenisToggle" tabindex="-1" aria-label="Tampilkan semua jenis perlengkapan"
+                            class="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-slate-400 transition hover:text-slate-100">
+                            <svg id="plJenisChevron" class="h-4 w-4 transition-transform" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+
+                        <div id="plJenisOptions" role="listbox" aria-label="Jenis perlengkapan"
+                            class="absolute z-30 mt-1 hidden max-h-72 w-full overflow-y-auto rounded-xl border border-slate-700 bg-slate-950 shadow-2xl">
+                        </div>
+                    </div>
+
                     <p id="plJenisSmhInfo" class="mt-1 text-xs text-blue-400 hidden"></p>
                     {{-- Peringatan kalau jenis yang dipilih sudah pernah dicatat, supaya
                          hitungan lama tidak tertimpa tanpa disadari. --}}
