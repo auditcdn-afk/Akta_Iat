@@ -854,7 +854,12 @@ async function loadPlForm() {
         plSmhMap   = {};
         (smhRes.data || []).forEach(r => { plSmhMap[r.nama] = r; });
     } catch (e) {
+        // Dulu kegagalan di sini ditelan diam-diam: daftar jenis jadi kosong tanpa
+        // sebab yang terlihat, dan auditor menyangka fiturnya yang rusak. Sekarang
+        // alasannya disampaikan supaya jelas ini masalah memuat data, bukan form.
         plJenisAll = [];
+        plSmhMap   = {};
+        showAlert('Gagal memuat daftar jenis perlengkapan: ' + (e.message || e), 'error');
     }
 
     plPopulateJenisSelect();
@@ -1000,7 +1005,13 @@ function plRenderJenisOptions(keyword = '') {
         if (idx >= 0) plJenisHighlight = idx;
     }
 
-    if (!plJenisMatches.length) {
+    if (!plJenisAll.length) {
+        // Daftarnya kosong bukan karena kata kuncinya, tapi karena memang belum ada
+        // sumbernya — biasanya data onhand SMH belum diimpor untuk plan ini, atau
+        // tipe motornya belum terdaftar di Database → Perlengkapan.
+        box.innerHTML = `<p class="px-3 py-3 text-sm text-slate-400">Belum ada jenis perlengkapan untuk plan ini.<br>
+            <span class="text-slate-500">Pastikan data onhand SMH sudah diimpor, dan tipe motornya terdaftar di Database → Perlengkapan.</span></p>`;
+    } else if (!plJenisMatches.length) {
         box.innerHTML = `<p class="px-3 py-3 text-sm text-slate-500">Tidak ada jenis yang cocok dengan “${escapeHtml(keyword.trim())}”.</p>`;
     } else {
         box.innerHTML = plJenisMatches.map((nama, i) => {
