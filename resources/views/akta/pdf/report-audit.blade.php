@@ -704,9 +704,23 @@ window.addEventListener('load', function() {
       <p class="empty">Belum ada data perlengkapan di luar SMH.</p>
     @else
       @php
-        $totalSaldo = $perlengkapan->sum('saldo');
-        $totalFisik = $perlengkapan->sum('fisik');
-        $totalSelisih = $perlengkapan->sum('selisih');
+        // Saldo (Buku) dihitung ulang dari data onhand + hasil cek fisik unit, bukan
+        // dibaca dari kolom `saldo` yang tersimpan. Kolom itu hanya potret saat baris
+        // disimpan dan langsung basi begitu checklist Cek Fisik unit berubah sesudahnya
+        // — form-nya sendiri menandai field ini "Otomatis dari data onhand", jadi ia
+        // memang nilai turunan, bukan isian auditor. Menghitungnya di sini membuat
+        // bagian B dan bagian C selalu menunjukkan angka yang sama.
+        $saldoLive = function ($jenis) use ($perlengkapanOnhand) {
+            $row = $perlengkapanOnhand[trim((string) $jenis)] ?? null;
+            return $row ? max(0, $row['totalOnhand'] - $row['ada']) : 0;
+        };
+
+        $totalSaldo = $totalFisik = $totalSelisih = 0;
+        foreach ($perlengkapan as $p) {
+            $totalSaldo   += $saldoLive($p->jenis_perlengkapan);
+            $totalFisik   += (int) ($p->fisik ?? 0);
+            $totalSelisih += (int) ($p->fisik ?? 0) - $saldoLive($p->jenis_perlengkapan);
+        }
       @endphp
       <table style="font-size:9.5px;">
         <thead>
@@ -724,14 +738,17 @@ window.addEventListener('load', function() {
         </thead>
         <tbody>
           @foreach($perlengkapan as $i => $p)
-          @php $sel = (float)($p->selisih ?? 0); @endphp
+          @php
+            $saldoP = $saldoLive($p->jenis_perlengkapan);
+            $sel    = (int)($p->fisik ?? 0) - $saldoP;
+          @endphp
           <tr>
             <td>{{ (int)$i + 1 }}</td>
             <td style="font-weight:600">{{ $p->jenis_perlengkapan ?? '-' }}</td>
             <td>{{ $p->tgl_periksa ? \Carbon\Carbon::parse($p->tgl_periksa)->format('d/m/Y') : '-' }}</td>
             <td>{{ $p->nama_pemeriksa ?? '-' }}</td>
             <td>{{ $p->nama_unit_usaha ?? '-' }}</td>
-            <td style="text-align:right">{{ number_format((float)($p->saldo ?? 0), 0, ',', '.') }}</td>
+            <td style="text-align:right">{{ number_format((float)$saldoP, 0, ',', '.') }}</td>
             <td style="text-align:right">{{ number_format((int)($p->fisik ?? 0), 0, ',', '.') }}</td>
             <td style="text-align:right;font-weight:700;color:{{ $sel != 0 ? '#dc2626' : '#059669' }}">
               {{ number_format($sel, 0, ',', '.') }}
@@ -815,20 +832,28 @@ window.addEventListener('load', function() {
           $hasLuar = isset($luarPlMap[$jns]);
           $luarD = $luarPlMap[$jns] ?? ['luarSaldo'=>0,'luarFisik'=>0,'luarSelisih'=>0,'penjelasan'=>[]];
           $smhSel  = $smhD['smhFisik'] - $smhD['smhSaldo'];
-          $luarSel = $luarD['luarSelisih'];
-          // "Saldo (buku)" Luar SMH dihitung dari sisa unit yang menurut Cek Fisik SMH
-          // belum punya perlengkapan ini (lihat audit-editor.js) — jadi angka itu SUDAH
-          // memuat selisih SMH di dalamnya. Kalau ada follow-up Luar SMH untuk jenis ini,
-          // $luarSel adalah angka yang sudah direkonsiliasi dan dipakai sebagai Total
-          // Selisih. Kalau belum ada follow-up sama sekali, tampilkan selisih checklist
-          // SMH apa adanya supaya tidak hilang. Menjumlahkan $smhSel + $luarSel (perilaku
-          // lama) menghitung kekurangan yang sama dua kali dan membuat Total Selisih
-          // tidak sinkron dengan kedua sisi tabel.
-          $totalSel = $hasLuar ? $luarSel : $smhSel;
+
+          // Saldo (buku) Luar SMH = sisa yang BELUM tertanggung setelah cek fisik unit.
+          // Dihitung ulang di sini, bukan dibaca dari kolom `saldo` yang tersimpan:
+          // nilai tersimpan itu hanya potret saat baris disimpan, dan menjadi basi
+          // begitu checklist Cek Fisik unit berubah sesudahnya. Contoh nyata dari
+          // lapangan: Baterai 3 Ah butuh 14 unit, 1 ketemu di unit, 13 ketemu di
+          // gudang — mestinya pas (0), tapi kolom `saldo` masih menyimpan 14 (bukan
+          // 13) sehingga selisihnya terbaca -1 padahal tidak ada yang kurang.
+          $luarSaldo = max(0, $smhD['smhSaldo'] - $smhD['smhFisik']);
+          $luarSel   = $luarD['luarFisik'] - $luarSaldo;
+
+          // Total Selisih = SELURUH fisik yang tertanggung (ditemukan menempel di unit
+          // saat cek fisik + ditemukan terpisah di gudang) dikurangi jumlah unit yang
+          // membutuhkannya. Ditulis eksplisit begini supaya tidak bergantung pada
+          // angka tersimpan mana pun, dan supaya jelas bahwa kedua sumber fisik
+          // memang dijumlahkan — bukan salah satunya saja.
+          $totalSel = ($smhD['smhFisik'] + $luarD['luarFisik']) - $smhD['smhSaldo'];
+
           $grandSmhSaldo  += $smhD['smhSaldo'];
           $grandSmhFisik  += $smhD['smhFisik'];
           $grandSmhSel    += $smhSel;
-          $grandLuarSaldo += $luarD['luarSaldo'];
+          $grandLuarSaldo += $luarSaldo;
           $grandLuarFisik += $luarD['luarFisik'];
           $grandLuarSel   += $luarSel;
           $grandTotalSel  += $totalSel;
@@ -847,10 +872,10 @@ window.addEventListener('load', function() {
             {{ $smhD['smhSaldo'] ? ($smhSel > 0 ? '+'.$smhSel : $smhSel) : '-' }}
           </td>
           {{-- Luar SMH --}}
-          <td style="text-align:right">{{ $luarD['luarSaldo'] ? number_format($luarD['luarSaldo'],0,',','.') : '-' }}</td>
+          <td style="text-align:right">{{ $luarSaldo ? number_format($luarSaldo,0,',','.') : '-' }}</td>
           <td style="text-align:right">{{ $luarD['luarFisik'] ? number_format($luarD['luarFisik'],0,',','.') : '-' }}</td>
           <td style="text-align:right;font-weight:700;color:{{ $luarSel != 0 ? '#dc2626' : '#059669' }}">
-            {{ $luarD['luarSaldo'] ? number_format($luarSel,0,',','.') : '-' }}
+            {{ ($luarSaldo || $hasLuar) ? number_format($luarSel,0,',','.') : '-' }}
           </td>
           {{-- Total Selisih --}}
           <td style="text-align:center;font-weight:700;background:#fef9c3;color:{{ $totalSel < 0 ? '#dc2626' : ($totalSel > 0 ? '#d97706' : '#059669') }}">
