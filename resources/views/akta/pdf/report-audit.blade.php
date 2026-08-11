@@ -75,6 +75,12 @@
       page-break-before: always;
       page-break-after: always;
     }
+    /* Kontainer geser-samping hanya berguna di layar. Saat dicetak, bagian yang
+       harus digeser tidak ikut tercetak — kolom paling kanan hilang tanpa jejak.
+       Section dengan tabel lebar sudah dicetak melintang di atas; ini pengaman
+       tambahan supaya isi yang tetap kelebihan lebar terlihat meluber, bukan
+       terpotong diam-diam. */
+    .tbl-scroll { overflow: visible !important; }
   }
 </style>
 </head>
@@ -1791,7 +1797,7 @@ window.addEventListener('load', function() {
       </div>
 
       @if(count($prItems))
-      <div style="overflow-x:auto;">
+      <div class="tbl-scroll" style="overflow-x:auto;">
       <table style="font-size:9.5px;">
         <thead>
           <tr>
@@ -1929,7 +1935,7 @@ window.addEventListener('load', function() {
       </div>
 
       @if(count($cdnItems))
-      <div style="overflow-x:auto;">
+      <div class="tbl-scroll" style="overflow-x:auto;">
       <table style="font-size:9.5px;">
         <thead>
           <tr>
@@ -2400,7 +2406,16 @@ window.addEventListener('load', function() {
      14. HGP & AHM OILS
      ═══════════════════════════════════════════════ --}}
 @if(($visibleTabs['hgp'] ?? true))
-<div class="section">
+{{-- Cetak melintang HANYA kalau ada isinya. Tabel section ini punya 12 kolom
+     (lebar minimum 800-900px) sehingga terpotong di A4 tegak — kolom paling
+     kanan hilang sama sekali dari PDF, bukan sekadar tak terlihat. Tapi
+     .section-landscape juga memaksa ganti halaman sebelum & sesudahnya, jadi
+     kalau datanya kosong ia hanya akan memboroskan satu halaman melintang
+     berisi tulisan "Belum ada data". --}}
+@php
+    $lebar = filled($hgp?->items_json);
+@endphp
+<div class="section {{ $lebar ? 'section-landscape' : '' }}">
   <div class="section-title">14. HGP &amp; AHM OILS</div>
   @include('akta.pdf.partials.auditor-line', ['tool' => 'hgp'])
   <div class="section-body" style="padding:0;">
@@ -2442,7 +2457,7 @@ window.addEventListener('load', function() {
       </div>
 
       @if(count($hgpItems))
-      <div style="overflow-x:auto;">
+      <div class="tbl-scroll" style="overflow-x:auto;">
       <table style="font-size:9.5px;min-width:800px;">
         <thead>
           <tr>
@@ -2518,7 +2533,16 @@ window.addEventListener('load', function() {
      14B. RSA HGP & AHM OILS (SAMPLING)
      ═══════════════════════════════════════════════ --}}
 @if(($visibleTabs['rsa-hgp'] ?? true))
-<div class="section">
+{{-- Cetak melintang HANYA kalau ada isinya. Tabel section ini punya 12 kolom
+     (lebar minimum 800-900px) sehingga terpotong di A4 tegak — kolom paling
+     kanan hilang sama sekali dari PDF, bukan sekadar tak terlihat. Tapi
+     .section-landscape juga memaksa ganti halaman sebelum & sesudahnya, jadi
+     kalau datanya kosong ia hanya akan memboroskan satu halaman melintang
+     berisi tulisan "Belum ada data". --}}
+@php
+    $lebar = filled($rsaHgp?->items_json);
+@endphp
+<div class="section {{ $lebar ? 'section-landscape' : '' }}">
   <div class="section-title">14B. RSA HGP &amp; AHM OILS (SAMPLING)</div>
   @include('akta.pdf.partials.auditor-line', ['tool' => 'rsa-hgp'])
   <div class="section-body" style="padding:0;">
@@ -2567,7 +2591,7 @@ window.addEventListener('load', function() {
       @endif
 
       @if(count($rsaHgpItems))
-      <div style="overflow-x:auto;">
+      <div class="tbl-scroll" style="overflow-x:auto;">
       <table style="font-size:9.5px;min-width:800px;">
         <thead>
           <tr>
@@ -2643,7 +2667,16 @@ window.addEventListener('load', function() {
      15. HGA (ACCESSORIES)
      ═══════════════════════════════════════════════ --}}
 @if(($visibleTabs['hga'] ?? true))
-<div class="section">
+{{-- Cetak melintang HANYA kalau ada isinya. Tabel section ini punya 12 kolom
+     (lebar minimum 800-900px) sehingga terpotong di A4 tegak — kolom paling
+     kanan hilang sama sekali dari PDF, bukan sekadar tak terlihat. Tapi
+     .section-landscape juga memaksa ganti halaman sebelum & sesudahnya, jadi
+     kalau datanya kosong ia hanya akan memboroskan satu halaman melintang
+     berisi tulisan "Belum ada data". --}}
+@php
+    $lebar = filled($hga?->items_json);
+@endphp
+<div class="section {{ $lebar ? 'section-landscape' : '' }}">
   <div class="section-title">15. HGA (Accessories)</div>
   @include('akta.pdf.partials.auditor-line', ['tool' => 'hga'])
   <div class="section-body" style="padding:0;">
@@ -2690,7 +2723,7 @@ window.addEventListener('load', function() {
       </div>
 
       @if(count($hgaItems))
-      <div style="overflow-x:auto;">
+      <div class="tbl-scroll" style="overflow-x:auto;">
       <table style="font-size:9.5px;min-width:900px;">
         <thead>
           <tr>
@@ -2775,7 +2808,16 @@ window.addEventListener('load', function() {
      16. SMH TARIKAN
      ═══════════════════════════════════════════════ --}}
 @if(($visibleTabs['smh-tarikan'] ?? true))
-<div class="section">
+{{-- Cetak melintang HANYA kalau ada isinya. Tabel section ini punya 12 kolom
+     (lebar minimum 800-900px) sehingga terpotong di A4 tegak — kolom paling
+     kanan hilang sama sekali dari PDF, bukan sekadar tak terlihat. Tapi
+     .section-landscape juga memaksa ganti halaman sebelum & sesudahnya, jadi
+     kalau datanya kosong ia hanya akan memboroskan satu halaman melintang
+     berisi tulisan "Belum ada data". --}}
+@php
+    $lebar = filled($smhTarikan?->items_json);
+@endphp
+<div class="section {{ $lebar ? 'section-landscape' : '' }}">
   <div class="section-title">16. SMH TARIKAN</div>
   @include('akta.pdf.partials.auditor-line', ['tool' => 'smh-tarikan'])
   <div class="section-body" style="padding:0;">
@@ -2812,7 +2854,7 @@ window.addEventListener('load', function() {
       </div>
 
       @if($tarTotal > 0)
-      <div style="overflow-x:auto;">
+      <div class="tbl-scroll" style="overflow-x:auto;">
       <table style="font-size:9.5px;min-width:900px;">
         <thead>
           <tr>
