@@ -1,0 +1,173 @@
+# Bangun & kirim aplikasi ke hosting setiap kali master berubah.
+#
+# Hosting SIMPAS-IAT hanya menyediakan FTP — tanpa SSH, tanpa git di sisi server —
+# sehingga tidak ada cara server menarik sendiri perubahan dari GitHub. Sebelum
+# ada berkas ini, tiap perbaikan harus di-build manual lalu diunggah satu per satu
+# lewat klien FTP, dan itu berkali-kali jadi sumber kesalahan: berkas terlewat,
+# public/build tidak ikut, atau clear-cache lupa dipanggil sehingga Blade lama
+# tetap dipakai dan perbaikannya terlihat "tidak berfungsi".
+#
+# Yang WAJIB disiapkan sekali di GitHub (Settings -> Secrets and variables -> Actions):
+#   Secrets: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD, DEPLOY_SECRET
+#   Variables (opsional): FTP_SERVER_DIR, FTP_PROTOCOL, APP_URL
+#
+# Migrasi database SENGAJA tidak dijalankan otomatis — mengubah skema produksi
+# harus keputusan sadar, bukan efek samping sebuah merge. Kalau ada migrasi baru,
+# ringkasan di akhir menampilkan peringatan beserta URL yang harus dipanggil.
+
+name: Deploy ke hosting
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# Dua deploy yang berjalan bersamaan akan saling menimpa berkas di tengah unggahan
+# dan meninggalkan server dalam keadaan campur aduk. Antrikan, jangan dibatalkan:
+# deploy yang sudah separuh jalan justru berbahaya kalau dihentikan.
+concurrency:
+  group: deploy-produksi
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Bangun, uji, lalu kirim
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ambil kode
+        uses: actions/checkout@v4
+        with:
+          # Dibutuhkan langkah "deteksi migrasi baru" di bawah, yang membandingkan
+          # commit ini dengan sebelumnya.
+          fetch-depth: 2
+
+      - name: Siapkan PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, zip, gd, bcmath, intl
+          coverage: none
+
+      - name: Pasang dependensi PHP
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Siapkan .env sementara untuk pengujian
+        # Hanya dipakai di dalam runner ini dan tidak pernah diunggah — .env
+        # produksi ada di server dan termasuk daftar yang dikecualikan.
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Jalankan tes
+        # Gerbang pengaman: kalau tes gagal, langkah unggah di bawah tidak pernah
+        # berjalan dan server tetap memakai versi lama yang masih berfungsi.
+        run: php artisan test
+
+      - name: Siapkan Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Bangun aset
+        run: |
+          npm ci
+          npm run build
+
+      - name: Pastikan hasil build ada
+        # Kalau vite gagal diam-diam, jangan sampai server malah kehilangan
+        # public/build dan seluruh tampilan aplikasi rusak.
+        run: |
+          test -f public/build/manifest.json \
+            || { echo "::error::public/build/manifest.json tidak terbentuk — build gagal, deploy dihentikan."; exit 1; }
+          echo "Aset terbangun:"
+          ls -1 public/build/assets | head -5
+
+      - name: Kirim ke hosting lewat FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          # ftps mengenkripsi kredensial. Kalau hosting menolaknya, ganti variabel
+          # FTP_PROTOCOL jadi "ftp" — tapi sadari kata sandi akan terkirim polos.
+          protocol: ${{ vars.FTP_PROTOCOL || 'ftps' }}
+          server-dir: ${{ vars.FTP_SERVER_DIR || '/' }}
+          # Hanya berkas yang berubah yang diunggah; berkas asing di server tidak
+          # dihapus (dangerous-clean-slate sengaja dibiarkan mati).
+          exclude: |
+            # .git di server web publik membocorkan seluruh kode & riwayatnya.
+            # Ditulis dua bentuk sekaligus (dengan dan tanpa awalan **/) supaya
+            # tidak bergantung pada tafsir glob satu pustaka tertentu.
+            .git
+            .git/**
+            .gitignore
+            .gitattributes
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            .github/**
+            tests/**
+            .env
+            .env.*
+            vendor/**
+            storage/**
+            bootstrap/cache/**
+            database/*.sqlite
+            composer.json
+            composer.lock
+            package.json
+            package-lock.json
+            vite.config.js
+            tailwind.config.js
+            postcss.config.js
+            phpunit.xml
+            .phpunit.result.cache
+            README.md
+            # public/hot hanya dibuat `npm run dev`. Kalau berkas ini sampai ada di
+            # server, Laravel mencari aset ke dev-server yang tidak ada dan seluruh
+            # tampilan aplikasi rusak.
+            public/hot
+
+      - name: Bersihkan cache aplikasi
+        # Tanpa ini, Blade dan konfigurasi yang sudah ter-cache di server tetap
+        # dipakai — berkas baru terunggah tapi perubahannya tidak terlihat.
+        env:
+          DEPLOY_SECRET: ${{ secrets.DEPLOY_SECRET }}
+          APP_URL: ${{ vars.APP_URL || 'https://simpas-iat.exprosalab.com' }}
+        run: |
+          if [ -z "$DEPLOY_SECRET" ]; then
+            echo "::warning::Secret DEPLOY_SECRET belum diisi — cache di server TIDAK dibersihkan, jadi perubahan Blade/konfigurasi belum tentu terlihat. Isi secret itu, atau panggil /deploy/clear-cache secara manual."
+            exit 0
+          fi
+          curl --fail --show-error --silent --max-time 180 \
+            --get "$APP_URL/deploy/clear-cache" \
+            --data-urlencode "token=$DEPLOY_SECRET" \
+            -o clear-cache.txt
+          echo "--- keluaran clear-cache ---"
+          cat clear-cache.txt
+
+      - name: Ringkasan
+        if: always()
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://simpas-iat.exprosalab.com' }}
+        run: |
+          {
+            echo "### Deploy SIMPAS-IAT"
+            echo ""
+            echo "Commit: \`${{ github.sha }}\`"
+            echo ""
+
+            # Migrasi tidak dijalankan otomatis; kalau ada yang baru, beri tahu.
+            BARU=$(git diff --name-only --diff-filter=A HEAD~1 HEAD -- database/migrations || true)
+            if [ -n "$BARU" ]; then
+              echo "> [!WARNING]"
+              echo "> **Ada migrasi baru — skema database BELUM diubah.**"
+              echo "> Panggil \`$APP_URL/deploy/migrate?token=...\` untuk menjalankannya."
+              echo ""
+              echo "$BARU" | sed 's/^/> - /'
+            else
+              echo "Tidak ada migrasi baru."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

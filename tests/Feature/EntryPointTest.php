@@ -17,6 +17,19 @@ class EntryPointTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Yang diuji di sini adalah perutean, bukan aset. Halaman login memanggil
+        // @vite, yang menuntut public/build/manifest.json ada — berkas hasil
+        // `npm run build` yang tidak ikut masuk repositori. Tanpa ini, seluruh
+        // suite jadi tidak bisa dijalankan dari kloning bersih (mis. di CI)
+        // sebelum aset dibangun, dan kegagalannya menyesatkan: seolah rutenya
+        // rusak padahal cuma belum di-build.
+        $this->withoutVite();
+    }
+
     public function test_halaman_depan_mengarahkan_ke_login_akta(): void
     {
         $this->get('/')->assertRedirect('/akta/login');
