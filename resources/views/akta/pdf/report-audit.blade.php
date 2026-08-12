@@ -81,6 +81,23 @@
        tambahan supaya isi yang tetap kelebihan lebar terlihat meluber, bukan
        terpotong diam-diam. */
     .tbl-scroll { overflow: visible !important; }
+
+    /* Jaring pengaman terakhir untuk lebar tabel.
+       Aturan @page bernama (landscape-section di atas) tidak dijamin dihormati
+       semua browser/versi — kalau diabaikan, tabel min-width 800-900px tetap
+       dicetak di halaman tegak yang cuma muat ~695px dan kolom kanannya hilang
+       lagi. Karena itu lebar minimumnya dilepas khusus saat mencetak: tabel
+       menyesuaikan lebar halaman berapa pun orientasinya. Kalau landscape
+       berhasil, tabel memakai ruang lebar itu; kalau tidak, kolomnya jadi lebih
+       rapat tapi TIDAK ADA yang hilang. Lebar minimum tetap berlaku di layar,
+       tempat kontainer geser memang berfungsi. */
+    .tbl-scroll > table { min-width: 0 !important; width: 100% !important; }
+
+    /* Nama part, keterangan, dan kolom teks lain boleh dipenggal antar baris
+       saat ruangnya sempit — tanpa ini kata panjang memaksa tabel melebar lagi
+       dan membatalkan aturan di atas. */
+    .tbl-scroll > table td,
+    .tbl-scroll > table th { word-break: break-word; overflow-wrap: anywhere; }
   }
 </style>
 </head>
