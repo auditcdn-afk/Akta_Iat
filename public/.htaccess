@@ -1,3 +1,15 @@
+# Kompresi respons teks (HTML halaman, bundle JS/CSS, JSON dari /api/*, SVG).
+# Ini murni mengecilkan ukuran transfer per permintaan — tidak menyimpan apa
+# pun di antara request, jadi tidak ada risiko basi seperti cache. Dibungkus
+# IfModule supaya aman kalau mod_deflate tidak tersedia di hosting ini (fitur
+# ini hanya tidak aktif, bukan error 500).
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml
+    AddOutputFilterByType DEFLATE application/javascript application/x-javascript
+    AddOutputFilterByType DEFLATE application/json application/xml application/rss+xml
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
@@ -22,4 +34,34 @@
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
+</IfModule>
+
+# Cache browser selama-lamanya HANYA untuk bundle hasil build Vite (JS/CSS di
+# public/build/assets/) — namanya sudah mengandung hash 8 karakter dari isi
+# berkasnya (mis. audit-editor-CaIyFLsb.js). Kalau isinya berubah, hash dan
+# nama berkasnya ikut berubah, jadi aman selamanya: deploy berikutnya otomatis
+# dipakai lewat nama baru, tidak pernah menimpa berkas lama yang sudah di-cache
+# browser. Setiap navigasi di aplikasi ini reload halaman penuh (bukan SPA),
+# jadi bundle JS/CSS ini diminta ulang tiap pindah menu — tanpa cache ini,
+# browser selalu mengecek ulang ke server meski isinya tidak pernah berubah.
+#
+# SENGAJA memakai pola nama file (regex hash), BUKAN "semua .js/.css" —
+# public/service-worker.js TIDAK boleh kena aturan ini. Service worker wajib
+# selalu dicek ulang oleh browser (tanpa cache lama), kalau tidak pengguna
+# bisa "terjebak" di versi lama selamanya walau sudah ada versi baru.
+#
+# Kelas karakter WAJIB menyertakan "-" (bukan cuma huruf/angka/underscore) —
+# hash dari Vite kadang mengandung "-" di tengahnya sendiri (mis.
+# akta-users-V-8PKxAi.js, hash-nya "V-8PKxAi"), jadi tanpa ini beberapa
+# berkas akan lolos tanpa sengaja dari aturan cache ini.
+<IfModule mod_headers.c>
+    <FilesMatch "-[A-Za-z0-9_-]{8}\.(js|css)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+</IfModule>
+<IfModule mod_expires.c>
+    <FilesMatch "-[A-Za-z0-9_-]{8}\.(js|css)$">
+        ExpiresActive On
+        ExpiresDefault "access plus 1 year"
+    </FilesMatch>
 </IfModule>
