@@ -50,7 +50,13 @@ jobs:
           coverage: none
 
       - name: Pasang dependensi PHP
-        run: composer install --prefer-dist --no-interaction --no-progress
+        # --optimize-autoloader: tanpa ini, tiap kali kode memanggil sebuah
+        # class, Composer mencarinya di disk lewat aturan PSR-4 (beberapa
+        # kali stat/glob per class). Dengan ini, dibuat satu classmap datar
+        # sekali saat build — lookup jadi baca array, bukan cari ke disk.
+        # Sengaja tidak pakai --no-dev di sini karena langkah "Jalankan tes"
+        # di bawah masih butuh dependensi dev (PHPUnit dkk).
+        run: composer install --prefer-dist --no-interaction --no-progress --optimize-autoloader
 
       - name: Siapkan .env sementara untuk pengujian
         # Hanya dipakai di dalam runner ini dan tidak pernah diunggah — .env
