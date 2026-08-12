@@ -141,12 +141,23 @@ jobs:
             echo "::warning::Secret DEPLOY_SECRET belum diisi — cache di server TIDAK dibersihkan, jadi perubahan Blade/konfigurasi belum tentu terlihat. Isi secret itu, atau panggil /deploy/clear-cache secara manual."
             exit 0
           fi
-          curl --fail --show-error --silent --max-time 180 \
+          # Sengaja TANPA --fail: kalau server menolak, isi balasannya yang paling
+          # berharga untuk diagnosis (mis. membedakan "Token salah" dari Laravel
+          # vs halaman 403 dari firewall hosting) — --fail akan menelan body itu
+          # dan bikin kita menebak buta. Kode status diperiksa manual di bawah.
+          STATUS=$(curl --show-error --silent --max-time 180 \
             --get "$APP_URL/deploy/clear-cache" \
             --data-urlencode "token=$DEPLOY_SECRET" \
-            -o clear-cache.txt
+            -o clear-cache.txt \
+            -w "%{http_code}")
+          echo "--- status HTTP: $STATUS ---"
           echo "--- keluaran clear-cache ---"
           cat clear-cache.txt
+          echo ""
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::clear-cache gagal (HTTP $STATUS). Lihat isi balasan di atas untuk diagnosis."
+            exit 1
+          fi
 
       - name: Ringkasan
         if: always()
