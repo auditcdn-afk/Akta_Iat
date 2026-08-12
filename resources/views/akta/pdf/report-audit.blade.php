@@ -23,12 +23,24 @@
   .cover .meta { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 10px; font-size: 9px; color: #6b7280; }
   .cover .meta span strong { color: #1f2937; }
 
-  /* ── Section header ── */
-  .section { page-break-inside: avoid; margin-bottom: 14px; }
+  /* ── Section header ──
+     page-break-inside:avoid TIDAK dipasang di .section: section seperti Kas
+     (Kas Besar + Kas Kecil, bisa puluhan baris) sering lebih tinggi dari sisa
+     ruang kosong di halaman saat ini. Kalau seluruh section dipaksa "avoid"
+     dan tidak muat, browser memindahkan SELURUH section ke halaman
+     berikutnya alih-alih memotongnya di titik yang wajar — sisa halaman
+     sebelumnya jadi kosong (persis kasus yang dilaporkan: halaman 1 cuma
+     berisi judul, section pertama meloncat penuh ke halaman 2). Sebagai
+     gantinya, cukup judul section yang dijaga tidak sendirian di ujung
+     halaman lewat page-break-after:avoid di bawah — badan section tetap
+     boleh terpotong wajar antar baris tabel saat memang panjang. */
+  .section { margin-bottom: 14px; }
   .section-title {
     background: #1e40af; color: #fff;
     padding: 4px 9px; font-size: 10px; font-weight: 700; letter-spacing: .4px;
     border-radius: 4px 4px 0 0;
+    page-break-after: avoid; break-after: avoid-page;
+    page-break-inside: avoid;
   }
   .section-body { border: 1px solid #d1d5db; border-top: none; border-radius: 0 0 4px 4px; padding: 8px; }
 
