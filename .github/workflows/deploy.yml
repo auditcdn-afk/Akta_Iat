@@ -133,42 +133,82 @@ jobs:
       - name: Bersihkan cache aplikasi
         # Tanpa ini, Blade dan konfigurasi yang sudah ter-cache di server tetap
         # dipakai — berkas baru terunggah tapi perubahannya tidak terlihat.
+        #
+        # Percobaan sebelumnya (dengan --fail, lalu tanpa --fail supaya isi
+        # balasan terlihat) selalu menunjukkan HTTP 403 — tapi isinya BUKAN
+        # penolakan token dari Laravel, melainkan halaman tantangan
+        # "Just a moment..." dari Cloudflare yang memblokir permintaan otomatis
+        # (curl, bukan browser sungguhan). Jadi tokennya tidak pernah salah;
+        # permintaannya tidak pernah sampai ke Laravel sama sekali.
+        #
+        # Cloudflare mem-proxy nama domain, bukan alamat IP asalnya. Percobaan
+        # pertama menyambung langsung ke IP origin (lewat --resolve, sertifikat
+        # TLS tetap divalidasi dengan nama domain yang benar lewat SNI) supaya
+        # lewat sama sekali dari proxy Cloudflare. Kalau itu ditolak server
+        # (mis. firewall origin hanya menerima koneksi dari IP Cloudflare),
+        # baru dicoba lewat domain biasa sebagai cadangan.
+        id: clear_cache
         env:
           DEPLOY_SECRET: ${{ secrets.DEPLOY_SECRET }}
           APP_URL: ${{ vars.APP_URL || 'https://simpas-iat.exprosalab.com' }}
+          ORIGIN_IP: ${{ vars.ORIGIN_IP || '103.30.147.68' }}
         run: |
           if [ -z "$DEPLOY_SECRET" ]; then
             echo "::warning::Secret DEPLOY_SECRET belum diisi — cache di server TIDAK dibersihkan, jadi perubahan Blade/konfigurasi belum tentu terlihat. Isi secret itu, atau panggil /deploy/clear-cache secara manual."
+            echo "status=skip" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Sengaja TANPA --fail: kalau server menolak, isi balasannya yang paling
-          # berharga untuk diagnosis (mis. membedakan "Token salah" dari Laravel
-          # vs halaman 403 dari firewall hosting) — --fail akan menelan body itu
-          # dan bikin kita menebak buta. Kode status diperiksa manual di bawah.
-          STATUS=$(curl --show-error --silent --max-time 180 \
-            --get "$APP_URL/deploy/clear-cache" \
-            --data-urlencode "token=$DEPLOY_SECRET" \
-            -o clear-cache.txt \
-            -w "%{http_code}")
-          echo "--- status HTTP: $STATUS ---"
-          echo "--- keluaran clear-cache ---"
-          cat clear-cache.txt
-          echo ""
+
+          HOST=$(echo "$APP_URL" | sed -E 's#^https?://##; s#/.*##')
+
+          coba_bersihkan() {
+            deskripsi="$1"; shift
+            echo "--- mencoba: $deskripsi ---"
+            STATUS=$(curl --show-error --silent --max-time 60 "$@" \
+              --get "$APP_URL/deploy/clear-cache" \
+              --data-urlencode "token=$DEPLOY_SECRET" \
+              -o clear-cache.txt \
+              -w "%{http_code}" || echo "000")
+            echo "status HTTP: $STATUS"
+            head -c 500 clear-cache.txt 2>/dev/null || true
+            echo ""
+          }
+
+          coba_bersihkan "langsung ke IP origin ($ORIGIN_IP), lewati Cloudflare" --resolve "$HOST:443:$ORIGIN_IP"
+
           if [ "$STATUS" != "200" ]; then
-            echo "::error::clear-cache gagal (HTTP $STATUS). Lihat isi balasan di atas untuk diagnosis."
-            exit 1
+            coba_bersihkan "lewat domain biasa (via Cloudflare, cadangan)"
+          fi
+
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+
+          if [ "$STATUS" != "200" ]; then
+            # Sengaja TIDAK exit 1: berkas sudah terkirim lewat FTP di langkah
+            # sebelumnya, jadi deploy-nya sendiri sukses. Menggagalkan seluruh
+            # job hanya karena langkah pembersihan cache (kenyamanan tambahan)
+            # gagal akan menyesatkan — seolah kode gagal terkirim padahal tidak.
+            echo "::warning::clear-cache tidak berhasil otomatis (HTTP $STATUS). Kode SUDAH terkirim lewat FTP dan aplikasi tetap berjalan — lihat ringkasan job untuk cara membersihkan cache manual sekali klik."
           fi
 
       - name: Ringkasan
         if: always()
         env:
           APP_URL: ${{ vars.APP_URL || 'https://simpas-iat.exprosalab.com' }}
+          CLEAR_STATUS: ${{ steps.clear_cache.outputs.status }}
         run: |
           {
             echo "### Deploy SIMPAS-IAT"
             echo ""
             echo "Commit: \`${{ github.sha }}\`"
             echo ""
+
+            if [ -n "$CLEAR_STATUS" ] && [ "$CLEAR_STATUS" != "200" ] && [ "$CLEAR_STATUS" != "skip" ]; then
+              echo "> [!WARNING]"
+              echo "> **Cache belum dibersihkan otomatis** (server terakhir membalas HTTP $CLEAR_STATUS — kemungkinan tantangan bot Cloudflare, BUKAN token yang salah)."
+              echo "> Kode sudah terkirim dan aplikasi tetap berjalan. Untuk membersihkan cache, buka link ini sekali dari **browser biasa** (bukan otomatis — browser bisa lewati tantangan Cloudflare, curl tidak):"
+              echo "> \`$APP_URL/deploy/clear-cache?token=...\` (ganti \`...\` dengan isi DEPLOY_SECRET Anda)"
+              echo ""
+            fi
 
             # Migrasi tidak dijalankan otomatis; kalau ada yang baru, beri tahu.
             BARU=$(git diff --name-only --diff-filter=A HEAD~1 HEAD -- database/migrations || true)

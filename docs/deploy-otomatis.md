@@ -93,4 +93,25 @@ berhenti:
 | **Jalankan tes** | Ada yang rusak di kode. Server tidak tersentuh — perbaiki dulu |
 | **Bangun aset** | `npm run build` gagal. Server tidak tersentuh |
 | **Kirim ke hosting** | Kredensial FTP salah, atau hosting menolak FTPS — coba ubah variabel `FTP_PROTOCOL` jadi `ftp` |
-| **Bersihkan cache** | Berkas sudah terkirim tapi cache belum bersih. Panggil `/deploy/clear-cache` manual, dan periksa `DEPLOY_SECRET` cocok dengan yang di `.env` server |
+
+### Soal langkah "Bersihkan cache"
+
+Domain ini di belakang **Cloudflare**, yang menampilkan halaman tantangan
+"Just a moment..." (bukan error dari Laravel) untuk permintaan otomatis —
+seperti `curl` dari GitHub Actions — yang terlihat seperti bot. Ini bikin
+langkah ini sempat terus gagal dengan HTTP 403 meski tokennya benar; token-nya
+tidak pernah salah, permintaannya cuma tidak pernah sampai ke Laravel.
+
+Alur sekarang:
+
+1. Coba sambung **langsung ke IP origin** (variabel `ORIGIN_IP`, bawaan
+   `103.30.147.68`), melewati proxy Cloudflare sama sekali.
+2. Kalau itu ditolak, coba lewat domain biasa (via Cloudflare) sebagai
+   cadangan.
+3. Kalau **keduanya** tetap gagal, langkah ini **tidak lagi menggagalkan
+   seluruh deploy** — kode tetap sudah terkirim lewat FTP dan aplikasi tetap
+   berjalan. Ringkasan job akan menampilkan link untuk dibuka manual **dari
+   browser biasa** (browser bisa lewati tantangan Cloudflare, `curl` tidak).
+
+Kalau IP hosting berubah, perbarui variabel `ORIGIN_IP` di **Settings** →
+**Secrets and variables** → **Actions** → tab **Variables**.
