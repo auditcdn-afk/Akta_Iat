@@ -131,7 +131,7 @@ return [
             'CSC ARK', 'CSC SDR', 'CSC TBS', 'CSC SKH', 'CSC BKN', 'CSC LPK', 'CSC FLB',
             'CSC KPR', 'CSC UBT', 'CSC PKC', 'CSC DRI', 'CSC GRG', 'CSC PGR', 'CSC SLP',
             'CSC BBT', 'CSC UJT', 'CSC KAN', 'CSC PRW', 'CSC AMK', 'CSC SRM', 'CSC PJD',
-            'CSC SPK', 'CSC TBH', 'GJP1 H2', 'GJP2 H2',
+            'CSC SPK', 'CSC TBH',
         ],
     ],
     'CSC / H2 - RKR' => [
@@ -154,7 +154,8 @@ return [
         'approvers' => ['CSC', 'SO', 'Retail Affco', 'Manajer Audit', 'AFD'],
         'units'     => [
             'HMS MPY', 'KMS PBR', 'KMS SRK', 'KMS SIK', 'CVKJ H2', 'CVSK H2',
-            'HMS PKC', 'HMS LBD', 'TUKJY H2', 'DIP H2',
+            'HMS PKC', 'HMS UKI', 'HMS LBD', 'TUKJY H2', 'DIP H2',
+            'GJP1 H2', 'GJP2 H2',
         ],
     ],
 
