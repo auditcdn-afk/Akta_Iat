@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\PlanAuditMandiriCrosscheckController;
 use App\Http\Controllers\Api\AuditTaskController;
 use App\Http\Controllers\Api\AuditRecommendationController;
 use App\Http\Controllers\Api\AppNotificationController;
+use App\Http\Controllers\Api\KaryawanController;
 use App\Http\Controllers\Api\PicaController;
 use App\Http\Controllers\Api\AuditTabConfigController;
 use App\Http\Controllers\Api\PlanPenilaianController;
@@ -75,6 +76,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/notifications', [AppNotificationController::class, 'index']);
     Route::post('/notifications/{notification}/read', [AppNotificationController::class, 'markRead']);
     Route::post('/notifications/read-all', [AppNotificationController::class, 'markAllRead']);
+
+    // ─── Data Karyawan (per unit usaha) ───────────────────────────
+    Route::get('/karyawan', [KaryawanController::class, 'index']);
+    Route::post('/karyawan', [KaryawanController::class, 'store']);
+    Route::delete('/karyawan/{karyawan}', [KaryawanController::class, 'destroy']);
 
     // ─── Database Master Data ─────────────────────────────────────
     Route::prefix('database')->group(function () {

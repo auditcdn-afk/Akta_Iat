@@ -8,6 +8,7 @@ use App\Models\DbAhmOil;
 use App\Models\DbHargaSmh;
 use App\Models\DbPlafon;
 use App\Models\DbUnitUsaha;
+use App\Models\Karyawan;
 use App\Models\PlanAuditMandiri;
 use App\Models\PemeriksaanAuditor;
 use App\Models\PemeriksaanBank;
@@ -119,13 +120,22 @@ class ReportPdfController extends Controller
         $visibleTabs = $this->buildVisibleTabs($plan);
         $plafon = ($visibleTabs['plafon'] ?? true) ? $this->buildPlafonAnalisa($plan) : $this->emptyPlafonAnalisa($plan);
 
+        // Dibungkus try/catch: tabel karyawans baru dibuat lewat migrasi manual
+        // setelah deploy (lihat deploy.yml), jadi Report Audit tidak boleh ikut
+        // 500 kalau migrasi itu belum sempat dijalankan.
+        try {
+            $karyawans = Karyawan::where('unit_usaha', $plan->cabang)->orderBy('nama')->get();
+        } catch (\Throwable $e) {
+            $karyawans = collect();
+        }
+
         return compact(
             'plan', 'plafon', 'kas', 'smh', 'perlengkapan', 'bank', 'materai',
             'bpkbOnhand', 'bpkbInproses', 'kwitansi', 'piutangReguler',
             'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'rsaHgp', 'hga',
             'smhTarikan', 'lampiran', 'lampiranEmbeds', 'visibleTabs', 'auditors',
             'perlengkapanOnhand', 'hgpOilItems', 'hgpSparepartItems',
-            'rsaHgpOilItems', 'rsaHgpSparepartItems'
+            'rsaHgpOilItems', 'rsaHgpSparepartItems', 'karyawans'
         );
     }
 

@@ -65,6 +65,21 @@
   /* ── Empty state ── */
   .empty { color: #9ca3af; font-style: italic; padding: 6px 0; }
 
+  /* ── Data Karyawan (halaman pertama) ── */
+  .karyawan-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .karyawan-card { width: 62px; text-align: center; page-break-inside: avoid; }
+  .karyawan-card .foto {
+    width: 56px; height: 56px; margin: 0 auto 3px; border-radius: 4px;
+    border: 1px solid #d1d5db; object-fit: cover; display: block;
+  }
+  .karyawan-card .foto-placeholder {
+    width: 56px; height: 56px; margin: 0 auto 3px; border-radius: 4px;
+    background: #e5e7eb; color: #6b7280; display: flex; align-items: center;
+    justify-content: center; font-size: 16px; font-weight: 700;
+  }
+  .karyawan-card .nama { font-size: 8px; font-weight: 700; color: #1f2937; line-height: 1.2; word-break: break-word; }
+  .karyawan-card .jabatan { font-size: 7px; color: #6b7280; line-height: 1.2; word-break: break-word; }
+
   /* ── Rekap Selisih (dipakai lewat partials/rekap-selisih-table di section
      HGP & RSA HGP) ── */
   .group-title { font-weight: 700; font-size: 11px; margin: 12px 0 6px; color: #1e3a8a; }
@@ -176,6 +191,28 @@ window.addEventListener('load', function() {
     <span><strong>Dicetak:</strong> {{ now()->format('d/m/Y H:i') }}</span>
   </div>
 </div>
+
+@if(!empty($karyawans) && count($karyawans))
+{{-- ── DATA KARYAWAN UNIT USAHA ── --}}
+<div class="section">
+  <div class="section-title">DATA KARYAWAN {{ $plan->cabang ?? '-' }}</div>
+  <div class="section-body">
+    <div class="karyawan-grid">
+      @foreach($karyawans as $kar)
+      <div class="karyawan-card">
+        @if($kar->photo_url)
+          <img class="foto" src="{{ $kar->photo_url }}" alt="{{ $kar->nama }}">
+        @else
+          <div class="foto-placeholder">{{ strtoupper(mb_substr($kar->nama, 0, 1)) }}</div>
+        @endif
+        <div class="nama">{{ $kar->nama }}</div>
+        <div class="jabatan">{{ $kar->jabatan }}</div>
+      </div>
+      @endforeach
+    </div>
+  </div>
+</div>
+@endif
 
 {{-- ═══════════════════════════════════════════════
      1. PEMERIKSAAN KAS

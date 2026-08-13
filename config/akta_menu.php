@@ -111,6 +111,14 @@ return [
             'roles' => ['admin', 'manajer', 'auditor', 'koordinator', 'coo'],
         ],
         [
+            'label' => 'Data Karyawan',
+            'route' => 'akta.karyawan',
+            'path' => '/akta/karyawan',
+            'code' => 'KR',
+            'admin_only' => false,
+            'roles' => ['admin', 'manajer', 'auditor', 'koordinator', 'coo', 'h1', 'h2', 'unit', 'bpk'],
+        ],
+        [
             'label' => 'Pengguna',
             'route' => 'akta.pengguna',
             'path' => '/akta/pengguna',
