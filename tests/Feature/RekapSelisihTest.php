@@ -20,8 +20,9 @@ use Tests\TestCase;
  *
  * Intinya: item dengan selisih 0 disembunyikan dari rekap ini, dan sisanya
  * dipecah ke tabel AHM OIL'S (kode part terdaftar di db_ahm_oils) vs
- * SPAREPART (tidak terdaftar), sambil nomor barisnya tetap mengacu ke posisi
- * asli di daftar lengkap (bukan dinomori ulang dari hasil filter).
+ * SPAREPART (tidak terdaftar). Nomor baris (NO) mulai dari 1 di
+ * masing-masing tabel, dan tiap tabel diakhiri baris TOTAL (Sistem, Fisik,
+ * Selisih, dan nilai uang HET dijumlahkan).
  */
 class RekapSelisihTest extends TestCase
 {
@@ -97,14 +98,22 @@ class RekapSelisihTest extends TestCase
         $oilBagian = substr($rekapBagian, 0, strpos($rekapBagian, 'SPAREPART'));
         $this->assertStringContainsString('SCOOTER GEAR OIL', $oilBagian);
         $this->assertStringNotContainsString('BATTERY', $oilBagian);
-        // Nomor baris tetap 1 (posisi asli di daftar lengkap), bukan dinomori ulang.
+        // Nomor baris mulai dari 1 di tabel AHM OIL'S sendiri.
         $this->assertMatchesRegularExpression('/<td>1<\/td>\s*<td>08232M99K8LN0<\/td>/', $oilBagian);
+        // TOTAL: selisih -2 x HET 16.500 = -33.000.
+        $this->assertStringContainsString('TOTAL', $oilBagian);
+        $this->assertStringContainsString('33.000', $oilBagian);
 
         $sparepartBagian = substr($rekapBagian, strpos($rekapBagian, 'SPAREPART'));
         $this->assertStringContainsString('BATTERY', $sparepartBagian);
         $this->assertStringNotContainsString('SCOOTER GEAR OIL', $sparepartBagian);
-        // Battery ada di posisi ke-2 pada daftar lengkap, bukan ke-1 pada hasil filter.
-        $this->assertMatchesRegularExpression('/<td>2<\/td>\s*<td>31500KZR602<\/td>/', $sparepartBagian);
+        // Battery adalah satu-satunya baris di tabel SPAREPART -> nomornya
+        // tetap 1 (mulai dari 1 lagi), BUKAN 2 walau posisinya di daftar
+        // lengkap HGP adalah item ke-2.
+        $this->assertMatchesRegularExpression('/<td>1<\/td>\s*<td>31500KZR602<\/td>/', $sparepartBagian);
+        // TOTAL: selisih -1 x HET 302.000 = -302.000.
+        $this->assertStringContainsString('TOTAL', $sparepartBagian);
+        $this->assertStringContainsString('302.000', $sparepartBagian);
     }
 
     public function test_rsa_hgp_ikut_aturan_yang_sama(): void
@@ -121,6 +130,29 @@ class RekapSelisihTest extends TestCase
         $section = $this->section($this->html(), '14B. RSA HGP');
         $this->assertStringContainsString("REKAP SELISIH PART &amp; AHM OIL'S", $section);
         $this->assertStringContainsString('OLI TEST', $section);
+    }
+
+    public function test_total_menjumlahkan_semua_baris_bukan_cuma_baris_terakhir(): void
+    {
+        DbAhmOil::create(['kode' => 'OIL-A', 'nama' => 'OLI A']);
+        DbAhmOil::create(['kode' => 'OIL-B', 'nama' => 'OLI B']);
+
+        PemeriksaanHgp::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [
+                ['noPart' => 'OIL-A', 'sparepart' => 'OLI A', 'saldoAkhir' => 100, 'fisik' => 98, 'selisih' => -2, 'hargaHet' => 10000],
+                ['noPart' => 'OIL-B', 'sparepart' => 'OLI B', 'saldoAkhir' => 50, 'fisik' => 53, 'selisih' => 3, 'hargaHet' => 5000],
+            ],
+        ]);
+
+        $section = $this->section($this->html(), '14. HGP &amp; AHM OILS');
+        $oilBagian = substr($section, strpos($section, "REKAP SELISIH PART &amp; AHM OIL'S"));
+        $oilBagian = substr($oilBagian, 0, strpos($oilBagian, 'SPAREPART'));
+
+        // Sistem: 100+50=150, Fisik: 98+53=151, Selisih: -2+3=1,
+        // Nilai: (-2*10.000) + (3*5.000) = -20.000 + 15.000 = -5.000.
+        $totalRow = substr($oilBagian, strpos($oilBagian, 'TOTAL'));
+        $this->assertMatchesRegularExpression('/150.*151.*\b1\b.*5.000/s', $totalRow);
     }
 
     public function test_tidak_ada_selisih_maka_rekap_tidak_ditampilkan(): void

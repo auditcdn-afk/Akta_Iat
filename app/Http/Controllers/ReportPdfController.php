@@ -131,10 +131,9 @@ class ReportPdfController extends Controller
 
     /**
      * Pecah item HGP/RSA HGP jadi [oilItems, sparepartItems] — hanya yang
-     * selisihnya tidak nol. "no" pada tiap baris hasil sengaja tetap memakai
-     * posisi asli item di daftar LENGKAP (bukan dinomori ulang dari hasil
-     * filter), supaya bisa ditelusuri balik ke baris yang sama di tab
-     * pemeriksaan / tabel lengkap di atasnya pada laporan ini.
+     * selisihnya tidak nol. Nomor baris (NO) di masing-masing tabel dimulai
+     * dari 1 sendiri-sendiri (lihat partials/rekap-selisih-table) — bukan
+     * memakai posisi item di daftar lengkap.
      *
      * @return array{0: array, 1: array}
      */
@@ -143,13 +142,13 @@ class ReportPdfController extends Controller
         $oilItems = [];
         $sparepartItems = [];
 
-        foreach (array_values($items) as $i => $it) {
+        foreach ($items as $it) {
             $selisih = (float) ($it['selisih'] ?? 0);
             if ($selisih === 0.0) {
                 continue;
             }
 
-            $row = [...$it, 'no' => $i + 1, 'selisih' => $selisih];
+            $row = [...$it, 'selisih' => $selisih];
             $kode = strtolower(trim((string) ($it['noPart'] ?? '')));
 
             if ($kode !== '' && $kodeOli->has($kode)) {
