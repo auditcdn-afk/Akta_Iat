@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AppNotification;
 use App\Models\AuditRecommendation;
+use App\Models\PlanAudit;
 use App\Models\SuratKeputusan;
 use Throwable;
 
@@ -11,6 +12,34 @@ class NotificationDispatcher
 {
     /** Jangan kirim notifikasi baru untuk (user, step) yang sama sebelum jeda ini lewat. */
     private const REMINDER_INTERVAL_HOURS = 20;
+
+    /**
+     * Role yang harus memproses Plan Audit di tiap status, sama dengan
+     * PlanAuditController::TRANSITIONS[status]['roles'] (minus 'admin',
+     * yang di sana cuma override, bukan pemilik gerbang). Status tanpa
+     * entry di sini (mis. "done") berarti tidak ada yang perlu diberi tahu.
+     */
+    private const PLAN_STATUS_ROLES = [
+        'draft'               => ['auditor'],
+        'pending_koordinator' => ['koordinator'],
+        'pending_manajer'     => ['manajer'],
+        'pending_coo'         => ['coo'],
+        'scheduled'           => ['auditor'],
+        'running'             => ['__branch__'],
+        'cabang_active'       => ['auditor', 'manajer', '__branch__'],
+        'revisi'              => ['auditor'],
+    ];
+
+    private const PLAN_STATUS_LABELS = [
+        'draft'               => 'Draft',
+        'pending_koordinator' => 'Menunggu Koordinator',
+        'pending_manajer'     => 'Menunggu Manajer',
+        'pending_coo'         => 'Menunggu COO',
+        'scheduled'           => 'Disetujui',
+        'running'             => 'Audit Berjalan',
+        'cabang_active'       => 'Cabang Aktif',
+        'revisi'              => 'Perlu Perbaikan',
+    ];
 
     /** Notifikasi penerima step pending pertama (yang belum diisi) pada rekomendasi. */
     public static function notifyRecommendationStep(AuditRecommendation $recommendation): void
@@ -130,6 +159,58 @@ class NotificationDispatcher
                 ->where('notifiable_type', SuratKeputusan::class)
                 ->where('notifiable_id', $suratKeputusan->id)
                 ->where('step_key', $stage)
+                ->unread()
+                ->update(['read_at' => now()]);
+        } catch (Throwable) {
+            // Notifikasi tidak boleh membuat request utama gagal.
+        }
+    }
+
+    /** Notifikasi penerima yang berwenang memproses Plan Audit di status sekarang. */
+    public static function notifyPlanAuditStep(PlanAudit $plan): void
+    {
+        try {
+            $roles = self::PLAN_STATUS_ROLES[$plan->status] ?? null;
+            if ($roles === null) {
+                return;
+            }
+
+            $recipients = BirokrasiResolver::recipientsForPlanStatus($roles, $plan->cabang);
+
+            $title = 'Giliran memproses plan audit';
+            $message = sprintf(
+                'Plan audit "%s" (%s) berstatus "%s".',
+                $plan->no_spt,
+                $plan->cabang ?: '-',
+                self::PLAN_STATUS_LABELS[$plan->status] ?? $plan->status
+            );
+            $url = '/akta/plan-audit?id=' . $plan->id;
+
+            foreach ($recipients as $user) {
+                static::notifyIfDue(
+                    $user->id,
+                    'plan_audit_step',
+                    PlanAudit::class,
+                    $plan->id,
+                    $plan->status,
+                    $title,
+                    $message,
+                    $url
+                );
+            }
+        } catch (Throwable) {
+            // Notifikasi tidak boleh membuat request utama gagal.
+        }
+    }
+
+    /** Tandai notifikasi status Plan Audit tertentu sudah terbaca, karena statusnya sudah berubah. */
+    public static function resolvePlanAuditStatus(PlanAudit $plan, string $status): void
+    {
+        try {
+            AppNotification::query()
+                ->where('notifiable_type', PlanAudit::class)
+                ->where('notifiable_id', $plan->id)
+                ->where('step_key', $status)
                 ->unread()
                 ->update(['read_at' => now()]);
         } catch (Throwable) {

@@ -16,6 +16,7 @@ use App\Models\SkPembebanan;
 use App\Models\SuratKeputusan;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Services\NotificationDispatcher;
 use App\Services\PlanTaskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -158,6 +159,7 @@ class PlanAuditController extends Controller
         app(PlanTaskService::class)->syncPlan($plan, $request->user()?->username);
 
         $plan->recordLog('created', null, $plan->status, $request->user(), 'Plan audit dibuat');
+        NotificationDispatcher::notifyPlanAuditStep($plan);
 
         $logger->write($request, 'PLAN_CREATE', 'plan_audits', 'Membuat plan audit: ' . $plan->no_spt, $request->user());
 
@@ -291,6 +293,9 @@ class PlanAuditController extends Controller
             }
         }
 
+        NotificationDispatcher::resolvePlanAuditStatus($plan, $status);
+        NotificationDispatcher::notifyPlanAuditStep($plan);
+
         $logger->write($request, 'PLAN_ADVANCE', 'plan_audits',
             "Plan {$plan->no_spt}: {$status} → {$plan->status}", $request->user());
 
@@ -326,6 +331,9 @@ class PlanAuditController extends Controller
 
         $plan->recordLog('reject', $status, 'draft', $request->user(), $alasan ? "Ditolak: {$alasan}" : 'Ditolak');
 
+        NotificationDispatcher::resolvePlanAuditStatus($plan, $status);
+        NotificationDispatcher::notifyPlanAuditStep($plan);
+
         $logger->write($request, 'PLAN_REJECT', 'plan_audits',
             "Plan {$plan->no_spt} ditolak dari {$status} → draft" . ($alasan ? " ({$alasan})" : ''), $request->user());
 
@@ -356,6 +364,9 @@ class PlanAuditController extends Controller
 
         $plan->recordLog('reject', $oldStatus, $newStatus, $request->user(),
             "Koreksi admin: {$alasan}");
+
+        NotificationDispatcher::resolvePlanAuditStatus($plan, $oldStatus);
+        NotificationDispatcher::notifyPlanAuditStep($plan);
 
         $logger->write($request, 'PLAN_ADMIN_RESET', 'plan_audits',
             "Admin reset plan {$plan->no_spt}: {$oldStatus} → {$newStatus} ({$alasan})", $request->user());
