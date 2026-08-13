@@ -32,6 +32,7 @@ class MenuSeeder extends Seeder
         'akta.sk'            => ['admin', 'manajer', 'auditor'],
         'akta.pulsa'         => ['admin', 'manajer'],
         'akta.mobil-dinas'   => ['admin', 'manajer', 'auditor', 'mrr'],
+        'akta.karyawan'      => ['admin', 'manajer', 'auditor', 'koordinator', 'coo', 'h1', 'h2', 'unit', 'bpk'],
         // Admin-only: manajemen sistem
         'akta.pengguna'      => ['admin'],
         'akta.monitoring'    => ['admin'],

@@ -47,6 +47,8 @@ Route::prefix('akta')->name('akta.')->group(function () {
 
     Route::view('/realisasi-dinas', 'akta.pages.realisasi-dinas')->name('realisasi-dinas');
 
+    Route::view('/karyawan', 'akta.pages.karyawan')->name('karyawan');
+
     Route::view('/pengguna', 'akta.pages.users')->name('pengguna');
 
     Route::view('/monitoring', 'akta.pages.monitoring')->name('monitoring');
