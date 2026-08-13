@@ -15,8 +15,9 @@ use Tests\TestCase;
  * DEPT" menjadi "Manajer Audit". WHS Unit & WHS Part dulu punya bug: ketiga
  * sub-grup wilayahnya (RRI/RKR/RAC) memakai daftar units yang identik, jadi
  * 2 dari 3 sub-grup jadi dead code -- sudah dipisah per wilayah. GJP1/GJP2
- * H1 dipindah dari SO/H1-RRI ke SO/H1-AFFCO RRI, dan HM KSP/HMS KSP
- * disatukan ke grup AFFCO RAC (H1 & H2).
+ * H1 & H2 dipindah dari grup RRI ke grup AFFCO RRI, dan HM KSP/HMS KSP
+ * disatukan ke grup AFFCO RAC (H1 & H2). HMS UKI ditambahkan ke CSC/H2 -
+ * AFFCO RRI supaya sepadan dengan HM UKI yang sudah ada di SO/H1 - AFFCO RRI.
  */
 class BirokrasiResolverTest extends TestCase
 {
@@ -29,10 +30,17 @@ class BirokrasiResolverTest extends TestCase
         $this->assertContains('Retail Riau', BirokrasiResolver::approversFor('CSC TBN'));
     }
 
-    public function test_gjp_h1_masuk_affco_rri(): void
+    public function test_gjp_h1_dan_h2_masuk_affco_rri(): void
     {
         $this->assertSame('SO / H1 - AFFCO RRI', BirokrasiResolver::groupFor('GJP1 H1'));
         $this->assertSame('SO / H1 - AFFCO RRI', BirokrasiResolver::groupFor('GJP2 H1'));
+        $this->assertSame('CSC / H2 - AFFCO RRI', BirokrasiResolver::groupFor('GJP1 H2'));
+        $this->assertSame('CSC / H2 - AFFCO RRI', BirokrasiResolver::groupFor('GJP2 H2'));
+    }
+
+    public function test_hms_uki_masuk_affco_rri(): void
+    {
+        $this->assertSame('CSC / H2 - AFFCO RRI', BirokrasiResolver::groupFor('HMS UKI'));
     }
 
     public function test_pos_sk_masuk_rri(): void
