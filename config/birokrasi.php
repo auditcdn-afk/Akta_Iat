@@ -23,31 +23,34 @@
 return [
 
     // ── WHS Unit ────────────────────────────────────────────────────────
+    // Setiap unit hanya boleh masuk SATU grup wilayah (dulu ketiga grup
+    // memakai daftar units yang identik, jadi grup RKR & RAC jadi dead code
+    // untuk WHS Unit KIM/ARK/AKS/RKR/TPI -- sudah dipisah per wilayah.
     'WHS Unit - RRI' => [
-        'approvers' => ['WHS', 'FIN REG', 'REG HEAD', 'Manajer IAT DEPT', 'AFD'],
-        'units'     => ['WHS Unit KIM', 'WHS Unit ARK', 'WHS Unit AKS', 'WHS Unit RKR', 'WHS Unit TPI'],
+        'approvers' => ['WHS', 'FIN REG', 'REG HEAD', 'Manajer Audit', 'AFD'],
+        'units'     => ['WHS Unit ARK', 'WHS Unit AKS'],
     ],
     'WHS Unit - RKR' => [
-        'approvers' => ['WHS', 'REG HEAD', 'Manajer IAT DEPT', 'AFD'],
-        'units'     => ['WHS Unit KIM', 'WHS Unit ARK', 'WHS Unit AKS', 'WHS Unit RKR', 'WHS Unit TPI'],
+        'approvers' => ['WHS', 'REG HEAD', 'Manajer Audit', 'AFD'],
+        'units'     => ['WHS Unit RKR', 'WHS Unit TPI'],
     ],
     'WHS Unit - RAC' => [
-        'approvers' => ['WHS', 'PAV', 'FIN DEPT', 'Manajer IAT DEPT', 'AFD'],
-        'units'     => ['WHS Unit KIM', 'WHS Unit ARK', 'WHS Unit AKS', 'WHS Unit RKR', 'WHS Unit TPI'],
+        'approvers' => ['WHS', 'PAV', 'FIN DEPT', 'Manajer Audit', 'AFD'],
+        'units'     => ['WHS Unit KIM'],
     ],
 
     // ── WHS Part ────────────────────────────────────────────────────────
     'WHS Part - RKR' => [
-        'approvers' => ['WHS', 'REG HEAD', 'Manajer IAT DEPT', 'AFD'],
-        'units'     => ['WHS Part TPI', 'WHS Part KIM', 'WHS Part AVIAN', 'WHS Part RKR'],
+        'approvers' => ['WHS', 'REG HEAD', 'Manajer Audit', 'AFD'],
+        'units'     => ['WHS Part TPI', 'WHS Part RKR'],
     ],
     'WHS Part - RRI' => [
-        'approvers' => ['WHS', 'FIN REG', 'REG HEAD', 'Manajer IAT DEPT', 'AFD'],
-        'units'     => ['WHS Part TPI', 'WHS Part KIM', 'WHS Part AVIAN', 'WHS Part RKR'],
+        'approvers' => ['WHS', 'FIN REG', 'REG HEAD', 'Manajer Audit', 'AFD'],
+        'units'     => ['WHS Part AVIAN'],
     ],
     'WHS Part - RAC' => [
-        'approvers' => ['WHS', 'PART Dept', 'FIN DEPT', 'Manajer IAT DEPT', 'AFD'],
-        'units'     => ['WHS Part TPI', 'WHS Part KIM', 'WHS Part AVIAN', 'WHS Part RKR'],
+        'approvers' => ['WHS', 'PART Dept', 'FIN DEPT', 'Manajer Audit', 'AFD'],
+        'units'     => ['WHS Part KIM'],
     ],
 
     // ── FKT ─────────────────────────────────────────────────────────────
