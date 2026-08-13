@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\DbAhmOil;
-use App\Models\PemeriksaanAuditor;
 use App\Models\PemeriksaanHgp;
 use App\Models\PemeriksaanRsaHgp;
 use App\Models\PlanAudit;
@@ -13,9 +12,14 @@ use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Cetakan "Rekap Selisih Part & AHM Oil's" untuk tool HGP/RSA HGP — terpisah
- * dari Report Audit besar. Intinya: item dengan selisih 0 disembunyikan, dan
- * sisanya dipecah ke tabel AHM OIL'S (kode part terdaftar di db_ahm_oils) vs
+ * "Rekap Selisih Part & AHM Oil's" — BUKAN cetakan terpisah, melainkan bagian
+ * dari section HGP & AHM Oils / RSA HGP & AHM Oils pada Report Audit besar
+ * (lihat riwayat: sempat dibuat sebagai halaman/tombol cetak sendiri, tapi
+ * pengguna minta digabung jadi satu kesatuan dengan laporan stok
+ * keseluruhannya).
+ *
+ * Intinya: item dengan selisih 0 disembunyikan dari rekap ini, dan sisanya
+ * dipecah ke tabel AHM OIL'S (kode part terdaftar di db_ahm_oils) vs
  * SPAREPART (tidak terdaftar), sambil nomor barisnya tetap mengacu ke posisi
  * asli di daftar lengkap (bukan dinomori ulang dari hasil filter).
  */
@@ -38,6 +42,31 @@ class RekapSelisihTest extends TestCase
         ]);
     }
 
+    private function html(): string
+    {
+        return $this->get(route('akta.report-audit.pdf', $this->plan))->assertOk()->getContent();
+    }
+
+    /** Potongan HTML dari satu judul sampai judul berikutnya (lihat ReportPdfLebarTabelTest). */
+    private function section(string $html, string $judul): string
+    {
+        $mulai = strpos($html, $judul);
+        $this->assertNotFalse($mulai, "Section \"{$judul}\" tidak ada di laporan.");
+
+        preg_match_all(
+            '/<div class="section(?!-title)[^"]*">/',
+            substr($html, 0, $mulai),
+            $cocok,
+            PREG_OFFSET_CAPTURE
+        );
+        $this->assertNotEmpty($cocok[0], "Pembuka section untuk \"{$judul}\" tidak ketemu.");
+
+        $buka  = end($cocok[0])[1];
+        $akhir = strpos($html, '<div class="section-title">', $mulai + strlen($judul));
+
+        return substr($html, $buka, ($akhir ?: strlen($html)) - $buka);
+    }
+
     public function test_item_terdaftar_di_db_ahm_oil_masuk_rekap_oil_sisanya_sparepart(): void
     {
         DbAhmOil::create(['kode' => '08232M99K8LN0', 'nama' => 'SCOOTER GEAR OIL']);
@@ -54,31 +83,28 @@ class RekapSelisihTest extends TestCase
             ],
         ]);
 
-        PemeriksaanAuditor::create([
-            'plan_audit_id' => $this->plan->id, 'tool' => 'hgp',
-            'nama_auditor' => 'Abdul Aziz', 'nama_auditee' => 'Eka Ariani',
-        ]);
+        $section = $this->section($this->html(), '14. HGP &amp; AHM OILS');
 
-        $html = $this->get(route('akta.rekap-selisih', [$this->plan, 'hgp']))->assertOk()->getContent();
+        $this->assertStringContainsString("REKAP SELISIH PART &amp; AHM OIL'S", $section);
 
-        $this->assertStringContainsString("REKAP SELISIH PART &amp; AHM OIL'S", $html);
-        $this->assertStringContainsString($this->plan->no_spt, $html);
-        $this->assertStringContainsString('Abdul Aziz', $html);
+        // Item selisih 0 tidak boleh muncul di rekap (masih boleh muncul di
+        // tabel lengkap HGP di atasnya, makanya dicek posisinya di section
+        // saja, bukan menuntut hilang total dari section).
+        $rekapAwal = strpos($section, "REKAP SELISIH PART &amp; AHM OIL'S");
+        $rekapBagian = substr($section, $rekapAwal);
+        $this->assertStringNotContainsString('TIDAK ADA SELISIH', $rekapBagian);
 
-        // Item selisih 0 tidak boleh muncul di halaman sama sekali.
-        $this->assertStringNotContainsString('TIDAK ADA SELISIH', $html);
-
-        $oilSection = $this->between($html, "AHM OIL'S", 'SPAREPART');
-        $this->assertStringContainsString('SCOOTER GEAR OIL', $oilSection);
-        $this->assertStringNotContainsString('BATTERY', $oilSection);
+        $oilBagian = substr($rekapBagian, 0, strpos($rekapBagian, 'SPAREPART'));
+        $this->assertStringContainsString('SCOOTER GEAR OIL', $oilBagian);
+        $this->assertStringNotContainsString('BATTERY', $oilBagian);
         // Nomor baris tetap 1 (posisi asli di daftar lengkap), bukan dinomori ulang.
-        $this->assertMatchesRegularExpression('/<td>1<\/td>\s*<td>08232M99K8LN0<\/td>/', $oilSection);
+        $this->assertMatchesRegularExpression('/<td>1<\/td>\s*<td>08232M99K8LN0<\/td>/', $oilBagian);
 
-        $sparepartSection = substr($html, strpos($html, 'SPAREPART'));
-        $this->assertStringContainsString('BATTERY', $sparepartSection);
-        $this->assertStringNotContainsString('SCOOTER GEAR OIL', $sparepartSection);
+        $sparepartBagian = substr($rekapBagian, strpos($rekapBagian, 'SPAREPART'));
+        $this->assertStringContainsString('BATTERY', $sparepartBagian);
+        $this->assertStringNotContainsString('SCOOTER GEAR OIL', $sparepartBagian);
         // Battery ada di posisi ke-2 pada daftar lengkap, bukan ke-1 pada hasil filter.
-        $this->assertMatchesRegularExpression('/<td>2<\/td>\s*<td>31500KZR602<\/td>/', $sparepartSection);
+        $this->assertMatchesRegularExpression('/<td>2<\/td>\s*<td>31500KZR602<\/td>/', $sparepartBagian);
     }
 
     public function test_rsa_hgp_ikut_aturan_yang_sama(): void
@@ -92,26 +118,21 @@ class RekapSelisihTest extends TestCase
             ],
         ]);
 
-        $html = $this->get(route('akta.rekap-selisih', [$this->plan, 'rsa-hgp']))->assertOk()->getContent();
-        $this->assertStringContainsString('OLI TEST', $html);
+        $section = $this->section($this->html(), '14B. RSA HGP');
+        $this->assertStringContainsString("REKAP SELISIH PART &amp; AHM OIL'S", $section);
+        $this->assertStringContainsString('OLI TEST', $section);
     }
 
-    public function test_belum_ada_data_menampilkan_pesan_bukan_error(): void
+    public function test_tidak_ada_selisih_maka_rekap_tidak_ditampilkan(): void
     {
-        $html = $this->get(route('akta.rekap-selisih', [$this->plan, 'hgp']))->assertOk()->getContent();
-        $this->assertStringContainsString('Tidak ada selisih', $html);
-    }
+        PemeriksaanHgp::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [
+                ['noPart' => 'X1', 'sparepart' => 'ITEM PAS', 'saldoAkhir' => 5, 'fisik' => 5, 'selisih' => 0, 'hargaHet' => 1000],
+            ],
+        ]);
 
-    public function test_tool_selain_hgp_dan_rsa_hgp_ditolak(): void
-    {
-        $this->get(route('akta.rekap-selisih', [$this->plan, 'kas']))->assertNotFound();
-    }
-
-    private function between(string $haystack, string $start, string $end): string
-    {
-        $startPos = strpos($haystack, $start);
-        $endPos = strpos($haystack, $end, $startPos);
-
-        return substr($haystack, $startPos, $endPos - $startPos);
+        $section = $this->section($this->html(), '14. HGP &amp; AHM OILS');
+        $this->assertStringNotContainsString("REKAP SELISIH PART &amp; AHM OIL'S", $section);
     }
 }

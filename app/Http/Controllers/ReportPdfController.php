@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditTabConfig;
 use App\Models\BpkbOnhandItem;
+use App\Models\DbAhmOil;
 use App\Models\DbHargaSmh;
 use App\Models\DbPlafon;
 use App\Models\DbUnitUsaha;
@@ -103,6 +104,18 @@ class ReportPdfController extends Controller
             }
         }
 
+        // Rekap Selisih Part & AHM Oil's — bagian dari section HGP/RSA HGP di
+        // bawah, bukan cetakan terpisah. Kode part dicocokkan ke database AHM
+        // Oil (dikelola lewat Database -> Database AHM Oil): cocok masuk
+        // rekap AHM OIL'S, tidak cocok masuk SPAREPART. Hanya item yang
+        // selisihnya tidak nol yang ditampilkan.
+        $kodeOli = DbAhmOil::query()->pluck('kode')
+            ->map(fn($k) => strtolower(trim((string) $k)))
+            ->filter()
+            ->flip();
+        [$hgpOilItems, $hgpSparepartItems] = $this->splitOilSparepart($hgp?->items_json ?? [], $kodeOli);
+        [$rsaHgpOilItems, $rsaHgpSparepartItems] = $this->splitOilSparepart($rsaHgp?->items_json ?? [], $kodeOli);
+
         $visibleTabs = $this->buildVisibleTabs($plan);
         $plafon = ($visibleTabs['plafon'] ?? true) ? $this->buildPlafonAnalisa($plan) : $this->emptyPlafonAnalisa($plan);
 
@@ -111,8 +124,42 @@ class ReportPdfController extends Controller
             'bpkbOnhand', 'bpkbInproses', 'kwitansi', 'piutangReguler',
             'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'rsaHgp', 'hga',
             'smhTarikan', 'lampiran', 'lampiranEmbeds', 'visibleTabs', 'auditors',
-            'perlengkapanOnhand'
+            'perlengkapanOnhand', 'hgpOilItems', 'hgpSparepartItems',
+            'rsaHgpOilItems', 'rsaHgpSparepartItems'
         );
+    }
+
+    /**
+     * Pecah item HGP/RSA HGP jadi [oilItems, sparepartItems] — hanya yang
+     * selisihnya tidak nol. "no" pada tiap baris hasil sengaja tetap memakai
+     * posisi asli item di daftar LENGKAP (bukan dinomori ulang dari hasil
+     * filter), supaya bisa ditelusuri balik ke baris yang sama di tab
+     * pemeriksaan / tabel lengkap di atasnya pada laporan ini.
+     *
+     * @return array{0: array, 1: array}
+     */
+    private function splitOilSparepart(array $items, \Illuminate\Support\Collection $kodeOli): array
+    {
+        $oilItems = [];
+        $sparepartItems = [];
+
+        foreach (array_values($items) as $i => $it) {
+            $selisih = (float) ($it['selisih'] ?? 0);
+            if ($selisih === 0.0) {
+                continue;
+            }
+
+            $row = [...$it, 'no' => $i + 1, 'selisih' => $selisih];
+            $kode = strtolower(trim((string) ($it['noPart'] ?? '')));
+
+            if ($kode !== '' && $kodeOli->has($kode)) {
+                $oilItems[] = $row;
+            } else {
+                $sparepartItems[] = $row;
+            }
+        }
+
+        return [$oilItems, $sparepartItems];
     }
 
     // Bangun peta tab_key => tampil/tidak, mengikuti konfigurasi admin di
