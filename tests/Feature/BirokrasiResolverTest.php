@@ -10,8 +10,8 @@ use Tests\TestCase;
  * POS TBN & CSC TBN ter-daftar di grup RKR (approver "Retail Riau"), padahal
  * cabang itu seharusnya "Retail Aceh". Dan AFFCO RAC/AFFCO RRI dulu memakai
  * approver "Retail Aceh"/"Retail Riau" biasa — sekarang disatukan jadi satu
- * akun "Retail Affco" untuk keduanya. Grup CSC/H2 juga diganti label step
- * manajernya dari "Manajer IAT DEPT" menjadi "Manajer Audit".
+ * akun "Retail Affco" untuk keduanya. Grup SO/H1 dan CSC/H2 juga diganti
+ * label step manajernya dari "Manajer IAT DEPT" menjadi "Manajer Audit".
  */
 class BirokrasiResolverTest extends TestCase
 {
@@ -39,11 +39,11 @@ class BirokrasiResolverTest extends TestCase
         $this->assertContains('Retail Riau', BirokrasiResolver::approversFor('CSC BKG'));
     }
 
-    /** Step manajer di semua grup CSC/H2 memakai label "Manajer Audit", bukan "Manajer IAT DEPT". */
-    public function test_grup_csc_memakai_label_manajer_audit(): void
+    /** Step manajer di semua grup SO/H1 & CSC/H2 memakai label "Manajer Audit", bukan "Manajer IAT DEPT". */
+    public function test_grup_so_dan_csc_memakai_label_manajer_audit(): void
     {
         foreach (config('birokrasi') as $groupName => $group) {
-            if (!str_starts_with($groupName, 'CSC / H2')) {
+            if (!str_starts_with($groupName, 'SO / H1') && !str_starts_with($groupName, 'CSC / H2')) {
                 continue;
             }
             $this->assertContains('Manajer Audit', $group['approvers'], "Grup \"{$groupName}\" belum pakai \"Manajer Audit\".");
