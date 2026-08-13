@@ -137,4 +137,37 @@ class BirokrasiResolver
 
         return $recipients->unique('id')->values();
     }
+
+    /**
+     * User(s) yang berwenang memajukan status Plan Audit dari status
+     * sekarang (dipakai untuk notifikasi "giliran memproses plan").
+     * $roles memakai nilai yang sama seperti PlanAuditController::TRANSITIONS
+     * (role slug, atau "__branch__" untuk akun cabang pemilik plan). Role
+     * "admin" sengaja tidak dianggap tujuan notifikasi -- itu jalur override,
+     * bukan pemilik gerbang -- kecuali sebagai fallback saat tidak ada
+     * penerima lain sama sekali.
+     */
+    public static function recipientsForPlanStatus(array $roles, ?string $cabang): Collection
+    {
+        $roleNames = array_values(array_diff($roles, ['__branch__', 'admin']));
+
+        $recipients = $roleNames
+            ? User::query()->where('is_disabled', false)->whereIn('role', $roleNames)->get()
+            : collect();
+
+        if (in_array('__branch__', $roles, true) && $cabang) {
+            $recipients = $recipients->merge(
+                User::query()
+                    ->where('is_disabled', false)
+                    ->whereRaw('UPPER(unit_usaha) = ?', [strtoupper($cabang)])
+                    ->get()
+            );
+        }
+
+        if ($recipients->isEmpty()) {
+            $recipients = User::query()->where('is_disabled', false)->where('role', 'admin')->get();
+        }
+
+        return $recipients->unique('id')->values();
+    }
 }

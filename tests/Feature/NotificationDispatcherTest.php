@@ -190,4 +190,70 @@ class NotificationDispatcherTest extends TestCase
 
         $this->assertTrue(true, 'Tidak ada exception yang dilempar meski tabel app_notifications tidak ada.');
     }
+
+    public function test_recipients_for_plan_status_role_dan_branch(): void
+    {
+        $koordinator = User::factory()->create(['role' => 'koordinator', 'unit_usaha' => null]);
+        $branchUser = User::factory()->create(['role' => 'unit', 'unit_usaha' => 'SO ALB']);
+
+        $this->assertTrue(
+            BirokrasiResolver::recipientsForPlanStatus(['koordinator'], 'SO ALB')->pluck('id')->contains($koordinator->id)
+        );
+        $this->assertTrue(
+            BirokrasiResolver::recipientsForPlanStatus(['__branch__'], 'SO ALB')->pluck('id')->contains($branchUser->id)
+        );
+    }
+
+    public function test_recipients_for_plan_status_jatuh_ke_admin_kalau_kosong(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'unit_usaha' => null]);
+
+        $recipients = BirokrasiResolver::recipientsForPlanStatus(['coo'], 'SO ALB');
+
+        $this->assertCount(1, $recipients);
+        $this->assertSame($admin->id, $recipients->first()->id);
+    }
+
+    public function test_notify_plan_audit_step_membuat_notifikasi_untuk_status_sekarang(): void
+    {
+        $koordinator = User::factory()->create(['role' => 'koordinator', 'unit_usaha' => null]);
+        $plan = PlanAudit::query()->create([
+            'no_spt' => '0005/01/01/2026/SPT-IAT',
+            'cabang' => 'SO ALB',
+            'jenis_audit' => 'Audit',
+            'status' => 'pending_koordinator',
+        ]);
+
+        NotificationDispatcher::notifyPlanAuditStep($plan);
+
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $koordinator->id,
+            'notifiable_type' => PlanAudit::class,
+            'notifiable_id' => $plan->id,
+            'step_key' => 'pending_koordinator',
+        ]);
+    }
+
+    public function test_resolve_plan_audit_status_menandai_terbaca(): void
+    {
+        $user = User::factory()->create(['role' => 'koordinator', 'unit_usaha' => null]);
+        $plan = PlanAudit::query()->create([
+            'no_spt' => '0006/01/01/2026/SPT-IAT',
+            'cabang' => 'SO ALB',
+            'jenis_audit' => 'Audit',
+            'status' => 'pending_manajer',
+        ]);
+        $notification = AppNotification::query()->create([
+            'user_id' => $user->id,
+            'type' => 'plan_audit_step',
+            'notifiable_type' => PlanAudit::class,
+            'notifiable_id' => $plan->id,
+            'step_key' => 'pending_koordinator',
+            'title' => 'Giliran memproses plan audit',
+        ]);
+
+        NotificationDispatcher::resolvePlanAuditStatus($plan, 'pending_koordinator');
+
+        $this->assertNotNull($notification->fresh()->read_at);
+    }
 }
