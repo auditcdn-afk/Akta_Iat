@@ -121,7 +121,7 @@ return [
     // Alur: Auditor → CSC → SO → Retail [wilayah] → Manajer IAT DEPT
     // ─────────────────────────────────────────────────────────────────────
     'CSC / H2 - RRI' => [
-        'approvers' => ['CSC', 'SO', 'Retail Riau', 'Manajer IAT DEPT', 'AFD'],
+        'approvers' => ['CSC', 'SO', 'Retail Riau', 'Manajer Audit', 'AFD'],
         'units'     => [
             'CSC ARK', 'CSC SDR', 'CSC TBS', 'CSC SKH', 'CSC BKN', 'CSC LPK', 'CSC FLB',
             'CSC KPR', 'CSC UBT', 'CSC PKC', 'CSC DRI', 'CSC GRG', 'CSC PGR', 'CSC SLP',
@@ -130,11 +130,11 @@ return [
         ],
     ],
     'CSC / H2 - RKR' => [
-        'approvers' => ['CSC', 'SO', 'Retail Riau', 'Manajer IAT DEPT', 'AFD'],
+        'approvers' => ['CSC', 'SO', 'Retail Riau', 'Manajer Audit', 'AFD'],
         'units'     => ['DIP H2', 'CSC BKG', 'CSC NGY', 'CSC MKG', 'CSC BTC', 'CSC TPI', 'CSC NTN'],
     ],
     'CSC / H2 - RAC' => [
-        'approvers' => ['CSC', 'SO', 'Retail Aceh', 'Manajer IAT DEPT', 'AFD'],
+        'approvers' => ['CSC', 'SO', 'Retail Aceh', 'Manajer Audit', 'AFD'],
         'units'     => [
             'CSC TPP', 'CSC TDB', 'CSC SGL', 'CSC LGS', 'CSC MBO', 'CSC ALB', 'CSC SPP',
             'CSC BKJ', 'CSC SML', 'CSC BNN', 'CSC TKN', 'CSC LSM', 'CSC TTN', 'CSC AGL', 'CSC SBS',
@@ -143,11 +143,11 @@ return [
     ],
     // Lihat catatan "Retail Affco" di grup SO / H1 - AFFCO * di atas.
     'CSC / H2 - AFFCO RAC' => [
-        'approvers' => ['CSC', 'SO', 'Retail Affco', 'Manajer IAT DEPT', 'AFD'],
+        'approvers' => ['CSC', 'SO', 'Retail Affco', 'Manajer Audit', 'AFD'],
         'units'     => ['HMS CND', 'KMS RMO', 'KMS MBO', 'LBS H2', 'SBG SRV'],
     ],
     'CSC / H2 - AFFCO RRI' => [
-        'approvers' => ['CSC', 'SO', 'Retail Affco', 'Manajer IAT DEPT', 'AFD'],
+        'approvers' => ['CSC', 'SO', 'Retail Affco', 'Manajer Audit', 'AFD'],
         'units'     => [
             'HMS MPY', 'KMS PBR', 'KMS SRK', 'KMS SIK', 'CVKJ H2', 'CVSK H2',
             'HMS PKC', 'HMS LBD', 'TUKJY H2', 'DIP H2', 'HMS KSP',
