@@ -4873,26 +4873,7 @@ function hgpFormReset() {
     hgpFormRecalc();
 }
 
-// Tombol "Cetak Rekap Selisih" (HGP & RSA HGP) hanya berguna kalau sudah ada
-// plan aktif — hrefnya di-set ulang tiap kali tab dibuka/pindah plan, dan
-// dikunci (pointer-events:none) selagi belum ada plan supaya tidak membuka
-// tab baru yang langsung 404 karena {plan} kosong.
-function updateRekapSelisihLink(linkId, tool) {
-    const link = document.getElementById(linkId);
-    if (!link) return;
-    if (activePlanId) {
-        link.href = `/akta/rekap-selisih/${activePlanId}/${tool}`;
-        link.classList.remove('pointer-events-none', 'opacity-50');
-        link.removeAttribute('title');
-    } else {
-        link.href = '#';
-        link.classList.add('pointer-events-none', 'opacity-50');
-        link.title = 'Pilih plan audit terlebih dahulu';
-    }
-}
-
 async function loadHgpTab() {
-    updateRekapSelisihLink('hgpRekapSelisihLink', 'hgp');
     if (!activePlanId) { _hgpData = null; hgpRenderItems(); return; }
     const res = await fetchJson(`/api/audit-detail/hgp?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
     // Selalu timpa _hgpData dengan data plan yang baru dibuka (termasuk kalau
@@ -5516,7 +5497,6 @@ function rsaHgpFormReset() {
 }
 
 async function loadRsaHgpTab() {
-    updateRekapSelisihLink('rsaHgpRekapSelisihLink', 'rsa-hgp');
     if (!activePlanId) { _rsaHgpData = null; rsaHgpRenderItems(); return; }
     const res = await fetchJson(`/api/audit-detail/rsa-hgp?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
     // Selalu timpa _rsaHgpData dengan data plan yang baru dibuka (termasuk kalau

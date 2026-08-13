@@ -65,6 +65,12 @@
   /* ── Empty state ── */
   .empty { color: #9ca3af; font-style: italic; padding: 6px 0; }
 
+  /* ── Rekap Selisih (dipakai lewat partials/rekap-selisih-table di section
+     HGP & RSA HGP) ── */
+  .group-title { font-weight: 700; font-size: 11px; margin: 12px 0 6px; color: #1e3a8a; }
+  .num { text-align: right; }
+  .neg { color: #dc2626; }
+
   /* ── Print controls ── */
   .print-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 999;
     background: #1e40af; color: #fff; padding: 7px 16px;
@@ -2560,6 +2566,20 @@ window.addEventListener('load', function() {
       @else
         <p class="empty" style="padding:12px;">Tidak ada item.</p>
       @endif
+
+      {{-- Rekap Selisih Part & AHM Oil's: hanya item yang selisihnya tidak
+           nol dari tabel di atas, dipecah AHM OIL'S (kode part terdaftar di
+           Database AHM Oil) vs SPAREPART (sisanya). Nomor barisnya sama
+           dengan nomor baris di tabel lengkap di atas. --}}
+      @if($hgpSelCount > 0)
+      <div style="padding:4px 14px 14px;">
+        <div class="group-title" style="font-size:12px;">REKAP SELISIH PART &amp; AHM OIL'S</div>
+        <div class="group-title">AHM OIL'S</div>
+        @include('akta.pdf.partials.rekap-selisih-table', ['items' => $hgpOilItems])
+        <div class="group-title">SPAREPART</div>
+        @include('akta.pdf.partials.rekap-selisih-table', ['items' => $hgpSparepartItems])
+      </div>
+      @endif
     @endif
   </div>
 </div>
@@ -2693,6 +2713,17 @@ window.addEventListener('load', function() {
       </div>
       @else
         <p class="empty" style="padding:12px;">Tidak ada item.</p>
+      @endif
+
+      {{-- Rekap Selisih Part & AHM Oil's — lihat catatan yang sama di section 14. --}}
+      @if($rsaHgpSelCount > 0)
+      <div style="padding:4px 14px 14px;">
+        <div class="group-title" style="font-size:12px;">REKAP SELISIH PART &amp; AHM OIL'S</div>
+        <div class="group-title">AHM OIL'S</div>
+        @include('akta.pdf.partials.rekap-selisih-table', ['items' => $rsaHgpOilItems])
+        <div class="group-title">SPAREPART</div>
+        @include('akta.pdf.partials.rekap-selisih-table', ['items' => $rsaHgpSparepartItems])
+      </div>
       @endif
     @endif
   </div>
