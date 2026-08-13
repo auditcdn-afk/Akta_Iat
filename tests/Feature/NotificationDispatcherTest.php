@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\BirokrasiResolver;
 use App\Services\NotificationDispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
@@ -153,5 +154,40 @@ class NotificationDispatcherTest extends TestCase
         NotificationDispatcher::resolveRecommendationStep($recommendation, 1);
 
         $this->assertNotNull($notification->fresh()->read_at);
+    }
+
+    /**
+     * Migrasi database SENGAJA tidak dijalankan otomatis saat deploy (lihat
+     * deploy.yml) -- tabel app_notifications bisa saja belum ada di server
+     * untuk sementara setelah kode baru terkirim. Notifikasi tidak boleh
+     * menggagalkan pembuatan/approval rekomendasi & SK itu sendiri kalau ini
+     * terjadi.
+     */
+    public function test_dispatcher_tidak_melempar_error_kalau_tabel_belum_ada(): void
+    {
+        User::factory()->create(['role' => 'unit', 'unit_usaha' => 'SO ALB']);
+        $plan = PlanAudit::query()->create([
+            'no_spt' => '0004/01/01/2026/SPT-IAT',
+            'cabang' => 'SO ALB',
+            'jenis_audit' => 'Audit',
+            'status' => 'running',
+        ]);
+        $recommendation = AuditRecommendation::query()->create([
+            'plan_audit_id' => $plan->id,
+            'judul' => 'Rekomendasi uji tanpa tabel notifikasi',
+            'prioritas' => 'sedang',
+            'status' => 'open',
+            'steps' => [
+                ['step' => 'created', 'role' => null, 'status' => 'done', 'user' => 'auditor1', 'time' => now(), 'note' => null],
+                ['step' => 'SO', 'role' => 'SO', 'status' => 'pending', 'user' => null, 'time' => null, 'note' => null],
+            ],
+        ]);
+
+        Schema::dropIfExists('app_notifications');
+
+        NotificationDispatcher::notifyRecommendationStep($recommendation);
+        NotificationDispatcher::resolveRecommendationStep($recommendation, 0);
+
+        $this->assertTrue(true, 'Tidak ada exception yang dilempar meski tabel app_notifications tidak ada.');
     }
 }
