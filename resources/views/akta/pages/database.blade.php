@@ -18,6 +18,7 @@
                 ['grading',      'Database Grading',   'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
                 ['mt',           'Database MT',        'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z'],
                 ['het',          'Database HET',       'M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z'],
+                ['ahm-oil',      'Database AHM Oil',   'M12 3v2m0 14v2m9-9h-2M5 12H3m15.364-6.364l-1.414 1.414M7.05 16.95l-1.414 1.414m12.728 0l-1.414-1.414M7.05 7.05L5.636 5.636M12 8a4 4 0 100 8 4 4 0 000-8z'],
             ] as [$key, $label, $icon])
             <button
                 type="button"
@@ -55,6 +56,7 @@
         ['grading', 'GRADING', 'ID Grading', 'Jenis / Wilayah', 'Nama Pemeriksaan', 'IDGrading | Jenis | Wilayah | Nama Pemeriksaan | Hasil Pemeriksaan | Nilai | BKNF | PKNF | BKF | PKF | BNKNF | PNKNF | BNKF | PNKF'],
         ['mt', 'MANAGEMENT TRAINEE (MT)', 'Nama Singkat', 'Nama Peralatan (IND)', 'Kode Peralatan', 'No. | Nama Singkat | Nama Peralatan (IND) | Kode Peralatan'],
         ['het', 'HET', 'Kode Part', 'Nama Part', 'HET Baru (Rp)', 'Kodepart | Nama part | HET BARU'],
+        ['ahm-oil', 'AHM OIL', 'Kode Part', 'Nama Oli', 'Keterangan', 'Kode Part | Nama Oli | Keterangan'],
     ] as [$key, $title, $col1, $col2, $col3, $importFmt])
     <div id="tab-{{ $key }}" class="db-panel hidden space-y-4">
 

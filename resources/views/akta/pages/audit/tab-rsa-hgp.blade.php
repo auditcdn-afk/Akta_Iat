@@ -3,6 +3,11 @@
             <div class="flex items-center justify-between">
                 <h3 class="text-base font-bold text-slate-100">Pemeriksaan RSA HGP &amp; AHM Oils</h3>
                 <div class="flex items-center gap-2">
+                    <a id="rsaHgpRekapSelisihLink" href="#" target="_blank" rel="noopener"
+                        class="pointer-events-none inline-flex items-center gap-2 rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-400 opacity-50 transition hover:bg-slate-800"
+                        title="Pilih plan audit terlebih dahulu">
+                        🖨️ Cetak Rekap Selisih
+                    </a>
                     <button id="rsaHgpClearBtn" type="button"
                         class="inline-flex items-center gap-2 rounded-xl border border-red-600/50 bg-red-600/10 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-600/20 active:scale-95 transition">
                         🗑️ Hapus Semua Data
