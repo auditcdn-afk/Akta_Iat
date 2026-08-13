@@ -77,12 +77,12 @@ return [
     ],
 
     // ── SO / H1 ─────────────────────────────────────────────────────────
-    // Alur: Auditor → SO → Retail [wilayah] → Manajer IAT DEPT
+    // Alur: Auditor → SO → Retail [wilayah] → Manajer Audit
     // SO  : diisi oleh user dengan role "so"
     // Retail [wilayah] : diisi oleh user dengan unit_usaha sesuai wilayah
     // ─────────────────────────────────────────────────────────────────────
     'SO / H1 - RRI' => [
-        'approvers' => ['SO', 'Retail Riau', 'Manajer IAT DEPT', 'AFD'],
+        'approvers' => ['SO', 'Retail Riau', 'Manajer Audit', 'AFD'],
         'units'     => [
             'SO ARK', 'SO SDR', 'SO TBS', 'SO SKH', 'SO BKN', 'SO KPR', 'SO UBT', 'SO SRM',
             'SO LPK', 'SO FLB', 'POS PKC', 'SO AMK', 'SO DRI', 'SO GRG', 'SO PGR', 'SO SLP',
@@ -91,11 +91,11 @@ return [
         ],
     ],
     'SO / H1 - RKR' => [
-        'approvers' => ['SO', 'Retail Riau', 'Manajer IAT DEPT', 'AFD'],
+        'approvers' => ['SO', 'Retail Riau', 'Manajer Audit', 'AFD'],
         'units'     => ['SO BKG', 'SO NGY', 'SO MKG', 'SO BTC', 'SO TPI', 'POS NTN', 'DIP H1'],
     ],
     'SO / H1 - RAC' => [
-        'approvers' => ['SO', 'Retail Aceh', 'Manajer IAT DEPT', 'AFD'],
+        'approvers' => ['SO', 'Retail Aceh', 'Manajer Audit', 'AFD'],
         'units'     => [
             'SO TPP', 'SO TDB', 'SO SGL', 'SO BNN', 'SO TKN', 'SO LSM', 'SO LGS', 'SO MBO',
             'SO ALB', 'SO SPP', 'SO KTC', 'POS JNB', 'POS BKJ', 'POS SML', 'POS TTN',
@@ -106,11 +106,11 @@ return [
     // (bukan "Retail Aceh"/"Retail Riau" seperti unit non-AFFCO) — satu akun
     // dengan unit_usaha "Retail Affco" menangani keduanya.
     'SO / H1 - AFFCO RAC' => [
-        'approvers' => ['SO', 'Retail Affco', 'Manajer IAT DEPT', 'AFD'],
+        'approvers' => ['SO', 'Retail Affco', 'Manajer Audit', 'AFD'],
         'units'     => ['HM CND', 'HM TKU', 'SBG MTR', 'KPM MBO', 'KPM SUO', 'KPM RMO', 'LBS H1'],
     ],
     'SO / H1 - AFFCO RRI' => [
-        'approvers' => ['SO', 'Retail Affco', 'Manajer IAT DEPT', 'AFD'],
+        'approvers' => ['SO', 'Retail Affco', 'Manajer Audit', 'AFD'],
         'units'     => [
             'HM PKU', 'HM MPY', 'HM PKC', 'HM UKI', 'HM LBD',
             'KPM PBR', 'KPM SRK', 'KPM SIK', 'CVKJ H1', 'CVSK H1', 'TUKJY H1',
@@ -118,7 +118,7 @@ return [
     ],
 
     // ── CSC / H2 ────────────────────────────────────────────────────────
-    // Alur: Auditor → CSC → SO → Retail [wilayah] → Manajer IAT DEPT
+    // Alur: Auditor → CSC → SO → Retail [wilayah] → Manajer Audit
     // ─────────────────────────────────────────────────────────────────────
     'CSC / H2 - RRI' => [
         'approvers' => ['CSC', 'SO', 'Retail Riau', 'Manajer Audit', 'AFD'],
