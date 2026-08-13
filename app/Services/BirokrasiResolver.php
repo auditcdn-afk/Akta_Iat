@@ -2,6 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\User;
+use Illuminate\Support\Collection;
+
 class BirokrasiResolver
 {
     /** Return approver roles for the given cabang, or [] if not found. */
@@ -62,5 +65,76 @@ class BirokrasiResolver
     public static function allGroups(): array
     {
         return config('birokrasi', []);
+    }
+
+    /**
+     * User(s) yang seharusnya diberi notifikasi karena gilirannya mengisi
+     * step $stepRole pada rekomendasi cabang $cabang. Sengaja TIDAK memakai
+     * aturan "bypass internal" (admin/manajer/auditor boleh isi step apa
+     * pun) yang dipakai AuditRecommendationController::approveStep() untuk
+     * OTORISASI -- kalau dipakai di sini semua manajer/auditor akan dapat
+     * notifikasi untuk setiap step di seluruh sistem. Di sini yang dicari
+     * cuma penerima yang benar-benar dituju step ini:
+     *   - role atau unit_usaha user cocok persis dengan nama step, ATAU
+     *   - untuk step generik jenis unit (SO/CSC/WHS dst.), akun unit usaha
+     *     itu sendiri (mis. unit_usaha "SO ALB" untuk step "SO"), ATAU
+     *   - untuk step "Manajer Audit": role slug aslinya "manajer" (label
+     *     tampilannya beda dari nilai step ini), jadi user role manajer
+     *     ikut dianggap tujuan.
+     * Kalau tidak ada satu pun yang cocok, jatuhkan ke admin supaya
+     * notifikasi tidak hilang begitu saja (mis. belum ada akun "AFD" yang
+     * dibuat).
+     */
+    public static function recipientsForStep(string $stepRole, string $cabang): Collection
+    {
+        $roleUpper = strtoupper(trim($stepRole));
+        if ($roleUpper === '') {
+            return collect();
+        }
+
+        $recipients = User::query()
+            ->where('is_disabled', false)
+            ->where(function ($q) use ($roleUpper) {
+                $q->whereRaw('UPPER(role) = ?', [$roleUpper])
+                    ->orWhereRaw('UPPER(unit_usaha) = ?', [$roleUpper]);
+            })
+            ->get();
+
+        $cabangUpper = strtoupper(trim($cabang));
+        if ($cabangUpper !== '' && str_starts_with($cabangUpper, $roleUpper . ' ')) {
+            $recipients = $recipients->merge(
+                User::query()
+                    ->where('is_disabled', false)
+                    ->whereRaw('UPPER(unit_usaha) = ?', [$cabangUpper])
+                    ->get()
+            );
+        }
+
+        if ($roleUpper === 'MANAJER AUDIT') {
+            $recipients = $recipients->merge(
+                User::query()->where('is_disabled', false)->where('role', 'manajer')->get()
+            );
+        }
+
+        if ($recipients->isEmpty()) {
+            $recipients = User::query()->where('is_disabled', false)->where('role', 'admin')->get();
+        }
+
+        return $recipients->unique('id')->values();
+    }
+
+    /** User(s) dengan salah satu role di $roles (dipakai untuk step SK: manajer/afd). */
+    public static function recipientsForRoles(array $roles): Collection
+    {
+        $recipients = User::query()
+            ->where('is_disabled', false)
+            ->whereIn('role', $roles)
+            ->get();
+
+        if ($recipients->isEmpty()) {
+            $recipients = User::query()->where('is_disabled', false)->where('role', 'admin')->get();
+        }
+
+        return $recipients->unique('id')->values();
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditRecommendation;
 use App\Services\ActivityLogger;
 use App\Services\BirokrasiResolver;
+use App\Services\NotificationDispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -105,6 +106,7 @@ class AuditRecommendationController extends Controller
         ]);
 
         $recommendation->load(['planAudit', 'auditTask']);
+        NotificationDispatcher::notifyRecommendationStep($recommendation);
 
         $logger->write(
             $request,
@@ -373,6 +375,9 @@ class AuditRecommendationController extends Controller
         $recommendation->updated_by = $request->user()?->username;
         $recommendation->save();
         $recommendation->load(['planAudit', 'auditTask']);
+
+        NotificationDispatcher::resolveRecommendationStep($recommendation, $idx);
+        NotificationDispatcher::notifyRecommendationStep($recommendation);
 
         $logger->write($request, 'RECOMMENDATION_STEP_APPROVE', 'audit_recommendations',
             'Approve step "' . ($steps[$idx]['step'] ?? $idx) . '" pada rekomendasi: ' . $recommendation->judul,

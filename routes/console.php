@@ -19,3 +19,10 @@ Schedule::command('sanctum:prune-expired --hours=24')->daily();
 // dashboard/export dibuka, supaya query join+JSON yang berat tidak membebani aplikasi
 // yang dipakai auditor sehari-hari. Sesuaikan interval bila butuh data lebih "segar".
 Schedule::command('akta:refresh-report-audit-flat')->everyTwoHours()->withoutOverlapping();
+
+// Reminder harian: notifikasi ulang penerima step birokrasi rekomendasi &
+// tahap approval SK yang masih pending, supaya tidak lupa mengisi. Notifikasi
+// "gilirannya tiba" yang pertama dikirim langsung dari controller saat step
+// sebelumnya selesai; job ini cuma menjaga reminder tetap jalan tiap hari
+// selama step itu belum diisi.
+Schedule::command('akta:notify-pending-birokrasi')->dailyAt('07:00')->withoutOverlapping();

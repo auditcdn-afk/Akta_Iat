@@ -7,6 +7,7 @@ use App\Models\PlanAudit;
 use App\Models\SkDistribusi;
 use App\Models\SuratKeputusan;
 use App\Models\User;
+use App\Services\NotificationDispatcher;
 use App\Services\SkMemutuskanExtractor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -243,6 +244,7 @@ class SuratKeputusanController extends Controller
         $data['uploaded_at'] = now();
 
         $sk = SuratKeputusan::query()->create($data);
+        NotificationDispatcher::notifySuratKeputusanStep($sk);
 
         return response()->json([
             'message' => 'SK berhasil dibuat.',
@@ -359,6 +361,9 @@ class SuratKeputusanController extends Controller
         $suratKeputusan->steps = $steps;
         $suratKeputusan->save();
 
+        NotificationDispatcher::resolveSuratKeputusanStage($suratKeputusan, 'manajer');
+        NotificationDispatcher::notifySuratKeputusanStep($suratKeputusan);
+
         return response()->json([
             'message' => 'SK berhasil disetujui manajer.',
             'data' => $suratKeputusan->load('planAudit'),
@@ -384,6 +389,8 @@ class SuratKeputusanController extends Controller
         $suratKeputusan->status = 'selesai';
         $suratKeputusan->steps = $steps;
         $suratKeputusan->save();
+
+        NotificationDispatcher::resolveSuratKeputusanStage($suratKeputusan, 'afd');
 
         return response()->json([
             'message' => 'SK berhasil disetujui AFD.',
@@ -476,6 +483,8 @@ class SuratKeputusanController extends Controller
         $suratKeputusan->uploaded_by_name = $this->userDisplayName($request);
         $suratKeputusan->uploaded_at = now();
         $suratKeputusan->save();
+
+        NotificationDispatcher::notifySuratKeputusanStep($suratKeputusan);
 
         return response()->json([
             'message' => 'SK berhasil diunggah ulang, menunggu approval manajer.',
