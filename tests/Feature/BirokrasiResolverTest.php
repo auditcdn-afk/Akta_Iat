@@ -10,8 +10,11 @@ use Tests\TestCase;
  * POS TBN & CSC TBN ter-daftar di grup RKR (approver "Retail Riau"), padahal
  * cabang itu seharusnya "Retail Aceh". Dan AFFCO RAC/AFFCO RRI dulu memakai
  * approver "Retail Aceh"/"Retail Riau" biasa — sekarang disatukan jadi satu
- * akun "Retail Affco" untuk keduanya. Grup SO/H1 dan CSC/H2 juga diganti
- * label step manajernya dari "Manajer IAT DEPT" menjadi "Manajer Audit".
+ * akun "Retail Affco" untuk keduanya. Grup SO/H1, CSC/H2, WHS Unit, dan
+ * WHS Part juga diganti label step manajernya dari "Manajer IAT DEPT"
+ * menjadi "Manajer Audit". WHS Unit & WHS Part dulu punya bug: ketiga
+ * sub-grup wilayahnya (RRI/RKR/RAC) memakai daftar units yang identik,
+ * jadi 2 dari 3 sub-grup jadi dead code -- sudah dipisah per wilayah.
  */
 class BirokrasiResolverTest extends TestCase
 {
@@ -48,6 +51,36 @@ class BirokrasiResolverTest extends TestCase
             }
             $this->assertContains('Manajer Audit', $group['approvers'], "Grup \"{$groupName}\" belum pakai \"Manajer Audit\".");
             $this->assertNotContains('Manajer IAT DEPT', $group['approvers'], "Grup \"{$groupName}\" masih pakai label lama.");
+        }
+    }
+
+    public function test_whs_unit_dan_whs_part_terpisah_per_wilayah(): void
+    {
+        $this->assertSame('WHS Unit - RRI', BirokrasiResolver::groupFor('WHS Unit ARK'));
+        $this->assertSame('WHS Unit - RRI', BirokrasiResolver::groupFor('WHS Unit AKS'));
+        $this->assertSame('WHS Unit - RKR', BirokrasiResolver::groupFor('WHS Unit RKR'));
+        $this->assertSame('WHS Unit - RKR', BirokrasiResolver::groupFor('WHS Unit TPI'));
+        $this->assertSame('WHS Unit - RAC', BirokrasiResolver::groupFor('WHS Unit KIM'));
+
+        $this->assertSame('WHS Part - RRI', BirokrasiResolver::groupFor('WHS Part AVIAN'));
+        $this->assertSame('WHS Part - RKR', BirokrasiResolver::groupFor('WHS Part TPI'));
+        $this->assertSame('WHS Part - RKR', BirokrasiResolver::groupFor('WHS Part RKR'));
+        $this->assertSame('WHS Part - RAC', BirokrasiResolver::groupFor('WHS Part KIM'));
+    }
+
+    /** Tidak ada unit WHS Unit/WHS Part yang terdaftar di lebih dari satu grup wilayah. */
+    public function test_unit_whs_tidak_terdaftar_dobel(): void
+    {
+        $seen = [];
+        foreach (config('birokrasi') as $groupName => $group) {
+            if (!str_starts_with($groupName, 'WHS Unit') && !str_starts_with($groupName, 'WHS Part')) {
+                continue;
+            }
+            foreach ($group['units'] as $unit) {
+                $key = strtolower(trim($unit));
+                $this->assertArrayNotHasKey($key, $seen, "\"{$unit}\" terdaftar di lebih dari satu grup WHS.");
+                $seen[$key] = $groupName;
+            }
         }
     }
 }
