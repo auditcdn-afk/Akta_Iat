@@ -260,6 +260,27 @@ const TABS = {
             return { kode: row?.kode || "", nama: row?.nama || "", harga_het: row?.hargaHet ?? "", satuan: row?.satuan || "", keterangan: row?.keterangan || "" };
         },
     },
+    "ahm-oil": {
+        label: "Database AHM Oil",
+        fields: [
+            { key: "kode", label: "Kode Part", type: "text", required: true, span: 1 },
+            { key: "nama", label: "Nama Oli", type: "text", required: true, span: 1 },
+            { key: "keterangan", label: "Keterangan", type: "textarea", span: 2 },
+        ],
+        renderRow(row, no, isAdmin) {
+            return `
+            <tr class="hover:bg-slate-950/50">
+                <td class="px-4 py-3 text-sm text-slate-500">${no}</td>
+                <td class="px-4 py-3 text-sm font-mono text-slate-300">${escHtml(row.kode)}</td>
+                <td class="px-4 py-3 text-sm text-slate-100">${escHtml(row.nama)}</td>
+                <td class="px-4 py-3 text-xs text-slate-400 max-w-xs truncate" title="${escHtml(row.keterangan)}">${escHtml(row.keterangan || "-")}</td>
+                ${adminActions(row.id, isAdmin)}
+            </tr>`;
+        },
+        getFormData(row) {
+            return { kode: row?.kode || "", nama: row?.nama || "", keterangan: row?.keterangan || "" };
+        },
+    },
 };
 
 function adminActions(id, isAdmin) {

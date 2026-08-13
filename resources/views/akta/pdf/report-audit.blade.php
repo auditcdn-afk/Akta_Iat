@@ -77,7 +77,14 @@
   @media print {
     body { background: #fff; }
     .print-bar, .print-spacer { display: none !important; }
-    .page-wrap { width: 100%; margin: 0; padding: 0; box-shadow: none; }
+    /* min-height:297mm ada supaya .page-wrap terlihat seukuran kertas A4 di
+       layar. @page di bawah sudah punya margin halaman sendiri (14mm atas+
+       bawah) — kalau min-height itu ikut terbawa ke cetakan, tinggi kotaknya
+       (297mm) lebih besar dari area cetak yang tersisa per halaman (269mm),
+       sehingga SELALU ada satu halaman terakhir yang nyaris kosong meski
+       section paling akhir sudah selesai jauh sebelum ujung halaman itu.
+       Dilepas di sini supaya tinggi dokumen murni mengikuti isinya. */
+    .page-wrap { width: 100%; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
     @page { size: A4 portrait; margin: 14mm 13mm; }
     /* Section lebar (Piutang Reguler/CDN, banyak kolom) dicetak landscape agar
        tidak ada kolom yang terpotong / perlu digeser saat dibaca dari PDF. */

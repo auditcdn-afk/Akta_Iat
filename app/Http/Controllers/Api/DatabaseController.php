@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\DbAhmOil;
 use App\Models\DbGrading;
 use App\Models\DbHargaSmh;
 use App\Models\DbHet;
@@ -26,6 +27,7 @@ class DatabaseController extends Controller
         'grading'      => DbGrading::class,
         'mt'           => DbMt::class,
         'het'          => DbHet::class,
+        'ahm-oil'      => DbAhmOil::class,
     ];
 
     private static array $colMap = [
@@ -36,6 +38,7 @@ class DatabaseController extends Controller
         'grading'      => ['id_grading', 'jenis', 'wilayah', 'nama_pemeriksaan', 'hasil_pemeriksaan', 'nilai', 'bknf', 'pknf', 'bkf', 'pkf', 'bnknf', 'pnknf', 'bnkf', 'pnkf'],
         'mt'           => ['nomor', 'nama_singkat', '_x', 'nama_peralatan', 'kode_peralatan'],
         'het'          => ['kode', 'nama', 'harga_het'],
+        'ahm-oil'      => ['kode', 'nama', 'keterangan'],
     ];
 
     private static array $searchCols = [
@@ -46,6 +49,7 @@ class DatabaseController extends Controller
         'grading'      => ['id_grading', 'jenis', 'wilayah', 'nama_pemeriksaan', 'hasil_pemeriksaan'],
         'mt'           => ['nama_singkat', 'nama_peralatan', 'kode_peralatan', 'jenis'],
         'het'          => ['kode', 'nama'],
+        'ahm-oil'      => ['kode', 'nama'],
     ];
 
     // Unique key(s) per type — used for upsert during import
@@ -57,6 +61,7 @@ class DatabaseController extends Controller
         'grading'      => ['id_grading'],
         'mt'           => ['kode_peralatan', 'jenis'],
         'het'          => ['kode'],
+        'ahm-oil'      => ['kode'],
     ];
 
     private function resolveModel(string $type): string
