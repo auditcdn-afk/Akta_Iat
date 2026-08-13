@@ -6,25 +6,44 @@ use App\Services\BirokrasiResolver;
 use Tests\TestCase;
 
 /**
- * Rute persetujuan rekomendasi (config/birokrasi.php) sempat salah wilayah:
- * POS TBN & CSC TBN ter-daftar di grup RKR (approver "Retail Riau"), padahal
- * cabang itu seharusnya "Retail Aceh". Dan AFFCO RAC/AFFCO RRI dulu memakai
- * approver "Retail Aceh"/"Retail Riau" biasa — sekarang disatukan jadi satu
- * akun "Retail Affco" untuk keduanya. Grup SO/H1, CSC/H2, WHS Unit, dan
- * WHS Part juga diganti label step manajernya dari "Manajer IAT DEPT"
- * menjadi "Manajer Audit". WHS Unit & WHS Part dulu punya bug: ketiga
- * sub-grup wilayahnya (RRI/RKR/RAC) memakai daftar units yang identik,
- * jadi 2 dari 3 sub-grup jadi dead code -- sudah dipisah per wilayah.
+ * Rute persetujuan rekomendasi (config/birokrasi.php). RKR = wilayah Kepri
+ * (bukan cuma "sub-wilayah Retail Riau" umum) -- POS TBN & CSC TBN akhirnya
+ * dikonfirmasi masuk RKR/Kepri (approver "Retail Riau"), setelah sempat
+ * dipindah ke Retail Aceh lalu dikoreksi balik. AFFCO RAC/AFFCO RRI memakai
+ * satu akun "Retail Affco" yang sama untuk keduanya. Grup SO/H1, CSC/H2,
+ * WHS Unit, dan WHS Part diganti label step manajernya dari "Manajer IAT
+ * DEPT" menjadi "Manajer Audit". WHS Unit & WHS Part dulu punya bug: ketiga
+ * sub-grup wilayahnya (RRI/RKR/RAC) memakai daftar units yang identik, jadi
+ * 2 dari 3 sub-grup jadi dead code -- sudah dipisah per wilayah. GJP1/GJP2
+ * H1 dipindah dari SO/H1-RRI ke SO/H1-AFFCO RRI, dan HM KSP/HMS KSP
+ * disatukan ke grup AFFCO RAC (H1 & H2).
  */
 class BirokrasiResolverTest extends TestCase
 {
-    public function test_pos_tbn_dan_csc_tbn_masuk_retail_aceh(): void
+    public function test_pos_tbn_dan_csc_tbn_masuk_rkr_kepri(): void
     {
-        $this->assertSame('SO / H1 - RAC', BirokrasiResolver::groupFor('POS TBN'));
-        $this->assertContains('Retail Aceh', BirokrasiResolver::approversFor('POS TBN'));
+        $this->assertSame('SO / H1 - RKR', BirokrasiResolver::groupFor('POS TBN'));
+        $this->assertContains('Retail Riau', BirokrasiResolver::approversFor('POS TBN'));
 
-        $this->assertSame('CSC / H2 - RAC', BirokrasiResolver::groupFor('CSC TBN'));
-        $this->assertContains('Retail Aceh', BirokrasiResolver::approversFor('CSC TBN'));
+        $this->assertSame('CSC / H2 - RKR', BirokrasiResolver::groupFor('CSC TBN'));
+        $this->assertContains('Retail Riau', BirokrasiResolver::approversFor('CSC TBN'));
+    }
+
+    public function test_gjp_h1_masuk_affco_rri(): void
+    {
+        $this->assertSame('SO / H1 - AFFCO RRI', BirokrasiResolver::groupFor('GJP1 H1'));
+        $this->assertSame('SO / H1 - AFFCO RRI', BirokrasiResolver::groupFor('GJP2 H1'));
+    }
+
+    public function test_pos_sk_masuk_rri(): void
+    {
+        $this->assertSame('SO / H1 - RRI', BirokrasiResolver::groupFor('POS SK'));
+    }
+
+    public function test_ksp_disatukan_ke_affco_rac(): void
+    {
+        $this->assertSame('SO / H1 - AFFCO RAC', BirokrasiResolver::groupFor('HM KSP'));
+        $this->assertSame('CSC / H2 - AFFCO RAC', BirokrasiResolver::groupFor('HMS KSP'));
     }
 
     public function test_affco_rac_dan_affco_rri_sama_sama_pakai_retail_affco(): void

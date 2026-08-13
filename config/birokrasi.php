@@ -17,7 +17,7 @@
  * Wilayah:
  *   RAC  = Retail Aceh
  *   RRI  = Retail Riau
- *   RKR  = Retail Riau (sub-wilayah)
+ *   RKR  = Kepri (Kepulauan Riau) -- approver-nya tetap "Retail Riau"
  *   HO   = Head Office
  */
 return [
@@ -90,19 +90,20 @@ return [
             'SO ARK', 'SO SDR', 'SO TBS', 'SO SKH', 'SO BKN', 'SO KPR', 'SO UBT', 'SO SRM',
             'SO LPK', 'SO FLB', 'POS PKC', 'SO AMK', 'SO DRI', 'SO GRG', 'SO PGR', 'SO SLP',
             'SO DMI', 'SO BBT', 'POS PJD', 'SO UJT', 'SO KAN', 'SO PRW', 'SO TBH', 'POS SPK',
-            'GJP1 H1', 'GJP2 H1',
+            'POS SK',
         ],
     ],
+    // RKR = wilayah Kepri (bukan cuma "sub-wilayah Retail Riau" secara umum).
     'SO / H1 - RKR' => [
         'approvers' => ['SO', 'Retail Riau', 'Manajer Audit', 'AFD'],
-        'units'     => ['SO BKG', 'SO NGY', 'SO MKG', 'SO BTC', 'SO TPI', 'POS NTN', 'DIP H1'],
+        'units'     => ['SO BKG', 'SO NGY', 'SO MKG', 'SO BTC', 'POS TBN', 'SO TPI', 'POS NTN', 'DIP H1'],
     ],
     'SO / H1 - RAC' => [
         'approvers' => ['SO', 'Retail Aceh', 'Manajer Audit', 'AFD'],
         'units'     => [
             'SO TPP', 'SO TDB', 'SO SGL', 'SO BNN', 'SO TKN', 'SO LSM', 'SO LGS', 'SO MBO',
             'SO ALB', 'SO SPP', 'SO KTC', 'POS JNB', 'POS BKJ', 'POS SML', 'POS TTN',
-            'SO BDS', 'POS AGL', 'POS SBS', 'POS TBN',
+            'SO BDS', 'POS AGL', 'POS SBS',
         ],
     ],
     // AFFCO RAC & AFFCO RRI sengaja memakai approver "Retail Affco" yang sama
@@ -110,13 +111,14 @@ return [
     // dengan unit_usaha "Retail Affco" menangani keduanya.
     'SO / H1 - AFFCO RAC' => [
         'approvers' => ['SO', 'Retail Affco', 'Manajer Audit', 'AFD'],
-        'units'     => ['HM CND', 'HM TKU', 'SBG MTR', 'KPM MBO', 'KPM SUO', 'KPM RMO', 'LBS H1'],
+        'units'     => ['HM CND', 'HM TKU', 'SBG MTR', 'KPM MBO', 'KPM SUO', 'KPM RMO', 'LBS H1', 'HM KSP'],
     ],
     'SO / H1 - AFFCO RRI' => [
         'approvers' => ['SO', 'Retail Affco', 'Manajer Audit', 'AFD'],
         'units'     => [
             'HM PKU', 'HM MPY', 'HM PKC', 'HM UKI', 'HM LBD',
             'KPM PBR', 'KPM SRK', 'KPM SIK', 'CVKJ H1', 'CVSK H1', 'TUKJY H1',
+            'GJP1 H1', 'GJP2 H1',
         ],
     ],
 
@@ -134,26 +136,25 @@ return [
     ],
     'CSC / H2 - RKR' => [
         'approvers' => ['CSC', 'SO', 'Retail Riau', 'Manajer Audit', 'AFD'],
-        'units'     => ['DIP H2', 'CSC BKG', 'CSC NGY', 'CSC MKG', 'CSC BTC', 'CSC TPI', 'CSC NTN'],
+        'units'     => ['DIP H2', 'CSC BKG', 'CSC NGY', 'CSC MKG', 'CSC BTC', 'CSC TPI', 'CSC NTN', 'CSC TBN'],
     ],
     'CSC / H2 - RAC' => [
         'approvers' => ['CSC', 'SO', 'Retail Aceh', 'Manajer Audit', 'AFD'],
         'units'     => [
             'CSC TPP', 'CSC TDB', 'CSC SGL', 'CSC LGS', 'CSC MBO', 'CSC ALB', 'CSC SPP',
             'CSC BKJ', 'CSC SML', 'CSC BNN', 'CSC TKN', 'CSC LSM', 'CSC TTN', 'CSC AGL', 'CSC SBS',
-            'CSC TBN',
         ],
     ],
     // Lihat catatan "Retail Affco" di grup SO / H1 - AFFCO * di atas.
     'CSC / H2 - AFFCO RAC' => [
         'approvers' => ['CSC', 'SO', 'Retail Affco', 'Manajer Audit', 'AFD'],
-        'units'     => ['HMS CND', 'KMS RMO', 'KMS MBO', 'LBS H2', 'SBG SRV'],
+        'units'     => ['HMS CND', 'KMS RMO', 'KMS MBO', 'LBS H2', 'SBG SRV', 'HMS KSP'],
     ],
     'CSC / H2 - AFFCO RRI' => [
         'approvers' => ['CSC', 'SO', 'Retail Affco', 'Manajer Audit', 'AFD'],
         'units'     => [
             'HMS MPY', 'KMS PBR', 'KMS SRK', 'KMS SIK', 'CVKJ H2', 'CVSK H2',
-            'HMS PKC', 'HMS LBD', 'TUKJY H2', 'DIP H2', 'HMS KSP',
+            'HMS PKC', 'HMS LBD', 'TUKJY H2', 'DIP H2',
         ],
     ],
 
