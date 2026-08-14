@@ -987,6 +987,56 @@ window.addEventListener('load', function() {
     </table>
     @endif
 
+    {{-- ── D. Register Blanko yang Belum Digunakan (SMH) ── --}}
+    @php
+      $smhBlankoRec = $blankos['smh'] ?? null;
+      $smhBlankoH1 = $smhBlankoRec->blanko_h1 ?? [];
+      $smhBlankoH2 = $smhBlankoRec->blanko_h2 ?? [];
+    @endphp
+    @if(count($smhBlankoH1) || count($smhBlankoH2))
+    <div style="margin-top:16px;">
+      <div style="font-weight:700;font-size:11px;color:#374151;border-bottom:2px solid #d1d5db;padding-bottom:3px;margin-bottom:8px;">D. REGISTER BLANKO YANG BELUM DIGUNAKAN</div>
+      <div style="display:flex;gap:16px;">
+        <div style="flex:1;">
+          <div style="margin-bottom:4px;font-size:10px;font-weight:700;color:#374151;">H1</div>
+          @if(count($smhBlankoH1))
+          <table>
+            <thead><tr><th>Jenis</th><th>Nomor Range Blanko</th></tr></thead>
+            <tbody>
+              @foreach($smhBlankoH1 as $b)
+              <tr>
+                <td>{{ $b['jenis'] ?? '-' }}</td>
+                <td>{{ $b['nomor'] ?? '-' }}</td>
+              </tr>
+              @endforeach
+            </tbody>
+          </table>
+          @else
+          <p class="empty">Belum ada data.</p>
+          @endif
+        </div>
+        <div style="flex:1;">
+          <div style="margin-bottom:4px;font-size:10px;font-weight:700;color:#374151;">H2</div>
+          @if(count($smhBlankoH2))
+          <table>
+            <thead><tr><th>Jenis</th><th>Nomor Range Blanko</th></tr></thead>
+            <tbody>
+              @foreach($smhBlankoH2 as $b)
+              <tr>
+                <td>{{ $b['jenis'] ?? '-' }}</td>
+                <td>{{ $b['nomor'] ?? '-' }}</td>
+              </tr>
+              @endforeach
+            </tbody>
+          </table>
+          @else
+          <p class="empty">Belum ada data.</p>
+          @endif
+        </div>
+      </div>
+    </div>
+    @endif
+
   </div>
 </div>
 @endif
@@ -1433,6 +1483,56 @@ window.addEventListener('load', function() {
       </tbody>
     </table>
 
+    @endif
+
+    {{-- ── Register Blanko yang Belum Digunakan (Onhand BPKB) ── --}}
+    @php
+      $bpkbBlankoRec = $blankos['bpkb'] ?? null;
+      $bpkbBlankoH1 = $bpkbBlankoRec->blanko_h1 ?? [];
+      $bpkbBlankoH2 = $bpkbBlankoRec->blanko_h2 ?? [];
+    @endphp
+    @if(count($bpkbBlankoH1) || count($bpkbBlankoH2))
+    <div style="margin-top:16px;">
+      <div style="font-weight:700;font-size:11px;color:#374151;border-bottom:2px solid #d1d5db;padding-bottom:3px;margin-bottom:8px;">REGISTER BLANKO YANG BELUM DIGUNAKAN</div>
+      <div style="display:flex;gap:16px;">
+        <div style="flex:1;">
+          <div style="margin-bottom:4px;font-size:10px;font-weight:700;color:#374151;">H1</div>
+          @if(count($bpkbBlankoH1))
+          <table>
+            <thead><tr><th>Jenis</th><th>Nomor Range Blanko</th></tr></thead>
+            <tbody>
+              @foreach($bpkbBlankoH1 as $b)
+              <tr>
+                <td>{{ $b['jenis'] ?? '-' }}</td>
+                <td>{{ $b['nomor'] ?? '-' }}</td>
+              </tr>
+              @endforeach
+            </tbody>
+          </table>
+          @else
+          <p class="empty">Belum ada data.</p>
+          @endif
+        </div>
+        <div style="flex:1;">
+          <div style="margin-bottom:4px;font-size:10px;font-weight:700;color:#374151;">H2</div>
+          @if(count($bpkbBlankoH2))
+          <table>
+            <thead><tr><th>Jenis</th><th>Nomor Range Blanko</th></tr></thead>
+            <tbody>
+              @foreach($bpkbBlankoH2 as $b)
+              <tr>
+                <td>{{ $b['jenis'] ?? '-' }}</td>
+                <td>{{ $b['nomor'] ?? '-' }}</td>
+              </tr>
+              @endforeach
+            </tbody>
+          </table>
+          @else
+          <p class="empty">Belum ada data.</p>
+          @endif
+        </div>
+      </div>
+    </div>
     @endif
   </div>
 </div>

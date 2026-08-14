@@ -114,4 +114,35 @@
                 <div class="bg-[#1e3a5f] px-5 py-3 text-sm font-bold uppercase tracking-wide text-white">🔗 Hasil Sinkronisasi Perlengkapan</div>
                 <div id="smhSyncBody" class="p-5 space-y-2 text-sm"></div>
             </div>
+
+            {{-- ── REGISTER BLANKO ── --}}
+            <div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 text-slate-100 shadow">
+                <div class="flex items-center justify-between bg-[#1e3a5f] px-5 py-3 text-white">
+                    <span class="text-sm font-bold uppercase tracking-wide">📋 Register Blanko yang Belum Digunakan</span>
+                    <p id="blankoSmhStatus" class="hidden text-xs text-emerald-300">Tersimpan</p>
+                </div>
+                <div class="space-y-5 p-5">
+                    <div>
+                        <div class="mb-2 border-b border-slate-800 pb-1 text-sm font-bold text-slate-300">H1</div>
+                        <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <tbody id="blankoSmhH1Body"></tbody>
+                        </table>
+                        </div>
+                        <button type="button" data-add="blankoSmhH1" class="add-row-btn mt-2 rounded-lg border border-dashed border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800">+ Tambah Register Blanko H1</button>
+                    </div>
+                    <div>
+                        <div class="mb-2 border-b border-slate-800 pb-1 text-sm font-bold text-slate-300">H2</div>
+                        <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <tbody id="blankoSmhH2Body"></tbody>
+                        </table>
+                        </div>
+                        <button type="button" data-add="blankoSmhH2" class="add-row-btn mt-2 rounded-lg border border-dashed border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800">+ Tambah Register Blanko H2</button>
+                    </div>
+                    <div class="flex justify-end border-t border-slate-800 pt-4">
+                        <button type="button" id="blankoSmhSaveBtn" class="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 transition">💾 Simpan Register Blanko</button>
+                    </div>
+                </div>
+            </div>
         </div>

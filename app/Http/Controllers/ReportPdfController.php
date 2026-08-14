@@ -11,6 +11,7 @@ use App\Models\DbUnitUsaha;
 use App\Models\Karyawan;
 use App\Models\PlanAuditMandiri;
 use App\Models\PemeriksaanAuditor;
+use App\Models\PemeriksaanBlanko;
 use App\Models\PemeriksaanBank;
 use App\Models\PemeriksaanBpkbInproses;
 use App\Models\PemeriksaanCekFisik;
@@ -86,6 +87,15 @@ class ReportPdfController extends Controller
         // $auditors['kas'] dsb, alih-alih 19 query terpisah.
         $auditors = PemeriksaanAuditor::where('plan_audit_id', $id)->get()->keyBy('tool');
 
+        // Register Blanko (H1/H2) untuk SMH & Onhand BPKB — tabel baru, jadi
+        // dibungkus try/catch seperti $karyawans di bawah (migrasi manual
+        // belum tentu sudah dijalankan setelah deploy).
+        try {
+            $blankos = PemeriksaanBlanko::where('plan_audit_id', $id)->get()->keyBy('tool');
+        } catch (\Throwable $e) {
+            $blankos = collect();
+        }
+
         $lampiranEmbeds = [];
         if ($lampiran) {
             foreach ($lampiran->files_json ?? [] as $f) {
@@ -133,7 +143,7 @@ class ReportPdfController extends Controller
             'plan', 'plafon', 'kas', 'smh', 'perlengkapan', 'bank', 'materai',
             'bpkbOnhand', 'bpkbInproses', 'kwitansi', 'piutangReguler',
             'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'rsaHgp', 'hga',
-            'smhTarikan', 'lampiran', 'lampiranEmbeds', 'visibleTabs', 'auditors',
+            'smhTarikan', 'lampiran', 'lampiranEmbeds', 'visibleTabs', 'auditors', 'blankos',
             'perlengkapanOnhand', 'hgpOilItems', 'hgpSparepartItems',
             'rsaHgpOilItems', 'rsaHgpSparepartItems', 'karyawans'
         );

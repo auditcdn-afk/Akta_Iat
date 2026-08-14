@@ -164,6 +164,7 @@ function switchTab(tab) {
     }
     if (tab === "smh") {
         loadSmhForm().catch((e) => showAlert(e.message, "error"));
+        loadBlankoWidget("smh").catch(() => {});
     }
     if (tab === "plafon") {
         loadPlafonTab().catch((e) => showAlert(e.message, "error"));
@@ -173,6 +174,7 @@ function switchTab(tab) {
     }
     if (tab === "bpkb") {
         loadBpkbTab().catch((e) => showAlert(e.message, "error"));
+        loadBlankoWidget("bpkb").catch(() => {});
     }
     if (tab === "bpkb-inproses") {
         loadBpkiTab().catch((e) => showAlert(e.message, "error"));
@@ -402,6 +404,86 @@ function collectBlanko(bodyId) {
         jenis: tr.querySelector(".blk-jenis")?.value || "",
         nomor: tr.querySelector(".blk-nomor")?.value || "",
     })).filter((r) => r.jenis || r.nomor);
+}
+
+// ── Register Blanko (H1/H2) — dipakai tab SMH & Onhand BPKB ────────────────────
+// Sama seperti Register Blanko bawaan Kas (lihat blankoRow/collectBlanko di atas),
+// tapi disimpan lewat endpoint tersendiri (satu pasang per plan+tool) karena
+// tabel SMH & BPKB Onhand berbentuk baris-per-unit/baris-per-BPKB, bukan satu
+// blob JSON per plan seperti Kas.
+
+const BLANKO_WIDGET_BODY_IDS = {
+    smh: { h1: "blankoSmhH1Body", h2: "blankoSmhH2Body" },
+    bpkb: { h1: "blankoBpkbH1Body", h2: "blankoBpkbH2Body" },
+};
+
+function capitalizeBlankoTool(tool) {
+    return tool.charAt(0).toUpperCase() + tool.slice(1);
+}
+
+async function loadBlankoWidget(tool) {
+    const ids = BLANKO_WIDGET_BODY_IDS[tool];
+    if (!ids) return;
+    document.getElementById(ids.h1).innerHTML = "";
+    document.getElementById(ids.h2).innerHTML = "";
+    document.getElementById(`blanko${capitalizeBlankoTool(tool)}Status`)?.classList.add("hidden");
+    if (!activePlanId) return;
+
+    try {
+        const payload = await fetchJson(`/api/audit-detail/blanko?plan_audit_id=${activePlanId}&tool=${tool}`, { headers: authHeaders() });
+        const data = payload.data || {};
+        (data.blankoH1 || []).forEach((r) => document.getElementById(ids.h1).appendChild(blankoRow(r)));
+        (data.blankoH2 || []).forEach((r) => document.getElementById(ids.h2).appendChild(blankoRow(r)));
+    } catch (err) {
+        showAlert(err.message || "Gagal memuat Register Blanko.", "error");
+    }
+}
+
+async function saveBlankoWidget(tool) {
+    const ids = BLANKO_WIDGET_BODY_IDS[tool];
+    if (!ids || !activePlanId) return;
+
+    const btn = document.getElementById(`blanko${capitalizeBlankoTool(tool)}SaveBtn`);
+    if (btn) { btn.disabled = true; btn.textContent = "Menyimpan..."; }
+    try {
+        const payload = await fetchJson("/api/audit-detail/blanko", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({
+                plan_audit_id: activePlanId,
+                tool,
+                blanko_h1: collectBlanko(ids.h1),
+                blanko_h2: collectBlanko(ids.h2),
+            }),
+        });
+        showAlert(payload.message || "Register Blanko tersimpan.");
+        document.getElementById(`blanko${capitalizeBlankoTool(tool)}Status`)?.classList.remove("hidden");
+    } catch (err) {
+        showAlert(err.message || "Gagal menyimpan Register Blanko.", "error");
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = "💾 Simpan Register Blanko"; }
+    }
+}
+
+function wireBlankoWidgetPanel(panelId, tool) {
+    const ids = BLANKO_WIDGET_BODY_IDS[tool];
+    const panel = document.getElementById(panelId);
+    panel?.addEventListener("click", (e) => {
+        const addBtn = e.target.closest(".add-row-btn");
+        if (addBtn) {
+            const which = addBtn.dataset.add;
+            const map = {
+                [`blanko${capitalizeBlankoTool(tool)}H1`]: ids.h1,
+                [`blanko${capitalizeBlankoTool(tool)}H2`]: ids.h2,
+            };
+            const bodyId = map[which];
+            if (bodyId) document.getElementById(bodyId).appendChild(blankoRow());
+            return;
+        }
+        const removeBtn = e.target.closest(".remove-row");
+        if (removeBtn) removeBtn.closest("tr")?.remove();
+    });
+    document.getElementById(`blanko${capitalizeBlankoTool(tool)}SaveBtn`)?.addEventListener("click", () => saveBlankoWidget(tool));
 }
 
 function collectPecahan() {
@@ -1689,6 +1771,10 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
             recalcKas();
         }
     });
+
+    // Register Blanko di tab SMH & Onhand BPKB (add/remove baris + tombol simpan).
+    wireBlankoWidgetPanel("tabPanel-smh", "smh");
+    wireBlankoWidgetPanel("tabPanel-bpkb", "bpkb");
 
     // Recalc & format otomatis saat input berubah
     kasPanel?.addEventListener("input", (e) => {
