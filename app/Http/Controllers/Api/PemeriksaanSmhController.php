@@ -45,7 +45,13 @@ class PemeriksaanSmhController extends Controller
         $this->ensureAuditorFilled((int) $request->input('plan_audit_id'), 'smh');
 
         $file = $request->file('file');
-        $spreadsheet = IOFactory::load($file->getRealPath());
+        // setReadDataOnly: kita cuma butuh nilai selnya, bukan style/formatnya —
+        // membaca style .xls/.xlsx bisa berkali-kali lipat lebih lambat dari
+        // sekadar membaca nilainya, terutama untuk file besar dengan banyak
+        // formatting warisan template lama.
+        $reader = IOFactory::createReaderForFile($file->getRealPath());
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($file->getRealPath());
         $sheet = $spreadsheet->getActiveSheet();
         $rows  = $sheet->toArray(null, true, true, false);
 

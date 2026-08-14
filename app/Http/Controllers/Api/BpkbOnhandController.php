@@ -63,7 +63,13 @@ class BpkbOnhandController extends Controller
         $who    = $request->user()?->username ?? $request->user()?->email ?? null;
 
         $path = $request->file('file')->getRealPath();
-        $spreadsheet = IOFactory::load($path);
+        // setReadDataOnly: kita cuma butuh nilai selnya, bukan style/formatnya —
+        // membaca style .xls/.xlsx bisa berkali-kali lipat lebih lambat dari
+        // sekadar membaca nilainya, terutama untuk file besar dengan banyak
+        // formatting warisan template lama.
+        $reader = IOFactory::createReaderForFile($path);
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($path);
         $sheet = $spreadsheet->getActiveSheet();
         $rows  = $sheet->toArray(null, true, true, false);
 
