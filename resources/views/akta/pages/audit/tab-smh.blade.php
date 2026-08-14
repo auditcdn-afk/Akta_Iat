@@ -131,15 +131,6 @@
                         </div>
                         <button type="button" data-add="blankoSmhH1" class="add-row-btn mt-2 rounded-lg border border-dashed border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800">+ Tambah Register Blanko H1</button>
                     </div>
-                    <div>
-                        <div class="mb-2 border-b border-slate-800 pb-1 text-sm font-bold text-slate-300">H2</div>
-                        <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <tbody id="blankoSmhH2Body"></tbody>
-                        </table>
-                        </div>
-                        <button type="button" data-add="blankoSmhH2" class="add-row-btn mt-2 rounded-lg border border-dashed border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800">+ Tambah Register Blanko H2</button>
-                    </div>
                     <div class="flex justify-end border-t border-slate-800 pt-4">
                         <button type="button" id="blankoSmhSaveBtn" class="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 transition">💾 Simpan Register Blanko</button>
                     </div>
