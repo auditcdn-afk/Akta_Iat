@@ -163,8 +163,12 @@ class PemeriksaanSmhController extends Controller
         $item->update(array_merge($data, ['checked_at' => now()]));
 
         $pmx = $item->pemeriksaan;
-        $pmx->total_ditemukan       = $pmx->items()->where('status_fisik', 'ada')->count();
-        $pmx->total_tidak_ditemukan = $pmx->items()->where('status_fisik', 'tidak_ada')->count();
+        $counts = $pmx->items()->selectRaw(
+            "SUM(CASE WHEN status_fisik = 'ada' THEN 1 ELSE 0 END) as ditemukan, " .
+            "SUM(CASE WHEN status_fisik = 'tidak_ada' THEN 1 ELSE 0 END) as tidak_ditemukan"
+        )->first();
+        $pmx->total_ditemukan       = (int) $counts->ditemukan;
+        $pmx->total_tidak_ditemukan = (int) $counts->tidak_ditemukan;
         $pmx->updated_by = $this->who($request);
         $pmx->save();
 
