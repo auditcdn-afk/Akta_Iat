@@ -106,7 +106,7 @@ class BpkbOnhandController extends Controller
             return response()->json(['message' => 'Kolom NO BPKB tidak ditemukan di file Excel.'], 422);
         }
 
-        $saved = 0;
+        $toUpsert = [];
         foreach ($rows as $ri => $row) {
             if ($ri <= $headerRow) continue;
             $noBpkb = trim((string)($row[$colMap['no_bpkb']] ?? ''));
@@ -134,22 +134,37 @@ class BpkbOnhandController extends Controller
             $umurRaw  = trim((string)($row[$colMap['umur'] ?? -1] ?? ''));
             $umur     = (int) preg_replace('/[^0-9]/', '', $umurRaw); // strip "4,647" → 4647
 
-            BpkbOnhandItem::updateOrCreate(
-                ['plan_audit_id' => $planId, 'no_bpkb' => $noBpkb],
-                [
-                    'no_polisi'    => trim((string)($row[$colMap['no_polisi']  ?? -1] ?? '')) ?: null,
-                    'tgl_terima'   => $tglTerima,
-                    'nama_pemilik' => $namaPemilik ?: null,
-                    'no_telepon'   => $noTelepon ?: null,
-                    'no_mesin'     => trim((string)($row[$colMap['no_mesin']   ?? -1] ?? '')) ?: null,
-                    'no_rangka'    => trim((string)($row[$colMap['no_rangka']  ?? -1] ?? '')) ?: null,
-                    'jenis'        => in_array($jenis, ['REG', 'KDS']) ? $jenis : null,
-                    'umur'         => $umur > 0 ? $umur : null,
-                    'created_by'   => $who,
-                ]
-            );
-            $saved++;
+            $toUpsert[$noBpkb] = [
+                'plan_audit_id' => $planId,
+                'no_bpkb'      => $noBpkb,
+                'no_polisi'    => trim((string)($row[$colMap['no_polisi']  ?? -1] ?? '')) ?: null,
+                'tgl_terima'   => $tglTerima,
+                'nama_pemilik' => $namaPemilik ?: null,
+                'no_telepon'   => $noTelepon ?: null,
+                'no_mesin'     => trim((string)($row[$colMap['no_mesin']   ?? -1] ?? '')) ?: null,
+                'no_rangka'    => trim((string)($row[$colMap['no_rangka']  ?? -1] ?? '')) ?: null,
+                'jenis'        => in_array($jenis, ['REG', 'KDS']) ? $jenis : null,
+                'umur'         => $umur > 0 ? $umur : null,
+                'created_by'   => $who,
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ];
         }
+
+        // updateOrCreate() satu-per-satu di dalam loop berarti tiap baris commit
+        // (fsync) sendiri-sendiri di SQLite — ratusan baris jadi ratusan disk
+        // write terpisah, itu sumber lambatnya import. upsert() per-chunk
+        // menjadikannya sedikit statement INSERT ... ON CONFLICT sekaligus.
+        // Dikunci per no_bpkb (bukan array_values biasa) supaya no_bpkb dobel di
+        // file Excel yang sama tidak membuat upsert() mengeluh baris duplikat.
+        foreach (array_chunk(array_values($toUpsert), 200) as $chunk) {
+            BpkbOnhandItem::upsert(
+                $chunk,
+                ['plan_audit_id', 'no_bpkb'],
+                ['no_polisi', 'tgl_terima', 'nama_pemilik', 'no_telepon', 'no_mesin', 'no_rangka', 'jenis', 'umur', 'created_by', 'updated_at']
+            );
+        }
+        $saved = count($toUpsert);
 
         return response()->json(['message' => "{$saved} data BPKB berhasil diimpor."]);
     }
