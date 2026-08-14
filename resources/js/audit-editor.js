@@ -2472,12 +2472,17 @@ function bpkbExtractNoBpkb(raw) {
     return match ? match[1].toUpperCase() : raw;
 }
 
-async function bpkbScanSubmit() {
+// No BPKB asli selalu jauh lebih panjang dari ini (contoh: "Q-07856595",
+// "V08634123") — di bawah ambang ini kemungkinan besar user masih mengetik
+// atau salah ketik, jadi jangan discan sama sekali (biarkan lanjut mengetik).
+const BPKB_MIN_SCAN_LENGTH = 6;
+
+async function bpkbScanSubmit(force = false) {
     const planId = activePlanId;
     if (!planId) { showAlert("Pilih plan audit terlebih dahulu.", "warning"); return; }
     const scanInputEl = document.getElementById("bpkbScanInput");
     const noBpkb = bpkbExtractNoBpkb(scanInputEl?.value?.trim());
-    if (!noBpkb) return;
+    if (!noBpkb || noBpkb.length < BPKB_MIN_SCAN_LENGTH) return;
     if (scanInputEl && scanInputEl.value !== noBpkb) scanInputEl.value = noBpkb;
 
     const resultEl = document.getElementById("bpkbScanResult");
@@ -2485,8 +2490,19 @@ async function bpkbScanSubmit() {
         const res = await fetchJson("/api/audit-detail/bpkb/scan", {
             method: "POST",
             headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({ plan_audit_id: planId, no_bpkb: noBpkb }),
+            body: JSON.stringify({ plan_audit_id: planId, no_bpkb: noBpkb, force }),
         });
+
+        // Tidak ketemu di onhand — jangan langsung dicatat sebagai Fisik Diluar
+        // On Hand. Tanya dulu supaya salah ketik/scan tidak sengaja tidak
+        // langsung membuat baris baru. Kalau user setuju, kirim ulang dengan
+        // force=true untuk benar-benar mencatatnya.
+        if (res.status === "confirm") {
+            const lanjut = confirm(`Nomor BPKB "${noBpkb}" tidak ditemukan di database onhand.\n\nMasukkan sebagai Fisik Diluar On Hand?`);
+            if (lanjut) await bpkbScanSubmit(true);
+            return;
+        }
+
         const item = res.data;
         if (resultEl) {
             if (res.status === "found") {
@@ -2608,8 +2624,8 @@ function initBpkbForm() {
         clearTimeout(bpkbAutoTimer);
         // Autocomplete suggest
         bpkbSuggestTimer = setTimeout(() => bpkbSearchSuggest(q), 200);
-        // Auto-scan: jika input berhenti 600ms dan panjang >= 5 (karakter BPKB)
-        if (q.length >= 5) {
+        // Auto-scan: jika input berhenti 600ms dan panjang >= BPKB_MIN_SCAN_LENGTH
+        if (q.length >= BPKB_MIN_SCAN_LENGTH) {
             bpkbAutoTimer = setTimeout(() => bpkbScanSubmit(), 600);
         }
     });

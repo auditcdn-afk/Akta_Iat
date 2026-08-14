@@ -182,9 +182,11 @@ class BpkbOnhandController extends Controller
         $data   = $request->validate([
             'plan_audit_id' => 'required|integer|exists:plan_audits,id',
             'no_bpkb'       => 'required|string|max:100',
+            'force'         => 'nullable|boolean',
         ]);
         $planId = $data['plan_audit_id'];
         $noBpkb = trim($data['no_bpkb']);
+        $force  = (bool) ($data['force'] ?? false);
 
         // No. BPKB di data import biasanya berformat "U-04886028", tapi hasil scan
         // barcode fisiknya kadang tidak membawa tanda "-" ("U04886028") — kalau
@@ -210,7 +212,14 @@ class BpkbOnhandController extends Controller
             return response()->json(['status' => 'found', 'data' => $item->fresh()->toAktaArray()]);
         }
 
-        // Tidak ada di onhand — fisik diluar onhand
+        // Tidak ada di onhand — sebelum dicatat sebagai fisik diluar onhand,
+        // minta konfirmasi dulu (kecuali sudah dikonfirmasi lewat force=true).
+        // Tanpa ini, salah ketik/typo yang tidak sengaja cocok dengan nomor
+        // lain langsung membuat baris baru "LUAR" tanpa disadari user.
+        if (!$force) {
+            return response()->json(['status' => 'confirm', 'data' => null]);
+        }
+
         $item = BpkbOnhandItem::updateOrCreate(
             ['plan_audit_id' => $planId, 'no_bpkb' => $noBpkb],
             [
