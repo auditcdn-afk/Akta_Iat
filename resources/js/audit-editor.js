@@ -406,15 +406,16 @@ function collectBlanko(bodyId) {
     })).filter((r) => r.jenis || r.nomor);
 }
 
-// ── Register Blanko (H1/H2) — dipakai tab SMH & Onhand BPKB ────────────────────
+// ── Register Blanko (H1) — dipakai tab SMH & Onhand BPKB ────────────────────────
 // Sama seperti Register Blanko bawaan Kas (lihat blankoRow/collectBlanko di atas),
 // tapi disimpan lewat endpoint tersendiri (satu pasang per plan+tool) karena
 // tabel SMH & BPKB Onhand berbentuk baris-per-unit/baris-per-BPKB, bukan satu
-// blob JSON per plan seperti Kas.
+// blob JSON per plan seperti Kas. Hanya H1 — tidak seperti Kas, SMH & Onhand
+// BPKB tidak butuh pemisahan H1/H2.
 
 const BLANKO_WIDGET_BODY_IDS = {
-    smh: { h1: "blankoSmhH1Body", h2: "blankoSmhH2Body" },
-    bpkb: { h1: "blankoBpkbH1Body", h2: "blankoBpkbH2Body" },
+    smh: { h1: "blankoSmhH1Body" },
+    bpkb: { h1: "blankoBpkbH1Body" },
 };
 
 function capitalizeBlankoTool(tool) {
@@ -425,7 +426,6 @@ async function loadBlankoWidget(tool) {
     const ids = BLANKO_WIDGET_BODY_IDS[tool];
     if (!ids) return;
     document.getElementById(ids.h1).innerHTML = "";
-    document.getElementById(ids.h2).innerHTML = "";
     document.getElementById(`blanko${capitalizeBlankoTool(tool)}Status`)?.classList.add("hidden");
     if (!activePlanId) return;
 
@@ -433,7 +433,6 @@ async function loadBlankoWidget(tool) {
         const payload = await fetchJson(`/api/audit-detail/blanko?plan_audit_id=${activePlanId}&tool=${tool}`, { headers: authHeaders() });
         const data = payload.data || {};
         (data.blankoH1 || []).forEach((r) => document.getElementById(ids.h1).appendChild(blankoRow(r)));
-        (data.blankoH2 || []).forEach((r) => document.getElementById(ids.h2).appendChild(blankoRow(r)));
     } catch (err) {
         showAlert(err.message || "Gagal memuat Register Blanko.", "error");
     }
@@ -453,7 +452,6 @@ async function saveBlankoWidget(tool) {
                 plan_audit_id: activePlanId,
                 tool,
                 blanko_h1: collectBlanko(ids.h1),
-                blanko_h2: collectBlanko(ids.h2),
             }),
         });
         showAlert(payload.message || "Register Blanko tersimpan.");
@@ -474,7 +472,6 @@ function wireBlankoWidgetPanel(panelId, tool) {
             const which = addBtn.dataset.add;
             const map = {
                 [`blanko${capitalizeBlankoTool(tool)}H1`]: ids.h1,
-                [`blanko${capitalizeBlankoTool(tool)}H2`]: ids.h2,
             };
             const bodyId = map[which];
             if (bodyId) document.getElementById(bodyId).appendChild(blankoRow());
