@@ -41,7 +41,9 @@ class DeployController extends Controller
 
         Artisan::call('migrate', ['--force' => true]);
 
-        return response(Artisan::output(), 200)->header('Content-Type', 'text/plain');
+        return response(Artisan::output(), 200)
+            ->header('Content-Type', 'text/plain')
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     public function refreshReportAudit(Request $request, ReportAuditFlattener $flattener): Response
@@ -51,7 +53,8 @@ class DeployController extends Controller
         $count = $flattener->refreshAll();
 
         return response("OK - {$count} plan audit diproses pada " . now()->toDateTimeString(), 200)
-            ->header('Content-Type', 'text/plain');
+            ->header('Content-Type', 'text/plain')
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     // Bersihkan cache view/config/route lewat browser — dipakai setelah upload
@@ -95,7 +98,9 @@ class DeployController extends Controller
             $output .= "OPcache: tidak aktif di server ini, dilewati.\n";
         }
 
-        return response($output, 200)->header('Content-Type', 'text/plain');
+        return response($output, 200)
+            ->header('Content-Type', 'text/plain')
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     /**
