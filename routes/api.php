@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\SuratKeputusanController;
 use App\Http\Controllers\Api\ReportAuditController;
 use App\Http\Controllers\Api\ReportAuditExportController;
 use App\Http\Controllers\Api\PemeriksaanAuditorController;
+use App\Http\Controllers\Api\PemeriksaanBlankoController;
 use App\Http\Controllers\Api\PemeriksaanKasController;
 use App\Http\Controllers\Api\PemeriksaanBankController;
 use App\Http\Controllers\Api\PemeriksaanSmhController;
@@ -173,6 +174,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // dipakai widget bersama di atas tab-tab pemeriksaan.
     Route::get('/audit-detail/auditor', [PemeriksaanAuditorController::class, 'show']);
     Route::post('/audit-detail/auditor', [PemeriksaanAuditorController::class, 'store']);
+
+    // Register Blanko yang Belum Digunakan (H1/H2) — satu pasang per
+    // (plan_audit_id, tool), dipakai tab SMH & Onhand BPKB.
+    Route::get('/audit-detail/blanko', [PemeriksaanBlankoController::class, 'show']);
+    Route::post('/audit-detail/blanko', [PemeriksaanBlankoController::class, 'store']);
 
     Route::get('/audit-detail/kas', [PemeriksaanKasController::class, 'index']);
     Route::get('/audit-detail/kas/summary', [PemeriksaanKasController::class, 'summary']);
