@@ -6108,13 +6108,12 @@ function hgaAttachRowListeners(container) {
                     const selClass = selisih < 0 ? 'text-red-400 font-bold' : selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
                     if (cells[8])  cells[8].textContent  = akhir;
                     if (cells[9])  { cells[9].textContent = selSign + selisih; cells[9].className = `px-3 py-2 text-right ${selClass}`; }
-                    // Update jumlah (cell index 11 → now 10 after merging keterangan)
+                    // Kolom: 8=Akhir, 9=Selisih, 10=Harga HET (tidak berubah), 11=Jumlah, 12=Keterangan, 13=Log Scan
                     const harga   = hgaN(_hgaData.items[idx].hargaHet);
                     const jumlah  = harga * selisih;
                     const jumlahFmt = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
                     const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
-                    if (cells[10]) { cells[10].textContent = jumlahFmt; cells[10].className = `px-3 py-2 text-right ${jumlahClass}`; }
-                    // Update log scan cell (index 13 → now 12)
+                    if (cells[11]) { cells[11].textContent = jumlahFmt; cells[11].className = `px-3 py-2 text-right ${jumlahClass}`; }
                     const saldoPts = _hgaData.items[idx].saldoPts !== undefined ? hgaN(_hgaData.items[idx].saldoPts) : null;
                     const refSaldo = saldoPts !== null ? saldoPts : hgaSaldo(_hgaData.items[idx]);
                     if (cells[13]) cells[13].innerHTML = `<div class="flex flex-col gap-0.5 text-slate-400"><span>Scan : <span class="text-green-400 font-semibold">${hgaN(_hgaData.items[idx].fisik)}</span> | TTP : <span class="text-yellow-400 font-semibold">${hgaN(inp.value)}</span></span><span>Ref Saldo : <span class="text-slate-300">${refSaldo}</span></span><span>Selisih : <span class="${selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300'} font-semibold">${selSign}${selisih}</span></span></div>`;
