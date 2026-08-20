@@ -2095,16 +2095,22 @@ function renderMateraiAll(rows) {
     wrap.querySelectorAll(".mt-delete-btn").forEach((btn) => {
         btn.addEventListener("click", onMateraiDelete);
     });
+    wrap.querySelectorAll(".mt-trx-ket-input").forEach((inp) => {
+        inp.addEventListener("blur", onMateraiTrxKeteranganBlur);
+    });
 }
 
 function renderMateraiBlock(rec) {
     const trx = rec.transaksi ?? [];
-    const trxRows = trx.map((t) => `
+    const trxRows = trx.map((t, i) => `
         <tr class="border-b border-slate-700 text-xs">
             <td class="px-2 py-1 text-center text-slate-400">${t.no ?? ""}</td>
             <td class="px-2 py-1 text-slate-300">${t.tanggal ?? ""}</td>
             <td class="px-2 py-1 text-slate-300">${t.nomor ?? ""}</td>
-            <td class="px-2 py-1 text-slate-300">${t.keterangan ?? ""}</td>
+            <td class="px-2 py-1">
+                <input type="text" class="mt-trx-ket-input w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none"
+                    placeholder="Keterangan... (opsional)" data-id="${rec.id}" data-idx="${i}" value="${escHtml(t.keterangan ?? "")}">
+            </td>
             <td class="px-2 py-1 text-right text-slate-200">${fmtNum(t.debet)}</td>
             <td class="px-2 py-1 text-right text-slate-200">${fmtNum(t.kredit)}</td>
             <td class="px-2 py-1 text-right font-semibold text-slate-100">${fmtNum(t.saldo)}</td>
@@ -2171,7 +2177,8 @@ function fmtNum(val) {
 }
 
 function escHtml(str) {
-    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 async function onMateraiFisikChange(e) {
@@ -2200,6 +2207,21 @@ async function onMateraiFisikChange(e) {
         }
     } catch (err) {
         showAlert(err.message || "Gagal menyimpan fisik.", "error");
+    }
+}
+
+async function onMateraiTrxKeteranganBlur(e) {
+    const inp = e.target;
+    const id  = inp.dataset.id;
+    const idx = parseInt(inp.dataset.idx, 10);
+    try {
+        await fetchJson(`/api/audit-detail/materai/${id}/transaksi-keterangan`, {
+            method: "PUT",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ index: idx, keterangan: inp.value }),
+        });
+    } catch (err) {
+        showAlert(err.message || "Gagal menyimpan keterangan.", "error");
     }
 }
 

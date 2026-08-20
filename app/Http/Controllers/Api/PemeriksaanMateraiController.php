@@ -45,6 +45,15 @@ class PemeriksaanMateraiController extends Controller
 
         $saved = [];
         foreach ($parsed as $block) {
+            $existing = PemeriksaanMaterai::where('plan_audit_id', $planId)
+                ->where('jenis_materai', $block['jenisMaterai'])
+                ->first();
+
+            // Keterangan per transaksi bisa ditulis manual oleh auditor (lihat
+            // updateTransaksiKeterangan) — kalau file HTML ini di-re-import,
+            // jangan sampai catatan itu hilang tertimpa hasil parsing ulang.
+            $transaksi = $this->mergeKeterangan($existing?->transaksi_json ?? [], $block['transaksi']);
+
             $rec = PemeriksaanMaterai::updateOrCreate(
                 ['plan_audit_id' => $planId, 'jenis_materai' => $block['jenisMaterai']],
                 [
@@ -52,7 +61,7 @@ class PemeriksaanMateraiController extends Controller
                     'total_debet'    => $block['totalDebet'],
                     'total_kredit'   => $block['totalKredit'],
                     'saldo_akhir'    => $block['saldoAkhir'],
-                    'transaksi_json' => $block['transaksi'],
+                    'transaksi_json' => $transaksi,
                     // fisik & selisih dipertahankan jika sudah diisi sebelumnya
                     'updated_by'     => $who,
                 ]
@@ -86,6 +95,56 @@ class PemeriksaanMateraiController extends Controller
             'updated_by' => $request->user()?->username ?? $request->user()?->email,
         ]);
         return response()->json(['data' => $pemeriksaanMaterai->fresh()->toAktaArray()]);
+    }
+
+    // ── PUT /api/audit-detail/materai/{rec}/transaksi-keterangan ─────────────
+    // Keterangan hasil parsing HTML sering kosong/ringkas — auditor boleh
+    // menulis atau mengedit sendiri catatan per baris transaksi.
+
+    public function updateTransaksiKeterangan(Request $request, PemeriksaanMaterai $pemeriksaanMaterai): JsonResponse
+    {
+        $data  = $request->validate([
+            'index'      => 'required|integer|min:0',
+            'keterangan' => 'nullable|string|max:500',
+        ]);
+        $index = (int) $data['index'];
+
+        $transaksi = $pemeriksaanMaterai->transaksi_json ?? [];
+        abort_unless(array_key_exists($index, $transaksi), 404, 'Baris transaksi tidak ditemukan.');
+
+        $transaksi[$index]['keterangan'] = $data['keterangan'] ?? '';
+        $pemeriksaanMaterai->update([
+            'transaksi_json' => $transaksi,
+            'updated_by'     => $request->user()?->username ?? $request->user()?->email,
+        ]);
+
+        return response()->json(['data' => $pemeriksaanMaterai->fresh()->toAktaArray()]);
+    }
+
+    // Cocokkan transaksi lama vs baru lewat (tanggal, nomor) — pasangan itu
+    // biasanya unik per baris di rekening koran meterai — supaya keterangan
+    // yang sudah ditulis manual tidak hilang saat file HTML di-re-import.
+    private function mergeKeterangan(array $oldTransaksi, array $newTransaksi): array
+    {
+        if (empty($oldTransaksi)) return $newTransaksi;
+
+        $byKey = [];
+        foreach ($oldTransaksi as $t) {
+            if (!empty($t['keterangan'])) {
+                $byKey[($t['tanggal'] ?? '') . '|' . ($t['nomor'] ?? '')] = $t['keterangan'];
+            }
+        }
+        if (empty($byKey)) return $newTransaksi;
+
+        foreach ($newTransaksi as &$t) {
+            $key = ($t['tanggal'] ?? '') . '|' . ($t['nomor'] ?? '');
+            if (isset($byKey[$key]) && empty($t['keterangan'])) {
+                $t['keterangan'] = $byKey[$key];
+            }
+        }
+        unset($t);
+
+        return $newTransaksi;
     }
 
     // ── DELETE /api/audit-detail/materai/{rec} ────────────────────────────────

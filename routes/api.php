@@ -218,6 +218,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,manajer,auditor');
     Route::put('/audit-detail/materai/{pemeriksaanMaterai}/fisik',       [PemeriksaanMateraiController::class, 'updateFisik'])
         ->middleware('akta.role:admin,manajer,auditor');
+    Route::put('/audit-detail/materai/{pemeriksaanMaterai}/transaksi-keterangan', [PemeriksaanMateraiController::class, 'updateTransaksiKeterangan'])
+        ->middleware('akta.role:admin,manajer,auditor');
     Route::delete('/audit-detail/materai/{pemeriksaanMaterai}',          [PemeriksaanMateraiController::class, 'destroy'])
         ->middleware('akta.role:admin,manajer,auditor');
 
