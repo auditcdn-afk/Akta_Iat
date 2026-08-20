@@ -7738,6 +7738,34 @@ async function rekomendasiAutoFill() {
             if (rows.length) blocks.push(`8. MEKANIK TOOLS (MT)\n${rows.join('\n')}`);
         } catch {}
 
+        // ── 9. HGA (ACCESSORIES) ─────────────────────────────
+        // Sama persis dengan kartu statistik & kolom Jumlah (Rp) di Report Audit
+        // PDF bagian "HGA (Accessories)": baca selisih & hargaHet langsung dari
+        // items_json tersimpan (bukan dihitung ulang) — lihat report-audit.blade.php.
+        try {
+            const hgaRes   = await fetchJson(`/api/audit-detail/hga?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const hga      = hgaRes.data ?? hgaRes ?? {};
+            const hgaItems = hga.items ?? hga.items_json ?? hga.itemsJson ?? [];
+            let totalScan = 0, totalTtp = 0, cntSel = 0, totalNilai = 0;
+            const rows = [];
+            for (const it of hgaItems) {
+                totalScan += Number(it.fisik ?? 0);
+                totalTtp  += Number(it.fisikTtp ?? 0);
+                const sel   = Number(it.selisih ?? 0);
+                const harga = Number(it.hargaHet ?? it.harga_het ?? 0);
+                if (sel !== 0) {
+                    cntSel++;
+                    totalNilai += harga * sel;
+                    const nama = (it.sparepart || it.noPart || '-').substring(0, 28);
+                    rows.push(`  • ${nama.padEnd(30)} sel: ${sel > 0 ? '+' : ''}${sel}  nilai: ${(harga * sel > 0 ? '+' : '') + fmtRp(harga * sel)}`);
+                }
+            }
+            if (cntSel > 0) {
+                const nilaiStr = (totalNilai > 0 ? '+' : '') + fmtRp(totalNilai);
+                blocks.push(`9. HGA (ACCESSORIES)\n  • Total item        : ${hgaItems.length}\n  • Total fisik scan  : ${totalScan}\n  • Total fisik TTP   : ${totalTtp}\n  • Item selisih      : ${cntSel}\n  • Nilai selisih     : ${nilaiStr}\n${rows.slice(0, 12).join('\n')}`);
+            }
+        } catch {}
+
         isiEl.value = blocks.length
             ? blocks.join('\n\n' + sep + '\n\n')
             : '(Tidak ada temuan signifikan dari data pemeriksaan)';
