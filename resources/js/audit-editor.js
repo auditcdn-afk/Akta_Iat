@@ -7762,7 +7762,9 @@ async function rekomendasiAutoFill() {
             }
             if (cntSel > 0) {
                 const nilaiStr = (totalNilai > 0 ? '+' : '') + fmtRp(totalNilai);
-                blocks.push(`9. HGA (ACCESSORIES)\n  • Total item        : ${hgaItems.length}\n  • Total fisik scan  : ${totalScan}\n  • Total fisik TTP   : ${totalTtp}\n  • Item selisih      : ${cntSel}\n  • Nilai selisih     : ${nilaiStr}\n${rows.slice(0, 12).join('\n')}`);
+                // Tanpa slice/cap — semua item selisih harus muncul, bukan cuma
+                // 12 pertama, supaya tindak lanjutnya tidak ada yang terlewat.
+                blocks.push(`9. HGA (ACCESSORIES)\n  • Total item        : ${hgaItems.length}\n  • Total fisik scan  : ${totalScan}\n  • Total fisik TTP   : ${totalTtp}\n  • Item selisih      : ${cntSel}\n  • Nilai selisih     : ${nilaiStr}\n${rows.join('\n')}`);
             }
         } catch {}
 
