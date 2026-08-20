@@ -7627,16 +7627,24 @@ async function rekomendasiAutoFill() {
             for (const p of (luarRes.data ?? [])) {
                 const nm = (p.jenisPerlengkapan ?? p.jenis_perlengkapan ?? p.jenis ?? '').trim();
                 if (!nm) continue;
-                if (!luarMap[nm]) luarMap[nm] = { luarSelisih: 0 };
-                luarMap[nm].luarSelisih += Number(p.selisih ?? 0);
+                // Pakai fisik mentah, BUKAN kolom selisih tersimpan — kolom itu cuma
+                // potret saat baris disimpan dan jadi basi begitu checklist Cek Fisik
+                // SMH berubah sesudahnya (lihat komentar di report-audit.blade.php
+                // bagian "C. Rekap Gabungan Perlengkapan"). Dihitung ulang di bawah
+                // supaya selalu sinkron dengan tabel itu.
+                if (!luarMap[nm]) luarMap[nm] = { luarFisik: 0 };
+                luarMap[nm].luarFisik += Number(p.fisik ?? 0);
             }
             const allJenis = [...new Set([...Object.keys(smhMap), ...Object.keys(luarMap)])].sort();
             const rows = [];
             let grandSel = 0;
             for (const jenis of allJenis) {
                 const smhD  = smhMap[jenis]  ?? { smhSaldo: 0, smhFisik: 0 };
-                const luarD = luarMap[jenis] ?? { luarSelisih: 0 };
-                const totalSel = (smhD.smhFisik - smhD.smhSaldo) + luarD.luarSelisih;
+                const luarD = luarMap[jenis] ?? { luarFisik: 0 };
+                // Sama seperti "Total Selisih" di Report Audit PDF: seluruh fisik yang
+                // tertanggung (ditemukan menempel di unit SMH + ditemukan terpisah di
+                // luar SMH) dikurangi jumlah unit yang membutuhkannya.
+                const totalSel = (smhD.smhFisik + luarD.luarFisik) - smhD.smhSaldo;
                 grandSel += totalSel;
                 if (totalSel !== 0) rows.push(`  • ${jenis.padEnd(26)} selisih: ${totalSel}`);
             }
