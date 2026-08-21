@@ -33,6 +33,7 @@ class RekapSelisihTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withoutVite();
 
         Sanctum::actingAs(User::factory()->create(['username' => 'auditor1', 'role' => 'admin']));
 
