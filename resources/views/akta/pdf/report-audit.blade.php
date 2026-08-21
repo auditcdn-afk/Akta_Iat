@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Laporan Audit – {{ $plan->no_spt ?? '-' }}</title>
+@vite(['resources/js/akta-report-pdf-lampiran.js'])
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -146,29 +147,51 @@
 <div class="print-bar">
   <span style="font-weight:700;font-size:13px;">📄 Laporan Audit – {{ $plan->no_spt ?? '-' }}</span>
   <div>
-    <button onclick="window.print()">🖨️ Cetak / Save PDF</button>
+    <button onclick="printReport()">🖨️ Cetak / Save PDF</button>
     <button onclick="downloadPdf()" style="background:#22c55e;color:#fff;border:none;font-size:11px;font-weight:700;padding:4px 14px;border-radius:6px;cursor:pointer;margin-left:6px;">⬇ Download PDF</button>
     <button class="close-btn" onclick="window.close()">✕ Tutup</button>
   </div>
 </div>
 <script>
+// Isi lampiran PDF dirender async oleh akta-report-pdf-lampiran.js (pdf.js),
+// yang mengisi window.__lampiranPdfReady dengan Promise-nya. Kalau cetak/save
+// dipicu sebelum rendering itu selesai, hasil cetak masih menampilkan
+// "Memuat isi PDF…" alih-alih isinya — jadi tombol cetak/download menunggu
+// promise itu dulu (dengan batas waktu jaga-jaga kalau rendering gagal diam).
+function waitForLampiran() {
+  var ready = window.__lampiranPdfReady;
+  if (ready && typeof ready.then === 'function') {
+    return Promise.race([
+      ready,
+      new Promise(function(resolve) { setTimeout(resolve, 15000); })
+    ]);
+  }
+  return Promise.resolve();
+}
+
+function printReport() {
+  waitForLampiran().then(function() { window.print(); });
+}
+
 function downloadPdf() {
   var bar = document.querySelector('.print-bar');
   var spacer = document.querySelector('.print-spacer');
   if (bar) bar.style.display = 'none';
   if (spacer) spacer.style.display = 'none';
-  window.print();
-  setTimeout(function() {
-    if (bar) bar.style.display = '';
-    if (spacer) spacer.style.display = '';
-  }, 1000);
+  waitForLampiran().then(function() {
+    window.print();
+    setTimeout(function() {
+      if (bar) bar.style.display = '';
+      if (spacer) spacer.style.display = '';
+    }, 1000);
+  });
 }
 @if(!empty($autoprint))
 window.addEventListener('load', function() {
   setTimeout(function() {
     document.querySelector('.print-bar') && (document.querySelector('.print-bar').style.display = 'none');
     document.querySelector('.print-spacer') && (document.querySelector('.print-spacer').style.display = 'none');
-    window.print();
+    waitForLampiran().then(function() { window.print(); });
   }, 800);
 });
 @endif
@@ -3146,14 +3169,13 @@ window.addEventListener('load', function() {
                 {{-- Bukan <embed>: browser membatasi jumlah plugin PDF viewer yang
                      bisa aktif render bersamaan dalam satu halaman, jadi begitu
                      lampiran PDF lebih dari beberapa buah, entry berikutnya
-                     tampil kosong tanpa error. Link buka-di-tab-baru tidak kena
-                     limit itu dan tetap bisa dibuka berapa pun jumlah filenya. --}}
-                <a href="{{ $embed['data'] }}" target="_blank" rel="noopener"
-                   style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:24px 20px;text-align:center;background:#f9fafb;text-decoration:none;">
-                  <div style="font-size:32px;">📄</div>
-                  <div style="font-size:11px;color:#374151;font-weight:600;">{{ $f['name'] ?? 'file' }}</div>
-                  <span style="margin-top:4px;background:#1e40af;color:#fff;font-size:9.5px;font-weight:700;padding:5px 14px;border-radius:6px;">Buka Pratinjau PDF ↗</span>
-                </a>
+                     tampil kosong tanpa error. Isinya dirender lewat pdf.js ke
+                     <canvas> (lihat akta-report-pdf-lampiran.js) — bukan plugin
+                     native — supaya tidak kena batas itu dan tetap tampil
+                     sebagai gambar halaman, bukan cuma tautan file. --}}
+                <div class="lampiran-pdf-pages" data-pdf-src="{{ $embed['data'] }}" data-pdf-name="{{ $f['name'] ?? 'file' }}">
+                  <div style="padding:24px 20px;text-align:center;background:#f9fafb;font-size:10px;color:#6b7280;">Memuat isi PDF…</div>
+                </div>
               @else
                 <div style="padding:20px;text-align:center;background:#f9fafb;">
                   <div style="font-size:32px;margin-bottom:8px;">📎</div>
