@@ -3143,9 +3143,17 @@ window.addEventListener('load', function() {
                 <img src="{{ $embed['data'] }}" alt="{{ $f['name'] ?? '' }}"
                      style="display:block;width:100%;max-width:100%;height:auto;object-fit:contain;">
               @elseif($embed['type'] === 'pdf' && $embed['data'])
-                <embed src="{{ $embed['data'] }}"
-                       type="application/pdf"
-                       style="display:block;width:100%;height:900px;border:none;">
+                {{-- Bukan <embed>: browser membatasi jumlah plugin PDF viewer yang
+                     bisa aktif render bersamaan dalam satu halaman, jadi begitu
+                     lampiran PDF lebih dari beberapa buah, entry berikutnya
+                     tampil kosong tanpa error. Link buka-di-tab-baru tidak kena
+                     limit itu dan tetap bisa dibuka berapa pun jumlah filenya. --}}
+                <a href="{{ $embed['data'] }}" target="_blank" rel="noopener"
+                   style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:24px 20px;text-align:center;background:#f9fafb;text-decoration:none;">
+                  <div style="font-size:32px;">📄</div>
+                  <div style="font-size:11px;color:#374151;font-weight:600;">{{ $f['name'] ?? 'file' }}</div>
+                  <span style="margin-top:4px;background:#1e40af;color:#fff;font-size:9.5px;font-weight:700;padding:5px 14px;border-radius:6px;">Buka Pratinjau PDF ↗</span>
+                </a>
               @else
                 <div style="padding:20px;text-align:center;background:#f9fafb;">
                   <div style="font-size:32px;margin-bottom:8px;">📎</div>
