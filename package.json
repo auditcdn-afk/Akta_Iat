@@ -17,6 +17,7 @@
         "vite": "^7.0.7"
     },
     "dependencies": {
-        "chart.js": "^4.5.1"
+        "chart.js": "^4.5.1",
+        "pdfjs-dist": "^6.2.108"
     }
 }

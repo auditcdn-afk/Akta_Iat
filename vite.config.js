@@ -27,6 +27,7 @@ export default defineConfig({
                 'resources/js/akta-audit-mandiri.js',
                 'resources/js/akta-audit-detail-kas.js',
                 'resources/js/akta-report-audit.js',
+                'resources/js/akta-report-pdf-lampiran.js',
                 'resources/js/akta-users.js',
                 'resources/js/akta-monitoring.js',
                 'resources/js/akta-menu-management.js',
