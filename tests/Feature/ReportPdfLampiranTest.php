@@ -25,6 +25,7 @@ class ReportPdfLampiranTest extends TestCase
 
     public function test_lampiran_pdf_dirender_via_placeholder_pdfjs_bukan_tautan_saja(): void
     {
+        $this->withoutVite();
         Sanctum::actingAs(User::factory()->create(['role' => 'admin']));
 
         $plan = PlanAudit::query()->create([
