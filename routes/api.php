@@ -287,6 +287,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hgp/scan-increment', [HgpController::class, 'scanIncrement'])
         ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/hgp/add-item', [HgpController::class, 'addItem'])
+        ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hgp/parse-excel', [HgpController::class, 'parseExcel'])
         ->middleware('akta.role:admin,manajer,auditor');
 
@@ -298,6 +300,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/rsa-hgp/scan-increment', [RsaHgpController::class, 'scanIncrement'])
         ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/rsa-hgp/add-item', [RsaHgpController::class, 'addItem'])
+        ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/rsa-hgp/parse-excel', [RsaHgpController::class, 'parseExcel'])
         ->middleware('akta.role:admin,manajer,auditor');
 
@@ -306,6 +310,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/audit-detail/hga',             [HgaController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hga/scan-increment', [HgaController::class, 'scanIncrement'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/hga/add-item', [HgaController::class, 'addItem'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hga/parse-excel',     [HgaController::class, 'parseExcel'])
         ->middleware('akta.role:admin,manajer,auditor');
