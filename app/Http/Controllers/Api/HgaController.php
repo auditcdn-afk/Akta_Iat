@@ -72,6 +72,16 @@ class HgaController extends Controller
         $it['fisik'] = $this->n($it['fisik'] ?? 0) + $qty;
         $it['logScan'] = is_array($it['logScan'] ?? null) ? $it['logScan'] : [];
         $it['logScan'][] = ['at' => now()->toIso8601String(), 'qty' => $qty];
+        // keterangan/tgl opsional — dikirim dari form "Input Pemeriksaan Fisik" manual,
+        // tidak dikirim dari jalur scan barcode cepat. Cuma ditimpa kalau memang
+        // dikirim, supaya scan barcode (yang tidak membawa field ini) tidak ikut
+        // mengosongkan keterangan yang sudah ada.
+        if ($request->has('keterangan')) {
+            $it['keterangan'] = (string) $request->input('keterangan');
+        }
+        if ($request->has('tgl')) {
+            $it['tgl'] = (string) $request->input('tgl');
+        }
 
         // Rumus sama dengan hgaCalcItem() di frontend: refSaldo pakai saldoPts kalau ada,
         // fallback ke saldoAkhir/saldoAwal; totalFisik = fisik scan + fisik TTP.
