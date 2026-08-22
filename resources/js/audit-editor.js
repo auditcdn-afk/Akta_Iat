@@ -4881,13 +4881,13 @@ function _flushHgpSaveDebounced() {
 // qty, jadi ukurannya tetap kecil berapa pun banyaknya item di data import.
 // Kalau request ini gagal (network putus dsb), fallback ke simpan penuh yang
 // di-debounce supaya datanya tidak hilang.
-async function _doScanHgpIncrement(noPart, qty, idx) {
+async function _doScanHgpIncrement(noPart, qty, idx, extra = {}) {
     if (!activePlanId || !noPart) return;
     try {
         const res = await fetchJson('/api/audit-detail/hgp/scan-increment', {
             method: 'POST',
             headers: authHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ planAuditId: activePlanId, noPart, qty }),
+            body: JSON.stringify({ planAuditId: activePlanId, noPart, qty, ...extra }),
         });
         // Selaraskan dengan hasil otoritatif server (jaga-jaga ada device lain yang
         // ikut scan No. Part yang sama di waktu yang berdekatan).
@@ -4969,17 +4969,24 @@ function hgpFormSaveEntry() {
         msg.className = 'text-xs font-medium ' + (ok ? 'text-green-400' : 'text-red-400');
     };
     if (_hgpSelIdx < 0) { showMsg('Pilih / scan No. Part terlebih dahulu.', false); return; }
-    const it = _hgpData.items[_hgpSelIdx];
+    const idx = _hgpSelIdx;
+    const it = _hgpData.items[idx];
     const qty = hgpN(document.getElementById('hgpFormQty')?.value);
     if (qty === 0) { showMsg('Qty tidak boleh 0.', false); return; }
+    const keterangan = document.getElementById('hgpFormKet')?.value || '';
+    const tgl = document.getElementById('hgpFormTgl')?.value || it.tgl;
+    // Update lokal untuk feedback instan — nilai fisik final tetap ditentukan
+    // server (baca-ubah-simpan 1 item, lihat _doScanHgpIncrement) supaya scan/entry
+    // dari akun lain di plan yang sama untuk part LAIN (atau part yang sama,
+    // hampir bersamaan) tidak ikut tertimpa balik ke nilai lama di layar ini.
     it.fisik = hgpN(it.fisik) + qty;  // akumulasi (boleh minus untuk koreksi), bukan replace
-    it.keterangan = document.getElementById('hgpFormKet')?.value || '';
-    it.tgl = document.getElementById('hgpFormTgl')?.value || it.tgl;
+    it.keterangan = keterangan;
+    it.tgl = tgl;
     if (!Array.isArray(it.logScan)) it.logScan = [];
     it.logScan.push({ at: new Date().toISOString(), qty });
     hgpCalcItem(it);
-    hgpUpdateSingleRow(_hgpSelIdx);
-    _doSaveHgpDebounced();
+    hgpUpdateSingleRow(idx);
+    _doScanHgpIncrement(it.noPart, qty, idx, { keterangan, tgl });
     showMsg(`✓ Tersimpan: ${it.noPart || it.sparepart} — Fisik ${hgpN(it.fisik)}, Akhir ${it.akhir}, Selisih ${it.selisih >= 0 ? '+' : ''}${it.selisih}`, true);
     hgpFormClearInputs();
 }
@@ -5504,13 +5511,13 @@ function _flushRsaHgpSaveDebounced() {
 // qty, jadi ukurannya tetap kecil berapa pun banyaknya item di data import.
 // Kalau request ini gagal (network putus dsb), fallback ke simpan penuh yang
 // di-debounce supaya datanya tidak hilang.
-async function _doScanRsaHgpIncrement(noPart, qty, idx) {
+async function _doScanRsaHgpIncrement(noPart, qty, idx, extra = {}) {
     if (!activePlanId || !noPart) return;
     try {
         const res = await fetchJson('/api/audit-detail/rsa-hgp/scan-increment', {
             method: 'POST',
             headers: authHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ planAuditId: activePlanId, noPart, qty }),
+            body: JSON.stringify({ planAuditId: activePlanId, noPart, qty, ...extra }),
         });
         // Selaraskan dengan hasil otoritatif server (jaga-jaga ada device lain yang
         // ikut scan No. Part yang sama di waktu yang berdekatan).
@@ -5592,17 +5599,23 @@ function rsaHgpFormSaveEntry() {
         msg.className = 'text-xs font-medium ' + (ok ? 'text-green-400' : 'text-red-400');
     };
     if (_rsaHgpSelIdx < 0) { showMsg('Pilih / scan No. Part terlebih dahulu.', false); return; }
-    const it = _rsaHgpData.items[_rsaHgpSelIdx];
+    const idx = _rsaHgpSelIdx;
+    const it = _rsaHgpData.items[idx];
     const qty = rsaHgpN(document.getElementById('rsaHgpFormQty')?.value);
     if (qty === 0) { showMsg('Qty tidak boleh 0.', false); return; }
+    const keterangan = document.getElementById('rsaHgpFormKet')?.value || '';
+    const tgl = document.getElementById('rsaHgpFormTgl')?.value || it.tgl;
+    // Update lokal untuk feedback instan — nilai fisik final tetap ditentukan
+    // server (baca-ubah-simpan 1 item, lihat _doScanRsaHgpIncrement) supaya
+    // scan/entry dari akun lain di plan yang sama tidak ikut tertimpa balik.
     it.fisik = rsaHgpN(it.fisik) + qty;  // akumulasi (boleh minus untuk koreksi), bukan replace
-    it.keterangan = document.getElementById('rsaHgpFormKet')?.value || '';
-    it.tgl = document.getElementById('rsaHgpFormTgl')?.value || it.tgl;
+    it.keterangan = keterangan;
+    it.tgl = tgl;
     if (!Array.isArray(it.logScan)) it.logScan = [];
     it.logScan.push({ at: new Date().toISOString(), qty });
     rsaHgpCalcItem(it);
-    rsaHgpUpdateSingleRow(_rsaHgpSelIdx);
-    _doSaveRsaHgpDebounced();
+    rsaHgpUpdateSingleRow(idx);
+    _doScanRsaHgpIncrement(it.noPart, qty, idx, { keterangan, tgl });
     showMsg(`✓ Tersimpan: ${it.noPart || it.sparepart} — Fisik ${rsaHgpN(it.fisik)}, Akhir ${it.akhir}, Selisih ${it.selisih >= 0 ? '+' : ''}${it.selisih}`, true);
     rsaHgpFormClearInputs();
 }
@@ -6270,13 +6283,13 @@ function _flushHgaSaveDebounced() {
     _hgaSaveDebounceTimer = null;
     _doSaveHga().catch(() => {});
 }
-async function _doScanHgaIncrement(noPart, qty, idx) {
+async function _doScanHgaIncrement(noPart, qty, idx, extra = {}) {
     if (!activePlanId || !noPart) return;
     try {
         const res = await fetchJson('/api/audit-detail/hga/scan-increment', {
             method: 'POST',
             headers: authHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ planAuditId: activePlanId, noPart, qty }),
+            body: JSON.stringify({ planAuditId: activePlanId, noPart, qty, ...extra }),
         });
         if (res?.item && _hgaData?.items?.[idx]) {
             _hgaData.items[idx] = { ..._hgaData.items[idx], ...res.item };
@@ -6328,17 +6341,23 @@ function hgaFormSaveEntry() {
     const msg = document.getElementById('hgaFormMsg');
     const showMsg = (text, ok) => { if (!msg) return; msg.textContent = text; msg.className = 'text-xs font-medium ' + (ok ? 'text-green-400' : 'text-red-400'); };
     if (_hgaSelIdx < 0) { showMsg('Pilih / scan No. Part terlebih dahulu.', false); return; }
-    const it  = _hgaData.items[_hgaSelIdx];
+    const idx = _hgaSelIdx;
+    const it  = _hgaData.items[idx];
     const qty = hgaN(document.getElementById('hgaFormQty')?.value);
     if (qty === 0) { showMsg('Qty tidak boleh 0.', false); return; }
+    const keterangan = document.getElementById('hgaFormKet')?.value || '';
+    const tgl = document.getElementById('hgaFormTgl')?.value || it.tgl;
+    // Update lokal untuk feedback instan — nilai fisik final tetap ditentukan
+    // server (baca-ubah-simpan 1 item, lihat _doScanHgaIncrement) supaya
+    // scan/entry dari akun lain di plan yang sama tidak ikut tertimpa balik.
     it.fisik = hgaN(it.fisik) + qty;  // akumulasi (boleh minus untuk koreksi), bukan replace
-    it.keterangan = document.getElementById('hgaFormKet')?.value || '';
-    it.tgl = document.getElementById('hgaFormTgl')?.value || it.tgl;
+    it.keterangan = keterangan;
+    it.tgl = tgl;
     if (!Array.isArray(it.logScan)) it.logScan = [];
     it.logScan.push({ at: new Date().toISOString(), qty });
     hgaCalcItem(it);
-    hgaUpdateSingleRow(_hgaSelIdx);
-    _doSaveHgaDebounced();
+    hgaUpdateSingleRow(idx);
+    _doScanHgaIncrement(it.noPart, qty, idx, { keterangan, tgl });
     showMsg(`✓ Tersimpan: ${it.noPart || it.sparepart} — Fisik ${hgaN(it.fisik)}, Akhir ${it.akhir}, Selisih ${it.selisih >= 0 ? '+' : ''}${it.selisih}`, true);
     hgaFormClearInputs();
 }
