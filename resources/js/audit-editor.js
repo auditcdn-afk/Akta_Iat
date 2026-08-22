@@ -4651,7 +4651,16 @@ function hgpAttachRowListeners(tr) {
                 _hgpData.items[i][f] = inp.value;
             }
         });
-        inp.addEventListener('blur', () => { _doSaveHgp().catch(() => {}); });
+        // qty=0 lewat endpoint delta (bukan _doSaveHgp yang kirim ulang SELURUH
+        // array) — supaya edit WO/Keterangan dari 1 device tidak menimpa balik
+        // hasil scan device lain yang belum sempat ter-refresh di sini. Lihat
+        // catatan yang sama di _doScanHgpIncrement dan HgpController::scanIncrement.
+        inp.addEventListener('blur', () => {
+            const i = parseInt(inp.dataset.hgpI);
+            const it = _hgpData?.items?.[i];
+            if (!it) return;
+            _doScanHgpIncrement(it.noPart, 0, i, { wo: hgpN(it.wo), keterangan: it.keterangan ?? '' });
+        });
     });
 }
 
@@ -5103,7 +5112,7 @@ function initHgpForm() {
         if (addPartNama) addPartNama.value = '';
         if (addPartMsg) addPartMsg.classList.add('hidden');
     });
-    addPartSave?.addEventListener('click', () => {
+    addPartSave?.addEventListener('click', async () => {
         const noPart = (addPartNo?.value || '').trim();
         const nama   = (addPartNama?.value || '').trim();
         const showAddMsg = (text, ok) => {
@@ -5113,23 +5122,29 @@ function initHgpForm() {
             addPartMsg.className = 'text-xs ' + (ok ? 'text-emerald-400' : 'text-red-400');
         };
         if (!noPart) { showAddMsg('No. Part wajib diisi.', false); return; }
+        if (!activePlanId) { showAddMsg('Pilih plan audit terlebih dahulu.', false); return; }
         if (!_hgpData) _hgpData = hgpEmptyData();
         const exists = _hgpData.items.some(it => (it.noPart || '').toLowerCase() === noPart.toLowerCase());
         if (exists) { showAddMsg(`No. Part "${noPart}" sudah ada dalam daftar.`, false); return; }
-        const newItem = {
-            noPart, sparepart: nama || noPart,
-            saldoAkhir: 0, fisik: 0, wo: 0, akhir: 0, selisih: 0,
-            keterangan: '', tgl: new Date().toISOString().slice(0, 10), logScan: [],
-            _manual: true,
-        };
-        _hgpData.items.push(newItem);
-        hgpRenderItems();
-        hgpPopulateDatalist();
-        _doSaveHgp().catch(() => {});
-        showAddMsg(`✓ "${noPart}" ditambahkan ke daftar scan.`, true);
-        if (addPartNo)  addPartNo.value  = '';
-        if (addPartNama) addPartNama.value = '';
-        setTimeout(() => addPartForm?.classList.add('hidden'), 1500);
+        // Ditambahkan langsung di server (baca-ubah-simpan), bukan push ke array
+        // lokal lalu kirim ulang SELURUH array — supaya tidak menimpa balik hasil
+        // scan/entry device lain yang belum sempat ter-refresh di sini.
+        try {
+            const res = await fetchJson('/api/audit-detail/hgp/add-item', {
+                method: 'POST',
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({ planAuditId: activePlanId, noPart, sparepart: nama }),
+            });
+            _hgpData.items.push(res.item);
+            hgpRenderItems();
+            hgpPopulateDatalist();
+            showAddMsg(`✓ "${noPart}" ditambahkan ke daftar scan.`, true);
+            if (addPartNo)  addPartNo.value  = '';
+            if (addPartNama) addPartNama.value = '';
+            setTimeout(() => addPartForm?.classList.add('hidden'), 1500);
+        } catch (err) {
+            showAddMsg(err?.message || 'Gagal menambahkan No. Part.', false);
+        }
     });
     // Auto-fill nama dari db_het saat No. Part diketik
     let _hetLookupTimer = null;
@@ -5278,7 +5293,15 @@ function rsaHgpAttachRowListeners(tr) {
                 _rsaHgpData.items[i][f] = inp.value;
             }
         });
-        inp.addEventListener('blur', () => { _doSaveRsaHgp().catch(() => {}); });
+        // qty=0 lewat endpoint delta (bukan _doSaveRsaHgp yang kirim ulang SELURUH
+        // array) — supaya edit WO/Keterangan dari 1 device tidak menimpa balik
+        // hasil scan device lain yang belum sempat ter-refresh di sini.
+        inp.addEventListener('blur', () => {
+            const i = parseInt(inp.dataset.rsaHgpI);
+            const it = _rsaHgpData?.items?.[i];
+            if (!it) return;
+            _doScanRsaHgpIncrement(it.noPart, 0, i, { wo: rsaHgpN(it.wo), keterangan: it.keterangan ?? '' });
+        });
     });
 }
 
@@ -5756,7 +5779,7 @@ function initRsaHgpForm() {
         if (addPartNama) addPartNama.value = '';
         if (addPartMsg) addPartMsg.classList.add('hidden');
     });
-    addPartSave?.addEventListener('click', () => {
+    addPartSave?.addEventListener('click', async () => {
         const noPart = (addPartNo?.value || '').trim();
         const nama   = (addPartNama?.value || '').trim();
         const showAddMsg = (text, ok) => {
@@ -5766,23 +5789,29 @@ function initRsaHgpForm() {
             addPartMsg.className = 'text-xs ' + (ok ? 'text-emerald-400' : 'text-red-400');
         };
         if (!noPart) { showAddMsg('No. Part wajib diisi.', false); return; }
+        if (!activePlanId) { showAddMsg('Pilih plan audit terlebih dahulu.', false); return; }
         if (!_rsaHgpData) _rsaHgpData = rsaHgpEmptyData();
         const exists = _rsaHgpData.items.some(it => (it.noPart || '').toLowerCase() === noPart.toLowerCase());
         if (exists) { showAddMsg(`No. Part "${noPart}" sudah ada dalam daftar.`, false); return; }
-        const newItem = {
-            noPart, sparepart: nama || noPart,
-            saldoAkhir: 0, fisik: 0, wo: 0, akhir: 0, selisih: 0,
-            keterangan: '', tgl: new Date().toISOString().slice(0, 10), logScan: [],
-            _manual: true,
-        };
-        _rsaHgpData.items.push(newItem);
-        rsaHgpRenderItems();
-        rsaHgpPopulateDatalist();
-        _doSaveRsaHgp().catch(() => {});
-        showAddMsg(`✓ "${noPart}" ditambahkan ke daftar scan.`, true);
-        if (addPartNo)  addPartNo.value  = '';
-        if (addPartNama) addPartNama.value = '';
-        setTimeout(() => addPartForm?.classList.add('hidden'), 1500);
+        // Ditambahkan langsung di server (baca-ubah-simpan), bukan push ke array
+        // lokal lalu kirim ulang SELURUH array — supaya tidak menimpa balik hasil
+        // scan/entry device lain yang belum sempat ter-refresh di sini.
+        try {
+            const res = await fetchJson('/api/audit-detail/rsa-hgp/add-item', {
+                method: 'POST',
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({ planAuditId: activePlanId, noPart, sparepart: nama }),
+            });
+            _rsaHgpData.items.push(res.item);
+            rsaHgpRenderItems();
+            rsaHgpPopulateDatalist();
+            showAddMsg(`✓ "${noPart}" ditambahkan ke daftar scan.`, true);
+            if (addPartNo)  addPartNo.value  = '';
+            if (addPartNama) addPartNama.value = '';
+            setTimeout(() => addPartForm?.classList.add('hidden'), 1500);
+        } catch (err) {
+            showAddMsg(err?.message || 'Gagal menambahkan No. Part.', false);
+        }
     });
     // Auto-fill nama dari db_het saat No. Part diketik
     let _hetLookupTimer = null;
@@ -6156,7 +6185,19 @@ function hgaAttachRowListeners(container) {
                 }
             }
         });
-        inp.addEventListener('blur', () => { _doSaveHga().catch(() => {}); });
+        // qty=0 lewat endpoint delta (bukan _doSaveHga yang kirim ulang SELURUH
+        // array) — supaya edit Fisik TTP/Keterangan dari 1 device tidak menimpa
+        // balik hasil scan device lain yang belum sempat ter-refresh di sini.
+        inp.addEventListener('blur', () => {
+            const idx = parseInt(inp.dataset.hgaI);
+            const it = _hgaData?.items?.[idx];
+            if (!it) return;
+            _doScanHgaIncrement(it.noPart, 0, idx, {
+                fisikTtp: hgaN(it.fisikTtp),
+                keterangan: it.keterangan ?? '',
+                keteranganTtp: it.keteranganTtp ?? '',
+            });
+        });
     });
 }
 
@@ -6534,18 +6575,31 @@ function initHgaForm() {
 
     addPartBtn?.addEventListener('click', () => { addPartForm?.classList.toggle('hidden'); if (!addPartForm?.classList.contains('hidden')) addPartNo?.focus(); });
     addPartCancel?.addEventListener('click', () => { addPartForm?.classList.add('hidden'); if (addPartNo) addPartNo.value = ''; if (addPartNama) addPartNama.value = ''; if (addPartMsg) addPartMsg.classList.add('hidden'); });
-    addPartSave?.addEventListener('click', () => {
+    addPartSave?.addEventListener('click', async () => {
         const noPart = (addPartNo?.value || '').trim();
         const nama   = (addPartNama?.value || '').trim();
         const showAddMsg = (text, ok) => { if (!addPartMsg) return; addPartMsg.classList.remove('hidden'); addPartMsg.textContent = text; addPartMsg.className = 'text-xs ' + (ok ? 'text-emerald-400' : 'text-red-400'); };
         if (!noPart) { showAddMsg('No. Part wajib diisi.', false); return; }
+        if (!activePlanId) { showAddMsg('Pilih plan audit terlebih dahulu.', false); return; }
         if (!_hgaData) _hgaData = hgaEmptyData();
         if (_hgaData.items.some(it => (it.noPart || '').toLowerCase() === noPart.toLowerCase())) { showAddMsg(`No. Part "${noPart}" sudah ada.`, false); return; }
-        _hgaData.items.push({ noPart, sparepart: nama || noPart, saldoAkhir: 0, fisik: 0, akhir: 0, selisih: 0, keterangan: '', tgl: '', logScan: [], _manual: true });
-        hgaRenderItems(); hgaPopulateDatalist(); _doSaveHga().catch(() => {});
-        showAddMsg(`✓ "${noPart}" ditambahkan.`, true);
-        if (addPartNo) addPartNo.value = ''; if (addPartNama) addPartNama.value = '';
-        setTimeout(() => addPartForm?.classList.add('hidden'), 1500);
+        // Ditambahkan langsung di server (baca-ubah-simpan), bukan push ke array
+        // lokal lalu kirim ulang SELURUH array — supaya tidak menimpa balik hasil
+        // scan/entry device lain yang belum sempat ter-refresh di sini.
+        try {
+            const res = await fetchJson('/api/audit-detail/hga/add-item', {
+                method: 'POST',
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({ planAuditId: activePlanId, noPart, sparepart: nama }),
+            });
+            _hgaData.items.push(res.item);
+            hgaRenderItems(); hgaPopulateDatalist();
+            showAddMsg(`✓ "${noPart}" ditambahkan.`, true);
+            if (addPartNo) addPartNo.value = ''; if (addPartNama) addPartNama.value = '';
+            setTimeout(() => addPartForm?.classList.add('hidden'), 1500);
+        } catch (err) {
+            showAddMsg(err?.message || 'Gagal menambahkan No. Part.', false);
+        }
     });
     addPartNo?.addEventListener('keydown', e => { if (e.key === 'Enter') addPartSave?.click(); });
     addPartNama?.addEventListener('keydown', e => { if (e.key === 'Enter') addPartSave?.click(); });

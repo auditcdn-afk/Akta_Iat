@@ -40,11 +40,13 @@ class HgaController extends Controller
     // Simpan HANYA 1 item (delta) yang bertambah fisiknya dari 1 kali scan — sama seperti
     // HgpController::scanIncrement(), supaya payload dari alat scanner genggam tetap kecil
     // walau daftar onhand-nya ratusan/ribuan item.
+    // qty default 0 (bukan 1): dipakai juga untuk update fisikTtp/keterangan/
+    // keteranganTtp/tgl SAJA (tanpa scan baru) dari edit inline kolom tabel.
     public function scanIncrement(Request $request): JsonResponse
     {
         $planId = $request->input('planAuditId') ?? $request->input('plan_audit_id');
         $noPart = trim((string) $request->input('noPart', ''));
-        $qty    = (float) $request->input('qty', 1);
+        $qty    = (float) $request->input('qty', 0);
         $who    = $request->user()?->username ?? $request->user()?->email;
 
         if ($noPart === '') {
@@ -69,18 +71,28 @@ class HgaController extends Controller
         }
 
         $it = $items[$idx];
-        $it['fisik'] = $this->n($it['fisik'] ?? 0) + $qty;
-        $it['logScan'] = is_array($it['logScan'] ?? null) ? $it['logScan'] : [];
-        $it['logScan'][] = ['at' => now()->toIso8601String(), 'qty' => $qty];
-        // keterangan/tgl opsional — dikirim dari form "Input Pemeriksaan Fisik" manual,
-        // tidak dikirim dari jalur scan barcode cepat. Cuma ditimpa kalau memang
-        // dikirim, supaya scan barcode (yang tidak membawa field ini) tidak ikut
-        // mengosongkan keterangan yang sudah ada.
+        // qty=0 dipakai saat auditor cuma mengedit Fisik TTP/Keterangan inline di
+        // tabel (bukan scan baru) — tidak menambah fisik & tidak mencatat logScan palsu.
+        if ($qty !== 0.0) {
+            $it['fisik'] = $this->n($it['fisik'] ?? 0) + $qty;
+            $it['logScan'] = is_array($it['logScan'] ?? null) ? $it['logScan'] : [];
+            $it['logScan'][] = ['at' => now()->toIso8601String(), 'qty' => $qty];
+        }
+        // keterangan/keteranganTtp/tgl/fisikTtp opsional — dikirim dari form input
+        // manual & edit inline tabel, tidak dikirim dari jalur scan barcode cepat.
+        // Cuma ditimpa kalau memang dikirim, supaya scan barcode tidak ikut
+        // mengosongkan field yang sudah ada.
         if ($request->has('keterangan')) {
             $it['keterangan'] = (string) $request->input('keterangan');
         }
+        if ($request->has('keteranganTtp')) {
+            $it['keteranganTtp'] = (string) $request->input('keteranganTtp');
+        }
         if ($request->has('tgl')) {
             $it['tgl'] = (string) $request->input('tgl');
+        }
+        if ($request->has('fisikTtp')) {
+            $it['fisikTtp'] = $this->n($request->input('fisikTtp'));
         }
 
         // Rumus sama dengan hgaCalcItem() di frontend: refSaldo pakai saldoPts kalau ada,
@@ -99,6 +111,48 @@ class HgaController extends Controller
         $rec->save();
 
         return response()->json(['message' => 'OK', 'item' => $it, 'idx' => $idx]);
+    }
+
+    // Tambah 1 No. Part manual (tombol "+ Tambah Part Manual") lewat baca-ubah-simpan
+    // di server — bukan push ke array lokal browser lalu kirim ulang seluruh array
+    // (rawan sama seperti masalah di scanIncrement: snapshot stale 1 auditor bisa
+    // menimpa balik data auditor lain yang lebih baru).
+    public function addItem(Request $request): JsonResponse
+    {
+        $planId = $request->input('planAuditId') ?? $request->input('plan_audit_id');
+        $noPart = trim((string) $request->input('noPart', ''));
+        $nama   = trim((string) $request->input('sparepart', ''));
+        $who    = $request->user()?->username ?? $request->user()?->email;
+
+        if ($noPart === '') {
+            return response()->json(['message' => 'No. Part wajib diisi.'], 422);
+        }
+
+        $rec = PemeriksaanHga::where('plan_audit_id', $planId)->first();
+        if (!$rec) {
+            return response()->json(['message' => 'Data HGA belum ada untuk plan audit ini.'], 422);
+        }
+
+        $items = $rec->items_json ?? [];
+        foreach ($items as $row) {
+            if (strcasecmp(trim((string)($row['noPart'] ?? '')), $noPart) === 0) {
+                return response()->json(['message' => "No. Part \"{$noPart}\" sudah ada dalam daftar."], 422);
+            }
+        }
+
+        $newItem = [
+            'noPart' => $noPart, 'sparepart' => $nama !== '' ? $nama : $noPart,
+            'saldoAkhir' => 0, 'fisik' => 0, 'fisikTtp' => 0, 'akhir' => 0, 'selisih' => 0,
+            'keterangan' => '', 'keteranganTtp' => '', 'tgl' => now()->toDateString(), 'logScan' => [],
+            '_manual' => true,
+        ];
+        $items[] = $newItem;
+
+        $rec->items_json = $items;
+        $rec->updated_by = $who;
+        $rec->save();
+
+        return response()->json(['message' => 'OK', 'item' => $newItem, 'idx' => count($items) - 1]);
     }
 
     public function parseExcel(Request $request): JsonResponse

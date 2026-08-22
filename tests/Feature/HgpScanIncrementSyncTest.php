@@ -144,4 +144,91 @@ class HgpScanIncrementSyncTest extends TestCase
             ->assertJsonPath('item.fisik', 2)
             ->assertJsonPath('item.keterangan', 'Cek ulang HGA');
     }
+
+    // Edit inline kolom WO di tabel (bukan lewat form "Input Pemeriksaan Fisik")
+    // sebelumnya juga memicu simpan penuh array — celah yang sama, jalur berbeda.
+    // qty=0 dipakai supaya update ini tidak ikut mencatat logScan/menambah fisik.
+    public function test_update_wo_qty_nol_tidak_menambah_fisik_atau_logscan(): void
+    {
+        PemeriksaanHgp::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [
+                ['noPart' => 'PART-1', 'sparepart' => 'Sparepart 1', 'saldoAkhir' => 10, 'fisik' => 3, 'wo' => 0, 'logScan' => [['at' => now(), 'qty' => 3]]],
+            ],
+        ]);
+
+        $this->postJson('/api/audit-detail/hgp/scan-increment', [
+            'planAuditId' => $this->plan->id, 'noPart' => 'PART-1', 'qty' => 0, 'wo' => 2,
+        ])->assertOk()
+            ->assertJsonPath('item.fisik', 3)
+            ->assertJsonPath('item.wo', 2)
+            // akhir = saldo(10) - (fisik(3) + wo(2)) = 5; selisih = 5 - 10 = -5
+            ->assertJsonPath('item.selisih', -5);
+
+        $item = PemeriksaanHgp::first()->items_json[0];
+        $this->assertCount(1, $item['logScan']);
+    }
+
+    // Dua auditor menambah No. Part manual yang BERBEDA secara berurutan — sebelum
+    // fix, "Tambah Part Manual" juga push ke array lokal lalu kirim ulang seluruh
+    // array (endpoint save() lama), sehingga part yang ditambahkan auditor pertama
+    // bisa hilang kalau auditor kedua (snapshot-nya belum ter-refresh) menyusul
+    // menambah part lain. add-item sekarang baca-ubah-simpan di server.
+    public function test_dua_akun_tambah_part_manual_berbeda_tidak_saling_hilang(): void
+    {
+        PemeriksaanHgp::create(['plan_audit_id' => $this->plan->id, 'items_json' => []]);
+
+        $this->postJson('/api/audit-detail/hgp/add-item', [
+            'planAuditId' => $this->plan->id, 'noPart' => 'MAN-A', 'sparepart' => 'Manual A',
+        ])->assertOk();
+
+        $this->postJson('/api/audit-detail/hgp/add-item', [
+            'planAuditId' => $this->plan->id, 'noPart' => 'MAN-B', 'sparepart' => 'Manual B',
+        ])->assertOk();
+
+        $items = PemeriksaanHgp::first()->items_json;
+        $this->assertCount(2, $items);
+        $this->assertSame('MAN-A', $items[0]['noPart']);
+        $this->assertSame('MAN-B', $items[1]['noPart']);
+    }
+
+    public function test_tambah_part_manual_duplikat_ditolak(): void
+    {
+        PemeriksaanHgp::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [['noPart' => 'PART-1', 'sparepart' => 'Sparepart 1', 'saldoAkhir' => 10, 'fisik' => 0, 'logScan' => []]],
+        ]);
+
+        $this->postJson('/api/audit-detail/hgp/add-item', [
+            'planAuditId' => $this->plan->id, 'noPart' => 'PART-1', 'sparepart' => 'Duplikat',
+        ])->assertStatus(422);
+
+        $this->assertCount(1, PemeriksaanHgp::first()->items_json);
+    }
+
+    public function test_hga_update_fisik_ttp_qty_nol_tidak_menambah_fisik_scan(): void
+    {
+        $this->postJson('/api/audit-detail/auditor', [
+            'plan_audit_id' => $this->plan->id,
+            'tool' => 'hga', 'nama_auditee' => 'Auditee Test',
+        ])->assertOk();
+
+        PemeriksaanHga::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [
+                ['noPart' => 'PART-1', 'sparepart' => 'Sparepart 1', 'saldoAkhir' => 10, 'fisik' => 1, 'fisikTtp' => 0, 'logScan' => [['at' => now(), 'qty' => 1]]],
+            ],
+        ]);
+
+        $this->postJson('/api/audit-detail/hga/scan-increment', [
+            'planAuditId' => $this->plan->id, 'noPart' => 'PART-1', 'qty' => 0, 'fisikTtp' => 4,
+        ])->assertOk()
+            ->assertJsonPath('item.fisik', 1)
+            ->assertJsonPath('item.fisikTtp', 4)
+            // akhir = saldo(10) - (fisik(1)+fisikTtp(4)) = 5; selisih = 5-10 = -5
+            ->assertJsonPath('item.selisih', -5);
+
+        $item = PemeriksaanHga::first()->items_json[0];
+        $this->assertCount(1, $item['logScan']);
+    }
 }
