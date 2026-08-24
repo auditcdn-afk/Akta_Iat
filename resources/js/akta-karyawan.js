@@ -131,27 +131,118 @@ async function loadUnitUsahaOptions(selectEl, includeEmpty) {
 }
 
 const KRY_MAX_FOTO_BYTES = 2 * 1024 * 1024; // samakan dengan validasi 'max:2048' di KaryawanController
+const KRY_MAX_DIM = 1600; // px sisi terpanjang -- jauh lebih dari cukup untuk thumbnail 96px di grid & ~56px di Report Audit PDF
 
-function handleFileChange() {
+// Ganti FileList bawaan <input type=file> dengan 1 file hasil kompresi, lewat
+// DataTransfer -- satu-satunya cara standar mengisi ulang input.files dari JS
+// (tidak bisa assign array/Blob langsung). Didukung semua browser modern
+// (Safari 14.1+); kalau tidak didukung, dilempar ke pemanggil untuk fallback.
+function setInputFile(fileInput, file) {
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    fileInput.files = dt.files;
+}
+
+// Foto kamera HP modern umumnya 3000-4000px & beberapa-belasan MB -- jauh
+// melebihi kebutuhan tampilan (thumbnail kecil di grid & Report Audit PDF).
+// Diskalakan & dikompres ulang jadi JPEG di browser sebelum upload, supaya
+// auditor/HO tidak perlu kompres manual tiap kali tambah karyawan baru.
+// Kualitas diturunkan bertahap sampai muat di bawah batas server (2MB).
+async function compressImageFile(file, maxDim = KRY_MAX_DIM, maxBytes = KRY_MAX_FOTO_BYTES) {
+    const bitmap = await createImageBitmap(file);
+    let width = bitmap.width;
+    let height = bitmap.height;
+    if (width > maxDim || height > maxDim) {
+        const scale = maxDim / Math.max(width, height);
+        width = Math.max(1, Math.round(width * scale));
+        height = Math.max(1, Math.round(height * scale));
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close?.();
+
+    const toBlob = (quality) => new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+
+    let quality = 0.85;
+    let blob = await toBlob(quality);
+    while (blob && blob.size > maxBytes && quality > 0.4) {
+        quality -= 0.15;
+        blob = await toBlob(quality);
+    }
+    if (!blob) return file; // toBlob gagal (browser sangat lama) -- pakai file asli, biar ditangani jalur error biasa
+
+    const newName = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], newName, { type: "image/jpeg" });
+}
+
+// Promise kompresi yang sedang berjalan (kalau ada) -- ditunggu oleh
+// handleSubmit supaya klik "Simpan" tidak mengirim file asli yang belum
+// sempat selesai dikompres.
+let kryCompressPromise = null;
+
+async function compressAndReplace(fileInput, fileName, file) {
+    try {
+        const compressed = await compressImageFile(file);
+        if (compressed.size > KRY_MAX_FOTO_BYTES) {
+            showAlert(`Foto "${file.name}" masih ${(compressed.size / 1024 / 1024).toFixed(1)} MB setelah dikompres, masih di atas batas 2MB. Pilih foto lain.`, "error");
+            fileInput.value = "";
+            fileName.textContent = "Belum ada foto";
+            return;
+        }
+        setInputFile(fileInput, compressed);
+        fileName.textContent = `${compressed.name} (dikompres ${(file.size / 1024 / 1024).toFixed(1)} MB → ${(compressed.size / 1024 / 1024).toFixed(1)} MB)`;
+    } catch (err) {
+        showAlert(`Gagal mengompres foto "${file.name}". Coba kompres manual atau pilih foto lain.`, "error");
+        fileInput.value = "";
+        fileName.textContent = "Belum ada foto";
+    }
+}
+
+async function handleFileChange() {
     const fileInput = document.getElementById("kryFileInput");
     const fileName = document.getElementById("kryFileName");
     if (!fileInput || !fileName) return;
     const file = fileInput.files?.[0] || null;
-    // Dicek di sini (bukan cuma menunggu server) supaya foto kamera HP yang
-    // ukurannya beberapa MB langsung dapat pesan jelas — tanpa ini requestnya
-    // bisa ditolak PHP SEBELUM sempat sampai ke validasi Laravel, muncul
-    // sebagai error mentah "The POST data is too large." yang membingungkan.
-    if (file && file.size > KRY_MAX_FOTO_BYTES) {
+    if (!file) {
+        fileName.textContent = "Belum ada foto";
+        return;
+    }
+
+    if (file.size <= KRY_MAX_FOTO_BYTES) {
+        fileName.textContent = file.name;
+        return;
+    }
+
+    // Foto di atas 2MB -- dikompres otomatis kalau browser mendukung Canvas/
+    // DataTransfer (semua browser modern). Kalau tidak, jatuh ke pesan error
+    // lama supaya penggunanya tetap tahu apa yang harus dilakukan, alih-alih
+    // request diam-diam ditolak PHP dengan error mentah "The POST data is
+    // too large."
+    if (typeof createImageBitmap !== "function" || typeof DataTransfer !== "function") {
         showAlert(`Ukuran foto "${file.name}" (${(file.size / 1024 / 1024).toFixed(1)} MB) melebihi batas 2MB. Kompres atau pilih foto lain.`, "error");
         fileInput.value = "";
         fileName.textContent = "Belum ada foto";
         return;
     }
-    fileName.textContent = file?.name || "Belum ada foto";
+
+    fileName.textContent = `Mengompres "${file.name}"...`;
+    kryCompressPromise = compressAndReplace(fileInput, fileName, file);
+    await kryCompressPromise;
+    kryCompressPromise = null;
 }
 
 async function handleSubmit(e) {
     e.preventDefault();
+    // Kalau kompresi foto masih berjalan (user klik Simpan sebelum sempat
+    // selesai), tunggu dulu -- supaya yang terkirim adalah file hasil
+    // kompresi, bukan file asli yang masih di atas batas 2MB.
+    if (kryCompressPromise) {
+        await kryCompressPromise;
+    }
     const saveBtn = document.getElementById("krySaveBtn");
     const isAdmin = currentUser?.role === "admin";
     const unitUsaha = isAdmin ? document.getElementById("kryUnitUsaha")?.value : null;
