@@ -130,11 +130,24 @@ async function loadUnitUsahaOptions(selectEl, includeEmpty) {
     }
 }
 
+const KRY_MAX_FOTO_BYTES = 2 * 1024 * 1024; // samakan dengan validasi 'max:2048' di KaryawanController
+
 function handleFileChange() {
     const fileInput = document.getElementById("kryFileInput");
     const fileName = document.getElementById("kryFileName");
     if (!fileInput || !fileName) return;
-    fileName.textContent = fileInput.files?.[0]?.name || "Belum ada foto";
+    const file = fileInput.files?.[0] || null;
+    // Dicek di sini (bukan cuma menunggu server) supaya foto kamera HP yang
+    // ukurannya beberapa MB langsung dapat pesan jelas — tanpa ini requestnya
+    // bisa ditolak PHP SEBELUM sempat sampai ke validasi Laravel, muncul
+    // sebagai error mentah "The POST data is too large." yang membingungkan.
+    if (file && file.size > KRY_MAX_FOTO_BYTES) {
+        showAlert(`Ukuran foto "${file.name}" (${(file.size / 1024 / 1024).toFixed(1)} MB) melebihi batas 2MB. Kompres atau pilih foto lain.`, "error");
+        fileInput.value = "";
+        fileName.textContent = "Belum ada foto";
+        return;
+    }
+    fileName.textContent = file?.name || "Belum ada foto";
 }
 
 async function handleSubmit(e) {
@@ -148,12 +161,18 @@ async function handleSubmit(e) {
         return;
     }
 
+    const fileInput = document.getElementById("kryFileInput");
+    const foto = fileInput?.files?.[0] || null;
+    if (foto && foto.size > KRY_MAX_FOTO_BYTES) {
+        showAlert(`Ukuran foto "${foto.name}" (${(foto.size / 1024 / 1024).toFixed(1)} MB) melebihi batas 2MB. Kompres atau pilih foto lain.`, "error");
+        return;
+    }
+
     const formData = new FormData();
     if (isAdmin) formData.append("unit_usaha", unitUsaha);
     formData.append("nama", document.getElementById("kryNama")?.value || "");
     formData.append("jabatan", document.getElementById("kryJabatan")?.value || "");
-    const fileInput = document.getElementById("kryFileInput");
-    if (fileInput?.files?.[0]) formData.append("foto", fileInput.files[0]);
+    if (foto) formData.append("foto", foto);
 
     if (saveBtn) {
         saveBtn.disabled = true;
