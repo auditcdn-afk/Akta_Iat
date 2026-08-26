@@ -76,6 +76,7 @@
         {{-- Panel: Lampiran --}}
         @include('akta.pages.audit.tab-lampiran')
         @include('akta.pages.audit.tab-mutasi-pembelian')
+        @include('akta.pages.audit.tab-ttp-csc')
 
         {{-- Panel: Rekomendasi --}}
         @include('akta.pages.audit.tab-rekomendasi')

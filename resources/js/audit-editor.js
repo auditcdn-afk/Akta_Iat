@@ -215,6 +215,9 @@ function switchTab(tab) {
     if (tab === "mutasi-pembelian") {
         loadMpTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "ttp-csc") {
+        loadTcTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "grading") {
         loadGradingTab().catch((e) => showAlert(e.message, "error"));
     }
@@ -2070,6 +2073,7 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
     initSmhTarikanForm();
     initLampiranForm();
     initMpForm();
+    initTcForm();
     initGradingForm();
     initPicaForm();
     initRekomendasiForm();
@@ -6986,6 +6990,186 @@ async function mpHandleCompare() {
         if (msgEl) { msgEl.textContent = '❌ ' + err.message; msgEl.className = 'text-sm font-medium text-red-400'; msgEl.classList.remove('hidden'); }
     }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TTP CSC MODULE
+// ══════════════════════════════════════════════════════════════════════════════
+// Import "LAPORAN TTP PANJAR" (hanya bagian "II. TTP Sesuai Periode Filter" —
+// lihat TtpCscController::parseExcel). Tanggal Portal diisi manual per baris;
+// Selisih Tgl & Keterangan default dihitung DI SERVER (updateTanggalPortal)
+// supaya konsisten dipakai auditor mana pun, bukan dihitung di browser.
+
+let _tcItems = [];
+
+async function loadTcTab() {
+    if (!activePlanId) { tcRender(); return; }
+    const res = await fetchJson(`/api/audit-detail/ttp-csc?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    if (res.data && (res.data.items ?? []).length > 0) {
+        _tcItems = res.data.items;
+    }
+    tcRender();
+}
+
+function tcFmtRp(val) {
+    const n = Number(val) || 0;
+    if (n === 0) return '-';
+    return 'Rp ' + n.toLocaleString('id-ID');
+}
+
+function tcRender() {
+    const items = _tcItems;
+    const statSec = document.getElementById('tcStatSection');
+    const tblSec  = document.getElementById('tcTableSection');
+    const tblBody = document.getElementById('tcTableBody');
+    const tblCount = document.getElementById('tcTableCount');
+
+    if (!items.length) {
+        if (statSec) statSec.classList.add('hidden');
+        if (tblSec) tblSec.classList.add('hidden');
+        return;
+    }
+
+    const totalSesuai = items.filter(it => it.keterangan === 'Data Sesuai').length;
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    set('tcStatTotal',   items.length);
+    set('tcStatSesuai',  totalSesuai);
+    set('tcStatSelisih', items.length - totalSesuai);
+    if (statSec) statSec.classList.remove('hidden');
+
+    if (tblSec) tblSec.classList.remove('hidden');
+    if (tblCount) tblCount.textContent = `${items.length} baris`;
+    if (!tblBody) return;
+
+    const escHtml = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+    tblBody.innerHTML = items.map((it, idx) => {
+        const belumDicek = it.tanggalPortal === '' || it.tanggalPortal == null;
+        const ketCls = belumDicek ? 'text-slate-500' : (it.keterangan === 'Data Sesuai' ? 'text-green-400' : 'text-red-400');
+        return `<tr class="group hover:bg-slate-800/30 transition-colors">
+            <td class="px-3 py-2 text-slate-400 text-center">${it.no ?? (idx + 1)}</td>
+            <td class="px-3 py-2 text-slate-300 font-mono">${escHtml(it.ttp)}</td>
+            <td class="px-3 py-2 text-slate-300 whitespace-nowrap">${escHtml(it.tanggal || '-')}</td>
+            <td class="px-3 py-2 text-slate-300">${escHtml(it.nama)}</td>
+            <td class="px-3 py-2 text-right text-slate-300">${tcFmtRp(it.nilai)}</td>
+            <td class="px-3 py-2">
+                <input type="date" value="${escHtml(it.tanggalPortal || '')}"
+                    data-tc-portal-idx="${idx}"
+                    class="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
+            </td>
+            <td class="px-3 py-2 text-right ${belumDicek ? 'text-slate-500' : (it.selisihTgl > 0 ? 'text-red-400 font-semibold' : 'text-green-400 font-semibold')}" data-tc-selisih-cell="${idx}">${belumDicek ? '-' : (it.selisihTgl ?? 0)}</td>
+            <td class="px-3 py-2">
+                <input type="text" value="${escHtml(it.keterangan || '')}"
+                    data-tc-ket-idx="${idx}"
+                    placeholder="Keterangan... (opsional)"
+                    class="w-40 rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs ${ketCls} placeholder-slate-500 focus:border-blue-500 focus:outline-none">
+            </td>
+        </tr>`;
+    }).join('');
+
+    tblBody.querySelectorAll('input[data-tc-portal-idx]').forEach(inp => {
+        inp.addEventListener('change', (e) => {
+            const i = parseInt(e.target.dataset.tcPortalIdx, 10);
+            saveTcTanggalPortal(i, e.target.value).catch(err => showAlert(err.message || 'Gagal menyimpan Tanggal Portal.', 'error'));
+        });
+    });
+
+    tblBody.querySelectorAll('input[data-tc-ket-idx]').forEach(inp => {
+        inp.addEventListener('input', (e) => {
+            const i = parseInt(e.target.dataset.tcKetIdx, 10);
+            if (_tcItems[i]) _tcItems[i].keterangan = e.target.value;
+        });
+        inp.addEventListener('blur', (e) => {
+            const i = parseInt(e.target.dataset.tcKetIdx, 10);
+            saveTcKeterangan(i, e.target.value).catch(() => {});
+        });
+    });
+}
+
+async function saveTcTanggalPortal(index, tanggalPortal) {
+    if (!activePlanId) return;
+    const res = await fetchJson('/api/audit-detail/ttp-csc/tanggal-portal', {
+        method:  'PATCH',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body:    JSON.stringify({ planAuditId: activePlanId, index, tanggalPortal }),
+    });
+    if (_tcItems[index]) _tcItems[index] = res.item;
+    // Render ulang baris ini saja supaya Selisih Tgl & Keterangan (dihitung
+    // server) langsung terlihat tanpa kehilangan fokus input lain di tabel.
+    tcRender();
+}
+
+async function saveTcKeterangan(index, keterangan) {
+    if (!activePlanId) return;
+    return await fetchJson('/api/audit-detail/ttp-csc/keterangan', {
+        method:  'PATCH',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body:    JSON.stringify({ planAuditId: activePlanId, index, keterangan }),
+    });
+}
+
+async function saveTc() {
+    const planId = activePlanId;
+    if (!planId) throw new Error('Pilih plan audit terlebih dahulu.');
+    const res = await fetchJson('/api/audit-detail/ttp-csc', {
+        method:  'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body:    JSON.stringify({ planAuditId: planId, items: _tcItems }),
+    });
+    if (!res.message) throw new Error('Gagal menyimpan.');
+    showAlert(res.message, 'success');
+}
+
+async function tcHandleFile(file) {
+    const msgEl = document.getElementById('tcImportMsg');
+    try {
+        if (msgEl) { msgEl.textContent = '⏳ Memproses file...'; msgEl.classList.remove('hidden'); }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch('/api/audit-detail/ttp-csc/parse-excel', {
+            method:  'POST',
+            headers: authHeaders(),
+            body:    formData,
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message ?? 'Gagal memproses file di server.');
+
+        _tcItems = json.data ?? [];
+        if (msgEl) { msgEl.textContent = `✅ ${json.total} baris TTP dimuat dari "${file.name}"`; msgEl.classList.remove('hidden'); }
+        tcRender();
+        saveTc().catch(() => {});
+    } catch (err) {
+        if (msgEl) { msgEl.textContent = '❌ ' + err.message; msgEl.classList.remove('hidden'); }
+    }
+}
+
+function initTcForm() {
+    const fileInput = document.getElementById('tcFileInput');
+    fileInput?.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        await tcHandleFile(file);
+        fileInput.value = '';
+    });
+
+    const dropzone = document.getElementById('tcDropzone');
+    if (dropzone) {
+        dropzone.addEventListener('dragover',  (e) => { e.preventDefault(); dropzone.classList.add('border-blue-400'); });
+        dropzone.addEventListener('dragleave', ()  => dropzone.classList.remove('border-blue-400'));
+        dropzone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-blue-400');
+            const file = e.dataTransfer.files[0];
+            if (file) await tcHandleFile(file);
+        });
+    }
+
+    document.getElementById('tcSaveBtn')?.addEventListener('click', () => {
+        saveTc().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
+    });
+}
+
 
 function initMpForm() {
     const setupPicker = (inputId, nameId, onPick) => {

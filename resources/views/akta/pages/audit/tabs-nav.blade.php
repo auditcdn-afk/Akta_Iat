@@ -79,6 +79,10 @@
                 class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
                 Mutasi Pembelian
             </button>
+            <button type="button" data-tab="ttp-csc"
+                class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
+                TTP CSC
+            </button>
         </div>
 
         {{-- ── Row kedua: Grading, PICA, Rekomendasi, BU Performance ── --}}

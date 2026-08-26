@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\BpkbInprosesController;
 use App\Http\Controllers\Api\KwitansiController;
 use App\Http\Controllers\Api\PiutangRegulerController;
 use App\Http\Controllers\Api\MutasiPembelianController;
+use App\Http\Controllers\Api\TtpCscController;
 use App\Http\Controllers\Api\PiutangCdnController;
 use App\Http\Controllers\Api\TtpGantungController;
 use App\Http\Controllers\Api\CekFisikController;
@@ -415,6 +416,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/audit-detail/mutasi-pembelian/keterangan', [MutasiPembelianController::class, 'updateKeterangan'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::delete('/audit-detail/mutasi-pembelian/item', [MutasiPembelianController::class, 'deleteItem'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── TTP CSC ──
+    Route::get('/audit-detail/ttp-csc',  [TtpCscController::class, 'show']);
+    Route::post('/audit-detail/ttp-csc', [TtpCscController::class, 'save'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/ttp-csc/parse-excel', [TtpCscController::class, 'parseExcel'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::patch('/audit-detail/ttp-csc/tanggal-portal', [TtpCscController::class, 'updateTanggalPortal'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::patch('/audit-detail/ttp-csc/keterangan', [TtpCscController::class, 'updateKeterangan'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── MT ──

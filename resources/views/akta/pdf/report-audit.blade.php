@@ -3284,6 +3284,70 @@ window.addEventListener('load', function() {
 </div>
 @endif
 
+{{-- ═══════════════════════════════════════════════
+     19. TTP CSC
+     ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['ttp-csc'] ?? true))
+<div class="section">
+  <div class="section-title">19. TTP CSC</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'ttp-csc'])
+  <div class="section-body">
+    @if(!$ttpCsc || empty($ttpCsc->items_json))
+      <p class="empty">Belum ada data.</p>
+    @else
+      @php
+        $tcItems  = $ttpCsc->items_json ?? [];
+        $tcSesuai = collect($tcItems)->where('keterangan', 'Data Sesuai')->count();
+      @endphp
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val">{{ count($tcItems) }}</div>
+          <div class="cs-lbl">Total TTP</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="color:#4ade80;">{{ $tcSesuai }}</div>
+          <div class="cs-lbl">Data Sesuai</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="color:#f87171;">{{ count($tcItems) - $tcSesuai }}</div>
+          <div class="cs-lbl">Selisih / Belum Dicek</div>
+        </div>
+      </div>
+
+      <table style="font-size:9.5px;">
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>TTP</th>
+            <th>Tanggal</th>
+            <th>Nama</th>
+            <th style="text-align:right;">Nilai</th>
+            <th>Tanggal Portal</th>
+            <th style="text-align:right;">Selisih Tgl</th>
+            <th>Keterangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach($tcItems as $tc)
+          <tr>
+            <td>{{ $tc['no'] ?? '-' }}</td>
+            <td style="font-family:monospace;">{{ $tc['ttp'] ?? '-' }}</td>
+            <td>{{ $tc['tanggal'] ?? '-' }}</td>
+            <td>{{ $tc['nama'] ?? '-' }}</td>
+            <td style="text-align:right;">{{ ($tc['nilai'] ?? 0) ? 'Rp '.number_format($tc['nilai'],0,',','.') : '-' }}</td>
+            <td>{{ $tc['tanggalPortal'] ?: '-' }}</td>
+            <td style="text-align:right;">{{ $tc['tanggalPortal'] ? ($tc['selisihTgl'] ?? 0) : '-' }}</td>
+            <td style="color:{{ $tc['keterangan'] === 'Data Sesuai' ? '#4ade80' : (($tc['keterangan'] ?? '') !== '' ? '#f87171' : '#6b7280') }};font-weight:600;">{{ $tc['keterangan'] ?: '-' }}</td>
+          </tr>
+          @endforeach
+        </tbody>
+      </table>
+    @endif
+  </div>
+</div>
+@endif
+
 <div style="text-align:center;color:#9ca3af;font-size:8px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:8px;">
   Laporan ini digenerate secara otomatis oleh sistem SIMPAS-IAT pada {{ now()->format('d/m/Y H:i:s') }}.
 </div>
