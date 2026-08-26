@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\BpkbOnhandController;
 use App\Http\Controllers\Api\BpkbInprosesController;
 use App\Http\Controllers\Api\KwitansiController;
 use App\Http\Controllers\Api\PiutangRegulerController;
+use App\Http\Controllers\Api\MutasiPembelianController;
 use App\Http\Controllers\Api\PiutangCdnController;
 use App\Http\Controllers\Api\TtpGantungController;
 use App\Http\Controllers\Api\CekFisikController;
@@ -403,6 +404,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // ── SMH Tarikan ──
     Route::get('/audit-detail/smh-tarikan',  [SmhTarikanController::class, 'show']);
     Route::post('/audit-detail/smh-tarikan', [SmhTarikanController::class, 'save'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
+    // ── Mutasi Pembelian ──
+    Route::get('/audit-detail/mutasi-pembelian',  [MutasiPembelianController::class, 'show']);
+    Route::post('/audit-detail/mutasi-pembelian', [MutasiPembelianController::class, 'save'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::post('/audit-detail/mutasi-pembelian/compare', [MutasiPembelianController::class, 'compare'])
+        ->middleware('akta.role:admin,manajer,auditor');
+    Route::patch('/audit-detail/mutasi-pembelian/keterangan', [MutasiPembelianController::class, 'updateKeterangan'])
         ->middleware('akta.role:admin,manajer,auditor');
 
     // ── MT ──

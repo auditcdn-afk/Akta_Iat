@@ -22,6 +22,7 @@ use App\Models\PemeriksaanKwitansi;
 use App\Models\PemeriksaanLampiran;
 use App\Models\PemeriksaanMaterai;
 use App\Models\PemeriksaanMt;
+use App\Models\PemeriksaanMutasiPembelian;
 use App\Models\PemeriksaanPerlengkapan;
 use App\Models\PemeriksaanPiutangCdn;
 use App\Models\PemeriksaanPiutangReguler;
@@ -81,6 +82,7 @@ class ReportPdfController extends Controller
         $hga        = PemeriksaanHga::where('plan_audit_id', $id)->first();
         $smhTarikan = PemeriksaanSmhTarikan::where('plan_audit_id', $id)->first();
         $lampiran   = PemeriksaanLampiran::where('plan_audit_id', $id)->first();
+        $mutasiPembelian = PemeriksaanMutasiPembelian::where('plan_audit_id', $id)->first();
 
         // Nama Auditor & Auditee tiap tool — satu query, dikelompokkan per tool
         // key (config('audit_tabs')) supaya tiap section blade tinggal ambil
@@ -143,7 +145,7 @@ class ReportPdfController extends Controller
             'plan', 'plafon', 'kas', 'smh', 'perlengkapan', 'bank', 'materai',
             'bpkbOnhand', 'bpkbInproses', 'kwitansi', 'piutangReguler',
             'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'rsaHgp', 'hga',
-            'smhTarikan', 'lampiran', 'lampiranEmbeds', 'visibleTabs', 'auditors', 'blankos',
+            'smhTarikan', 'lampiran', 'lampiranEmbeds', 'mutasiPembelian', 'visibleTabs', 'auditors', 'blankos',
             'perlengkapanOnhand', 'hgpOilItems', 'hgpSparepartItems',
             'rsaHgpOilItems', 'rsaHgpSparepartItems', 'karyawans'
         );

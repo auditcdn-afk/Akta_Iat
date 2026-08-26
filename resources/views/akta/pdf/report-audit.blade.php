@@ -3214,6 +3214,76 @@ window.addEventListener('load', function() {
 </div>
 @endif
 
+{{-- ═══════════════════════════════════════════════
+     18. MUTASI PEMBELIAN
+     ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['mutasi-pembelian'] ?? true))
+<div class="section">
+  <div class="section-title">18. MUTASI PEMBELIAN</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'mutasi-pembelian'])
+  <div class="section-body">
+    @if(!$mutasiPembelian || empty($mutasiPembelian->items_json))
+      <p class="empty">Belum ada data.</p>
+    @else
+      @php
+        $mpItems = $mutasiPembelian->items_json ?? [];
+        $mpMatch = collect($mpItems)->where('matched', true)->count();
+      @endphp
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val">{{ count($mpItems) }}</div>
+          <div class="cs-lbl">Total Baris Gudang</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="color:#4ade80;">{{ $mpMatch }}</div>
+          <div class="cs-lbl">Sudah Diterima</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="color:#f87171;">{{ count($mpItems) - $mpMatch }}</div>
+          <div class="cs-lbl">Belum Terima</div>
+        </div>
+      </div>
+
+      <div class="tbl-scroll" style="overflow-x:auto;">
+      <table style="font-size:9.5px;">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Kode Part</th>
+            <th>Nama Part</th>
+            <th style="text-align:right;">Qty</th>
+            <th>Nomor Faktur</th>
+            <th>Tanggal Faktur</th>
+            <th>Lokasi</th>
+            <th>Kode</th>
+            <th>Unit Usaha</th>
+            <th>Keterangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach($mpItems as $i => $mp)
+          <tr @if(!($mp['matched'] ?? false)) style="background:#7f1d1d1a;" @endif>
+            <td>{{ (int)$i+1 }}</td>
+            <td style="font-family:monospace;">{{ $mp['kodePart'] ?? '-' }}</td>
+            <td>{{ $mp['namaPart'] ?? '-' }}</td>
+            <td style="text-align:right;">{{ ($mp['qty'] ?? 0) ? number_format($mp['qty'],0,',','.') : '-' }}</td>
+            <td style="font-family:monospace;">{{ $mp['nomorFaktur'] ?? '-' }}</td>
+            <td>{{ $mp['tanggalFaktur'] ?? '-' }}</td>
+            <td>{{ $mp['lokasi'] ?: '-' }}</td>
+            <td>{{ $mp['kode'] ?? '-' }}</td>
+            <td>{{ $mp['unitUsaha'] ?? '-' }}</td>
+            <td style="color:{{ ($mp['matched'] ?? false) ? '#4ade80' : '#f87171' }};font-weight:600;">{{ $mp['keterangan'] ?? '-' }}</td>
+          </tr>
+          @endforeach
+        </tbody>
+      </table>
+      </div>
+    @endif
+  </div>
+</div>
+@endif
+
 <div style="text-align:center;color:#9ca3af;font-size:8px;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:8px;">
   Laporan ini digenerate secara otomatis oleh sistem SIMPAS-IAT pada {{ now()->format('d/m/Y H:i:s') }}.
 </div>

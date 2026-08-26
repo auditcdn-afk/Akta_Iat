@@ -212,6 +212,9 @@ function switchTab(tab) {
     if (tab === "lampiran") {
         loadLampiranTab().catch((e) => showAlert(e.message, "error"));
     }
+    if (tab === "mutasi-pembelian") {
+        loadMpTab().catch((e) => showAlert(e.message, "error"));
+    }
     if (tab === "grading") {
         loadGradingTab().catch((e) => showAlert(e.message, "error"));
     }
@@ -2066,6 +2069,7 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
     initHgaForm();
     initSmhTarikanForm();
     initLampiranForm();
+    initMpForm();
     initGradingForm();
     initPicaForm();
     initRekomendasiForm();
@@ -6809,6 +6813,168 @@ function initLampiranForm() {
         } finally {
             if (btn) { btn.textContent = '⬇️ Download PDF Gabungan'; btn.disabled = false; }
         }
+    });
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MUTASI PEMBELIAN MODULE
+// ══════════════════════════════════════════════════════════════════════════════
+// Bandingkan 2 file (Gudang = patokan, Unit Usaha = pembanding) lewat
+// /mutasi-pembelian/compare — hasilnya direview dulu di memori (_mpItems),
+// baru di-"Simpan" (bulk, sekali saja — sama seperti import Excel tool lain).
+// Edit Keterangan per baris sesudahnya memakai PATCH per-index (savePrKeterangan
+// pattern) supaya tidak menimpa balik perubahan auditor lain.
+
+let _mpItems = [];
+let _mpFileGudang = null;
+let _mpFileUu = null;
+
+async function loadMpTab() {
+    if (!activePlanId) { mpRender(); return; }
+    const res = await fetchJson(`/api/audit-detail/mutasi-pembelian?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    if (res.data && (res.data.items ?? []).length > 0) {
+        _mpItems = res.data.items;
+    }
+    mpRender();
+}
+
+function mpFmtNum(val) {
+    const n = Number(val) || 0;
+    if (n === 0) return '-';
+    return n.toLocaleString('id-ID');
+}
+
+function mpRender() {
+    const items = _mpItems;
+    const statSec = document.getElementById('mpStatSection');
+    const tblSec  = document.getElementById('mpTableSection');
+    const tblBody = document.getElementById('mpTableBody');
+    const tblCount = document.getElementById('mpTableCount');
+
+    if (!items.length) {
+        if (statSec) statSec.classList.add('hidden');
+        if (tblSec) tblSec.classList.add('hidden');
+        return;
+    }
+
+    const totalMatch = items.filter(it => it.matched).length;
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    set('mpStatTotal',   items.length);
+    set('mpStatMatch',   totalMatch);
+    set('mpStatUnmatch', items.length - totalMatch);
+    if (statSec) statSec.classList.remove('hidden');
+
+    if (tblSec) tblSec.classList.remove('hidden');
+    if (tblCount) tblCount.textContent = `${items.length} baris`;
+    if (!tblBody) return;
+
+    const escHtml = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+    tblBody.innerHTML = items.map((it, idx) => {
+        const rowCls = it.matched ? '' : 'bg-red-950/20';
+        return `<tr class="group hover:bg-slate-800/30 transition-colors ${rowCls}">
+            <td class="px-3 py-2 text-slate-400 text-center">${idx + 1}</td>
+            <td class="px-3 py-2 text-slate-300 font-mono">${escHtml(it.kodePart)}</td>
+            <td class="px-3 py-2 text-slate-300">${escHtml(it.namaPart)}</td>
+            <td class="px-3 py-2 text-right text-slate-300">${mpFmtNum(it.qty)}</td>
+            <td class="px-3 py-2 text-slate-300 font-mono">${escHtml(it.nomorFaktur)}</td>
+            <td class="px-3 py-2 text-slate-300 whitespace-nowrap">${escHtml(it.tanggalFaktur || '-')}</td>
+            <td class="px-3 py-2 text-slate-300">${escHtml(it.lokasi || '-')}</td>
+            <td class="px-3 py-2 text-slate-400">${escHtml(it.kode || '-')}</td>
+            <td class="px-3 py-2 text-slate-400">${escHtml(it.unitUsaha || '-')}</td>
+            <td class="px-3 py-2">
+                <input type="text" value="${escHtml(it.keterangan || '')}"
+                    data-mp-idx="${idx}"
+                    placeholder="Keterangan... (opsional)"
+                    class="w-44 rounded border ${it.matched ? 'border-slate-700' : 'border-red-800'} bg-slate-800 px-2 py-1 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none">
+            </td>
+        </tr>`;
+    }).join('');
+
+    tblBody.querySelectorAll('input[data-mp-idx]').forEach(inp => {
+        inp.addEventListener('input', (e) => {
+            const i = parseInt(e.target.dataset.mpIdx, 10);
+            if (_mpItems[i]) _mpItems[i].keterangan = e.target.value;
+        });
+        inp.addEventListener('blur', (e) => {
+            const i = parseInt(e.target.dataset.mpIdx, 10);
+            saveMpKeterangan(i, e.target.value).catch(() => {});
+        });
+    });
+}
+
+async function saveMpKeterangan(index, keterangan) {
+    if (!activePlanId) return;
+    return await fetchJson('/api/audit-detail/mutasi-pembelian/keterangan', {
+        method:  'PATCH',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body:    JSON.stringify({ planAuditId: activePlanId, index, keterangan }),
+    });
+}
+
+async function saveMp() {
+    const planId = activePlanId;
+    if (!planId) throw new Error('Pilih plan audit terlebih dahulu.');
+    const res = await fetchJson('/api/audit-detail/mutasi-pembelian', {
+        method:  'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body:    JSON.stringify({ planAuditId: planId, items: _mpItems }),
+    });
+    if (!res.message) throw new Error('Gagal menyimpan.');
+    showAlert(res.message, 'success');
+}
+
+async function mpHandleCompare() {
+    const msgEl = document.getElementById('mpCompareMsg');
+    if (!_mpFileGudang || !_mpFileUu) {
+        if (msgEl) { msgEl.textContent = '⚠️ Pilih file Gudang dan file Unit Usaha terlebih dahulu.'; msgEl.className = 'text-sm font-medium text-orange-400'; msgEl.classList.remove('hidden'); }
+        return;
+    }
+    try {
+        if (msgEl) { msgEl.textContent = '⏳ Membandingkan...'; msgEl.className = 'text-sm font-medium text-slate-300'; msgEl.classList.remove('hidden'); }
+
+        const formData = new FormData();
+        formData.append('fileGudang', _mpFileGudang);
+        formData.append('fileUnitUsaha', _mpFileUu);
+
+        const res = await fetch('/api/audit-detail/mutasi-pembelian/compare', {
+            method:  'POST',
+            headers: authHeaders(),
+            body:    formData,
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message ?? 'Gagal membandingkan file di server.');
+
+        _mpItems = json.data ?? [];
+        if (msgEl) { msgEl.textContent = `✅ ${json.total} baris dibandingkan, ${json.totalMatch} sudah diterima.`; msgEl.className = 'text-sm font-medium text-green-400'; msgEl.classList.remove('hidden'); }
+        mpRender();
+        saveMp().catch(() => {});
+    } catch (err) {
+        if (msgEl) { msgEl.textContent = '❌ ' + err.message; msgEl.className = 'text-sm font-medium text-red-400'; msgEl.classList.remove('hidden'); }
+    }
+}
+
+function initMpForm() {
+    const setupPicker = (inputId, nameId, onPick) => {
+        const input = document.getElementById(inputId);
+        input?.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            onPick(file);
+            const nameEl = document.getElementById(nameId);
+            if (nameEl) { nameEl.textContent = `📄 ${file.name}`; nameEl.classList.remove('hidden'); }
+        });
+    };
+    setupPicker('mpFileGudang', 'mpFileGudangName', (f) => { _mpFileGudang = f; });
+    setupPicker('mpFileUu', 'mpFileUuName', (f) => { _mpFileUu = f; });
+
+    document.getElementById('mpCompareBtn')?.addEventListener('click', () => {
+        mpHandleCompare().catch(() => {});
+    });
+
+    document.getElementById('mpSaveBtn')?.addEventListener('click', () => {
+        saveMp().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
     });
 }
 
