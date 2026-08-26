@@ -169,4 +169,42 @@ class MutasiPembelianTest extends TestCase
         $this->assertSame('PART-AAA', $rec->items_json[0]['kodePart']);
         $this->assertSame('PART-BBB', $rec->items_json[1]['kodePart']);
     }
+
+    public function test_delete_item_hapus_1_baris_dan_merapatkan_indeks(): void
+    {
+        PemeriksaanMutasiPembelian::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [
+                ['kodePart' => 'PART-AAA', 'keterangan' => 'Sudah di terima dan di input'],
+                ['kodePart' => 'PART-BBB', 'keterangan' => 'Belum Terima'],
+                ['kodePart' => 'PART-CCC', 'keterangan' => 'Belum Terima'],
+            ],
+        ]);
+
+        $res = $this->deleteJson('/api/audit-detail/mutasi-pembelian/item', [
+            'planAuditId' => $this->plan->id, 'index' => 1,
+        ])->assertOk();
+
+        $data = $res->json('data');
+        $this->assertCount(2, $data);
+        $this->assertSame('PART-AAA', $data[0]['kodePart']);
+        // Baris ke-3 lama (index 2) bergeser jadi index 1 setelah baris tengah dihapus.
+        $this->assertSame('PART-CCC', $data[1]['kodePart']);
+
+        $rec = PemeriksaanMutasiPembelian::where('plan_audit_id', $this->plan->id)->first();
+        $this->assertCount(2, $rec->items_json);
+        $this->assertSame('PART-CCC', $rec->items_json[1]['kodePart']);
+    }
+
+    public function test_delete_item_index_tidak_ada_dikembalikan_404(): void
+    {
+        PemeriksaanMutasiPembelian::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [['kodePart' => 'PART-AAA', 'keterangan' => '']],
+        ]);
+
+        $this->deleteJson('/api/audit-detail/mutasi-pembelian/item', [
+            'planAuditId' => $this->plan->id, 'index' => 5,
+        ])->assertStatus(404);
+    }
 }

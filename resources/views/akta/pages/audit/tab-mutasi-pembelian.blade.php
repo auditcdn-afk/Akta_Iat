@@ -85,6 +85,7 @@
                                 <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400">Kode</th>
                                 <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400">Unit Usaha</th>
                                 <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400">Keterangan</th>
+                                <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400"></th>
                             </tr>
                         </thead>
                         <tbody id="mpTableBody" class="divide-y divide-slate-800/60"></tbody>
