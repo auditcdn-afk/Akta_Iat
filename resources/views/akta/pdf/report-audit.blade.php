@@ -3157,12 +3157,23 @@ window.addEventListener('load', function() {
                sama seperti section Kas dkk di atas yang juga sengaja tidak diberi
                "avoid" pada isinya — kalau dipaksa, kondisinya mustahil dipenuhi
                browser (isi selalu lebih tinggi dari ruang 1 halaman) dan
-               pagination bisa memberi hasil yang tidak konsisten. Cukup baris
-               header di bawah yang dijaga tidak sendirian di ujung halaman lewat
-               page-break-after:avoid pada baris itu saja. --}}
+               pagination bisa memberi hasil yang tidak konsisten.
+
+               page-break-after:avoid pada baris header JUGA TIDAK dipasang
+               (sempat dicoba, lalu ditemukan jadi masalah baru): isi PDF
+               dirender sebagai <canvas> — satu gambar utuh yang tidak bisa
+               dipecah antar halaman kertas. Kalau header "dipaksa" tidak boleh
+               diikuti page break, sementara <canvas> di bawahnya (gambar utuh,
+               hampir pasti lebih tinggi dari sisa ruang halaman) juga tidak
+               bisa dipecah, browser mendorong SELURUH header+canvas ke halaman
+               berikutnya — menyisakan halaman sebelumnya kosong melompong.
+               Tanpa "avoid" ini, browser bebas menaruh header di ujung bawah
+               halaman berjalan (baris tunggal, wajar) dan mulai gambar
+               <canvas> di halaman berikutnya, tanpa membuang seluruh sisa
+               halaman jadi kosong. --}}
           <div style="margin-bottom:20px;">
             {{-- File header bar --}}
-            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f3f4f6;border:1px solid #e5e7eb;border-bottom:none;border-radius:8px 8px 0 0;page-break-after:avoid;break-after:avoid-page;">
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f3f4f6;border:1px solid #e5e7eb;border-bottom:none;border-radius:8px 8px 0 0;">
               <span style="background:{{ $es['bg'] }};color:{{ $es['text'] }};border:1px solid {{ $es['border'] }};font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;">{{ $ext }}</span>
               <span style="font-size:10px;font-weight:700;color:#111827;flex:1;">{{ (int)$i+1 }}. {{ $f['name'] ?? 'Unnamed' }}</span>
               <span style="font-size:8.5px;color:#6b7280;">{{ $fmtSize((int)($f['size'] ?? 0)) }}</span>
