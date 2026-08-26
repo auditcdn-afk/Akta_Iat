@@ -75,6 +75,7 @@
 
         {{-- Panel: Lampiran --}}
         @include('akta.pages.audit.tab-lampiran')
+        @include('akta.pages.audit.tab-mutasi-pembelian')
 
         {{-- Panel: Rekomendasi --}}
         @include('akta.pages.audit.tab-rekomendasi')

@@ -25,4 +25,5 @@ return [
     'hga'             => 'HGA (Accessories)',
     'smh-tarikan'     => 'SMH Tarikan',
     'lampiran'        => 'Lampiran',
+    'mutasi-pembelian' => 'Mutasi Pembelian',
 ];
