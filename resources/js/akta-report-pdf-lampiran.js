@@ -44,6 +44,13 @@ function buildFallback(container, src, name) {
     container.appendChild(wrap);
 }
 
+// Lebar target render, dalam px @ ~96dpi. Landscape dirender lebih lebar
+// (mendekati lebar cetak A4 landscape) daripada portrait, supaya saat masuk ke
+// halaman landscape sendiri (lihat bungkus .section-landscape di bawah) teks-
+// nya tetap tajam, bukan ikut resolusi rendah dari lebar kontainer portrait.
+const TARGET_WIDTH_PORTRAIT = 760;
+const TARGET_WIDTH_LANDSCAPE = 1120; // ~297mm @ 96dpi
+
 async function renderOne(container) {
     const src = container.getAttribute("data-pdf-src");
     const name = container.getAttribute("data-pdf-name") || "file";
@@ -53,11 +60,19 @@ async function renderOne(container) {
         const pdf = await pdfjsLib.getDocument({ url: src }).promise;
         container.innerHTML = "";
 
-        const targetWidth = container.clientWidth || 760;
+        const portraitWidth = container.clientWidth || TARGET_WIDTH_PORTRAIT;
 
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
             const page = await pdf.getPage(pageNum);
             const baseViewport = page.getViewport({ scale: 1 });
+            // Halaman sumber yang lebih lebar dari tinggi (mis. hasil print
+            // Excel ke PDF dengan orientasi landscape, banyak kolom) — kalau
+            // dipaksa muat ke lebar portrait laporan ini, isinya jadi sangat
+            // kecil/susah dibaca. Dibungkus .section-landscape (mekanisme yang
+            // sama dipakai section tabel lebar HGP/Piutang) supaya saat
+            // dicetak/di-download, halaman ini dapat kertas landscape sendiri.
+            const isLandscape = baseViewport.width > baseViewport.height;
+            const targetWidth = isLandscape ? TARGET_WIDTH_LANDSCAPE : portraitWidth;
             const scale = (targetWidth / baseViewport.width) * 1.5;
             const viewport = page.getViewport({ scale });
 
@@ -67,14 +82,21 @@ async function renderOne(container) {
             canvas.style.display = "block";
             canvas.style.width = "100%";
             canvas.style.height = "auto";
-            if (pageNum > 1) {
+            if (pageNum > 1 && !isLandscape) {
                 canvas.style.borderTop = "1px dashed #e5e7eb";
             }
 
             const ctx = canvas.getContext("2d");
             await page.render({ canvasContext: ctx, viewport }).promise;
 
-            container.appendChild(canvas);
+            if (isLandscape) {
+                const pageWrap = document.createElement("div");
+                pageWrap.className = "section-landscape";
+                pageWrap.appendChild(canvas);
+                container.appendChild(pageWrap);
+            } else {
+                container.appendChild(canvas);
+            }
         }
     } catch (err) {
         console.error("Gagal render lampiran PDF:", name, err);
