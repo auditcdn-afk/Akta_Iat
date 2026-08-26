@@ -3152,9 +3152,17 @@ window.addEventListener('load', function() {
       <div style="padding:14px;">
         @foreach($lampiranEmbeds as $i => $embed)
           @php $f = $embed['file']; $ext = strtoupper($f['ext'] ?? 'FILE'); $es = $getExtStyle($ext); @endphp
-          <div style="margin-bottom:20px;page-break-inside:avoid;">
+          {{-- page-break-inside:avoid TIDAK dipasang di sini: lampiran PDF bisa
+               berisi puluhan halaman (jauh lebih tinggi dari 1 halaman kertas),
+               sama seperti section Kas dkk di atas yang juga sengaja tidak diberi
+               "avoid" pada isinya — kalau dipaksa, kondisinya mustahil dipenuhi
+               browser (isi selalu lebih tinggi dari ruang 1 halaman) dan
+               pagination bisa memberi hasil yang tidak konsisten. Cukup baris
+               header di bawah yang dijaga tidak sendirian di ujung halaman lewat
+               page-break-after:avoid pada baris itu saja. --}}
+          <div style="margin-bottom:20px;">
             {{-- File header bar --}}
-            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f3f4f6;border:1px solid #e5e7eb;border-bottom:none;border-radius:8px 8px 0 0;">
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f3f4f6;border:1px solid #e5e7eb;border-bottom:none;border-radius:8px 8px 0 0;page-break-after:avoid;break-after:avoid-page;">
               <span style="background:{{ $es['bg'] }};color:{{ $es['text'] }};border:1px solid {{ $es['border'] }};font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;">{{ $ext }}</span>
               <span style="font-size:10px;font-weight:700;color:#111827;flex:1;">{{ (int)$i+1 }}. {{ $f['name'] ?? 'Unnamed' }}</span>
               <span style="font-size:8.5px;color:#6b7280;">{{ $fmtSize((int)($f['size'] ?? 0)) }}</span>
