@@ -26,4 +26,5 @@ return [
     'smh-tarikan'     => 'SMH Tarikan',
     'lampiran'        => 'Lampiran',
     'mutasi-pembelian' => 'Mutasi Pembelian',
+    'ttp-csc'         => 'TTP CSC',
 ];
