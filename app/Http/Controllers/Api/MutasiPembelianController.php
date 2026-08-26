@@ -67,6 +67,37 @@ class MutasiPembelianController extends Controller
         return response()->json(['message' => 'Keterangan tersimpan.']);
     }
 
+    // Hapus HANYA 1 baris (by index) — baca-ubah-simpan langsung di server,
+    // sama seperti updateKeterangan(), supaya tidak perlu (dan tidak rawan
+    // menimpa balik) kirim ulang seluruh array dari memori browser.
+    // array_values() setelah splice supaya indeks kembali rapat 0..n-1 —
+    // frontend me-render ulang seluruh tabel dari respons ini sehingga
+    // data-mp-idx di setiap baris selalu cocok dengan indeks di server.
+    public function deleteItem(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'planAuditId' => 'required|integer|exists:plan_audits,id',
+            'index'       => 'required|integer|min:0',
+        ]);
+        $who = $request->user()?->username ?? $request->user()?->email;
+
+        $rec = PemeriksaanMutasiPembelian::where('plan_audit_id', $data['planAuditId'])->first();
+        if (!$rec) {
+            return response()->json(['message' => 'Data Mutasi Pembelian belum ada untuk plan audit ini.'], 422);
+        }
+
+        $items = $rec->items_json ?? [];
+        if (!array_key_exists($data['index'], $items)) {
+            return response()->json(['message' => 'Baris tidak ditemukan.'], 404);
+        }
+
+        array_splice($items, $data['index'], 1);
+        $items = array_values($items);
+        $rec->update(['items_json' => $items, 'updated_by' => $who]);
+
+        return response()->json(['message' => 'Baris dihapus.', 'data' => $items]);
+    }
+
     // Bandingkan 2 file: "Gudang" (patokan — laporan pembelian dari sistem
     // gudang, setiap barisnya WAJIB dicek) vs "Unit Usaha" (dipakai untuk
     // memverifikasi tiap baris Gudang: apakah kombinasi Kode Part+Qty+Nomor

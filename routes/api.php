@@ -414,6 +414,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->middleware('akta.role:admin,manajer,auditor');
     Route::patch('/audit-detail/mutasi-pembelian/keterangan', [MutasiPembelianController::class, 'updateKeterangan'])
         ->middleware('akta.role:admin,manajer,auditor');
+    Route::delete('/audit-detail/mutasi-pembelian/item', [MutasiPembelianController::class, 'deleteItem'])
+        ->middleware('akta.role:admin,manajer,auditor');
 
     // ── MT ──
     Route::get('/audit-detail/mt',       [MtController::class, 'show']);

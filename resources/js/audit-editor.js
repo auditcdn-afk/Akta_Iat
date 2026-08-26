@@ -6889,6 +6889,12 @@ function mpRender() {
                     placeholder="Keterangan... (opsional)"
                     class="w-44 rounded border ${it.matched ? 'border-slate-700' : 'border-red-800'} bg-slate-800 px-2 py-1 text-xs text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none">
             </td>
+            <td class="px-3 py-2 text-center">
+                <button type="button" data-mp-del="${idx}" title="Hapus baris ini"
+                    class="rounded-lg border border-red-800 bg-red-950/40 px-2 py-1 text-xs font-semibold text-red-300 hover:bg-red-900/60 transition">
+                    🗑️
+                </button>
+            </td>
         </tr>`;
     }).join('');
 
@@ -6902,6 +6908,32 @@ function mpRender() {
             saveMpKeterangan(i, e.target.value).catch(() => {});
         });
     });
+
+    tblBody.querySelectorAll('button[data-mp-del]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const i = parseInt(e.currentTarget.dataset.mpDel, 10);
+            const it = _mpItems[i];
+            if (!it) return;
+            if (!confirm(`Hapus baris "${it.kodePart || '-'}" (${it.nomorFaktur || '-'})? Tindakan ini tidak bisa dibatalkan.`)) return;
+            deleteMpItem(i).catch(err => showAlert(err.message || 'Gagal menghapus baris.', 'error'));
+        });
+    });
+}
+
+// Hapus 1 baris langsung di server (baca-ubah-simpan by index — lihat
+// MutasiPembelianController::deleteItem), lalu pakai array hasil respons
+// server (indeks sudah dirapatkan ulang) sebagai sumber kebenaran baru,
+// bukan cuma splice lokal, supaya tetap sinkron kalau ada auditor lain.
+async function deleteMpItem(index) {
+    if (!activePlanId) return;
+    const res = await fetchJson('/api/audit-detail/mutasi-pembelian/item', {
+        method:  'DELETE',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body:    JSON.stringify({ planAuditId: activePlanId, index }),
+    });
+    _mpItems = res.data ?? [];
+    mpRender();
+    showAlert(res.message || 'Baris dihapus.', 'success');
 }
 
 async function saveMpKeterangan(index, keterangan) {
