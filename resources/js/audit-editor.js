@@ -4314,7 +4314,7 @@ function mtGetEntry(mekanik, jenis) {
     if (!_mtData) _mtData = mtEmptyData();
     let e = (_mtData.entries || []).find(e => e.mekanik === mekanik && e.jenis === jenis);
     if (!e) {
-        e = { mekanik, jenis, bagus: [], rusak: [], skAudit: [], hilang: [] };
+        e = { mekanik, jenis, bagus: [], rusak: [], skAudit: [], hilang: [], keterangan: '' };
         (_mtData.entries = _mtData.entries || []).push(e);
     }
     // Bersihkan duplikat nama tool DALAM 1 kategori yang sama — bisa tersimpan
@@ -4404,7 +4404,14 @@ function mtRenderKategori() {
     const allTools = _mtToolsCache[jenis] || [];
     const used    = mtUsedTools(entry);
 
-    wrap.innerHTML = MT_KATEGORI.map(kat => {
+    const keteranganBlock = `
+        <div class="rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-2">
+            <label for="mtKeterangan" class="text-sm font-semibold text-slate-300">Keterangan</label>
+            <textarea id="mtKeterangan" rows="2" placeholder="Catatan pemeriksaan untuk mekanik ini... (opsional)"
+                class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none">${escapeHtml(entry.keterangan || '')}</textarea>
+        </div>`;
+
+    wrap.innerHTML = keteranganBlock + MT_KATEGORI.map(kat => {
         const color = MT_COLOR[kat];
         const items = entry[kat] || [];
 
@@ -4442,6 +4449,15 @@ function mtRenderKategori() {
     }).join('');
 
     // Wire events
+    const keteranganInput = document.getElementById('mtKeterangan');
+    keteranganInput?.addEventListener('input', (e) => {
+        const e2 = mtGetEntry(mekanik, jenis);
+        e2.keterangan = e.target.value;
+    });
+    keteranganInput?.addEventListener('blur', () => {
+        _doSaveMt().catch(err => showAlert(err.message || 'Gagal menyimpan perubahan MT.', 'error'));
+    });
+
     MT_KATEGORI.forEach(kat => {
         document.getElementById(`mtSel-${kat}`)?.addEventListener('change', function() {
             const val = this.value;
@@ -4531,7 +4547,7 @@ function initMtForm() {
         if (mtMekanikList().includes(name)) { showAlert('Mekanik dengan nama ini sudah ada.', 'error'); return; }
         // Create a default entry so the mechanic appears in the list
         if (!_mtData) _mtData = mtEmptyData();
-        _mtData.entries.push({ mekanik: name, jenis: 'baru', bagus: [], rusak: [], skAudit: [], hilang: [] });
+        _mtData.entries.push({ mekanik: name, jenis: 'baru', bagus: [], rusak: [], skAudit: [], hilang: [], keterangan: '' });
         addForm?.classList.add('hidden');
         if (nameInput) nameInput.value = '';
         mtSelectMekanik(name);
