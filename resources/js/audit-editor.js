@@ -4317,6 +4317,17 @@ function mtGetEntry(mekanik, jenis) {
         e = { mekanik, jenis, bagus: [], rusak: [], skAudit: [], hilang: [] };
         (_mtData.entries = _mtData.entries || []).push(e);
     }
+    // Bersihkan duplikat nama tool DALAM 1 kategori yang sama — bisa tersimpan
+    // sebelumnya kalau katalog db_mt sempat punya baris ganda untuk tool yang
+    // sama (lihat MtController::tools()). Tanpa ini, tool yang sudah dobel di
+    // Bagus tetap kelihatan "belum terpakai" di dropdown kategori lain walau
+    // sekilas sudah ada chip-nya, karena satu instance-nya belum "terpakai".
+    MT_KATEGORI.forEach(k => {
+        const arr = e[k] || [];
+        if (arr.length !== new Set(arr).size) {
+            e[k] = [...new Set(arr)];
+        }
+    });
     return e;
 }
 
@@ -4454,7 +4465,7 @@ function mtRenderKategori() {
                 const val = (e2[kat] || [])[idx];
                 e2[kat].splice(idx, 1);
                 // Move back to bagus if it's from the DB tools list
-                if (val && kat !== 'bagus' && (_mtToolsCache[jenis] || []).includes(val)) {
+                if (val && kat !== 'bagus' && (_mtToolsCache[jenis] || []).includes(val) && !(e2.bagus || []).includes(val)) {
                     e2.bagus = [...(e2.bagus || []), val];
                 }
                 mtRenderKategori();

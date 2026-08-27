@@ -59,6 +59,13 @@ class MtController extends Controller
             'jenis'         => $r->jenis,
         ]);
 
+        // Dedupe by nama (trim+lowercase) — db_mt kadang punya baris ganda untuk
+        // nama tool yang sama (mis. hasil import Excel dengan baris terduplikasi).
+        // Tanpa ini, tiap tool yang ganda ikut ke-auto-isi 2x ke kategori Bagus
+        // saat mekanik baru pertama kali dibuka, dan salah satu duplikatnya tetap
+        // "available" untuk dipilih di kategori lain walau kelihatan sudah ada.
+        $rows = $rows->unique(fn($r) => strtolower(trim($r['nama'])))->values();
+
         return response()->json(['data' => $rows]);
     }
 }
