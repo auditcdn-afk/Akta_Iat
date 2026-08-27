@@ -4305,7 +4305,7 @@ function mtRenderMekanikList() {
             } else {
                 mtRenderMekanikList();
             }
-            _doSaveMt().catch(() => {});
+            _doSaveMt().catch(err => showAlert(err.message || 'Gagal menyimpan perubahan MT.', 'error'));
         });
     });
 }
@@ -4375,7 +4375,7 @@ async function mtAutoLoadTools() {
     if (!tools.length) return;
     entry.bagus = [...tools];
     mtRenderKategori();
-    _doSaveMt().catch(() => {});
+    _doSaveMt().catch(err => showAlert(err.message || 'Gagal menyimpan perubahan MT.', 'error'));
 }
 
 function mtRenderKategori() {
@@ -4443,7 +4443,7 @@ function mtRenderKategori() {
                 e2[kat] = [...(e2[kat] || []), val];
             }
             mtRenderKategori();
-            _doSaveMt().catch(() => {});
+            _doSaveMt().catch(err => showAlert(err.message || 'Gagal menyimpan perubahan MT.', 'error'));
         });
 
         // Remove chip → move back to Bagus
@@ -4458,7 +4458,7 @@ function mtRenderKategori() {
                     e2.bagus = [...(e2.bagus || []), val];
                 }
                 mtRenderKategori();
-                _doSaveMt().catch(() => {});
+                _doSaveMt().catch(err => showAlert(err.message || 'Gagal menyimpan perubahan MT.', 'error'));
             });
         });
     });
@@ -4532,7 +4532,7 @@ function initMtForm() {
         const baruBtn = document.querySelector('.mt-jenis-btn[data-mt-jenis="baru"]');
         if (baruBtn) { baruBtn.classList.add('active', 'bg-blue-600', 'text-white', 'border-blue-600'); baruBtn.classList.remove('text-slate-300'); }
         mtAutoLoadTools();
-        _doSaveMt().catch(() => {});
+        _doSaveMt().catch(err => showAlert(err.message || 'Gagal menyimpan perubahan MT.', 'error'));
     };
     confirmBtn?.addEventListener('click', confirmAdd);
     nameInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmAdd(); });
