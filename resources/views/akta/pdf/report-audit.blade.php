@@ -2539,6 +2539,13 @@ window.addEventListener('load', function() {
                 @endif
               @endforeach
 
+              @if(!empty($entry['keterangan']))
+              <div style="margin-top:4px;padding:8px 10px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;">
+                <span style="font-size:9.5px;font-weight:700;color:#374151;">Keterangan: </span>
+                <span style="font-size:9.5px;color:#4b5563;">{{ $entry['keterangan'] }}</span>
+              </div>
+              @endif
+
             @endforeach
           </div>
         @endforeach
