@@ -53,8 +53,8 @@
             </div>
 
             {{-- Form Pemeriksaan (scan / dropdown No. Part) --}}
-            <div class="rounded-2xl border border-blue-700/40 bg-blue-900/10 p-5">
-                <div class="mb-4 flex items-center justify-between">
+            <div class="rounded-2xl border border-blue-700/40 bg-blue-900/10 p-4">
+                <div class="mb-3 flex items-center justify-between">
                     <h4 class="text-sm font-bold uppercase tracking-wide text-blue-300">🔍 Input Pemeriksaan Fisik</h4>
                     <button id="rsaHgpAddPartBtn" type="button"
                         class="flex items-center gap-1.5 rounded-lg border border-emerald-600/50 bg-emerald-700/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-700/40 transition">
@@ -84,12 +84,12 @@
                     <p id="rsaHgpAddPartMsg" class="hidden text-xs"></p>
                 </div>
 
-                <div class="space-y-4">
+                <div class="space-y-3">
                     {{-- Tanggal --}}
                     <div class="flex flex-col gap-1">
                         <label class="text-xs font-semibold text-slate-300">Tanggal</label>
                         <input type="date" id="rsaHgpFormTgl"
-                            class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
+                            class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
                     </div>
 
                     {{-- Sparepart / No. Part (scan barcode + dropdown) --}}
@@ -97,61 +97,61 @@
                         <label class="text-xs font-semibold text-slate-300">Sparepart / No. Part <span class="text-red-400">*</span></label>
                         <input type="text" id="rsaHgpFormPart" list="rsaHgpPartList" autocomplete="off"
                             placeholder="Scan barcode atau pilih No. Part..."
-                            class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
+                            class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
                         <datalist id="rsaHgpPartList"></datalist>
                         <p id="rsaHgpFormPartInfo" class="mt-0.5 text-xs text-slate-400"></p>
                     </div>
 
                     {{-- Fields berikut hanya muncul setelah No. Part dipilih --}}
-                    <div id="rsaHgpFormFields" class="hidden space-y-4">
+                    <div id="rsaHgpFormFields" class="hidden space-y-3">
 
                         {{-- Qty --}}
                         <div class="flex flex-col gap-1">
                             <label class="text-xs font-semibold text-slate-300">Qty (Fisik Scan) <span class="text-red-400">*</span></label>
                             <div class="flex items-center gap-2">
-                                <button id="rsaHgpFormQtyDec" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-slate-200 hover:bg-slate-600">−</button>
+                                <button id="rsaHgpFormQtyDec" type="button" class="rounded-lg bg-slate-700 px-3 py-1.5 text-slate-200 hover:bg-slate-600">−</button>
                                 <input type="number" id="rsaHgpFormQty" value="0"
-                                    class="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
-                                <button id="rsaHgpFormQtyInc" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-slate-200 hover:bg-slate-600">+</button>
+                                    class="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
+                                <button id="rsaHgpFormQtyInc" type="button" class="rounded-lg bg-slate-700 px-3 py-1.5 text-slate-200 hover:bg-slate-600">+</button>
                             </div>
                         </div>
 
-                        {{-- Akhir --}}
-                        <div class="flex flex-col gap-1">
-                            <label class="text-xs font-semibold text-slate-300">Akhir</label>
-                            <input type="text" id="rsaHgpFormAkhir" readonly value="0"
-                                class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-300">
-                        </div>
-
-                        {{-- Selisih --}}
-                        <div class="flex flex-col gap-1">
-                            <label class="text-xs font-semibold text-slate-300">Selisih</label>
-                            <input type="text" id="rsaHgpFormSelisih" readonly value="0"
-                                class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-300">
+                        {{-- Akhir & Selisih --}}
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-semibold text-slate-300">Akhir</label>
+                                <input type="text" id="rsaHgpFormAkhir" readonly value="0"
+                                    class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-sm text-slate-300">
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-semibold text-slate-300">Selisih</label>
+                                <input type="text" id="rsaHgpFormSelisih" readonly value="0"
+                                    class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-sm text-slate-300">
+                            </div>
                         </div>
 
                         {{-- Keterangan --}}
                         <div class="flex flex-col gap-1">
                             <label class="text-xs font-semibold text-slate-300">Keterangan</label>
                             <input type="text" id="rsaHgpFormKet" placeholder="Keterangan..."
-                                class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
+                                class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
                         </div>
 
                         {{-- Log Scan --}}
                         <div class="flex flex-col gap-1">
                             <label class="text-xs font-semibold text-slate-300">Log Scan</label>
-                            <div id="rsaHgpFormLog" class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-400">
+                            <div id="rsaHgpFormLog" class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-xs text-slate-400">
                                 Fisik Terscan : 0 | Saldo Akhir : -
                             </div>
                         </div>
 
                         <div class="flex items-center gap-2 pt-1">
                             <button id="rsaHgpFormSaveBtn" type="button"
-                                class="flex-1 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-blue-500 active:scale-95 transition">
+                                class="flex-1 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500 active:scale-95 transition">
                                 ✓ Simpan Pemeriksaan
                             </button>
                             <button id="rsaHgpFormResetBtn" type="button"
-                                class="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800 transition">
+                                class="rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 transition">
                                 Reset
                             </button>
                         </div>
