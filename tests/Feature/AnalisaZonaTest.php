@@ -82,6 +82,30 @@ class AnalisaZonaTest extends TestCase
         $this->assertDatabaseCount('analisa_lpk_penjualan', 0);
     }
 
+    public function test_my_uploads_hanya_menampilkan_riwayat_unit_usaha_sendiri(): void
+    {
+        $userSosgl = User::factory()->create(['role' => 'auditor', 'unit_usaha' => 'SO SGL', 'analisa_zona_access' => false]);
+        Sanctum::actingAs($userSosgl);
+        $this->postJson('/api/analisa-zona/upload-self', [
+            'file' => new UploadedFile($this->buildSampleZip(), 'RKK.zip', 'application/zip', null, true),
+        ])->assertOk();
+
+        $res = $this->getJson('/api/analisa-zona/my-uploads')->assertOk();
+        $filenames = collect($res->json('data'))->pluck('source_filename')->all();
+
+        // Cuma file kode SOSGL yang masuk riwayat SO SGL (RKK & ACC), LPK
+        // (kode SOTDB) tidak ikut karena ditolak validasi unit usaha.
+        $this->assertCount(2, $filenames);
+        $this->assertContains('SOSGL-260818-260818RKK.RKK', $filenames);
+        $this->assertContains('SOSGL-20260818-20260818.ACC', $filenames);
+
+        // User unit usaha lain tidak melihat riwayat SO SGL.
+        $userLain = User::factory()->create(['role' => 'auditor', 'unit_usaha' => 'SO TDB', 'analisa_zona_access' => false]);
+        Sanctum::actingAs($userLain);
+        $res2 = $this->getJson('/api/analisa-zona/my-uploads')->assertOk();
+        $this->assertCount(0, $res2->json('data'));
+    }
+
     public function test_upload_self_ditolak_kalau_akun_belum_punya_unit_usaha(): void
     {
         $user = User::factory()->create(['role' => 'auditor', 'unit_usaha' => null, 'analisa_zona_access' => false]);

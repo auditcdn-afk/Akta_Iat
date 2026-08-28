@@ -80,6 +80,35 @@ class AnalisaZonaController extends Controller
         ]);
     }
 
+    /**
+     * Riwayat upload milik unit usaha akun yang login sendiri — supaya
+     * mereka bisa lihat file apa saja yang sudah pernah masuk (dan kapan)
+     * tanpa perlu coba upload ulang cuma untuk tahu itu sudah pernah
+     * diupload atau belum. Terbuka untuk SEMUA user login, sama seperti
+     * uploadSelf() — tidak ada data pribadi konsumen di tabel ini, cuma
+     * nama file/jenis/tanggal/jumlah baris.
+     */
+    public function myUploads(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user?->unit_usaha) {
+            return response()->json(['data' => []]);
+        }
+
+        $expected = AnalisaZonaImportService::normalizeUnitUsahaCode($user->unit_usaha);
+
+        $uploads = AnalisaUpload::query()
+            ->orderByDesc('tanggal')
+            ->orderByDesc('id')
+            ->limit(300)
+            ->get()
+            ->filter(fn(AnalisaUpload $u) => AnalisaZonaImportService::normalizeUnitUsahaCode($u->unit_usaha_code) === $expected)
+            ->values()
+            ->take(50);
+
+        return response()->json(['data' => $uploads]);
+    }
+
     public function uploads(Request $request): JsonResponse
     {
         $uploads = AnalisaUpload::query()

@@ -554,6 +554,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // TIDAK ikut kena middleware akta.analisa-zona (yang menutup akses ke
     // dashboard skor & data pribadi konsumen untuk selain tim analisa).
     Route::post('/analisa-zona/upload-self', [AnalisaZonaController::class, 'uploadSelf']);
+    Route::get('/analisa-zona/my-uploads', [AnalisaZonaController::class, 'myUploads']);
 
     // Analisa Zona — berisi PII konsumen (NIK/HP/alamat), dibatasi lewat
     // flag users.analisa_zona_access (bukan role) — lihat EnsureAnalisaZonaAccess.
