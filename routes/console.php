@@ -26,3 +26,11 @@ Schedule::command('akta:refresh-report-audit-flat')->everyTwoHours()->withoutOve
 // sebelumnya selesai; job ini cuma menjaga reminder tetap jalan tiap hari
 // selama step itu belum diisi.
 Schedule::command('akta:notify-pending-birokrasi')->dailyAt('07:00')->withoutOverlapping();
+
+// Analisa Zona: hitung ulang skor risiko per unit usaha tiap malam (dashboard
+// baca hasil yang sudah dihitung, bukan agregasi live tiap dibuka), lalu
+// bersihkan data mentah RKK/ACC/LPK yang sudah lewat masa retensi (data
+// berisi PII konsumen — sengaja tidak disimpan lama). Skor ringkasan yang
+// sudah dihitung TIDAK ikut terhapus.
+Schedule::command('analisa-zona:recompute-scores')->dailyAt('01:00')->withoutOverlapping();
+Schedule::command('analisa-zona:purge-old-data')->dailyAt('01:30')->withoutOverlapping();

@@ -284,12 +284,16 @@ function openModal(user = null) {
         document.getElementById("isDisabled").checked = Boolean(
             user.isDisabled,
         );
+        document.getElementById("analisaZonaAccess").checked = Boolean(
+            user.analisaZonaAccess,
+        );
         password.required = false;
     } else {
         title.textContent = "Tambah User";
 
         document.getElementById("userId").value = "";
         document.getElementById("role").value = "auditor";
+        document.getElementById("analisaZonaAccess").checked = false;
         password.required = true;
     }
 
@@ -423,6 +427,7 @@ function getFormPayload() {
         unit_usaha: document.getElementById("unitUsaha").value.trim(),
         wilayah: document.getElementById("wilayah").value,
         is_disabled: document.getElementById("isDisabled").checked,
+        analisa_zona_access: document.getElementById("analisaZonaAccess").checked,
     };
 
     if (password) {

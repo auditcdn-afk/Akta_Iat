@@ -58,6 +58,32 @@ $menuItems = app(\App\Services\AktaMenuService::class)->visibleItems();
                 @endif
             </a>
             @endforeach
+
+            {{-- Analisa Zona sengaja TIDAK lewat sistem menu dinamis (menus/menu_roles)
+                 di atas — gatingnya berupa flag per-user (analisa_zona_access), bukan
+                 role, karena role satu user cuma boleh 1 nilai dan mengubahnya akan
+                 menghapus akses role auditor/admin yang sedang dipakai. Lihat migrasi
+                 add_analisa_zona_access_to_users_table.
+
+                 Halaman ini (seperti semua halaman akta.* lain) dirender lepas dari
+                 auth session Laravel — status login sepenuhnya di client (sessionStorage,
+                 lihat akta-auth.js), jadi auth()->user() di Blade SELALU null di sini.
+                 Visibilitasnya karena itu ditentukan lewat JS di bawah, sama seperti
+                 item menu dinamis via atribut data-roles — bukan @if server-side. --}}
+            <a href="{{ route('akta.analisa-zona') }}"
+                data-analisa-zona-link="true"
+                data-active-menu="{{ request()->routeIs('akta.analisa-zona') ? 'true' : 'false' }}"
+                class="akta-menu-item hidden group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition
+                    {{ request()->routeIs('akta.analisa-zona')
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                        : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+                    }}">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold
+                    {{ request()->routeIs('akta.analisa-zona') ? 'bg-white/15 text-white' : 'bg-slate-900 text-slate-400 group-hover:bg-slate-800 group-hover:text-slate-200' }}">
+                    AZ
+                </span>
+                <span class="truncate">Analisa Zona</span>
+            </a>
         </nav>
 
         <script>
@@ -69,9 +95,11 @@ $menuItems = app(\App\Services\AktaMenuService::class)->visibleItems();
         if (!nav) return;
 
         let role = null;
+        let analisaZonaAccess = false;
         try {
             const session = JSON.parse(sessionStorage.getItem(SESSION_KEY) || '{}');
             role = session?.user?.role || null;
+            analisaZonaAccess = !!session?.user?.analisaZonaAccess;
         } catch {
             role = null;
         }
@@ -84,6 +112,13 @@ $menuItems = app(\App\Services\AktaMenuService::class)->visibleItems();
                 el.classList.remove('hidden');
             }
         });
+
+        // Analisa Zona: gating lewat flag per-user, bukan lewat data-roles (lihat
+        // catatan di atas link-nya).
+        const azLink = nav.querySelector('[data-analisa-zona-link]');
+        if (azLink && analisaZonaAccess) {
+            azLink.classList.remove('hidden');
+        }
 
         const savedScrollTop = Number(sessionStorage.getItem(SIDEBAR_SCROLL_KEY) || 0);
         if (savedScrollTop > 0) {
@@ -155,6 +190,14 @@ $menuItems = app(\App\Services\AktaMenuService::class)->visibleItems();
                 <span>{{ $item['label'] }}</span>
             </a>
             @endforeach
+
+            <a href="{{ route('akta.analisa-zona') }}"
+                data-analisa-zona-link="true"
+                data-active-menu="{{ request()->routeIs('akta.analisa-zona') ? 'true' : 'false' }}"
+                class="akta-menu-item hidden flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium
+                    {{ request()->routeIs('akta.analisa-zona') ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-900' }}">
+                <span>Analisa Zona</span>
+            </a>
         </nav>
 
         <script>
@@ -163,8 +206,11 @@ $menuItems = app(\App\Services\AktaMenuService::class)->visibleItems();
         const nav = document.getElementById('mobileSidebarNav');
         if (!nav) return;
         let role = null;
+        let analisaZonaAccess = false;
         try {
-            role = JSON.parse(sessionStorage.getItem(SESSION_KEY) || '{}')?.user?.role || null;
+            const session = JSON.parse(sessionStorage.getItem(SESSION_KEY) || '{}');
+            role = session?.user?.role || null;
+            analisaZonaAccess = !!session?.user?.analisaZonaAccess;
         } catch {}
         nav.querySelectorAll('[data-roles]').forEach((el) => {
             const allowed = el.dataset.roles.split(',').filter(Boolean);
@@ -172,6 +218,10 @@ $menuItems = app(\App\Services\AktaMenuService::class)->visibleItems();
                 el.classList.remove('hidden');
             }
         });
+        const azLink = nav.querySelector('[data-analisa-zona-link]');
+        if (azLink && analisaZonaAccess) {
+            azLink.classList.remove('hidden');
+        }
     })();
         </script>
     </div>

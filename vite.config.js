@@ -32,6 +32,7 @@ export default defineConfig({
                 'resources/js/akta-monitoring.js',
                 'resources/js/akta-menu-management.js',
                 'resources/js/akta-profile.js',
+                'resources/js/akta-analisa-zona.js',
             ],
             refresh: true,
         }),

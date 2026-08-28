@@ -40,6 +40,7 @@ class UserController extends Controller
             'unit_usaha' => ['nullable', 'string', 'max:100'],
             'wilayah' => ['nullable', 'string', 'max:100'],
             'is_disabled' => ['nullable', 'boolean'],
+            'analisa_zona_access' => ['nullable', 'boolean'],
         ]);
 
         $user = User::query()->create([
@@ -53,6 +54,7 @@ class UserController extends Controller
             'unit_usaha' => $payload['unit_usaha'] ?? '',
             'wilayah' => $payload['wilayah'] ?? null,
             'is_disabled' => (bool) ($payload['is_disabled'] ?? false),
+            'analisa_zona_access' => (bool) ($payload['analisa_zona_access'] ?? false),
             'created_by' => $request->user()?->username,
         ]);
 
@@ -83,6 +85,7 @@ class UserController extends Controller
             'unit_usaha' => ['nullable', 'string', 'max:100'],
             'wilayah' => ['nullable', 'string', 'max:100'],
             'is_disabled' => ['nullable', 'boolean'],
+            'analisa_zona_access' => ['nullable', 'boolean'],
         ]);
 
         $currentUser = $request->user();
@@ -110,6 +113,7 @@ class UserController extends Controller
             'unit_usaha' => $payload['unit_usaha'] ?? '',
             'wilayah' => $payload['wilayah'] ?? null,
             'is_disabled' => (bool) ($payload['is_disabled'] ?? false),
+            'analisa_zona_access' => (bool) ($payload['analisa_zona_access'] ?? false),
         ]);
 
         if (! empty($payload['password'])) {
@@ -188,6 +192,7 @@ class UserController extends Controller
             'wilayah' => $user->wilayah ?: '',
             'password' => $user->plain_password ?: '',
             'isDisabled' => (bool) $user->is_disabled,
+            'analisaZonaAccess' => (bool) $user->analisa_zona_access,
             'createdBy' => $user->created_by,
             'createdAt' => optional($user->created_at)->toDateTimeString(),
             'updatedAt' => optional($user->updated_at)->toDateTimeString(),

@@ -52,6 +52,7 @@ use App\Http\Controllers\Api\PulsaController;
 use App\Http\Controllers\Api\MobilDinasController;
 use App\Http\Controllers\Api\RealisasiDinasController;
 use App\Http\Controllers\Api\PinjamanCabangController;
+use App\Http\Controllers\Api\AnalisaZonaController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', [DataStoreController::class, 'ping']);
@@ -545,6 +546,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Menu untuk user yang sedang login (server memfilter berdasarkan role)
     Route::get('/menus', [MenuController::class, 'myMenus']);
+
+    // Analisa Zona — berisi PII konsumen (NIK/HP/alamat), dibatasi lewat
+    // flag users.analisa_zona_access (bukan role) — lihat EnsureAnalisaZonaAccess.
+    Route::prefix('analisa-zona')
+        ->middleware('akta.analisa-zona')
+        ->group(function () {
+            Route::post('/import', [AnalisaZonaController::class, 'import']);
+            Route::get('/uploads', [AnalisaZonaController::class, 'uploads']);
+            Route::get('/scores', [AnalisaZonaController::class, 'scores']);
+            Route::post('/recompute', [AnalisaZonaController::class, 'recompute']);
+            Route::get('/drill-down', [AnalisaZonaController::class, 'drillDown']);
+        });
 
     Route::prefix('admin')
         ->middleware('akta.role:admin')
