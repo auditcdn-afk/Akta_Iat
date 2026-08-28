@@ -217,6 +217,14 @@
                         Nonaktifkan akun
                     </label>
                 </div>
+
+                <div class="flex items-center rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 sm:col-span-2">
+                    <label class="flex items-center gap-2 text-sm text-slate-300">
+                        <input id="analisaZonaAccess" type="checkbox" class="rounded border-slate-700 bg-slate-900">
+                        Akses Analisa Zona
+                    </label>
+                    <span class="ml-auto text-xs text-slate-500">Fitur berisi data pribadi konsumen (NIK/HP/alamat) — nyalakan hanya untuk tim analisa yang ditunjuk.</span>
+                </div>
             </div>
 
             <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">

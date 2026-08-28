@@ -26,6 +26,7 @@ class User extends Authenticatable
         'unit_usaha',
         'wilayah',
         'is_disabled',
+        'analisa_zona_access',
         'created_by',
     ];
 
@@ -41,6 +42,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_disabled' => 'boolean',
+            'analisa_zona_access' => 'boolean',
         ];
     }
 
@@ -64,6 +66,11 @@ class User extends Authenticatable
         return in_array($this->role, (array) $roles, true);
     }
 
+    public function canAnalisaZona(): bool
+    {
+        return (bool) $this->analisa_zona_access;
+    }
+
     public function toAktaArray(): array
     {
         return [
@@ -77,6 +84,7 @@ class User extends Authenticatable
             'unitUsaha' => $this->unit_usaha ?: '',
             'wilayah' => $this->wilayah ?: '',
             'isDisabled' => (bool) $this->is_disabled,
+            'analisaZonaAccess' => (bool) $this->analisa_zona_access,
         ];
     }
 }

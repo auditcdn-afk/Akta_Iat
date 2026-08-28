@@ -61,6 +61,13 @@ Route::prefix('akta')->name('akta.')->group(function () {
     Route::view('/manajemen-menu', 'akta.pages.menu-management')->name('manajemen-menu');
 
     Route::view('/profile', 'akta.pages.profile')->name('profile');
+
+    // Akses sebenarnya dijaga oleh middleware `akta.analisa-zona` di setiap
+    // endpoint API-nya (lihat routes/api.php) — halaman ini sendiri boleh
+    // dirender untuk siapa saja yang login, tapi tanpa flag itu semua
+    // pemanggilan API-nya akan ditolak 403 dan halaman menampilkan pesan
+    // akses ditolak (lihat akta-analisa-zona.js).
+    Route::view('/analisa-zona', 'akta.pages.analisa-zona')->name('analisa-zona');
 });
 
 // Scaffolding Laravel Breeze (rute /login, /register, /forgot-password,

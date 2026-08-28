@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'akta.role' => \App\Http\Middleware\EnsureAktaRole::class,
+            'akta.analisa-zona' => \App\Http\Middleware\EnsureAnalisaZonaAccess::class,
         ]);
 
         // Ke mana pengunjung yang belum login diarahkan. Tanpa ini Laravel
