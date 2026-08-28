@@ -41,6 +41,45 @@ class AnalisaZonaController extends Controller
         ]);
     }
 
+    /**
+     * Upload harian oleh unit usaha sendiri — SEMUA user login boleh panggil
+     * ini (tidak digerbang middleware akta.analisa-zona), tapi cuma untuk
+     * kode unit usaha yang cocok dengan field unit_usaha akun mereka. Endpoint
+     * ini SENGAJA tidak mengembalikan data hasil parse (tidak ada NIK/HP di
+     * response) — cuma ringkasan jumlah file/baris.
+     */
+    public function uploadSelf(Request $request, AnalisaZonaImportService $service): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimetypes:application/zip,application/x-zip-compressed', 'max:51200'],
+        ]);
+
+        $user = $request->user();
+        if (!$user?->unit_usaha) {
+            return response()->json([
+                'message' => 'Akun Anda belum punya Unit Usaha terdaftar — hubungi admin untuk melengkapi data akun sebelum bisa upload.',
+            ], 422);
+        }
+
+        $summary = $service->importZip($request->file('file'), $user->username, $user->unit_usaha);
+
+        return response()->json([
+            'message' => sprintf(
+                '%d file diproses, %d duplikat dilewati, %d ditolak (unit usaha tidak cocok), %d file tidak dikenali.',
+                count($summary['processed']),
+                count($summary['skipped_duplicate']),
+                count($summary['rejected_unit_usaha']),
+                count($summary['unsupported'])
+            ),
+            'data' => [
+                'processed'           => $summary['processed'],
+                'skipped_duplicate'   => $summary['skipped_duplicate'],
+                'rejected_unit_usaha' => $summary['rejected_unit_usaha'],
+                'unsupported'         => $summary['unsupported'],
+            ],
+        ]);
+    }
+
     public function uploads(Request $request): JsonResponse
     {
         $uploads = AnalisaUpload::query()

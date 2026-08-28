@@ -68,6 +68,10 @@ Route::prefix('akta')->name('akta.')->group(function () {
     // pemanggilan API-nya akan ditolak 403 dan halaman menampilkan pesan
     // akses ditolak (lihat akta-analisa-zona.js).
     Route::view('/analisa-zona', 'akta.pages.analisa-zona')->name('analisa-zona');
+
+    // Upload harian RKK/ACC/LPK oleh unit usaha — terbuka untuk SEMUA user
+    // login (bukan cuma tim analisa), lihat routes/api.php untuk endpointnya.
+    Route::view('/upload-analisa', 'akta.pages.upload-analisa')->name('upload-analisa');
 });
 
 // Scaffolding Laravel Breeze (rute /login, /register, /forgot-password,
