@@ -785,17 +785,24 @@ function smhPerlengkapanChecklist(perlengkapan, saved = []) {
     (saved || []).forEach(p => { savedMap[p.nama] = p.ada; });
     const total = perlengkapan.length;
     const ada   = (saved || []).filter(p => p.ada).length;
+    const allChecked = total > 0 && ada === total;
     return `
-        <div class="mb-2 flex items-center justify-between">
+        <div class="mb-1.5 flex items-center justify-between gap-2">
             <span class="text-xs font-semibold text-slate-300">Perlengkapan SMH</span>
-            <span class="text-xs font-bold text-slate-100" id="smhPlProgress">${ada}/${total} lengkap</span>
+            <div class="flex items-center gap-2.5">
+                <label class="flex items-center gap-1 cursor-pointer text-[11px] font-medium text-slate-400">
+                    <input type="checkbox" id="smhPlSelectAll" class="h-3.5 w-3.5 rounded border-slate-600 text-emerald-600" ${allChecked ? 'checked' : ''}>
+                    Pilih Semua
+                </label>
+                <span class="text-xs font-bold text-slate-100" id="smhPlProgress">${ada}/${total} lengkap</span>
+            </div>
         </div>
-        <div class="space-y-1" id="smhPlList">
+        <div class="space-y-0.5" id="smhPlList">
             ${perlengkapan.map(nama => `
-            <label class="flex items-center gap-2 cursor-pointer rounded px-2 py-1 hover:bg-slate-800">
-                <input type="checkbox" class="smh-pl-cb h-4 w-4 rounded border-slate-600 text-emerald-600"
+            <label class="flex items-center gap-2 cursor-pointer rounded px-1.5 py-0.5 hover:bg-slate-800">
+                <input type="checkbox" class="smh-pl-cb h-3.5 w-3.5 rounded border-slate-600 text-emerald-600"
                     data-nama="${escapeHtml(nama)}" ${savedMap[nama] ? 'checked' : ''}>
-                <span class="text-sm text-slate-200">${escapeHtml(nama)}</span>
+                <span class="text-xs text-slate-200">${escapeHtml(nama)}</span>
             </label>`).join('')}
         </div>`;
 }
@@ -872,7 +879,7 @@ async function smhScanUnit(q) {
             </div>
         </div>
 
-        <div id="smhPlCard" class="rounded-xl border border-slate-700 bg-slate-800/50 p-4">
+        <div id="smhPlCard" class="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
             ${smhPerlengkapanChecklist(perlengkapan, it.perlengkapanJson)}
         </div>
 
@@ -888,14 +895,31 @@ async function smhScanUnit(q) {
         </div>`;
     res.classList.remove('hidden');
 
-    // Update progress saat checkbox berubah
+    // Update progress saat checkbox berubah, dan sinkronkan status "Pilih Semua"
+    const smhPlSelectAll = res.querySelector('#smhPlSelectAll');
+    const smhPlSyncSelectAll = () => {
+        if (!smhPlSelectAll) return;
+        const boxes   = res.querySelectorAll('.smh-pl-cb');
+        const checked = res.querySelectorAll('.smh-pl-cb:checked').length;
+        smhPlSelectAll.checked = boxes.length > 0 && checked === boxes.length;
+        smhPlSelectAll.indeterminate = checked > 0 && checked < boxes.length;
+    };
     res.querySelectorAll('.smh-pl-cb').forEach(cb => {
         cb.addEventListener('change', () => {
             const total2 = res.querySelectorAll('.smh-pl-cb').length;
             const ada2   = res.querySelectorAll('.smh-pl-cb:checked').length;
             const prog = res.querySelector('#smhPlProgress');
             if (prog) prog.textContent = `${ada2}/${total2} lengkap`;
+            smhPlSyncSelectAll();
         });
+    });
+    smhPlSelectAll?.addEventListener('change', () => {
+        res.querySelectorAll('.smh-pl-cb').forEach(cb => { cb.checked = smhPlSelectAll.checked; });
+        const total2 = res.querySelectorAll('.smh-pl-cb').length;
+        const ada2   = res.querySelectorAll('.smh-pl-cb:checked').length;
+        const prog = res.querySelector('#smhPlProgress');
+        if (prog) prog.textContent = `${ada2}/${total2} lengkap`;
+        smhPlSelectAll.indeterminate = false;
     });
 
     // Scroll LANGSUNG ke checklist Perlengkapan (bukan cuma ke atas kartu hasil
