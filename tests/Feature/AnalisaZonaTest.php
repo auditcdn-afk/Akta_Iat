@@ -61,6 +61,36 @@ class AnalisaZonaTest extends TestCase
         return $user;
     }
 
+    public function test_user_biasa_tanpa_analisa_zona_access_bisa_upload_sendiri_untuk_unit_usahanya(): void
+    {
+        // "SO SGL" (field unit_usaha akun) harus cocok dengan "SOSGL" (kode di
+        // dalam file) walau beda spasi — inti dari normalisasi kode unit usaha.
+        $user = User::factory()->create(['role' => 'auditor', 'unit_usaha' => 'SO SGL', 'analisa_zona_access' => false]);
+        Sanctum::actingAs($user);
+
+        $zipPath = $this->buildSampleZip();
+        $upload = new UploadedFile($zipPath, 'RKK.zip', 'application/zip', null, true);
+
+        $res = $this->postJson('/api/analisa-zona/upload-self', ['file' => $upload])->assertOk();
+        $data = $res->json('data');
+
+        $this->assertCount(2, $data['processed']); // RKK & ACC unitnya SOSGL
+        $this->assertCount(1, $data['rejected_unit_usaha']); // LPK unitnya SOTDB, harus ditolak
+        $this->assertStringContainsString('SOTDB', $data['rejected_unit_usaha'][0]);
+
+        $this->assertDatabaseCount('analisa_rkk_transactions', 1);
+        $this->assertDatabaseCount('analisa_lpk_penjualan', 0);
+    }
+
+    public function test_upload_self_ditolak_kalau_akun_belum_punya_unit_usaha(): void
+    {
+        $user = User::factory()->create(['role' => 'auditor', 'unit_usaha' => null, 'analisa_zona_access' => false]);
+        Sanctum::actingAs($user);
+
+        $upload = new UploadedFile($this->buildSampleZip(), 'RKK.zip', 'application/zip', null, true);
+        $this->postJson('/api/analisa-zona/upload-self', ['file' => $upload])->assertStatus(422);
+    }
+
     public function test_user_tanpa_akses_ditolak_403(): void
     {
         Sanctum::actingAs(User::factory()->create(['role' => 'auditor', 'analisa_zona_access' => false]));

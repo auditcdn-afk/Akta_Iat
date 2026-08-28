@@ -14,19 +14,33 @@ class AnalisaZonaImportService
     {
     }
 
+    /** Normalisasi kode unit usaha untuk dibandingkan (buang spasi/simbol, uppercase) — supaya "SO SGL" (field unit_usaha akun) bisa dicocokkan dengan "SOSGL" (kode di dalam file). */
+    public static function normalizeUnitUsahaCode(?string $value): string
+    {
+        return strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $value) ?? '');
+    }
+
     /**
-     * @return array{processed: string[], skipped_duplicate: string[], unsupported: string[], row_counts: array<string,int>}
+     * @param string|null $expectedUnitUsahaCode Kalau diisi, file yang kode unit
+     *        usahanya (setelah dinormalisasi) TIDAK cocok akan ditolak (masuk ke
+     *        `rejected_unit_usaha`), bukan diproses — dipakai saat unit usaha
+     *        upload sendiri, supaya 1 akun tidak bisa (sengaja/tidak sengaja)
+     *        upload data milik unit usaha lain.
+     * @return array{processed: string[], skipped_duplicate: string[], unsupported: string[], rejected_unit_usaha: string[], row_counts: array<string,int>}
      */
-    public function importZip(UploadedFile $zip, ?string $uploadedBy): array
+    public function importZip(UploadedFile $zip, ?string $uploadedBy, ?string $expectedUnitUsahaCode = null): array
     {
         $tmpDir = storage_path('app/tmp-analisa-zona-' . uniqid());
         mkdir($tmpDir, 0755, true);
 
+        $expectedNormalized = $expectedUnitUsahaCode !== null ? self::normalizeUnitUsahaCode($expectedUnitUsahaCode) : null;
+
         $summary = [
-            'processed'          => [],
-            'skipped_duplicate'  => [],
-            'unsupported'        => [],
-            'row_counts'         => [],
+            'processed'            => [],
+            'skipped_duplicate'    => [],
+            'unsupported'          => [],
+            'rejected_unit_usaha'  => [],
+            'row_counts'           => [],
         ];
 
         try {
@@ -53,6 +67,11 @@ class AnalisaZonaImportService
 
                 if ($parsed->unitUsahaCode === '' || $parsed->tanggal === null || $parsed->tanggal === '') {
                     $summary['unsupported'][] = $filename . ' (gagal baca unit usaha/tanggal)';
+                    continue;
+                }
+
+                if ($expectedNormalized !== null && self::normalizeUnitUsahaCode($parsed->unitUsahaCode) !== $expectedNormalized) {
+                    $summary['rejected_unit_usaha'][] = "{$filename} (kode di file: {$parsed->unitUsahaCode}, akun Anda: {$expectedUnitUsahaCode})";
                     continue;
                 }
 

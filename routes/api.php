@@ -547,6 +547,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Menu untuk user yang sedang login (server memfilter berdasarkan role)
     Route::get('/menus', [MenuController::class, 'myMenus']);
 
+    // Upload harian RKK/ACC/LPK oleh unit usaha — SEMUA user yang login boleh
+    // upload (bukan cuma tim analisa), tapi cuma untuk kode unit usaha yang
+    // cocok dengan akun mereka sendiri (lihat AnalisaZonaController::uploadSelf).
+    // Sengaja terpisah dari grup /analisa-zona di bawah supaya endpoint ini
+    // TIDAK ikut kena middleware akta.analisa-zona (yang menutup akses ke
+    // dashboard skor & data pribadi konsumen untuk selain tim analisa).
+    Route::post('/analisa-zona/upload-self', [AnalisaZonaController::class, 'uploadSelf']);
+
     // Analisa Zona — berisi PII konsumen (NIK/HP/alamat), dibatasi lewat
     // flag users.analisa_zona_access (bukan role) — lihat EnsureAnalisaZonaAccess.
     Route::prefix('analisa-zona')
