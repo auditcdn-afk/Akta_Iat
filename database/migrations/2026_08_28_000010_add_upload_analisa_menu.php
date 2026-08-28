@@ -24,7 +24,7 @@ return new class extends Migration
         $exists = DB::table('menus')->where('route_name', 'akta.upload-analisa')->exists();
         if (!$exists) {
             DB::table('menus')->insert([
-                'label' => 'Upload Data Analisa',
+                'label' => 'Upload Data',
                 'code' => 'UA',
                 'route_name' => 'akta.upload-analisa',
                 'path' => '/akta/upload-analisa',
