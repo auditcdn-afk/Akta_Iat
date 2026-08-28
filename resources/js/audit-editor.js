@@ -6109,6 +6109,7 @@ function initSmhTarikanForm() {
 let _hgaData = null;
 let _hgaSelIdx = -1;
 let _hgaScanGuard = false;
+let _hgaFilterSelisihOnly = false;
 
 function hgaEmptyData() { return { items: [] }; }
 function hgaN(v) { return parseFloat(v) || 0; }
@@ -6133,7 +6134,9 @@ function hgaUpdateStats() {
     if (el('hgaStatTotal'))   el('hgaStatTotal').textContent   = total;
     if (el('hgaStatSelisih')) el('hgaStatSelisih').textContent = selisih;
     if (el('hgaStatScan'))    el('hgaStatScan').textContent    = scan;
-    if (el('hgaTableCount'))  el('hgaTableCount').textContent  = `${total} Item`;
+    if (el('hgaTableCount'))  el('hgaTableCount').textContent  = _hgaFilterSelisihOnly
+        ? `${selisih} dari ${total} Item (selisih)`
+        : `${total} Item`;
 }
 
 // Bangun HTML 1 baris tabel HGA. Dipisah dari hgaRenderItems() supaya bisa dipakai
@@ -6245,7 +6248,19 @@ function hgaRenderItems() {
         hgaUpdateStats();
         return;
     }
-    tbody.innerHTML = items.map((it, i) => hgaRowHtml(it, i)).join('');
+    // Filter selisih hanya menyembunyikan baris di tampilan — index yang dipakai
+    // untuk data-hga-i/data-hga-row tetap index ASLI di _hgaData.items (bukan
+    // index lokal hasil filter), supaya edit inline & scan increment tetap
+    // menunjuk ke item yang benar.
+    const rows = items
+        .map((it, i) => [it, i])
+        .filter(([it]) => !_hgaFilterSelisihOnly || hgaN(it.selisih) !== 0);
+    if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="14" class="px-4 py-8 text-center text-slate-400 text-xs">Tidak ada item dengan selisih.</td></tr>`;
+        hgaUpdateStats();
+        return;
+    }
+    tbody.innerHTML = rows.map(([it, i]) => hgaRowHtml(it, i)).join('');
     hgaAttachRowListeners(tbody);
     hgaUpdateStats();
 }
@@ -6257,6 +6272,10 @@ function hgaUpdateSingleRow(idx) {
     if (!tbody) return;
     const row = tbody.querySelector(`tr[data-hga-row="${idx}"]`);
     const it  = _hgaData.items[idx];
+    // Kalau filter "hanya selisih" aktif dan item ini sekarang jadi tidak
+    // selisih lagi (atau sebaliknya), baris perlu muncul/hilang — render ulang
+    // seluruh tabel supaya filter tetap konsisten, bukan patch di tempat.
+    if (_hgaFilterSelisihOnly && it && (hgaN(it.selisih) !== 0) !== !!row) { hgaRenderItems(); return; }
     if (!row || !it) { hgaRenderItems(); return; }
     const tmp = document.createElement('tbody');
     tmp.innerHTML = hgaRowHtml(it, idx);
@@ -6581,6 +6600,11 @@ function initHgaForm() {
 
     document.getElementById('hgaSaveBtn')?.addEventListener('click', () => {
         _doSaveHga().then(r => showAlert(r.message || 'Tersimpan.', 'success')).catch(e => showAlert(e.message || 'Gagal.', 'error'));
+    });
+
+    document.getElementById('hgaFilterSelisihOnly')?.addEventListener('change', (e) => {
+        _hgaFilterSelisihOnly = e.target.checked;
+        hgaRenderItems();
     });
 
     const partInput = document.getElementById('hgaFormPart');

@@ -147,9 +147,15 @@
 
             {{-- Tabel --}}
             <div class="overflow-x-auto rounded-2xl border border-slate-700 bg-slate-900/60">
-                <div class="flex items-center justify-between border-b border-slate-700 px-4 py-3">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 px-4 py-3">
                     <span class="text-sm font-bold text-slate-200">🎯 DATA HGA ACCESSORIES</span>
-                    <span id="hgaTableCount" class="rounded-full bg-blue-600/20 px-3 py-1 text-xs font-bold text-blue-300">0 Item</span>
+                    <div class="flex items-center gap-3">
+                        <label class="flex items-center gap-2 text-xs font-medium text-slate-300 select-none cursor-pointer">
+                            <input type="checkbox" id="hgaFilterSelisihOnly" class="h-4 w-4 rounded border-slate-600 bg-slate-800 text-red-500 focus:ring-red-500">
+                            Tampilkan hanya yang selisih
+                        </label>
+                        <span id="hgaTableCount" class="rounded-full bg-blue-600/20 px-3 py-1 text-xs font-bold text-blue-300">0 Item</span>
+                    </div>
                 </div>
                 <table class="w-full min-w-[1200px] text-xs">
                     <thead class="border-b border-slate-700 bg-slate-800">
