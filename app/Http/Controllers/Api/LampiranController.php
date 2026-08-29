@@ -26,13 +26,25 @@ class LampiranController extends Controller
 
     public function upload(Request $request): JsonResponse
     {
+        // Pesan 'file.uploaded' sengaja menyertakan nilai ini_get() server yang
+        // SEDANG berjalan (bukan cuma teks statis) — supaya kalau ada file yang
+        // jelas-jelas di bawah batas 20MB tapi tetap kena error ini, kita bisa
+        // langsung tahu dari pesannya apakah upload_max_filesize/post_max_size
+        // di server memang belum kepakai (mis. .user.ini tidak berlaku di host
+        // ini) tanpa perlu endpoint diagnosa terpisah.
         $request->validate([
             'file'          => 'required|file|max:20480',
             'plan_audit_id' => 'required|integer',
         ], [
             'file.required' => 'File wajib dipilih.',
             'file.file'     => 'Berkas yang diupload tidak valid.',
-            'file.uploaded' => 'Upload gagal, kemungkinan ukuran file melebihi batas server. Coba file yang lebih kecil (maks. 20 MB) atau hubungi admin.',
+            'file.uploaded' => sprintf(
+                'Upload gagal — batas server saat ini upload_max_filesize=%s, post_max_size=%s (PHP %s via %s). Coba file yang lebih kecil atau hubungi admin dengan info ini.',
+                ini_get('upload_max_filesize'),
+                ini_get('post_max_size'),
+                PHP_VERSION,
+                PHP_SAPI
+            ),
             'file.max'      => 'Ukuran file maksimal 20 MB.',
         ]);
 
