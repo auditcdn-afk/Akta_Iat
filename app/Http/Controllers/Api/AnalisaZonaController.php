@@ -9,6 +9,7 @@ use App\Models\AnalisaAccReceivable;
 use App\Models\AnalisaLpkPenjualan;
 use App\Models\AnalisaPosisiKas;
 use App\Models\AnalisaRkkTransaction;
+use App\Models\AnalisaTemuan;
 use App\Models\AnalisaUpload;
 use App\Models\AnalisaZonaScore;
 use App\Services\AnalisaZona\AnalisaZonaImportService;
@@ -150,9 +151,53 @@ class AnalisaZonaController extends Controller
     {
         $periode = $request->input('periode') ?: now()->format('Y-m');
         $count   = $service->recompute($periode);
+        $temuan  = AnalisaTemuan::where('periode', $periode)->count();
 
         return response()->json([
-            'message' => "Skor {$count} unit usaha untuk periode {$periode} berhasil dihitung ulang.",
+            'message' => "Skor {$count} unit usaha untuk periode {$periode} berhasil dihitung ulang — {$temuan} temuan.",
+        ]);
+    }
+
+    /**
+     * Daftar temuan hasil pemeriksaan otomatis. Ini sisi "apa yang harus
+     * diperiksa" dari modul ini — skor menentukan cabang mana yang didatangi,
+     * temuan menyiapkan agendanya begitu sampai.
+     */
+    public function temuan(Request $request): JsonResponse
+    {
+        $request->validate([
+            'periode'         => ['nullable', 'string', 'regex:/^\d{4}-\d{2}$/'],
+            'unit_usaha_code' => ['nullable', 'string'],
+        ]);
+
+        $periode = $request->query('periode') ?: AnalisaTemuan::max('periode');
+
+        $query = AnalisaTemuan::query();
+        if ($periode) {
+            $query->where('periode', $periode);
+        }
+        if ($kode = $request->query('unit_usaha_code')) {
+            $query->where('unit_usaha_code', $kode);
+        }
+
+        // Diurutkan di PHP, bukan SQL: urutan severity-nya menurut tingkat
+        // kegentingan (tinggi -> sedang -> rendah), bukan abjad, dan tidak
+        // semua database yang mungkin dipakai punya cara yang sama untuk
+        // mengurutkan berdasar daftar nilai.
+        $items = $query->get()
+            ->sortBy([
+                fn($a, $b) => (AnalisaTemuan::URUTAN_SEVERITY[$a->severity] ?? 9) <=> (AnalisaTemuan::URUTAN_SEVERITY[$b->severity] ?? 9),
+                fn($a, $b) => (float) $b->nominal <=> (float) $a->nominal,
+            ])
+            ->values();
+
+        return response()->json([
+            'data' => $items->map(fn(AnalisaTemuan $t) => $t->toAktaArray()),
+            'meta' => [
+                'periode'  => $periode,
+                'total'    => $items->count(),
+                'per_severity' => $items->groupBy('severity')->map->count(),
+            ],
         ]);
     }
 

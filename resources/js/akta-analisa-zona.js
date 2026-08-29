@@ -68,6 +68,96 @@ function skorBadgeClass(skor) {
     return "bg-emerald-500/20 text-emerald-300";
 }
 
+const SEVERITY_GAYA = {
+    tinggi: { badge: "bg-red-500/20 text-red-300", garis: "border-l-red-500", label: "TINGGI" },
+    sedang: { badge: "bg-amber-500/20 text-amber-300", garis: "border-l-amber-500", label: "SEDANG" },
+    rendah: { badge: "bg-slate-500/20 text-slate-300", garis: "border-l-slate-500", label: "RENDAH" },
+};
+
+/**
+ * Rincian temuan ditampilkan sebagai tabel kecil yang kolomnya mengikuti isi
+ * item — tiap aturan punya bentuk rincian sendiri (piutang punya umur_hari,
+ * kontrak punya harga_otr, dst), jadi kolomnya diturunkan dari datanya
+ * daripada dihardcode per aturan.
+ */
+function renderDetailTemuan(items) {
+    if (!Array.isArray(items) || items.length === 0) return "";
+    const kolom = Object.keys(items[0]);
+    const judulKolom = {
+        kode_konsumen: "Kode Konsumen", no_bukti: "No. Bukti", tanggal: "Tanggal",
+        tanggal_transaksi: "Tgl Transaksi", umur_hari: "Umur (hari)", nominal: "Nominal",
+        harga_otr: "Harga OTR", dp: "DP", dp_ratio: "Rasio DP", kode_sales: "Sales",
+        cara_bayar: "Cara Bayar", status_kredit: "Status", saldo_akhir_kas: "Saldo Akhir Kas",
+        jumlah_baris: "Jml Baris",
+    };
+    const isUang = (k) => ["nominal", "harga_otr", "dp", "saldo_akhir_kas"].includes(k);
+
+    return `
+        <div class="mt-3 overflow-x-auto rounded-lg border border-slate-700/60">
+            <table class="w-full text-[11px]">
+                <thead class="bg-slate-800/60">
+                    <tr>${kolom.map(k => `<th class="px-2.5 py-1.5 text-left font-semibold uppercase text-slate-400">${escapeHtml(judulKolom[k] || k)}</th>`).join("")}</tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/60">
+                    ${items.map(it => `<tr>${kolom.map(k => {
+                        let v = it[k];
+                        if (isUang(k)) v = fmtRp(v);
+                        else if (k === "dp_ratio") v = (Number(v) * 100).toFixed(1) + "%";
+                        return `<td class="px-2.5 py-1.5 text-slate-300">${escapeHtml(v ?? "-")}</td>`;
+                    }).join("")}</tr>`).join("")}
+                </tbody>
+            </table>
+        </div>`;
+}
+
+async function azLoadTemuan() {
+    const periode = document.getElementById("azPeriode")?.value || "";
+    const url = periode
+        ? `/api/analisa-zona/temuan?periode=${encodeURIComponent(periode)}`
+        : "/api/analisa-zona/temuan";
+    const res = await fetchJson(url, { headers: authHeaders() });
+    const items = res.data || [];
+    const perSeverity = res.meta?.per_severity || {};
+
+    const ringkas = document.getElementById("azTemuanRingkas");
+    ringkas.innerHTML = items.length === 0
+        ? `<span class="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-300">Tidak ada temuan</span>`
+        : ["tinggi", "sedang", "rendah"]
+            .filter(s => perSeverity[s])
+            .map(s => `<span class="rounded-full px-2.5 py-1 text-xs font-bold ${SEVERITY_GAYA[s].badge}">${perSeverity[s]} ${SEVERITY_GAYA[s].label}</span>`)
+            .join("");
+
+    const list = document.getElementById("azTemuanList");
+    if (items.length === 0) {
+        list.innerHTML = `<p class="px-5 py-8 text-center text-xs text-slate-400">
+            Belum ada temuan untuk periode ini. Kalau data sudah diupload, klik "Hitung Ulang Skor" untuk menjalankan pemeriksaan.
+        </p>`;
+        return;
+    }
+
+    list.innerHTML = items.map(t => {
+        const gaya = SEVERITY_GAYA[t.severity] || SEVERITY_GAYA.rendah;
+        return `
+        <div class="border-l-4 ${gaya.garis} px-5 py-4">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+                <div class="flex-1 min-w-[240px]">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="rounded-full px-2.5 py-0.5 text-[10px] font-bold ${gaya.badge}">${gaya.label}</span>
+                        <span class="text-xs font-semibold text-slate-100">${escapeHtml(t.unitUsahaCode)}</span>
+                        ${t.tanggal ? `<span class="text-[11px] text-slate-500">${escapeHtml(t.tanggal)}</span>` : ""}
+                    </div>
+                    <p class="mt-1.5 text-sm font-semibold text-slate-200">${escapeHtml(t.judul)}</p>
+                    <p class="mt-1 text-xs leading-relaxed text-slate-400">
+                        <span class="font-semibold text-blue-300">Tindakan:</span> ${escapeHtml(t.rekomendasi)}
+                    </p>
+                </div>
+                ${t.nominal ? `<span class="text-sm font-bold text-slate-200 whitespace-nowrap">${fmtRp(t.nominal)}</span>` : ""}
+            </div>
+            ${renderDetailTemuan(t.detail?.items)}
+        </div>`;
+    }).join("");
+}
+
 let _azSelectedZona = null;
 let _azSelectedJenis = "rkk";
 let _azDrillDownPage = 1;
@@ -233,7 +323,7 @@ async function azHandleZipUpload(file) {
         msg.className = "text-sm font-medium text-emerald-300";
         msg.textContent = res.message || "Berhasil diproses.";
         showAlert(res.message || "Import selesai.", "success");
-        await Promise.all([azLoadScores(), azLoadUploads()]);
+        await Promise.all([azLoadScores(), azLoadTemuan(), azLoadUploads()]);
     } catch (e) {
         msg.className = "text-sm font-medium text-red-300";
         msg.textContent = e.message || "Gagal upload.";
@@ -247,7 +337,9 @@ function initAnalisaZonaForm() {
         const now = new Date();
         periodeInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     }
-    periodeInput?.addEventListener("change", () => azLoadScores().catch(err => showAlert(err.message, "error")));
+    periodeInput?.addEventListener("change", () => {
+        Promise.all([azLoadScores(), azLoadTemuan()]).catch(err => showAlert(err.message, "error"));
+    });
 
     document.getElementById("azRecomputeBtn")?.addEventListener("click", async () => {
         try {
@@ -292,7 +384,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     initAnalisaZonaForm();
     try {
-        await Promise.all([azLoadScores(), azLoadUploads()]);
+        await Promise.all([azLoadScores(), azLoadTemuan(), azLoadUploads()]);
     } catch (e) {
         if (e.status === 403) {
             document.getElementById("azContent")?.classList.add("hidden");

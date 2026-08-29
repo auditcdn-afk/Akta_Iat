@@ -61,6 +61,13 @@ class LhpbkParser implements AnalisaFileParserInterface
                 + ($this->cariNominal($lines, 'RincianSaldoAkhirKasGiroMundur') ?? 0.0);
         }
 
+        // Dua angka untuk rekonsiliasi silang dengan LPK & RKK — dicari lewat
+        // KODE AKUN ("21011.", "22013."), bukan teks labelnya, karena kode
+        // akun berasal dari bagan akun standar yang sama di semua cabang
+        // sedangkan teks labelnya bisa berbeda penulisan.
+        $penerimaanUnit = $this->cariNominal($lines, '21011.') ?? 0.0;
+        $kasbon         = $this->cariNominal($lines, '22013.') ?? 0.0;
+
         return new ParsedFile(
             jenis: $this->jenis(),
             unitUsahaCode: $unitUsahaCode,
@@ -68,16 +75,44 @@ class LhpbkParser implements AnalisaFileParserInterface
             sourceHash: sha1($content),
             rows: [
                 'analisa_posisi_kas' => [[
-                    'unit_usaha_code'  => $unitUsahaCode,
-                    'tanggal'          => $tanggal,
-                    'saldo_awal_bank'  => $saldoAwalBank ?? 0.0,
-                    'saldo_akhir_bank' => $saldoAkhirBank ?? 0.0,
-                    'saldo_awal_kas'   => $saldoAwalKas,
-                    'saldo_akhir_kas'  => $saldoAkhirKas ?? 0.0,
-                    'raw_text'         => mb_substr($text, 0, 8000),
+                    'unit_usaha_code'        => $unitUsahaCode,
+                    'tanggal'                => $tanggal,
+                    'saldo_awal_bank'        => $saldoAwalBank ?? 0.0,
+                    'saldo_akhir_bank'       => $saldoAkhirBank ?? 0.0,
+                    'saldo_awal_kas'         => $saldoAwalKas,
+                    'saldo_akhir_kas'        => $saldoAkhirKas ?? 0.0,
+                    'penerimaan_unit_tunai'  => $penerimaanUnit,
+                    'penggantian_kasbon'     => $kasbon,
+                    'penggantian_kasbon_ket' => $this->cariKeteranganSetelah($lines, '22013.'),
+                    'raw_text'               => mb_substr($text, 0, 8000),
                 ]],
             ],
         );
+    }
+
+    /**
+     * Keterangan sebuah pos LHPBK ditulis di baris SESUDAH baris nominalnya
+     * (mis. di bawah "22013.KAS-Penggantianuntukkasbon 8.853.300" ada
+     * "ViaBPKNo0115/TDB/VIII/2026s&d0123/TDB/VIII/2026" — rentang nomor
+     * voucher RKK yang diganti). Disimpan apa adanya untuk ditampilkan ke
+     * auditor saat rekonsiliasinya selisih, supaya langsung kelihatan
+     * voucher mana yang harus dicek.
+     */
+    private function cariKeteranganSetelah(array $lines, string $label): ?string
+    {
+        foreach ($lines as $i => $line) {
+            if (!str_starts_with(preg_replace('/\s+/u', '', $line), $label)) {
+                continue;
+            }
+            $berikutnya = trim($lines[$i + 1] ?? '');
+            // Baris berikutnya belum tentu keterangan — bisa saja langsung pos
+            // berikutnya (diawali kode akun) atau garis pemisah/subtotal.
+            if ($berikutnya === '' || $berikutnya === '-' || preg_match('/^[\d.]+$/', $berikutnya) || preg_match('/^-{5,}/', $berikutnya) || preg_match('/^\d{5}\./', preg_replace('/\s+/u', '', $berikutnya))) {
+                return null;
+            }
+            return mb_substr($berikutnya, 0, 255);
+        }
+        return null;
     }
 
     private function extractText(string $content): string

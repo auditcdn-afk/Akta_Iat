@@ -9,6 +9,7 @@ use App\Models\AnalisaLpkPenjualan;
 use App\Models\AnalisaPosisiKas;
 use App\Models\AnalisaRkkTransaction;
 use App\Models\AnalisaZonaScore;
+use App\Services\AnalisaZona\Temuan\TemuanService;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -41,6 +42,10 @@ class ZonaRiskScoreService
     private const BOBOT_ANOMALI            = 0.15;
     private const BOBOT_POSISI_KAS         = 0.20;
 
+    public function __construct(private readonly TemuanService $temuanService)
+    {
+    }
+
     public function recompute(string $periode): int
     {
         [$start, $end] = $this->periodeRange($periode);
@@ -49,6 +54,13 @@ class ZonaRiskScoreService
         $unitUsahaCodes = $this->collectUnitUsahaCodes($start, $end);
         if ($unitUsahaCodes->isEmpty()) {
             return 0;
+        }
+
+        // Temuan dibangun ulang bersamaan dengan skor supaya keduanya selalu
+        // berasal dari data yang sama — skor menentukan cabang mana yang
+        // didatangi, temuan menyiapkan apa yang diperiksa begitu sampai.
+        foreach ($unitUsahaCodes as $kode) {
+            $this->temuanService->rebuild($kode, $periode, $start, $end);
         }
 
         $raw = [];
@@ -175,6 +187,17 @@ class ZonaRiskScoreService
         ];
     }
 
+    /**
+     * Penjualan adalah ARUS (boleh dijumlah lintas hari), tapi piutang adalah
+     * STOK — file .ACC memuat ulang SELURUH piutang yang belum lunas setiap
+     * hari, jadi piutang yang sama muncul berkali-kali sampai dibayar.
+     * Menjumlahkannya lintas hari melipatgandakan angkanya: pada data nyata
+     * SOTDB 25-27 Agustus, piutang riil Rp 339,7 juta terbaca Rp 931,6 juta
+     * (2,7x lipat) hanya karena periodenya kebetulan berisi 3 file.
+     * Makin sering unit usaha upload, makin besar pelipatannya — bukan makin
+     * akurat. Karena itu dipakai snapshot hari TERAKHIR yang ada datanya,
+     * sama seperti metrikPosisiKas().
+     */
     private function metrikPenjualanPiutang(string $kode, string $start, string $end): array
     {
         $penjualan = (float) AnalisaLpkPenjualan::where('unit_usaha_code', $kode)
@@ -182,12 +205,25 @@ class ZonaRiskScoreService
             ->where('kode_transaksi', '!=', 'CRGT')
             ->sum('nominal');
 
-        $piutangQuery = AnalisaAccReceivable::where('unit_usaha_code', $kode)->whereBetween('tanggal_laporan', [$start, $end]);
+        $tanggalTerakhir = AnalisaAccReceivable::snapshotTerakhir($kode, $start, $end);
+
+        if (!$tanggalTerakhir) {
+            return [
+                'penjualan_nominal'        => $penjualan,
+                'piutang_nominal'          => 0.0,
+                'piutang_jumlah'           => 0,
+                'piutang_tanggal_snapshot' => null,
+            ];
+        }
+
+        $snapshot = AnalisaAccReceivable::where('unit_usaha_code', $kode)
+            ->whereDate('tanggal_laporan', $tanggalTerakhir);
 
         return [
-            'penjualan_nominal' => $penjualan,
-            'piutang_nominal'   => (float) $piutangQuery->sum('nominal'),
-            'piutang_jumlah'    => (int) $piutangQuery->count(),
+            'penjualan_nominal'        => $penjualan,
+            'piutang_nominal'          => (float) $snapshot->sum('nominal'),
+            'piutang_jumlah'           => (int) $snapshot->count(),
+            'piutang_tanggal_snapshot' => (string) $tanggalTerakhir,
         ];
     }
 
