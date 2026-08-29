@@ -3,9 +3,11 @@
 namespace Tests\Unit;
 
 use App\Services\AnalisaZona\Parsers\AccParser;
+use App\Services\AnalisaZona\Parsers\LhpbkParser;
 use App\Services\AnalisaZona\Parsers\LpkParser;
 use App\Services\AnalisaZona\Parsers\ParserRegistry;
 use App\Services\AnalisaZona\Parsers\RkkParser;
+use FPDF;
 use Tests\TestCase;
 
 /**
@@ -137,6 +139,94 @@ class AnalisaZonaParserTest extends TestCase
         $this->assertInstanceOf(RkkParser::class, $registry->find('SOSGL-260818-260818RKK.RKK'));
         $this->assertInstanceOf(AccParser::class, $registry->find('SOSGL-20260818-20260818.ACC'));
         $this->assertInstanceOf(LpkParser::class, $registry->find('SOTDB-260825LPK.LPK'));
+        $this->assertInstanceOf(LhpbkParser::class, $registry->find('LHPBK_260826_1.pdf'));
         $this->assertNull($registry->find('berkas-tidak-dikenal.txt'));
+        // PDF yang bukan LHPBK (nama tidak mengandung "lhpbk") sengaja TIDAK
+        // dianggap cocok — supaya PDF lain yang kebetulan ikut ke-zip tidak
+        // salah diperlakukan sebagai laporan posisi kas.
+        $this->assertNull($registry->find('lampiran-audit.pdf'));
+    }
+
+    /**
+     * LHPBK dibuat lewat FPDF (bukan salinan PDF nyata — data posisi kas
+     * sungguhan tidak boleh ikut masuk repo git) dengan spasi normal di
+     * dalam label ("Saldo Pada Bank", bukan "SaldoPadaBank") — SENGAJA beda
+     * dari sampel nyata yang dihapus spasinya oleh smalot/pdfparser, supaya
+     * teruji bahwa pencocokan label di LhpbkParser memang toleran ke
+     * dua-duanya (lihat komentar cariNominal/cariTanggalDanKode), bukan
+     * cuma kebetulan cocok dengan satu bentuk ekstraksi PDF tertentu.
+     */
+    private function buatPdfLhpbkSintetis(): string
+    {
+        $pdf = new FPDF();
+        $pdf->AddPage();
+        $pdf->SetFont('Arial', '', 10);
+        $baris = [
+            'LAPORAN HARIAN POSISI BANK DAN KAS',
+            'Per tanggal 2026-08-26 (SO-TDB)',
+            '1. BANK',
+            'Saldo Pada Bank 1.000.000',
+            'Saldo Akhir Bank 2.000.000',
+            '2. KAS',
+            'Saldo Pada Kas Uang Tunai 41.173.680',
+            'Saldo Pada Kas Giro Mundur 0',
+            'Rincian Saldo Akhir Kas Uang Tunai 3.980.380',
+            'Rincian Saldo Akhir Kas Giro Mundur 0',
+            'Saldo Akhir Kas 3.980.380',
+        ];
+        foreach ($baris as $b) {
+            $pdf->Cell(0, 6, $b, 0, 1);
+        }
+        return $pdf->Output('S');
+    }
+
+    public function test_lhpbk_parser_mengambil_posisi_kas_walau_label_ada_spasi(): void
+    {
+        $content = $this->buatPdfLhpbkSintetis();
+
+        $parser = new LhpbkParser();
+        $this->assertTrue($parser->supports('LHPBK_260826_1.pdf'));
+        $this->assertFalse($parser->supports('lampiran-lain.pdf'));
+
+        $result = $parser->parse('LHPBK_260826_1.pdf', $content);
+
+        $this->assertSame('lhpbk', $result->jenis);
+        // Kode "SO-TDB" di PDF ternormalisasi jadi "SOTDB" — harus sama
+        // dengan kode yang dipakai RKK/ACC/LPK untuk cabang yang sama,
+        // supaya skor zona tidak menganggapnya dua zona berbeda.
+        $this->assertSame('SOTDB', $result->unitUsahaCode);
+        $this->assertSame('2026-08-26', $result->tanggal);
+
+        $rows = $result->rows['analisa_posisi_kas'];
+        $this->assertCount(1, $rows);
+        $this->assertSame(1000000.0, $rows[0]['saldo_awal_bank']);
+        $this->assertSame(2000000.0, $rows[0]['saldo_akhir_bank']);
+        $this->assertSame(41173680.0, $rows[0]['saldo_awal_kas']);
+        $this->assertSame(3980380.0, $rows[0]['saldo_akhir_kas']);
+    }
+
+    public function test_lhpbk_parser_fallback_ke_rincian_kalau_baris_saldo_akhir_kas_gabungan_tidak_ada(): void
+    {
+        $pdf = new FPDF();
+        $pdf->AddPage();
+        $pdf->SetFont('Arial', '', 10);
+        foreach ([
+            'Per tanggal 2026-08-27 (SO TDB)',
+            'Saldo Pada Bank 0',
+            'Saldo Akhir Bank 0',
+            'Saldo Pada Kas Uang Tunai 1.000.000',
+            'Saldo Pada Kas Giro Mundur 0',
+            // Tidak ada baris "Saldo Akhir Kas" gabungan — hanya rinciannya.
+            'Rincian Saldo Akhir Kas Uang Tunai 750.000',
+            'Rincian Saldo Akhir Kas Giro Mundur 50.000',
+        ] as $b) {
+            $pdf->Cell(0, 6, $b, 0, 1);
+        }
+        $content = $pdf->Output('S');
+
+        $result = (new LhpbkParser())->parse('LHPBK_260827_1.pdf', $content);
+        $row = $result->rows['analisa_posisi_kas'][0];
+
+        $this->assertSame(800000.0, $row['saldo_akhir_kas']); // 750.000 + 50.000
     }
 }

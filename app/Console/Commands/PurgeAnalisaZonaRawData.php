@@ -14,6 +14,10 @@ use Illuminate\Console\Command;
  * Hapus data mentah RKK/ACC/LPK (berisi PII konsumen) yang lebih tua dari
  * masa retensi — tabel skor ringkasan (analisa_zona_scores) TIDAK ikut
  * terhapus supaya tren jangka panjang tetap bisa dilihat.
+ *
+ * `analisa_posisi_kas` (LHPBK) SENGAJA juga tidak ikut dipurge di sini —
+ * lihat komentar di migrasinya: tidak ada PII, volumenya kecil (1 baris per
+ * cabang per hari), dan justru paling berguna untuk tren jangka panjang.
  */
 class PurgeAnalisaZonaRawData extends Command
 {

@@ -14,18 +14,18 @@
     <div id="uaAlert" class="hidden rounded-xl border px-4 py-3 text-sm"></div>
 
     <div class="rounded-2xl border border-blue-700/40 bg-blue-900/10 p-5">
-        <h3 class="mb-3 text-sm font-bold uppercase tracking-wide text-blue-300">📦 Upload Data RKK / ACC / LPK</h3>
+        <h3 class="mb-3 text-sm font-bold uppercase tracking-wide text-blue-300">📦 Upload Data RKK / ACC / LPK / LHPBK</h3>
         <p class="mb-3 text-xs text-slate-400">
-            Upload 1 file zip berisi file <span class="text-blue-300 font-semibold">.RKK</span> / <span class="text-blue-300 font-semibold">.ACC</span> / <span class="text-blue-300 font-semibold">.LPK</span> (bisa campur beberapa jenis & beberapa hari sekaligus) dari sistem unit usaha Anda.
+            Upload 1 file zip berisi file <span class="text-blue-300 font-semibold">.RKK</span> / <span class="text-blue-300 font-semibold">.ACC</span> / <span class="text-blue-300 font-semibold">.LPK</span> / PDF <span class="text-blue-300 font-semibold">LHPBK</span> (bisa campur beberapa jenis & beberapa hari sekaligus) dari sistem unit usaha Anda — atau langsung upload 1 file PDF LHPBK tanpa perlu dizip.
             Data ini dipakai tim internal audit untuk analisa zona — file yang sudah pernah diupload otomatis dilewati (tidak dobel), dan hanya file dengan kode unit usaha yang cocok dengan akun Anda yang akan diproses.
         </p>
         <div id="uaDropzone"
             class="relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-600 bg-slate-800/40 p-8 text-center transition cursor-pointer hover:border-blue-500">
             <span class="text-4xl">🗂️</span>
-            <p class="text-sm text-slate-300">Drag &amp; drop file <span class="font-semibold text-blue-400">.zip</span> ke sini, atau</p>
+            <p class="text-sm text-slate-300">Drag &amp; drop file <span class="font-semibold text-blue-400">.zip</span> atau <span class="font-semibold text-blue-400">.pdf</span> (LHPBK) ke sini, atau</p>
             <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-yellow-500 px-4 py-2 text-sm font-semibold text-slate-900 shadow hover:bg-yellow-400 transition">
-                📁 Pilih File Zip
-                <input type="file" id="uaFileInput" accept=".zip" class="hidden">
+                📁 Pilih File
+                <input type="file" id="uaFileInput" accept=".zip,.pdf" class="hidden">
             </label>
             <p id="uaUploadMsg" class="hidden text-sm font-medium"></p>
         </div>
