@@ -61,6 +61,28 @@ class AnalisaZonaTest extends TestCase
         return $user;
     }
 
+    /** PDF LHPBK sintetis (bukan salinan dokumen nyata) untuk kode unit usaha SOSGL. */
+    private function buildSampleLhpbkPdfPath(): string
+    {
+        $pdf = new \FPDF();
+        $pdf->AddPage();
+        $pdf->SetFont('Arial', '', 10);
+        foreach ([
+            'Per tanggal 2026-08-26 (SO-SGL)',
+            'Saldo Pada Bank 0',
+            'Saldo Akhir Bank 0',
+            'Saldo Pada Kas Uang Tunai 5.000.000',
+            'Saldo Pada Kas Giro Mundur 0',
+            'Saldo Akhir Kas 4.500.000',
+        ] as $baris) {
+            $pdf->Cell(0, 6, $baris, 0, 1);
+        }
+
+        $path = tempnam(sys_get_temp_dir(), 'analisa-zona-lhpbk-') . '.pdf';
+        $pdf->Output('F', $path);
+        return $path;
+    }
+
     public function test_user_biasa_tanpa_analisa_zona_access_bisa_upload_sendiri_untuk_unit_usahanya(): void
     {
         // "SO SGL" (field unit_usaha akun) harus cocok dengan "SOSGL" (kode di
@@ -80,6 +102,30 @@ class AnalisaZonaTest extends TestCase
 
         $this->assertDatabaseCount('analisa_rkk_transactions', 1);
         $this->assertDatabaseCount('analisa_lpk_penjualan', 0);
+    }
+
+    /**
+     * LHPBK dicetak satu-satu per hari (bukan diekspor per hari seperti
+     * RKK/ACC/LPK), jadi endpoint upload-self harus terima file .pdf
+     * LANGSUNG tanpa perlu dizip dulu.
+     */
+    public function test_upload_self_terima_pdf_lhpbk_langsung_tanpa_dizip(): void
+    {
+        $user = User::factory()->create(['role' => 'auditor', 'unit_usaha' => 'SO SGL', 'analisa_zona_access' => false]);
+        Sanctum::actingAs($user);
+
+        $upload = new UploadedFile($this->buildSampleLhpbkPdfPath(), 'LHPBK_260826.pdf', 'application/pdf', null, true);
+
+        $res = $this->postJson('/api/analisa-zona/upload-self', ['file' => $upload])->assertOk();
+        $data = $res->json('data');
+
+        $this->assertCount(1, $data['processed']);
+        $this->assertDatabaseCount('analisa_posisi_kas', 1);
+        $this->assertDatabaseHas('analisa_posisi_kas', [
+            'unit_usaha_code' => 'SOSGL',
+            'tanggal' => '2026-08-26',
+            'saldo_akhir_kas' => 4500000,
+        ]);
     }
 
     public function test_my_uploads_hanya_menampilkan_riwayat_unit_usaha_sendiri(): void
@@ -199,7 +245,41 @@ class AnalisaZonaTest extends TestCase
         // BBB (piutang besar) harus jauh lebih tinggi skor totalnya daripada
         // AAA (cuma kas kecil kecil, tanpa piutang) karena bobot piutang terbesar.
         $this->assertGreaterThan((float) $scoreAaa->skor_total, (float) $scoreBbb->skor_total);
-        $this->assertSame(100.0, (float) $scoreBbb->skor_penjualan_piutang);
+        // Skor penjualan_piutang BBB adalah rata-rata skor relatif (100, BBB
+        // satu-satunya yang punya piutang) dan skor absolut (piutang Rp 50jt
+        // dibanding ambang default Rp 1M = 5) — lihat komentar blend skor di
+        // ZonaRiskScoreService. Bukan lagi 100.0 murni seperti versi sebelum
+        // ada skor absolut.
+        $this->assertEqualsWithDelta((100 + 5) / 2, (float) $scoreBbb->skor_penjualan_piutang, 0.5);
+    }
+
+    /**
+     * Bug nyata yang jadi alasan skor absolut ditambahkan: skor relatif
+     * SENDIRIAN runtuh jadi 50 rata untuk SEMUA zona begitu cuma ada 1 zona
+     * yang punya data di suatu periode (tidak ada pembanding) — piutang
+     * Rp 900 juta pun jadi tidak kelihatan bedanya dari piutang Rp 0. Dengan
+     * skor absolut, zona dengan piutang sangat besar harus tetap dapat skor
+     * tinggi meski sendirian di periode itu.
+     */
+    public function test_skor_tidak_lagi_flat_50_saat_cuma_1_zona_di_periode(): void
+    {
+        $upload = \App\Models\AnalisaUpload::create([
+            'jenis' => 'acc', 'unit_usaha_code' => 'SATU', 'tanggal' => '2026-08-05',
+            'source_hash' => 'h-satu', 'source_filename' => 'satu.acc', 'row_count' => 1,
+        ]);
+        AnalisaAccReceivable::create([
+            'upload_id' => $upload->id, 'unit_usaha_code' => 'SATU',
+            'tanggal_laporan' => '2026-08-05', 'nominal' => 900000000, 'raw_line' => 'F;SATU;...',
+        ]);
+
+        app(ZonaRiskScoreService::class)->recompute('2026-08');
+
+        $score = AnalisaZonaScore::where('unit_usaha_code', 'SATU')->where('periode', '2026-08')->first();
+
+        // Skor relatif sendirian pasti 50 (tidak ada pembanding) — tapi skor
+        // AKHIR harus jauh di atas 50 karena piutang Rp 900jt mendekati
+        // ambang absolut Rp 1M (skor absolut ~90).
+        $this->assertGreaterThan(65.0, (float) $score->skor_penjualan_piutang);
     }
 
     public function test_purge_command_hanya_hapus_data_lebih_tua_dari_retensi_dan_skor_tidak_ikut_terhapus(): void

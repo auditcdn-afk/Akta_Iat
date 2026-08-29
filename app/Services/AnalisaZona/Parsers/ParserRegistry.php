@@ -14,6 +14,7 @@ class ParserRegistry
             new RkkParser(),
             new AccParser(),
             new LpkParser(),
+            new LhpbkParser(),
         ];
     }
 

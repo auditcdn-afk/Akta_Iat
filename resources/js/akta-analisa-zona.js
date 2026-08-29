@@ -83,7 +83,7 @@ async function azLoadScores() {
 
     const tbody = document.getElementById("azScoreTableBody");
     if (scores.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada skor. Upload data lalu klik "Hitung Ulang Skor".</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada skor. Upload data lalu klik "Hitung Ulang Skor".</td></tr>`;
         return;
     }
 
@@ -95,6 +95,7 @@ async function azLoadScores() {
             <td class="px-3 py-2 text-right text-slate-300">${s.skorPembiayaan.toFixed(1)}</td>
             <td class="px-3 py-2 text-right text-slate-300">${s.skorPenjualanPiutang.toFixed(1)}</td>
             <td class="px-3 py-2 text-right text-slate-300">${s.skorAnomali.toFixed(1)}</td>
+            <td class="px-3 py-2 text-right text-slate-300">${(s.skorPosisiKas ?? 0).toFixed(1)}</td>
             <td class="px-3 py-2 text-right">
                 <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${skorBadgeClass(s.skorTotal)}">${s.skorTotal.toFixed(1)}</span>
             </td>
@@ -155,6 +156,11 @@ function azDrillDownColumns(jenis) {
             return [
                 ["tanggal", "Tanggal", fmtDate], ["kode_konsumen", "Kode Konsumen"], ["nama_konsumen", "Nama"],
                 ["kode_finance", "Finance"], ["no_bukti", "No. Bukti"], ["nominal", "Nominal", fmtRp], ["kode_transaksi", "Jenis"],
+            ];
+        case "posisi-kas":
+            return [
+                ["tanggal", "Tanggal", fmtDate], ["saldo_awal_kas", "Saldo Awal Kas", fmtRp], ["saldo_akhir_kas", "Saldo Akhir Kas", fmtRp],
+                ["saldo_awal_bank", "Saldo Awal Bank", fmtRp], ["saldo_akhir_bank", "Saldo Akhir Bank", fmtRp],
             ];
         default:
             return [];

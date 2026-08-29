@@ -7,6 +7,7 @@ use App\Models\AnalisaAccConsumer;
 use App\Models\AnalisaAccContract;
 use App\Models\AnalisaAccReceivable;
 use App\Models\AnalisaLpkPenjualan;
+use App\Models\AnalisaPosisiKas;
 use App\Models\AnalisaRkkTransaction;
 use App\Models\AnalisaUpload;
 use App\Models\AnalisaZonaScore;
@@ -25,7 +26,10 @@ class AnalisaZonaController extends Controller
     public function import(Request $request, AnalisaZonaImportService $service): JsonResponse
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimetypes:application/zip,application/x-zip-compressed', 'max:51200'],
+            // Boleh .zip (isinya campur RKK/ACC/LPK/LHPBK) ATAU langsung satu
+            // file .pdf LHPBK (dicetak satu-satu per hari, tidak wajib dizip
+            // lebih dulu seperti RKK/ACC/LPK).
+            'file' => ['required', 'file', 'mimetypes:application/zip,application/x-zip-compressed,application/pdf', 'max:51200'],
         ]);
 
         $summary = $service->importZip($request->file('file'), $request->user()?->username);
@@ -51,7 +55,10 @@ class AnalisaZonaController extends Controller
     public function uploadSelf(Request $request, AnalisaZonaImportService $service): JsonResponse
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimetypes:application/zip,application/x-zip-compressed', 'max:51200'],
+            // Boleh .zip (isinya campur RKK/ACC/LPK/LHPBK) ATAU langsung satu
+            // file .pdf LHPBK (dicetak satu-satu per hari, tidak wajib dizip
+            // lebih dulu seperti RKK/ACC/LPK).
+            'file' => ['required', 'file', 'mimetypes:application/zip,application/x-zip-compressed,application/pdf', 'max:51200'],
         ]);
 
         $user = $request->user();
@@ -154,7 +161,7 @@ class AnalisaZonaController extends Controller
     {
         $request->validate([
             'unit_usaha_code' => ['required', 'string'],
-            'jenis'           => ['required', 'in:rkk,acc-consumers,acc-contracts,acc-receivables,lpk'],
+            'jenis'           => ['required', 'in:rkk,acc-consumers,acc-contracts,acc-receivables,lpk,posisi-kas'],
         ]);
 
         $unitUsahaCode = $request->query('unit_usaha_code');
@@ -166,6 +173,7 @@ class AnalisaZonaController extends Controller
             'acc-contracts'   => AnalisaAccContract::query()->where('unit_usaha_code', $unitUsahaCode)->orderByDesc('tanggal'),
             'acc-receivables' => AnalisaAccReceivable::query()->where('unit_usaha_code', $unitUsahaCode)->orderByDesc('tanggal_laporan'),
             'lpk'             => AnalisaLpkPenjualan::query()->where('unit_usaha_code', $unitUsahaCode)->orderByDesc('tanggal'),
+            'posisi-kas'      => AnalisaPosisiKas::query()->where('unit_usaha_code', $unitUsahaCode)->orderByDesc('tanggal'),
         };
 
         $items = $query->paginate(50);

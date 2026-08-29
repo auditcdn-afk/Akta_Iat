@@ -21,6 +21,12 @@ class AnalisaZonaImportService
     }
 
     /**
+     * Terima file .zip (isinya boleh campur .RKK/.ACC/.LPK/.PDF LHPBK) ATAU
+     * satu file langsung (mis. satu .pdf LHPBK saja, tanpa perlu di-zip
+     * dulu — beda dari RKK/ACC/LPK yang selalu diekspor per hari jadi wajar
+     * dikumpulkan dalam satu zip, LHPBK dicetak satu-satu jadi lebih wajar
+     * diupload langsung apa adanya).
+     *
      * @param string|null $expectedUnitUsahaCode Kalau diisi, file yang kode unit
      *        usahanya (setelah dinormalisasi) TIDAK cocok akan ditolak (masuk ke
      *        `rejected_unit_usaha`), bukan diproses — dipakai saat unit usaha
@@ -28,13 +34,8 @@ class AnalisaZonaImportService
      *        upload data milik unit usaha lain.
      * @return array{processed: string[], skipped_duplicate: string[], unsupported: string[], rejected_unit_usaha: string[], row_counts: array<string,int>}
      */
-    public function importZip(UploadedFile $zip, ?string $uploadedBy, ?string $expectedUnitUsahaCode = null): array
+    public function importZip(UploadedFile $file, ?string $uploadedBy, ?string $expectedUnitUsahaCode = null): array
     {
-        $tmpDir = storage_path('app/tmp-analisa-zona-' . uniqid());
-        mkdir($tmpDir, 0755, true);
-
-        $expectedNormalized = $expectedUnitUsahaCode !== null ? self::normalizeUnitUsahaCode($expectedUnitUsahaCode) : null;
-
         $summary = [
             'processed'            => [],
             'skipped_duplicate'    => [],
@@ -42,88 +43,101 @@ class AnalisaZonaImportService
             'rejected_unit_usaha'  => [],
             'row_counts'           => [],
         ];
+        $expectedNormalized = $expectedUnitUsahaCode !== null ? self::normalizeUnitUsahaCode($expectedUnitUsahaCode) : null;
+
+        $isZip = strtolower($file->getClientOriginalExtension()) === 'zip';
+        if (!$isZip) {
+            $this->processOneFile($file->getRealPath(), $file->getClientOriginalName(), $uploadedBy, $expectedNormalized, $expectedUnitUsahaCode, $summary);
+            return $summary;
+        }
+
+        $tmpDir = storage_path('app/tmp-analisa-zona-' . uniqid());
+        mkdir($tmpDir, 0755, true);
 
         try {
             $archive = new ZipArchive();
-            if ($archive->open($zip->getRealPath()) !== true) {
+            if ($archive->open($file->getRealPath()) !== true) {
                 abort(422, 'File zip tidak bisa dibuka / rusak.');
             }
             $archive->extractTo($tmpDir);
             $archive->close();
 
-            $files = $this->listFilesRecursively($tmpDir);
-
-            foreach ($files as $path) {
-                $filename = basename($path);
-                $parser   = $this->registry->find($filename);
-
-                if (!$parser) {
-                    $summary['unsupported'][] = $filename;
-                    continue;
-                }
-
-                $content = file_get_contents($path);
-                $parsed  = $parser->parse($filename, $content);
-
-                if ($parsed->unitUsahaCode === '' || $parsed->tanggal === null || $parsed->tanggal === '') {
-                    $summary['unsupported'][] = $filename . ' (gagal baca unit usaha/tanggal)';
-                    continue;
-                }
-
-                if ($expectedNormalized !== null && self::normalizeUnitUsahaCode($parsed->unitUsahaCode) !== $expectedNormalized) {
-                    $summary['rejected_unit_usaha'][] = "{$filename} (kode di file: {$parsed->unitUsahaCode}, akun Anda: {$expectedUnitUsahaCode})";
-                    continue;
-                }
-
-                $alreadyExists = AnalisaUpload::where('jenis', $parsed->jenis)
-                    ->where('source_hash', $parsed->sourceHash)
-                    ->exists();
-
-                if ($alreadyExists) {
-                    $summary['skipped_duplicate'][] = $filename;
-                    continue;
-                }
-
-                DB::transaction(function () use ($parsed, $filename, $uploadedBy, &$summary) {
-                    $upload = AnalisaUpload::create([
-                        'jenis'            => $parsed->jenis,
-                        'unit_usaha_code'  => $parsed->unitUsahaCode,
-                        'tanggal'          => $parsed->tanggal,
-                        'source_hash'      => $parsed->sourceHash,
-                        'source_filename'  => $filename,
-                        'row_count'        => $parsed->rowCount(),
-                        'uploaded_by'      => $uploadedBy,
-                    ]);
-
-                    foreach ($parsed->rows as $table => $rows) {
-                        if (empty($rows)) {
-                            continue;
-                        }
-                        $now = now();
-                        $rows = array_map(function ($row) use ($upload, $now) {
-                            $row['upload_id']  = $upload->id;
-                            $row['created_at'] = $now;
-                            $row['updated_at'] = $now;
-                            return $row;
-                        }, $rows);
-
-                        // Insert per potongan supaya tidak melebihi batas parameter
-                        // SQLite/MySQL untuk single query pada file dengan ratusan baris.
-                        foreach (array_chunk($rows, 500) as $chunk) {
-                            DB::table($table)->insert($chunk);
-                        }
-
-                        $summary['row_counts'][$table] = ($summary['row_counts'][$table] ?? 0) + count($rows);
-                    }
-                });
-
-                $summary['processed'][] = $filename;
+            foreach ($this->listFilesRecursively($tmpDir) as $path) {
+                $this->processOneFile($path, basename($path), $uploadedBy, $expectedNormalized, $expectedUnitUsahaCode, $summary);
             }
         } finally {
             $this->deleteDirectory($tmpDir);
         }
 
         return $summary;
+    }
+
+    /** @param array{processed: string[], skipped_duplicate: string[], unsupported: string[], rejected_unit_usaha: string[], row_counts: array<string,int>} $summary */
+    private function processOneFile(string $path, string $filename, ?string $uploadedBy, ?string $expectedNormalized, ?string $expectedUnitUsahaCode, array &$summary): void
+    {
+        $parser = $this->registry->find($filename);
+
+        if (!$parser) {
+            $summary['unsupported'][] = $filename;
+            return;
+        }
+
+        $content = file_get_contents($path);
+        $parsed  = $parser->parse($filename, $content);
+
+        if ($parsed->unitUsahaCode === '' || $parsed->tanggal === null || $parsed->tanggal === '') {
+            $summary['unsupported'][] = $filename . ' (gagal baca unit usaha/tanggal)';
+            return;
+        }
+
+        if ($expectedNormalized !== null && self::normalizeUnitUsahaCode($parsed->unitUsahaCode) !== $expectedNormalized) {
+            $summary['rejected_unit_usaha'][] = "{$filename} (kode di file: {$parsed->unitUsahaCode}, akun Anda: {$expectedUnitUsahaCode})";
+            return;
+        }
+
+        $alreadyExists = AnalisaUpload::where('jenis', $parsed->jenis)
+            ->where('source_hash', $parsed->sourceHash)
+            ->exists();
+
+        if ($alreadyExists) {
+            $summary['skipped_duplicate'][] = $filename;
+            return;
+        }
+
+        DB::transaction(function () use ($parsed, $filename, $uploadedBy, &$summary) {
+            $upload = AnalisaUpload::create([
+                'jenis'            => $parsed->jenis,
+                'unit_usaha_code'  => $parsed->unitUsahaCode,
+                'tanggal'          => $parsed->tanggal,
+                'source_hash'      => $parsed->sourceHash,
+                'source_filename'  => $filename,
+                'row_count'        => $parsed->rowCount(),
+                'uploaded_by'      => $uploadedBy,
+            ]);
+
+            foreach ($parsed->rows as $table => $rows) {
+                if (empty($rows)) {
+                    continue;
+                }
+                $now = now();
+                $rows = array_map(function ($row) use ($upload, $now) {
+                    $row['upload_id']  = $upload->id;
+                    $row['created_at'] = $now;
+                    $row['updated_at'] = $now;
+                    return $row;
+                }, $rows);
+
+                // Insert per potongan supaya tidak melebihi batas parameter
+                // SQLite/MySQL untuk single query pada file dengan ratusan baris.
+                foreach (array_chunk($rows, 500) as $chunk) {
+                    DB::table($table)->insert($chunk);
+                }
+
+                $summary['row_counts'][$table] = ($summary['row_counts'][$table] ?? 0) + count($rows);
+            }
+        });
+
+        $summary['processed'][] = $filename;
     }
 
     /** @return string[] */

@@ -23,15 +23,15 @@
 
         {{-- Upload zip --}}
         <div class="rounded-2xl border border-blue-700/40 bg-blue-900/10 p-5">
-            <h3 class="mb-3 text-sm font-bold uppercase tracking-wide text-blue-300">📦 Upload Data RKK / ACC / LPK</h3>
-            <p class="mb-3 text-xs text-slate-400">Upload file zip berisi file .RKK / .ACC / .LPK dari unit usaha (bisa campur beberapa jenis & beberapa hari sekaligus). File yang sudah pernah diupload otomatis dilewati (tidak dobel).</p>
+            <h3 class="mb-3 text-sm font-bold uppercase tracking-wide text-blue-300">📦 Upload Data RKK / ACC / LPK / LHPBK</h3>
+            <p class="mb-3 text-xs text-slate-400">Upload file zip berisi file .RKK / .ACC / .LPK / PDF LHPBK dari unit usaha (bisa campur beberapa jenis & beberapa hari sekaligus), atau langsung satu file PDF LHPBK tanpa perlu dizip. File yang sudah pernah diupload otomatis dilewati (tidak dobel).</p>
             <div id="azDropzone"
                 class="relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-600 bg-slate-800/40 p-6 text-center transition cursor-pointer hover:border-blue-500">
                 <span class="text-3xl">🗂️</span>
-                <p class="text-sm text-slate-300">Drag &amp; drop file <span class="font-semibold text-blue-400">.zip</span> ke sini, atau</p>
+                <p class="text-sm text-slate-300">Drag &amp; drop file <span class="font-semibold text-blue-400">.zip</span> atau <span class="font-semibold text-blue-400">.pdf</span> (LHPBK) ke sini, atau</p>
                 <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-yellow-500 px-4 py-2 text-sm font-semibold text-slate-900 shadow hover:bg-yellow-400 transition">
-                    📁 Pilih File Zip
-                    <input type="file" id="azFileInput" accept=".zip" class="hidden">
+                    📁 Pilih File
+                    <input type="file" id="azFileInput" accept=".zip,.pdf" class="hidden">
                 </label>
                 <p id="azUploadMsg" class="hidden text-sm font-medium"></p>
             </div>
@@ -64,6 +64,7 @@
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-24">Pembiayaan</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-32">Penjualan &amp; Piutang</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-24">Anomali</th>
+                            <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-24">Posisi Kas</th>
                             <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-28">Skor Total</th>
                             <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400 w-24">Detail</th>
                         </tr>
@@ -83,6 +84,7 @@
                     <button type="button" data-az-jenis="acc-contracts" class="az-dd-tab rounded-lg px-3 py-1.5 text-xs font-semibold">Kontrak (ACC)</button>
                     <button type="button" data-az-jenis="acc-receivables" class="az-dd-tab rounded-lg px-3 py-1.5 text-xs font-semibold">Piutang (ACC)</button>
                     <button type="button" data-az-jenis="lpk" class="az-dd-tab rounded-lg px-3 py-1.5 text-xs font-semibold">Penjualan (LPK)</button>
+                    <button type="button" data-az-jenis="posisi-kas" class="az-dd-tab rounded-lg px-3 py-1.5 text-xs font-semibold">Posisi Kas (LHPBK)</button>
                 </div>
             </div>
             <div class="overflow-x-auto">
