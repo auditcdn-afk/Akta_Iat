@@ -2978,6 +2978,72 @@ window.addEventListener('load', function() {
       @else
         <p class="empty" style="padding:12px;">Tidak ada item.</p>
       @endif
+
+      {{-- Rekap Selisih HGA: hanya item yang selisihnya tidak nol dari tabel
+           di atas, dipisah supaya item yang perlu ditindaklanjuti langsung
+           terlihat tanpa harus menyisir tabel lengkap yang bisa berisi
+           ratusan item (mengikuti pola REKAP SELISIH PART & AHM OIL'S di
+           section HGP/RSA HGP). --}}
+      @if($hgaSelCount > 0)
+      <div style="padding:4px 14px 14px;">
+        <div class="group-title" style="font-size:12px;">REKAP SELISIH HGA</div>
+        <div class="tbl-scroll" style="overflow-x:auto;">
+        <table style="font-size:9.5px;min-width:700px;">
+          <thead>
+            <tr>
+              <th style="width:24px;">#</th>
+              <th style="width:85px;">No. HGA</th>
+              <th>Nama HGA</th>
+              <th style="width:44px;text-align:right;">Selisih</th>
+              <th style="width:70px;text-align:right;">Harga HET</th>
+              <th style="width:80px;text-align:right;">Jumlah (Rp)</th>
+              <th>Keterangan</th>
+            </tr>
+          </thead>
+          <tbody>
+            @php $hgaRekapNo = 0; @endphp
+            @foreach($hgaItems as $it)
+              @php
+                $rekSaldo    = $hgaN2($it['saldoAkhir'] ?? $it['saldoAwal'] ?? 0);
+                $rekSaldoPts = isset($it['saldoPts']) && $it['saldoPts'] !== null ? $hgaN2($it['saldoPts']) : null;
+                $rekRefSaldo = $rekSaldoPts !== null ? $rekSaldoPts : $rekSaldo;
+                $rekTotalFisik = $hgaN2($it['fisik'] ?? 0) + $hgaN2($it['fisikTtp'] ?? 0);
+                $rekSelisih  = $hgaN2($it['selisih'] ?? ($rekTotalFisik - $rekRefSaldo));
+              @endphp
+              @continue($rekSelisih == 0)
+              @php
+                $hgaRekapNo++;
+                $rekHarga  = $hgaN2($it['hargaHet'] ?? 0);
+                $rekJumlah = $rekHarga * $rekSelisih;
+                $rekSelColor = $rekSelisih < 0 ? '#dc2626' : '#d97706';
+                $rekJmlColor = $rekJumlah < 0 ? '#dc2626' : ($rekJumlah > 0 ? '#d97706' : '#374151');
+                $rekRowBg    = $rekSelisih < 0 ? '#fef2f2' : '#fffbeb';
+              @endphp
+              <tr style="background:{{ $rekRowBg }};">
+                <td>{{ $hgaRekapNo }}</td>
+                <td style="font-size:8.5px;color:#6b7280;">{{ $it['noPart'] ?? '-' }}</td>
+                <td style="font-weight:600;">{{ $it['sparepart'] ?? $it['nama'] ?? '-' }}</td>
+                <td style="text-align:right;font-weight:700;color:{{ $rekSelColor }};">{{ $rekSelisih >= 0 ? '+' : '' }}{{ $fmtHga($rekSelisih) }}</td>
+                <td style="text-align:right;color:#6b7280;">{{ $rekHarga > 0 ? $fmtHga($rekHarga) : '—' }}</td>
+                <td style="text-align:right;font-weight:700;color:{{ $rekJmlColor }};">{{ $rekJumlah != 0 ? ($rekJumlah >= 0 ? '+' : '') . $fmtHga($rekJumlah) : '—' }}</td>
+                <td style="font-size:9px;">
+                  @if(!empty($it['keterangan']))<div>Scan: {{ $it['keterangan'] }}</div>@endif
+                  @if(!empty($it['keteranganTtp']))<div style="color:#b45309;">TTP: {{ $it['keteranganTtp'] }}</div>@endif
+                </td>
+              </tr>
+            @endforeach
+            <tr style="background:#f3f4f6;font-weight:700;border-top:2px solid #d1d5db;">
+              <td colspan="3" style="text-align:right;">TOTAL</td>
+              <td style="text-align:right;color:{{ $hgaTotalSelisih < 0 ? '#dc2626' : ($hgaTotalSelisih > 0 ? '#d97706' : '#374151') }};">{{ $signHga($hgaTotalSelisih) }}</td>
+              <td></td>
+              <td style="text-align:right;color:{{ $hgaTotalJumlah < 0 ? '#dc2626' : ($hgaTotalJumlah > 0 ? '#d97706' : '#374151') }};">{{ $hgaTotalJumlah != 0 ? $signHga($hgaTotalJumlah) : '—' }}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+      @endif
     @endif
   </div>
 </div>

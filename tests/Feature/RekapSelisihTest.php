@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\DbAhmOil;
+use App\Models\PemeriksaanHga;
 use App\Models\PemeriksaanHgp;
 use App\Models\PemeriksaanRsaHgp;
 use App\Models\PlanAudit;
@@ -167,5 +168,50 @@ class RekapSelisihTest extends TestCase
 
         $section = $this->section($this->html(), '14. HGP &amp; AHM OILS');
         $this->assertStringNotContainsString("REKAP SELISIH PART &amp; AHM OIL'S", $section);
+    }
+
+    /**
+     * HGA (Accessories) tidak punya pemisahan AHM OIL'S vs SPAREPART seperti
+     * HGP/RSA HGP (semua itemnya aksesoris) — jadi cukup satu tabel "REKAP
+     * SELISIH HGA" berisi item yang selisihnya tidak nol saja, dengan pola
+     * sembunyi/tampil dan total yang sama seperti rekap HGP.
+     */
+    public function test_hga_punya_rekap_selisih_sendiri(): void
+    {
+        PemeriksaanHga::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [
+                ['noPart' => 'X1', 'sparepart' => 'HELM CROSS', 'saldoAkhir' => 10, 'fisik' => 8, 'selisih' => -2, 'hargaHet' => 100000],
+                ['noPart' => 'X2', 'sparepart' => 'HELM RETRO', 'saldoAkhir' => 5, 'fisik' => 5, 'selisih' => 0, 'hargaHet' => 90000],
+                ['noPart' => 'X3', 'sparepart' => 'KACA SPION', 'saldoAkhir' => 3, 'fisik' => 4, 'selisih' => 1, 'hargaHet' => 50000],
+            ],
+        ]);
+
+        $section = $this->section($this->html(), '15. HGA (Accessories)');
+        $this->assertStringContainsString('REKAP SELISIH HGA', $section);
+
+        $rekapBagian = substr($section, strpos($section, 'REKAP SELISIH HGA'));
+        $this->assertStringContainsString('HELM CROSS', $rekapBagian);
+        $this->assertStringContainsString('KACA SPION', $rekapBagian);
+        // Item tanpa selisih tidak ikut masuk ke rekap (masih boleh muncul di
+        // tabel lengkap HGA di atasnya, makanya dicek dari titik rekap saja).
+        $this->assertStringNotContainsString('HELM RETRO', $rekapBagian);
+
+        // TOTAL: selisih (-2)+1=-1, nilai (-2*100.000)+(1*50.000)=-150.000.
+        $totalRow = substr($rekapBagian, strpos($rekapBagian, 'TOTAL'));
+        $this->assertStringContainsString('150.000', $totalRow);
+    }
+
+    public function test_hga_tanpa_selisih_maka_rekap_tidak_ditampilkan(): void
+    {
+        PemeriksaanHga::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [
+                ['noPart' => 'X1', 'sparepart' => 'ITEM PAS', 'saldoAkhir' => 5, 'fisik' => 5, 'selisih' => 0, 'hargaHet' => 1000],
+            ],
+        ]);
+
+        $section = $this->section($this->html(), '15. HGA (Accessories)');
+        $this->assertStringNotContainsString('REKAP SELISIH HGA', $section);
     }
 }
