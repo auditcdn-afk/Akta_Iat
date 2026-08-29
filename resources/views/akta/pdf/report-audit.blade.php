@@ -2935,8 +2935,12 @@ window.addEventListener('load', function() {
               $selColor = $selisih < 0 ? '#dc2626' : ($selisih > 0 ? '#d97706' : '#374151');
               $jmlColor = $jumlah < 0 ? '#dc2626' : ($jumlah > 0 ? '#d97706' : '#374151');
               $isPtsOnly = !empty($it['_ptsOnly']);
+              // Baris diberi warna latar kalau ada selisih, supaya di antara
+              // ratusan item langsung terlihat mana yang perlu ditindaklanjuti
+              // tanpa harus membaca kolom Selisih satu per satu.
+              $rowBg = $selisih < 0 ? '#fef2f2' : ($selisih > 0 ? '#fffbeb' : '');
             @endphp
-            <tr>
+            <tr @if($rowBg) style="background:{{ $rowBg }};" @endif>
               <td>{{ (int)$i + 1 }}</td>
               <td style="font-size:8.5px;color:#6b7280;">{{ $it['noPart'] ?? '-' }}</td>
               <td style="font-weight:600;">{{ $it['sparepart'] ?? $it['nama'] ?? '-' }}</td>
