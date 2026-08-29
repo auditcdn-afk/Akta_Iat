@@ -966,9 +966,6 @@ window.addEventListener('load', function() {
           $grandLuarSel   += $luarSel;
           $grandTotalSel  += $totalSel;
           $ket = implode('; ', $luarD['penjelasan']);
-          if (!$hasLuar && $smhD['smhSaldo']) {
-              $ket = trim($ket.' Belum ada cek fisik Luar SMH untuk jenis ini — selisih di atas murni dari checklist Cek Fisik SMH.', '; ');
-          }
         @endphp
         <tr>
           <td>{{ $idx + 1 }}</td>
