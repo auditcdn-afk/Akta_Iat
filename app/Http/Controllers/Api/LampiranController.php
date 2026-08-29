@@ -29,6 +29,11 @@ class LampiranController extends Controller
         $request->validate([
             'file'          => 'required|file|max:20480',
             'plan_audit_id' => 'required|integer',
+        ], [
+            'file.required' => 'File wajib dipilih.',
+            'file.file'     => 'Berkas yang diupload tidak valid.',
+            'file.uploaded' => 'Upload gagal, kemungkinan ukuran file melebihi batas server. Coba file yang lebih kecil (maks. 20 MB) atau hubungi admin.',
+            'file.max'      => 'Ukuran file maksimal 20 MB.',
         ]);
 
         $file = $request->file('file');
