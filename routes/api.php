@@ -564,6 +564,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('/import', [AnalisaZonaController::class, 'import']);
             Route::get('/uploads', [AnalisaZonaController::class, 'uploads']);
             Route::get('/scores', [AnalisaZonaController::class, 'scores']);
+            Route::get('/temuan', [AnalisaZonaController::class, 'temuan']);
             Route::post('/recompute', [AnalisaZonaController::class, 'recompute']);
             Route::get('/drill-down', [AnalisaZonaController::class, 'drillDown']);
         });

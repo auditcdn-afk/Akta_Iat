@@ -74,6 +74,18 @@
             </div>
         </div>
 
+        {{-- Temuan: daftar hal yang perlu ditindak, hasil pemeriksaan otomatis
+             atas data yang diupload cabang. Ditaruh SEBELUM drill-down karena
+             inilah yang dipakai menyusun agenda kunjungan — data mentah di
+             bawahnya cuma untuk menelusuri kalau temuannya perlu didalami. --}}
+        <div class="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 bg-slate-800/60 px-5 py-3">
+                <span class="text-xs font-bold uppercase tracking-wide text-slate-200">🔎 Temuan &amp; Tindakan yang Disarankan</span>
+                <div class="flex items-center gap-1.5" id="azTemuanRingkas"></div>
+            </div>
+            <div id="azTemuanList" class="divide-y divide-slate-800/60"></div>
+        </div>
+
         {{-- Drill-down --}}
         <div id="azDrillDownCard" class="hidden overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
             <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 bg-slate-800/60 px-5 py-3">

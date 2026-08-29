@@ -33,4 +33,37 @@ return [
         // risiko tinggi (belum disetor ke bank).
         'posisi_kas_saldo_max' => 50_000_000,
     ],
+
+    // Ambang untuk aturan pemeriksaan otomatis yang menghasilkan TEMUAN
+    // (lihat App\Services\AnalisaZona\Temuan\*). Beda dari 'ambang' di atas
+    // yang cuma menskala angka 0-100: yang di sini menentukan sebuah baris
+    // dilaporkan sebagai temuan atau tidak, jadi pengaruhnya langsung ke
+    // daftar tindakan yang muncul di layar auditor.
+    'temuan' => [
+        // Umur piutang (hari, dihitung dari tanggal transaksi ke tanggal
+        // laporan terakhir) yang dianggap sudah terlalu lama belum cair.
+        // Pada sampel nyata SOTDB, sebaran umurnya 3-22 hari dengan jeda
+        // jelas antara kelompok <=12 hari dan 2 piutang berumur 21-22 hari —
+        // 14 dipakai supaya jeda itu tertangkap. Sesuaikan setelah terlihat
+        // pola dari lebih banyak cabang.
+        'piutang_umur_hari' => 14,
+
+        // Piutang di bawah nominal ini tidak dilaporkan satu per satu walau
+        // sudah lewat umur di atas — supaya daftar temuan tidak penuh oleh
+        // sisa-sisa kecil yang tidak sepadan dengan biaya menagihnya.
+        'piutang_nominal_min' => 1_000_000,
+
+        // Selisih rekonsiliasi (LPK vs LHPBK, RKK vs LHPBK) yang masih
+        // dianggap wajar. Hubungan angkanya seharusnya eksak, jadi ambang
+        // ini kecil — hanya untuk menyerap pembulatan, bukan memaafkan
+        // selisih sungguhan.
+        'selisih_rekonsiliasi_toleransi' => 1_000,
+
+        // Saldo akhir kas yang masih dianggap wajar ditahan di cabang pada
+        // akhir hari. Di atas ini dilaporkan sebagai kas belum disetor.
+        'saldo_kas_wajar_max' => 50_000_000,
+
+        // Rasio DP terhadap harga OTR di bawah ini dianggap tipis.
+        'dp_ratio_min' => 0.15,
+    ],
 ];
