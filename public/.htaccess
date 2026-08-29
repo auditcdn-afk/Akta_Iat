@@ -65,3 +65,28 @@
         ExpiresDefault "access plus 1 year"
     </FilesMatch>
 </IfModule>
+
+# Cadangan untuk public/.user.ini (lihat berkas itu) — .user.ini hanya berlaku
+# di hosting PHP-FPM/CGI/suPHP, DIAM (tidak error) kalau PHP jalan sebagai
+# modul Apache (mod_php). php_value di sini menutup kemungkinan itu, TAPI
+# php_value HANYA valid kalau modul PHP-nya benar-benar dimuat Apache — di
+# luar itu Apache menolaknya dengan 500. Makanya WAJIB dibungkus IfModule per
+# kemungkinan nama modulnya (beda-beda tergantung versi PHP), supaya di
+# hosting non-mod_php baris ini benar-benar tidak pernah dieksekusi sama
+# sekali, bukan cuma "gagal dengan aman".
+<IfModule mod_php.c>
+    php_value upload_max_filesize 55M
+    php_value post_max_size 60M
+</IfModule>
+<IfModule mod_php7.c>
+    php_value upload_max_filesize 55M
+    php_value post_max_size 60M
+</IfModule>
+<IfModule mod_php8.c>
+    php_value upload_max_filesize 55M
+    php_value post_max_size 60M
+</IfModule>
+<IfModule sapi_apache2.c>
+    php_value upload_max_filesize 55M
+    php_value post_max_size 60M
+</IfModule>
