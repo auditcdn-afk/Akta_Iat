@@ -4597,31 +4597,40 @@ function initMtForm() {
    Helper performa tabel scan (dipakai HGP & RSA HGP)
    ============================================================ */
 
-// Render baris tabel bertahap (per potongan) lewat requestAnimationFrame.
-// Daftar onhand HGP/AHM Oils bisa ratusan/ribuan baris dan tiap baris punya 2
-// <input>; menyusunnya sekaligus dalam satu innerHTML membuat browser membeku
-// beberapa detik — input scan di atas tabel ikut tidak bisa dipakai selama itu,
-// dan di WebView alat scanner genggam (mis. Honeywell EDA52) bekunya jauh lebih
-// lama daripada di laptop. Dipotong per chunk, layar sempat bernapas di sela
-// potongan sehingga scan bisa langsung dilakukan tanpa menunggu tabel selesai.
-// Token per-<tbody> memastikan render lama berhenti begitu ada render baru
-// (mis. import ulang) menyusul.
-const TABLE_RENDER_CHUNK = 150;
-let _chunkRenderSeq = 0;
-function renderRowsChunked(tbody, items, rowHtml) {
-    const token = ++_chunkRenderSeq;
-    tbody._chunkToken = token;
-    tbody.innerHTML = '';
-    let i = 0;
-    const step = () => {
-        if (tbody._chunkToken !== token) return;   // dibatalkan oleh render yang lebih baru
-        const end = Math.min(i + TABLE_RENDER_CHUNK, items.length);
-        let html = '';
-        for (; i < end; i++) html += rowHtml(items[i], i);
-        tbody.insertAdjacentHTML('beforeend', html);
-        if (i < items.length) requestAnimationFrame(step);
-    };
-    step();
+// Jendela baris tabel: hanya sebagian baris yang benar-benar masuk DOM.
+//
+// Daftar onhand HGP/AHM Oils di cabang besar bisa 1.300+ baris. Satu baris =
+// 13 sel + 2 <input>, jadi menaruh semuanya di DOM berarti ~18.000 sel dan
+// ~2.700 input sekaligus. Yang mahal bukan cuma render awalnya: SETIAP kali
+// tinggi halaman berubah — misal panel "Input Pemeriksaan Fisik" disembunyikan
+// setelah menyimpan — browser harus menghitung ulang tata letak seluruh tabel
+// itu. Di WebView alat scanner genggam, satu hitung-ulang seperti itu memakan
+// ~2-3 detik: tombol "Simpan Pemeriksaan" terlihat tertekan terus dan layar
+// seperti membeku, padahal datanya sudah tersimpan sejak awal.
+//
+// Karena itu baris dirender per batch: batch pertama saat tabel dibuka, batch
+// berikutnya baru ketika auditor benar-benar menggulir sampai bawah (baris
+// sentinel terlihat). Auditor yang bekerja lewat form scan — alur normalnya —
+// tidak pernah membayar biaya 1.300 baris sama sekali.
+const TABLE_ROWS_PER_BATCH = 80;
+
+// IntersectionObserver tidak ada di WebView yang sangat tua; di situ baris
+// sentinel tetap bisa diketuk untuk memuat batch berikutnya (lihat delegasi
+// klik di *BindTableEvents).
+function observeTableSentinel(tbody, onReach) {
+    const sentinel = tbody?.querySelector('tr[data-row-sentinel]');
+    if (!sentinel || typeof IntersectionObserver === 'undefined') return null;
+    const obs = new IntersectionObserver((entries) => {
+        if (entries.some(e => e.isIntersecting)) onReach();
+    }, { rootMargin: '400px' });
+    obs.observe(sentinel);
+    return obs;
+}
+
+function tableSentinelHtml(sisa) {
+    return `<tr data-row-sentinel><td colspan="13" class="px-4 py-3 text-center text-[11px] text-slate-500">
+        Menggulir untuk memuat ${sisa} baris berikutnya — atau ketuk di sini.
+    </td></tr>`;
 }
 
 // Antrean simpan-delta hasil scan. Sebelumnya 1 scan = 1 POST scan-increment,
@@ -4818,6 +4827,12 @@ function hgpBindTableEvents(tbody) {
     if (!tbody || tbody.dataset.bound === '1') return;
     tbody.dataset.bound = '1';
 
+    // Cadangan kalau IntersectionObserver tidak tersedia / belum sempat memicu:
+    // baris sentinel bisa diketuk untuk memuat batch berikutnya.
+    tbody.addEventListener('click', (e) => {
+        if (e.target.closest('tr[data-row-sentinel]')) hgpAppendRows();
+    });
+
     tbody.addEventListener('input', (e) => {
         const inp = e.target;
         if (!inp.classList?.contains('hgp-inp')) return;
@@ -4855,27 +4870,98 @@ function hgpBindTableEvents(tbody) {
     });
 }
 
+// Daftar indeks item yang lolos kotak pencarian tabel. Indeks ASLI yang dibawa
+// (bukan nomor urut hasil saring) supaya edit WO/Keterangan dan pembaruan baris
+// setelah scan tetap menunjuk item yang benar.
+function hgpVisibleIndexes() {
+    const items = _hgpData?.items || [];
+    const term  = _hgpTableTerm;
+    if (!term) return items.map((_, i) => i);
+    const out = [];
+    items.forEach((it, i) => {
+        if ((it.noPart || '').toLowerCase().includes(term) || (it.sparepart || '').toLowerCase().includes(term)) out.push(i);
+    });
+    return out;
+}
+
+let _hgpTableTerm  = '';
+let _hgpTableView  = [];   // indeks item yang ditampilkan (hasil saring)
+let _hgpTableShown = 0;    // berapa baris dari view itu yang sudah masuk DOM
+let _hgpRowObserver = null;
+
+function hgpUpdateShownInfo() {
+    const el = document.getElementById('hgpTableShown');
+    if (!el) return;
+    const total = (_hgpData?.items || []).length;
+    if (!total) { el.textContent = ''; return; }
+    const cocok = _hgpTableView.length;
+    const info  = _hgpTableTerm
+        ? `Menampilkan ${_hgpTableShown} dari ${cocok} baris yang cocok (total ${total} item).`
+        : `Menampilkan ${_hgpTableShown} dari ${total} item.`;
+    el.textContent = info;
+}
+
+// Tambahkan 1 batch baris ke tabel (dipanggil saat render awal & saat auditor
+// menggulir sampai baris sentinel).
+function hgpAppendRows() {
+    const tbody = document.getElementById('hgpTableBody');
+    if (!tbody) return;
+    const items = _hgpData?.items || [];
+    const end   = Math.min(_hgpTableShown + TABLE_ROWS_PER_BATCH, _hgpTableView.length);
+    let html = '';
+    for (let k = _hgpTableShown; k < end; k++) {
+        const i = _hgpTableView[k];
+        html += hgpRowHtml(items[i], i);
+    }
+    _hgpRowObserver?.disconnect();
+    tbody.querySelector('tr[data-row-sentinel]')?.remove();
+    tbody.insertAdjacentHTML('beforeend', html);
+    _hgpTableShown = end;
+    const sisa = _hgpTableView.length - end;
+    if (sisa > 0) {
+        tbody.insertAdjacentHTML('beforeend', tableSentinelHtml(sisa));
+        _hgpRowObserver = observeTableSentinel(tbody, hgpAppendRows);
+    }
+    hgpUpdateShownInfo();
+}
+
 function hgpRenderItems() {
     const tbody = document.getElementById('hgpTableBody');
     if (!tbody) return;
     hgpBindTableEvents(tbody);
     hgpRebuildIndex();
-    const items = _hgpData?.items || [];
-    if (items.length === 0) {
-        tbody._chunkToken = ++_chunkRenderSeq;   // hentikan render bertahap yang mungkin masih jalan
-        tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
-        hgpUpdateStats();
-        return;
+    _hgpRowObserver?.disconnect();
+    _hgpRowObserver = null;
+    _hgpTableView  = hgpVisibleIndexes();
+    _hgpTableShown = 0;
+    tbody.innerHTML = '';
+
+    const total = (_hgpData?.items || []).length;
+    if (total === 0) {
+        tbody.innerHTML = `<tr><td colspan="13" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
+    } else if (_hgpTableView.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="13" class="px-4 py-8 text-center text-slate-400 text-xs">Tidak ada item yang cocok dengan pencarian.</td></tr>`;
+    } else {
+        hgpAppendRows();
     }
-    renderRowsChunked(tbody, items, hgpRowHtml);
+    hgpUpdateShownInfo();
     hgpUpdateStats();
 }
 
-// Update 1 baris saja di tabel (dipakai setelah scan barcode) — jauh lebih
-// ringan daripada render ulang seluruh tabel tiap kali scan, terutama kalau
-// data onhand-nya ratusan/ribuan baris. Kalau barisnya belum sempat dirender
-// (render bertahap masih berjalan), cukup lewati: potongan berikutnya akan
-// dibangun dari data yang sudah diperbarui.
+// Saring isi tabel (bukan data — datanya tetap utuh, hanya yang ditampilkan
+// yang disaring). Berguna untuk mencari 1 part tanpa perlu menggulir ribuan
+// baris, sekaligus menjaga jumlah baris di DOM tetap kecil.
+function hgpSetTableFilter(term) {
+    const next = (term || '').trim().toLowerCase();
+    if (next === _hgpTableTerm) return;
+    _hgpTableTerm = next;
+    hgpRenderItems();
+}
+
+// Update 1 baris saja di tabel (dipakai setelah scan / simpan pemeriksaan).
+// Kalau barisnya sedang tidak ditampilkan (di luar jendela atau tersaring),
+// tidak ada yang perlu digambar — angka ringkasan di atas tabel & pesan hasil
+// di form tetap diperbarui.
 function hgpUpdateSingleRow(idx) {
     const tbody = document.getElementById('hgpTableBody');
     if (!tbody) return;
@@ -5329,6 +5415,15 @@ function initHgpForm() {
         if (qtyInput) { qtyInput.value = hgpN(qtyInput.value) - 1; hgpFormRecalc(); }
     });
 
+    // Pencarian isi tabel (bukan filter data) — dijeda sebentar supaya tiap
+    // ketikan tidak memicu render ulang daftar.
+    const tableSearch = document.getElementById('hgpTableSearch');
+    let _tableSearchTimer = null;
+    tableSearch?.addEventListener('input', () => {
+        clearTimeout(_tableSearchTimer);
+        _tableSearchTimer = setTimeout(() => hgpSetTableFilter(tableSearch.value), 200);
+    });
+
     document.getElementById('hgpFormSaveBtn')?.addEventListener('click', () => hgpFormSaveEntry());
     document.getElementById('hgpFormResetBtn')?.addEventListener('click', () => hgpFormReset());
 
@@ -5550,6 +5645,12 @@ function rsaHgpBindTableEvents(tbody) {
     if (!tbody || tbody.dataset.bound === '1') return;
     tbody.dataset.bound = '1';
 
+    // Cadangan kalau IntersectionObserver tidak tersedia / belum sempat memicu:
+    // baris sentinel bisa diketuk untuk memuat batch berikutnya.
+    tbody.addEventListener('click', (e) => {
+        if (e.target.closest('tr[data-row-sentinel]')) rsaHgpAppendRows();
+    });
+
     tbody.addEventListener('input', (e) => {
         const inp = e.target;
         if (!inp.classList?.contains('rsa-hgp-inp')) return;
@@ -5587,27 +5688,98 @@ function rsaHgpBindTableEvents(tbody) {
     });
 }
 
+// Daftar indeks item yang lolos kotak pencarian tabel. Indeks ASLI yang dibawa
+// (bukan nomor urut hasil saring) supaya edit WO/Keterangan dan pembaruan baris
+// setelah scan tetap menunjuk item yang benar.
+function rsaHgpVisibleIndexes() {
+    const items = _rsaHgpData?.items || [];
+    const term  = _rsaHgpTableTerm;
+    if (!term) return items.map((_, i) => i);
+    const out = [];
+    items.forEach((it, i) => {
+        if ((it.noPart || '').toLowerCase().includes(term) || (it.sparepart || '').toLowerCase().includes(term)) out.push(i);
+    });
+    return out;
+}
+
+let _rsaHgpTableTerm  = '';
+let _rsaHgpTableView  = [];   // indeks item yang ditampilkan (hasil saring)
+let _rsaHgpTableShown = 0;    // berapa baris dari view itu yang sudah masuk DOM
+let _rsaHgpRowObserver = null;
+
+function rsaHgpUpdateShownInfo() {
+    const el = document.getElementById('rsaHgpTableShown');
+    if (!el) return;
+    const total = (_rsaHgpData?.items || []).length;
+    if (!total) { el.textContent = ''; return; }
+    const cocok = _rsaHgpTableView.length;
+    const info  = _rsaHgpTableTerm
+        ? `Menampilkan ${_rsaHgpTableShown} dari ${cocok} baris yang cocok (total ${total} item).`
+        : `Menampilkan ${_rsaHgpTableShown} dari ${total} item.`;
+    el.textContent = info;
+}
+
+// Tambahkan 1 batch baris ke tabel (dipanggil saat render awal & saat auditor
+// menggulir sampai baris sentinel).
+function rsaHgpAppendRows() {
+    const tbody = document.getElementById('rsaHgpTableBody');
+    if (!tbody) return;
+    const items = _rsaHgpData?.items || [];
+    const end   = Math.min(_rsaHgpTableShown + TABLE_ROWS_PER_BATCH, _rsaHgpTableView.length);
+    let html = '';
+    for (let k = _rsaHgpTableShown; k < end; k++) {
+        const i = _rsaHgpTableView[k];
+        html += rsaHgpRowHtml(items[i], i);
+    }
+    _rsaHgpRowObserver?.disconnect();
+    tbody.querySelector('tr[data-row-sentinel]')?.remove();
+    tbody.insertAdjacentHTML('beforeend', html);
+    _rsaHgpTableShown = end;
+    const sisa = _rsaHgpTableView.length - end;
+    if (sisa > 0) {
+        tbody.insertAdjacentHTML('beforeend', tableSentinelHtml(sisa));
+        _rsaHgpRowObserver = observeTableSentinel(tbody, rsaHgpAppendRows);
+    }
+    rsaHgpUpdateShownInfo();
+}
+
 function rsaHgpRenderItems() {
     const tbody = document.getElementById('rsaHgpTableBody');
     if (!tbody) return;
     rsaHgpBindTableEvents(tbody);
     rsaHgpRebuildIndex();
-    const items = _rsaHgpData?.items || [];
-    if (items.length === 0) {
-        tbody._chunkToken = ++_chunkRenderSeq;   // hentikan render bertahap yang mungkin masih jalan
-        tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
-        rsaHgpUpdateStats();
-        return;
+    _rsaHgpRowObserver?.disconnect();
+    _rsaHgpRowObserver = null;
+    _rsaHgpTableView  = rsaHgpVisibleIndexes();
+    _rsaHgpTableShown = 0;
+    tbody.innerHTML = '';
+
+    const total = (_rsaHgpData?.items || []).length;
+    if (total === 0) {
+        tbody.innerHTML = `<tr><td colspan="13" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
+    } else if (_rsaHgpTableView.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="13" class="px-4 py-8 text-center text-slate-400 text-xs">Tidak ada item yang cocok dengan pencarian.</td></tr>`;
+    } else {
+        rsaHgpAppendRows();
     }
-    renderRowsChunked(tbody, items, rsaHgpRowHtml);
+    rsaHgpUpdateShownInfo();
     rsaHgpUpdateStats();
 }
 
-// Update 1 baris saja di tabel (dipakai setelah scan barcode) — jauh lebih
-// ringan daripada render ulang seluruh tabel tiap kali scan, terutama kalau
-// data onhand-nya ratusan/ribuan baris. Kalau barisnya belum sempat dirender
-// (render bertahap masih berjalan), cukup lewati: potongan berikutnya akan
-// dibangun dari data yang sudah diperbarui.
+// Saring isi tabel (bukan data — datanya tetap utuh, hanya yang ditampilkan
+// yang disaring). Berguna untuk mencari 1 part tanpa perlu menggulir ribuan
+// baris, sekaligus menjaga jumlah baris di DOM tetap kecil.
+function rsaHgpSetTableFilter(term) {
+    const next = (term || '').trim().toLowerCase();
+    if (next === _rsaHgpTableTerm) return;
+    _rsaHgpTableTerm = next;
+    rsaHgpRenderItems();
+}
+
+// Update 1 baris saja di tabel (dipakai setelah scan / simpan pemeriksaan).
+// Kalau barisnya sedang tidak ditampilkan (di luar jendela atau tersaring),
+// tidak ada yang perlu digambar — angka ringkasan di atas tabel & pesan hasil
+// di form tetap diperbarui.
 function rsaHgpUpdateSingleRow(idx) {
     const tbody = document.getElementById('rsaHgpTableBody');
     if (!tbody) return;
@@ -6085,6 +6257,15 @@ function initRsaHgpForm() {
     });
     document.getElementById('rsaHgpFormQtyDec')?.addEventListener('click', () => {
         if (qtyInput) { qtyInput.value = rsaHgpN(qtyInput.value) - 1; rsaHgpFormRecalc(); }
+    });
+
+    // Pencarian isi tabel (bukan filter data) — dijeda sebentar supaya tiap
+    // ketikan tidak memicu render ulang daftar.
+    const tableSearch = document.getElementById('rsaHgpTableSearch');
+    let _tableSearchTimer = null;
+    tableSearch?.addEventListener('input', () => {
+        clearTimeout(_tableSearchTimer);
+        _tableSearchTimer = setTimeout(() => rsaHgpSetTableFilter(tableSearch.value), 200);
     });
 
     document.getElementById('rsaHgpFormSaveBtn')?.addEventListener('click', () => rsaHgpFormSaveEntry());

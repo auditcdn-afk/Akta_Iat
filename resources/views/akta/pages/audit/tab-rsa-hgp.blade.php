@@ -167,6 +167,14 @@
                     <span class="text-xs font-bold uppercase tracking-wide text-slate-200">📦 Data RSA HGP &amp; AHM Oils</span>
                     <span id="rsaHgpTableCount" class="rounded-full bg-blue-600/20 px-3 py-1 text-xs font-bold text-blue-300">0 Item</span>
                 </div>
+                {{-- Baris tabel dimuat bertahap saat digulir (lihat TABLE_ROWS_PER_BATCH di
+                     audit-editor.js). Kotak cari ini jalan pintas untuk menemukan 1 part
+                     tanpa perlu menggulir ribuan baris. --}}
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-slate-900/60 px-5 py-2">
+                    <input type="search" id="rsaHgpTableSearch" placeholder="🔎 Cari No. Part / Nama Part di tabel..."
+                        class="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none">
+                    <span id="rsaHgpTableShown" class="text-[11px] text-slate-500"></span>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[1500px] text-xs">
                         <thead class="border-b border-slate-700 bg-slate-800">
