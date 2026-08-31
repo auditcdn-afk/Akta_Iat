@@ -73,6 +73,29 @@ class MutasiPembelianTest extends TestCase
         return $this->saveTemp($sheet, 'unit_usaha.xlsx');
     }
 
+    /**
+     * Sebagian cabang mengekspor laporan pembelian gudang TANPA baris header —
+     * datanya langsung dari baris pertama, jadi tidak ada tulisan "QTY" untuk
+     * dicari. Bentuk kolomnya persis seperti berkas asli dari CSC LGS:
+     *
+     *   6 | M408/HGP/VIII/26/-- | 46265 | ALGUPP00 | PT. CAPELLA ... | 06455KVBT01 | PAD SET FR | 10
+     *   jenis | no. faktur | tanggal | kode supp | nama supplier | kode part | nama barang | qty
+     */
+    private function buildGudangTanpaHeaderFile(): UploadedFile
+    {
+        $sheet = new Spreadsheet();
+        $ws = $sheet->getActiveSheet();
+        $ws->fromArray(['6', 'INV-001', 46176, 'ALGUPP00', 'PT. SUPPLIER', 'PART-AAA', 'NAMA PART AAA', 10], null, 'A1');
+        $ws->fromArray(['6', 'INV-002', 46176, 'ALGUPP00', 'PT. SUPPLIER', 'PART-BBB', 'NAMA PART BBB', 5], null, 'A2');
+        $ws->fromArray(['6', 'INV-003', 46177, 'ALGUPP00', 'PT. SUPPLIER', 'PART-CCC', 'NAMA PART CCC', 3], null, 'A3');
+        // Cukup banyak baris supaya kolom kode part benar-benar terlihat beragam.
+        $ws->fromArray(['6', 'INV-004', 46177, 'ALGUPP00', 'PT. SUPPLIER', 'PART-DDD', 'NAMA PART DDD', 7], null, 'A4');
+        $ws->fromArray(['6', 'INV-005', 46177, 'ALGUPP00', 'PT. SUPPLIER', 'PART-EEE', 'NAMA PART EEE', 2], null, 'A5');
+        $ws->fromArray(['6', 'INV-006', 46177, 'ALGUPP00', 'PT. SUPPLIER', 'PART-FFF', 'NAMA PART FFF', 4], null, 'A6');
+
+        return $this->saveTemp($sheet, 'gudang_tanpa_header.xlsx');
+    }
+
     private function saveTemp(Spreadsheet $sheet, string $name): UploadedFile
     {
         $path = sys_get_temp_dir() . '/' . uniqid('mp_test_') . '_' . $name;
@@ -206,5 +229,44 @@ class MutasiPembelianTest extends TestCase
         $this->deleteJson('/api/audit-detail/mutasi-pembelian/item', [
             'planAuditId' => $this->plan->id, 'index' => 5,
         ])->assertStatus(404);
+    }
+
+    /**
+     * Berkas gudang tanpa header sempat ditolak mentah-mentah dengan pesan
+     * 'Kolom "QTY" tidak ditemukan' — auditor tidak bisa melanjutkan pemeriksaan
+     * Mutasi Pembelian sama sekali. Kolomnya sekarang dikenali dari isinya.
+     */
+    public function test_file_gudang_tanpa_baris_header_tetap_terbaca(): void
+    {
+        $res = $this->postJson('/api/audit-detail/mutasi-pembelian/compare', [
+            'fileGudang'    => $this->buildGudangTanpaHeaderFile(),
+            'fileUnitUsaha' => $this->buildUnitUsahaFile(),
+        ])->assertOk();
+
+        $data = $res->json('data');
+        $this->assertCount(6, $data, 'Semua baris berkas gudang harus terbaca.');
+
+        $aaa = collect($data)->firstWhere('kodePart', 'PART-AAA');
+        $this->assertSame(10.0, (float) $aaa['qty']);
+        $this->assertSame('INV-001', $aaa['nomorFaktur']);
+        $this->assertSame('NAMA PART AAA', $aaa['namaPart']);
+        // Kolom angka di kiri kode part dibaca sebagai nomor seri tanggal Excel.
+        $this->assertSame('2026-06-03', $aaa['tanggalFaktur']);   // 46176 = 3 Juni 2026
+        // Pencocokan tetap jalan seperti biasa: PART-AAA cocok, PART-BBB qty beda.
+        $this->assertTrue($aaa['matched']);
+        $this->assertFalse(collect($data)->firstWhere('kodePart', 'PART-BBB')['matched']);
+    }
+
+    /** Berkas yang memang bukan laporan pembelian ditolak dengan pesan yang jelas. */
+    public function test_file_gudang_yang_bentuknya_asing_ditolak_dengan_pesan_jelas(): void
+    {
+        $sheet = new Spreadsheet();
+        $sheet->getActiveSheet()->fromArray(['catatan rapat', 'hadir 12 orang'], null, 'A1');
+        $asing = $this->saveTemp($sheet, 'bukan_laporan.xlsx');
+
+        $this->postJson('/api/audit-detail/mutasi-pembelian/compare', [
+            'fileGudang'    => $asing,
+            'fileUnitUsaha' => $this->buildUnitUsahaFile(),
+        ])->assertStatus(422);
     }
 }

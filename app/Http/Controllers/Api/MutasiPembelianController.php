@@ -218,7 +218,11 @@ class MutasiPembelianController extends Controller
             }
         }
         if ($colQty === null) {
-            abort(422, 'Kolom "QTY" tidak ditemukan di file Gudang — pastikan format laporan pembelian gudang sesuai.');
+            // Sebagian cabang mengekspor laporan pembelian gudang TANPA baris
+            // header sama sekali — datanya langsung dari baris pertama, jadi
+            // tidak akan pernah ada tulisan "QTY" untuk dicari. Bentuknya dikenali
+            // dari isi kolomnya, bukan dari judulnya.
+            return $this->parseGudangTanpaHeader($rows);
         }
 
         $c = fn(int $offset) => $colQty + $offset;
@@ -241,6 +245,128 @@ class MutasiPembelianController extends Controller
                 'namaBarang' => $namaBarang !== '' ? $namaBarang : $kodePart,
                 'qty'        => $qty,
                 'nomorFaktur'=> $noBukti,
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * Laporan pembelian gudang yang diekspor TANPA baris header — misalnya:
+     *
+     *   6 | M408/HGP/VIII/26/-- | 46265 | ALGUPP00 | PT. CAPELLA ... | 06455KVBT01 | PAD SET FR | 10
+     *
+     * Kolomnya dikenali dari ISI, bukan dari judul yang memang tidak ada:
+     * - Kode Part  : kolom teks tanpa spasi dengan nilai paling beragam
+     *                (kode supplier ikut berbentuk begitu tapi nilainya seragam)
+     * - Nama Barang: kolom di sebelah kanannya, berisi teks bebas (umumnya berspasi)
+     * - QTY        : kolom angka pertama di kanan Nama Barang
+     * - No. Faktur : kolom dengan paling banyak nilai bergaris miring ("M408/HGP/...")
+     * - Tanggal    : kolom angka di kiri Kode Part yang nilainya masuk akal sebagai
+     *                nomor seri tanggal Excel (opsional — sebagian ekspor tidak punya)
+     *
+     * Sengaja tidak memakai posisi kolom tetap: satu berkas contoh bukan jaminan
+     * semua cabang mengekspor dengan lebar kolom yang sama persis.
+     */
+    private function parseGudangTanpaHeader(array $rows): array
+    {
+        $stat = [];   // kolom => [isi, angka, teksTanpaSpasi, berspasi, garisMiring, nilai unik]
+        foreach ($rows as $row) {
+            foreach ($row as $ci => $cell) {
+                $v = trim((string) $cell);
+                if ($v === '') continue;
+                $stat[$ci] ??= ['isi' => 0, 'angka' => 0, 'kode' => 0, 'spasi' => 0, 'miring' => 0, 'unik' => []];
+                $stat[$ci]['isi']++;
+                if (is_numeric($v)) $stat[$ci]['angka']++;
+                if (!is_numeric($v) && !str_contains($v, ' ')) $stat[$ci]['kode']++;
+                if (str_contains($v, ' ')) $stat[$ci]['spasi']++;
+                if (str_contains($v, '/')) $stat[$ci]['miring']++;
+                $stat[$ci]['unik'][$v] = true;
+            }
+        }
+        if (!$stat) {
+            abort(422, 'File Gudang kosong — tidak ada baris data yang bisa dibaca.');
+        }
+        ksort($stat);
+        $unik = fn(int $ci) => count($stat[$ci]['unik']);
+        $porsi = fn(int $ci, string $k) => $stat[$ci]['isi'] > 0 ? $stat[$ci][$k] / $stat[$ci]['isi'] : 0.0;
+
+        // Dicari SATU rangkaian tiga kolom berdampingan: kode part → nama barang →
+        // qty. Menebak per kolom sendiri-sendiri tidak cukup — nomor faktur pun
+        // berbentuk kode tanpa spasi dan sama beragamnya dengan kode part, jadi
+        // yang membedakan justru tetangganya: hanya kode part yang diikuti kolom
+        // nama barang (teks bebas) lalu kolom angka.
+        $colPart = $colNama = $colQty = null;
+        foreach (array_keys($stat) as $ci) {
+            if ($porsi($ci, 'kode') < 0.6 || $unik($ci) < 3) continue;   // calon kode part
+            $nama = $ci + 1;
+            if (!isset($stat[$nama]) || $porsi($nama, 'angka') > 0.3) continue;
+            // Nama barang: teks bebas — umumnya berspasi ("PAD SET FR"), atau
+            // setidaknya cukup panjang untuk sebuah deskripsi.
+            $panjangRata = 0;
+            foreach (array_keys($stat[$nama]['unik']) as $v) $panjangRata += mb_strlen((string) $v);
+            $panjangRata = $unik($nama) > 0 ? $panjangRata / $unik($nama) : 0;
+            if ($porsi($nama, 'spasi') < 0.3 && $panjangRata < 8) continue;
+
+            $qty = null;
+            foreach (array_keys($stat) as $cj) {
+                if ($cj <= $nama) continue;
+                if ($porsi($cj, 'angka') >= 0.95) { $qty = $cj; break; }
+            }
+            if ($qty === null) continue;
+
+            if ($colPart === null || $unik($ci) > $unik($colPart)) {
+                [$colPart, $colNama, $colQty] = [$ci, $nama, $qty];
+            }
+        }
+        if ($colPart === null || $colQty === null) {
+            abort(422, 'Format file Gudang tidak dikenali — kolom Kode Part & QTY tidak ditemukan, '
+                . 'baik lewat judul kolom maupun lewat isinya. Pastikan berkas yang diunggah memang '
+                . 'laporan pembelian gudang.');
+        }
+
+        // No. Faktur: paling khas berbentuk "M408/HGP/VIII/26/--", jadi kolom yang
+        // isinya bergaris miring didahulukan. Kalau cabangnya memakai penomoran
+        // tanpa garis miring, jatuh ke kolom kode lain yang paling beragam —
+        // biasanya memang nomor bukti.
+        $colFaktur = null;
+        foreach ([true, false] as $harusMiring) {
+            foreach (array_keys($stat) as $ci) {
+                if ($ci === $colPart || $ci === $colNama || $ci === $colQty) continue;
+                if ($harusMiring ? $porsi($ci, 'miring') < 0.6 : $porsi($ci, 'kode') < 0.6) continue;
+                if ($unik($ci) < 2) continue;   // kolom konstan (kode supplier) bukan nomor bukti
+                if ($colFaktur === null || $unik($ci) > $unik($colFaktur)) $colFaktur = $ci;
+            }
+            if ($colFaktur !== null) break;
+        }
+        // Tanggal: angka di kiri Kode Part yang masuk akal sebagai seri tanggal Excel
+        // (sekitar tahun 2000 ke atas). Nilai seperti "6" atau qty tidak lolos.
+        $colTgl = null;
+        foreach (array_keys($stat) as $ci) {
+            if ($ci >= $colPart || $porsi($ci, 'angka') < 0.95) continue;
+            $masukAkal = true;
+            foreach (array_keys($stat[$ci]['unik']) as $v) {
+                if (!is_numeric($v) || (float) $v < 36526 || (float) $v > 80000) { $masukAkal = false; break; }
+            }
+            if ($masukAkal) { $colTgl = $ci; break; }
+        }
+
+        $items = [];
+        foreach ($rows as $row) {
+            $kodePart   = trim((string) ($row[$colPart] ?? ''));
+            $namaBarang = $colNama !== null ? trim((string) ($row[$colNama] ?? '')) : '';
+            if ($kodePart === '' && $namaBarang === '') continue;
+            // Baris data selalu punya qty berupa angka; baris judul/total/tanda
+            // tangan di ekor berkas tidak, jadi ikut tersaring di sini.
+            $qtyRaw = $row[$colQty] ?? null;
+            if (!is_numeric($qtyRaw)) continue;
+
+            $items[] = [
+                'tanggal'    => $colTgl !== null ? $this->excelDateToStr($row[$colTgl] ?? null) : '',
+                'kodePart'   => $kodePart,
+                'namaBarang' => $namaBarang !== '' ? $namaBarang : $kodePart,
+                'qty'        => $this->n($qtyRaw),
+                'nomorFaktur'=> $colFaktur !== null ? trim((string) ($row[$colFaktur] ?? '')) : '',
             ];
         }
 
