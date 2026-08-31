@@ -6938,39 +6938,45 @@ function hgaFormSelectPart(code) {
     hgaFormRecalc();
 }
 
-// Sama seperti pola di modul HGP: simpan penuh (_doSaveHga, kirim SELURUH array items)
-// di-debounce supaya scan beruntun tidak masing-masing menunggu network round-trip, dan
-// scan barcode (jalur tercepat/tersering) pakai delta-save (_doScanHgaIncrement, cuma
-// kirim 1 No. Part + qty) supaya payload-nya tetap kecil di alat scanner genggam.
-let _hgaSaveDebounceTimer = null;
-function _doSaveHgaDebounced(delay = 700) {
-    clearTimeout(_hgaSaveDebounceTimer);
-    _hgaSaveDebounceTimer = setTimeout(() => {
-        _hgaSaveDebounceTimer = null;
-        _doSaveHga().catch(() => {});
-    }, delay);
-}
-function _flushHgaSaveDebounced() {
-    if (!_hgaSaveDebounceTimer) return;
-    clearTimeout(_hgaSaveDebounceTimer);
-    _hgaSaveDebounceTimer = null;
-    _doSaveHga().catch(() => {});
-}
-async function _doScanHgaIncrement(noPart, qty, idx, extra = {}) {
-    if (!activePlanId || !noPart) return;
-    try {
-        const res = await fetchJson('/api/audit-detail/hga/scan-increment', {
-            method: 'POST',
-            headers: authHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ planAuditId: activePlanId, noPart, qty, ...extra }),
-        });
-        if (res?.item && _hgaData?.items?.[idx]) {
-            _hgaData.items[idx] = { ..._hgaData.items[idx], ...res.item };
-            hgaUpdateSingleRow(idx);
-        }
-    } catch (_) {
-        _doSaveHgaDebounced();
+// Scan yang belum sampai ke server tidak boleh jatuh ke "simpan penuh" (kirim
+// ulang SELURUH array): jalur itulah yang bisa menimpa hasil scan perangkat
+// lain — lihat catatan panjang di createScanIncrementQueue dan
+// MenjagaHasilPemeriksaan. Yang gagal tetap diantre & dicoba ulang, dan auditor
+// diberi tahu lewat peringatan di bawah form.
+function hgaSetSyncWarn(tertunda, pesan) {
+    const el = document.getElementById('hgaSyncWarn');
+    if (!el) return;
+    if (pesan) {
+        el.classList.remove('hidden');
+        el.textContent = `⚠️ ${pesan}`;
+        return;
     }
+    if (!tertunda) { el.classList.add('hidden'); el.textContent = ''; return; }
+    el.classList.remove('hidden');
+    el.textContent = `⚠️ ${tertunda} scan belum tersimpan ke server — masih dicoba ulang otomatis. Jangan tutup halaman ini dulu.`;
+}
+
+// Kirim scan yang masih mengantre sekarang juga (dipanggil sebelum pindah tab /
+// menutup halaman). Namanya dipertahankan karena dipakai switchTab().
+function _flushHgaSaveDebounced(opts = {}) {
+    return _hgaScanQueue.flush(opts);
+}
+
+// Delta scan HGA: cuma 1 No. Part + qty, jadi payload-nya tetap kecil berapa pun
+// banyaknya item — sama seperti HGP & RSA HGP.
+const _hgaScanQueue = createScanIncrementQueue({
+    endpoint: '/api/audit-detail/hga/scan-increment',
+    onItem: (res, idx, noPart) => {
+        if (!res?.item || !_hgaData?.items?.[idx]) return;
+        if (_hgaScanQueue.hasPending(noPart)) return;
+        _hgaData.items[idx] = { ..._hgaData.items[idx], ...res.item };
+        hgaUpdateSingleRow(idx);
+    },
+    onStuck: (tertunda, pesan) => hgaSetSyncWarn(tertunda, pesan),
+});
+
+function _doScanHgaIncrement(noPart, qty, idx, extra = {}) {
+    _hgaScanQueue.push(noPart, qty, idx, extra);
 }
 
 function hgaScanAccumulate(code) {
@@ -7076,7 +7082,18 @@ async function hgaHandleFile(file) {
         if (msg) msg.textContent = `${res.data.length} item diimport.`;
         hgaRenderItems();
         hgaPopulateDatalist();
-        _doSaveHga().catch(() => {});
+        // mode 'import': daftar & saldo baru dari file, tapi hasil scan yang sudah
+        // tercatat di server ikut dibawa server-side, lalu layar disamakan dengan
+        // hasil otoritatif itu.
+        _doSaveHga('import').then(async (saved) => {
+            if (!Array.isArray(saved?.data?.items)) return;
+            _hgaData.items = saved.data.items;
+            _hgaData.items.forEach(it => hgaCalcItem(it));
+            await hgaEnrichWithHet(_hgaData.items);
+            hgaRenderItems();
+            hgaPopulateDatalist();
+            if (msg) msg.textContent = `${_hgaData.items.length} item aktif setelah import.`;
+        }).catch(err => { if (msg) msg.textContent = 'Gagal menyimpan hasil import: ' + (err.message || ''); });
     } catch (e) { if (msg) msg.textContent = 'Gagal: ' + (e.message || 'Unknown error'); }
 }
 
@@ -7131,12 +7148,25 @@ async function hgaHandlePtsFile(file) {
         if (msg) msg.textContent = `PTS: ${ptsItems.length} item diproses, data tersinkronisasi.`;
         hgaRenderItems();
         hgaPopulateDatalist();
-        _doSaveHga().catch(() => {});
+        // Sinkron PTS menambah saldoPts ke daftar yang sedang di layar, jadi
+        // dikirim sebagai simpan biasa — kalau layarnya ternyata ketinggalan,
+        // server menolak (409) dan auditor diminta memuat ulang, bukan menimpa.
+        _doSaveHga().catch(err => { if (msg) msg.textContent = 'Gagal menyimpan sinkron PTS: ' + (err.message || ''); });
     } catch (e) { if (msg) msg.textContent = 'Gagal: ' + (e.message || 'Unknown error'); }
 }
 
 async function loadHgaTab() {
     if (!activePlanId) { _hgaData = null; hgaRenderItems(); return; }
+    // Scan yang masih mengantre harus sampai ke server dulu — kalau tidak, data
+    // yang diambil di bawah ini adalah kondisi SEBELUM scan terakhir.
+    await _flushHgaSaveDebounced();
+    // Masih ada yang belum terkirim (jaringan bermasalah): menimpa state lokal
+    // sekarang akan menghapus scan itu dari layar dan dari ingatan browser.
+    if (_hgaScanQueue.hasPending()) {
+        hgaSetSyncWarn(_hgaScanQueue.scanTertunda(), null);
+        hgaRenderItems();
+        return;
+    }
     const res = await fetchJson(`/api/audit-detail/hga?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
     // Selalu timpa _hgaData dengan data plan yang baru dibuka (termasuk kalau
     // kosong) — sebelumnya hanya ditimpa kalau items tidak kosong, jadi kalau
@@ -7149,20 +7179,25 @@ async function loadHgaTab() {
     hgaPopulateDatalist();
 }
 
-async function _doSaveHga() {
+// Lihat catatan mode di _doSaveHgp(): 'merge' ditolak 409 kalau ada hasil
+// pemeriksaan yang akan hilang, 'import' membiarkan server membawa hasil scan
+// yang sudah ada, 'replace' hanya untuk "Hapus Semua Data".
+async function _doSaveHga(mode = 'merge') {
     if (!activePlanId) throw new Error('Pilih plan audit terlebih dahulu.');
     if (!_hgaData) _hgaData = hgaEmptyData();
     return await fetchJson('/api/audit-detail/hga', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ planAuditId: activePlanId, items: _hgaData.items }),
+        body: JSON.stringify({ planAuditId: activePlanId, items: _hgaData.items, mode }),
     });
 }
 
 function initHgaForm() {
     const fileInput = document.getElementById('hgaFileInput');
     const dropzone  = document.getElementById('hgaDropzone');
-    window.addEventListener('beforeunload', () => _flushHgaSaveDebounced());
+    // keepalive: request simpan-delta tetap diselesaikan browser walau
+    // halamannya sudah ditutup.
+    window.addEventListener('beforeunload', () => _flushHgaSaveDebounced({ keepalive: true }));
     fileInput?.addEventListener('change', () => { if (fileInput.files[0]) hgaHandleFile(fileInput.files[0]); fileInput.value = ''; });
     dropzone?.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-blue-400'); });
     dropzone?.addEventListener('dragleave', () => dropzone.classList.remove('border-blue-400'));
@@ -7177,7 +7212,14 @@ function initHgaForm() {
     ptsDropzone?.addEventListener('drop', e => { e.preventDefault(); ptsDropzone.classList.remove('border-purple-400'); const f = e.dataTransfer.files[0]; if (f) hgaHandlePtsFile(f); });
 
     document.getElementById('hgaSaveBtn')?.addEventListener('click', () => {
-        _doSaveHga().then(r => showAlert(r.message || 'Tersimpan.', 'success')).catch(e => showAlert(e.message || 'Gagal.', 'error'));
+        _doSaveHga()
+            .then(r => showAlert(r.message || 'Tersimpan.', 'success'))
+            .catch(async (e) => {
+                showAlert(e.message || 'Gagal.', 'error');
+                // 409 = layar ini ketinggalan dari server. Jangan ditimpa —
+                // muat ulang; scan yang belum terkirim tetap aman di antrean.
+                if (e?.status === 409) await loadHgaTab().catch(() => {});
+            });
     });
 
     document.getElementById('hgaFilterSelisihOnly')?.addEventListener('change', (e) => {
@@ -7260,7 +7302,9 @@ function initHgaForm() {
         hgaRenderItems(); hgaPopulateDatalist();
         const msg = document.getElementById('hgaImportMsg');
         if (msg) { msg.classList.remove('hidden'); msg.textContent = 'Data dikosongkan. Silakan import ulang file Excel.'; }
-        _doSaveHga().catch(() => {});
+        // Satu-satunya jalur yang memang boleh menghapus hasil pemeriksaan —
+        // auditor sudah mengonfirmasinya lewat dialog di atas.
+        _doSaveHga('replace').catch(err => showAlert(err.message || 'Gagal mengosongkan data.', 'error'));
     });
 }
 

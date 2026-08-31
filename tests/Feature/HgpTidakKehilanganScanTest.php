@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\PemeriksaanHga;
 use App\Models\PemeriksaanHgp;
 use App\Models\PemeriksaanRsaHgp;
 use App\Models\PlanAudit;
@@ -240,6 +241,90 @@ class HgpTidakKehilanganScanTest extends TestCase
         ])->assertOk()->assertJsonPath('item.fisik', 2);
 
         $this->assertCount(2, PemeriksaanHgp::first()->items_json[0]['logScan']);
+    }
+
+    /** Kolom WO diisi manual tanpa scan — sama saja hasil kerja auditor. */
+    public function test_wo_yang_diisi_manual_tidak_boleh_hilang(): void
+    {
+        PemeriksaanHgp::create(['plan_audit_id' => $this->plan->id, 'items_json' => $this->snapshotAwal()]);
+
+        // Edit inline kolom WO lewat endpoint delta: qty 0, tanpa entri logScan.
+        $this->postJson('/api/audit-detail/hgp/scan-increment', [
+            'planAuditId' => $this->plan->id, 'noPart' => 'PART-1', 'qty' => 0, 'wo' => 3,
+        ])->assertOk()->assertJsonPath('item.wo', 3);
+
+        $this->postJson('/api/audit-detail/hgp', [
+            'planAuditId' => $this->plan->id, 'items' => $this->snapshotAwal(),
+        ])->assertStatus(409);
+
+        $this->assertEquals(3, PemeriksaanHgp::first()->items_json[0]['wo']);
+    }
+
+    public function test_hga_ikut_aturan_yang_sama(): void
+    {
+        $this->postJson('/api/audit-detail/auditor', [
+            'plan_audit_id' => $this->plan->id, 'tool' => 'hga', 'nama_auditee' => 'Auditee Test',
+        ])->assertOk();
+
+        $awal = [
+            ['noPart' => 'PART-1', 'sparepart' => 'A', 'saldoAkhir' => 10, 'fisik' => 0, 'fisikTtp' => 0, 'logScan' => []],
+            ['noPart' => 'PART-2', 'sparepart' => 'B', 'saldoAkhir' => 10, 'fisik' => 0, 'fisikTtp' => 0, 'logScan' => []],
+        ];
+        PemeriksaanHga::create(['plan_audit_id' => $this->plan->id, 'items_json' => $awal]);
+
+        $this->postJson('/api/audit-detail/hga/scan-increment', [
+            'planAuditId' => $this->plan->id, 'noPart' => 'PART-1', 'qty' => 6,
+        ])->assertOk();
+
+        $this->postJson('/api/audit-detail/hga', [
+            'planAuditId' => $this->plan->id, 'items' => $awal,
+        ])->assertStatus(409)->assertJsonPath('stale', true);
+
+        $this->assertSame(6, PemeriksaanHga::first()->items_json[0]['fisik']);
+    }
+
+    /** Fisik TTP diisi manual (tanpa scan) juga jejak kerja auditor — tidak boleh hilang. */
+    public function test_hga_fisik_ttp_yang_diisi_manual_ikut_dijaga(): void
+    {
+        $this->postJson('/api/audit-detail/auditor', [
+            'plan_audit_id' => $this->plan->id, 'tool' => 'hga', 'nama_auditee' => 'Auditee Test',
+        ])->assertOk();
+
+        $awal = [['noPart' => 'PART-1', 'sparepart' => 'A', 'saldoAkhir' => 10, 'fisik' => 0, 'fisikTtp' => 0, 'logScan' => []]];
+        PemeriksaanHga::create(['plan_audit_id' => $this->plan->id, 'items_json' => $awal]);
+
+        // Edit inline kolom Fisik TTP — qty 0, jadi tidak ada entri logScan sama sekali.
+        $this->postJson('/api/audit-detail/hga/scan-increment', [
+            'planAuditId' => $this->plan->id, 'noPart' => 'PART-1', 'qty' => 0, 'fisikTtp' => 4,
+        ])->assertOk()->assertJsonPath('item.fisikTtp', 4);
+
+        $this->postJson('/api/audit-detail/hga', [
+            'planAuditId' => $this->plan->id, 'items' => $awal,
+        ])->assertStatus(409);
+
+        $this->assertEquals(4, PemeriksaanHga::first()->items_json[0]['fisikTtp']);
+    }
+
+    /** Kiriman ulang entri HGA juga tidak boleh dihitung dua kali. */
+    public function test_hga_entri_scan_dengan_id_sama_tidak_dihitung_dua_kali(): void
+    {
+        $this->postJson('/api/audit-detail/auditor', [
+            'plan_audit_id' => $this->plan->id, 'tool' => 'hga', 'nama_auditee' => 'Auditee Test',
+        ])->assertOk();
+
+        PemeriksaanHga::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [['noPart' => 'PART-1', 'sparepart' => 'A', 'saldoAkhir' => 10, 'fisik' => 0, 'fisikTtp' => 0, 'logScan' => []]],
+        ]);
+
+        $payload = [
+            'planAuditId' => $this->plan->id, 'noPart' => 'PART-1', 'qty' => 2,
+            'entries' => [['id' => 'hga-a', 'qty' => 1], ['id' => 'hga-b', 'qty' => 1]],
+        ];
+        $this->postJson('/api/audit-detail/hga/scan-increment', $payload)->assertOk()->assertJsonPath('item.fisik', 2);
+        $this->postJson('/api/audit-detail/hga/scan-increment', $payload)->assertOk()->assertJsonPath('item.fisik', 2);
+
+        $this->assertCount(2, PemeriksaanHga::first()->items_json[0]['logScan']);
     }
 
     public function test_rsa_hgp_ikut_aturan_yang_sama(): void

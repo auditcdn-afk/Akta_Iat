@@ -49,19 +49,24 @@ trait MenjagaHasilPemeriksaan
         return $peta;
     }
 
-    /** Berapa banyak jejak pemeriksaan yang sudah menempel di satu item. */
+    /**
+     * Berapa banyak jejak pemeriksaan yang sudah menempel di satu item. Selain
+     * fisik hasil scan, kolom qty yang diisi manual ikut dihitung: "wo" (HGP &
+     * RSA HGP) dan "fisikTtp" (HGA) — dua-duanya hasil kerja auditor yang tidak
+     * boleh hilang, dan tiap tool cuma punya salah satunya.
+     */
     private function jejakPemeriksaan(array $item): array
     {
         return [
-            'fisik' => $this->angka($item['fisik'] ?? 0),
-            'wo'    => $this->angka($item['wo'] ?? 0),
-            'log'   => is_array($item['logScan'] ?? null) ? count($item['logScan']) : 0,
+            'fisik'  => $this->angka($item['fisik'] ?? 0),
+            'manual' => $this->angka($item['wo'] ?? 0) + $this->angka($item['fisikTtp'] ?? 0),
+            'log'    => is_array($item['logScan'] ?? null) ? count($item['logScan']) : 0,
         ];
     }
 
     private function belumTersentuh(array $jejak): bool
     {
-        return $jejak['log'] === 0 && $jejak['fisik'] == 0.0 && $jejak['wo'] == 0.0;
+        return $jejak['log'] === 0 && $jejak['fisik'] == 0.0 && $jejak['manual'] == 0.0;
     }
 
     /**
@@ -91,10 +96,13 @@ trait MenjagaHasilPemeriksaan
             // Riwayat scan hanya boleh bertambah. Koreksi qty minus menurunkan
             // fisik TAPI menambah entri log, jadi tetap lolos di sini.
             $riwayatMenyusut = $jejakBaru['log'] < $jejakLama['log'];
-            $fisikTurunTanpaJejak = $jejakBaru['log'] === $jejakLama['log']
-                && $jejakBaru['fisik'] < $jejakLama['fisik'];
+            // Tanpa entri log baru, turunnya angka hanya bisa berarti payload-nya
+            // ketinggalan. Kolom manual (WO / Fisik TTP) ikut dijaga: isinya sama
+            // saja hasil kerja auditor walau tidak lewat scan.
+            $angkaTurunTanpaJejak = $jejakBaru['log'] === $jejakLama['log']
+                && ($jejakBaru['fisik'] < $jejakLama['fisik'] || $jejakBaru['manual'] < $jejakLama['manual']);
 
-            if ($riwayatMenyusut || $fisikTurunTanpaJejak) {
+            if ($riwayatMenyusut || $angkaTurunTanpaJejak) {
                 $hilang[] = (string) ($lama['noPart'] ?? '');
             }
         }
@@ -121,7 +129,7 @@ trait MenjagaHasilPemeriksaan
             if (!$lama) continue;
 
             $terpakai[$kunci] = true;
-            foreach (['fisik', 'wo', 'logScan', 'keterangan', 'tgl'] as $field) {
+            foreach (['fisik', 'wo', 'fisikTtp', 'logScan', 'keterangan', 'keteranganTtp', 'tgl'] as $field) {
                 if (array_key_exists($field, $lama)) $item[$field] = $lama[$field];
             }
             // Saldo baseline-nya dari file baru, jadi akhir & selisih dihitung ulang.
