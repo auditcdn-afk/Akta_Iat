@@ -49,27 +49,45 @@
                 <p id="mpCompareMsg" class="hidden text-sm font-medium"></p>
             </div>
 
-            {{-- Stat Cards --}}
+            {{-- Stat Cards — sekaligus tombol filter tabel di bawahnya. Auditor
+                 paling sering hanya perlu menindaklanjuti yang "Belum Terima",
+                 jadi angkanya langsung bisa diklik untuk menyaring. --}}
             <div id="mpStatSection" class="hidden grid grid-cols-3 gap-3">
-                <div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4 text-center">
+                <button type="button" data-mp-filter="semua"
+                    class="mp-filter-btn rounded-2xl border border-slate-700 bg-slate-800/60 p-4 text-center transition hover:border-slate-500">
                     <p id="mpStatTotal" class="text-2xl font-bold text-slate-100">0</p>
                     <p class="mt-1 text-xs uppercase tracking-wide text-slate-400">Total Baris Gudang</p>
-                </div>
-                <div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4 text-center">
+                </button>
+                <button type="button" data-mp-filter="sudah"
+                    class="mp-filter-btn rounded-2xl border border-slate-700 bg-slate-800/60 p-4 text-center transition hover:border-green-600">
                     <p id="mpStatMatch" class="text-2xl font-bold text-green-400">0</p>
                     <p class="mt-1 text-xs uppercase tracking-wide text-slate-400">Sudah Diterima</p>
-                </div>
-                <div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4 text-center">
+                </button>
+                <button type="button" data-mp-filter="belum"
+                    class="mp-filter-btn rounded-2xl border border-slate-700 bg-slate-800/60 p-4 text-center transition hover:border-red-600">
                     <p id="mpStatUnmatch" class="text-2xl font-bold text-red-400">0</p>
                     <p class="mt-1 text-xs uppercase tracking-wide text-slate-400">Belum Terima</p>
-                </div>
+                </button>
             </div>
 
             {{-- Tabel Hasil --}}
             <div id="mpTableSection" class="hidden overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
                 <div class="flex items-center justify-between border-b border-slate-700 bg-slate-800/60 px-5 py-3">
                     <span class="text-xs font-bold uppercase tracking-wide text-slate-200">📋 Hasil Perbandingan Mutasi Pembelian</span>
-                    <span id="mpTableCount" class="rounded-full bg-blue-600/20 px-3 py-1 text-xs font-bold text-blue-300">0 baris</span>
+                    <div class="flex items-center gap-2">
+                        <span id="mpFilterLabel" class="hidden rounded-full border border-red-700/60 bg-red-950/40 px-3 py-1 text-xs font-semibold text-red-300"></span>
+                        <span id="mpTableCount" class="rounded-full bg-blue-600/20 px-3 py-1 text-xs font-bold text-blue-300">0 baris</span>
+                    </div>
+                </div>
+                {{-- Pencarian isi tabel — jalan pintas mencari 1 No. Part / No. Faktur
+                     tanpa menggulir ribuan baris. Bekerja bersama filter di atas. --}}
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-slate-900/60 px-5 py-2">
+                    <input type="search" id="mpTableSearch" placeholder="🔎 Cari No. Part / Nama Part / No. Faktur..."
+                        class="w-full max-w-sm rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none">
+                    <button type="button" id="mpFilterReset"
+                        class="hidden rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition">
+                        ✕ Tampilkan semua
+                    </button>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[1100px] text-xs">
