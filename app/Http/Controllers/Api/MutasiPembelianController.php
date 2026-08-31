@@ -197,17 +197,110 @@ class MutasiPembelianController extends Controller
         return $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
     }
 
-    // Parser file Gudang ("LAPORAN PEMBELIAN (Psch)" dsb) — laporan dengan
-    // header merged-cell, sehingga posisi label ≠ posisi data (pola yang sama
-    // dengan parser HGP/Piutang Reguler). Ditemukan lewat kolom "QTY" yang
-    // posisinya stabil relatif terhadap kolom lain:
+    // Berkas laporan pembelian datang dalam tiga bentuk, dan bentuknya BERBEDA
+    // antar cabang — bahkan sisi Gudang & Unit Usaha di satu cabang bisa saling
+    // bertukar bentuk. Karena itu kedua sisi memakai pembaca yang sama dan
+    // mencoba ketiganya berurutan, bukan memaksakan satu bentuk per sisi:
+    //   1. header rapi   : Kode Part | Nama Part | Qty | Nomor Faktur | ...
+    //   2. LAPORAN PEMBELIAN (Psch): header merged-cell, posisi data digeser
+    //   3. tanpa header   : dikenali dari isi kolomnya
+    private function parseGudang(UploadedFile $file): array
+    {
+        return array_map(fn(array $it) => [
+            'tanggal'    => $it['tanggal'],
+            'kodePart'   => $it['kodePart'],
+            'namaBarang' => $it['namaPart'] !== '' ? $it['namaPart'] : $it['kodePart'],
+            'qty'        => $it['qty'],
+            'nomorFaktur'=> $it['nomorFaktur'],
+        ], $this->bacaBerkasPembelian($this->loadSpreadsheet($file), 'Gudang'));
+    }
+
+    private function parseUnitUsaha(UploadedFile $file): array
+    {
+        return array_map(fn(array $it) => [
+            'kodePart'    => $it['kodePart'],
+            'namaPart'    => $it['namaPart'],
+            'qty'         => $it['qty'],
+            'nomorFaktur' => $it['nomorFaktur'],
+            'lokasi'      => $it['lokasi'],
+            'kode'        => $it['kode'],
+            'unitUsaha'   => $it['unitUsaha'],
+        ], $this->bacaBerkasPembelian($this->loadSpreadsheet($file), 'Unit Usaha'));
+    }
+
+    // Dicoba dari bentuk yang paling pasti (judul kolom eksplisit) ke yang paling
+    // menebak (dikenali dari isi). Bentuk yang menghasilkan baris duluan dipakai;
+    // "ketemu judulnya tapi tidak ada baris data" berarti tebakannya salah, jadi
+    // lanjut ke bentuk berikutnya — bukan dianggap berkas kosong.
+    private function bacaBerkasPembelian(array $rows, string $label): array
+    {
+        $items = $this->bacaHeaderRapi($rows);
+        if (!empty($items)) return $items;
+
+        $items = $this->bacaLaporanPembelian($rows);
+        if (!empty($items)) return $items;
+
+        return $this->bacaTanpaHeader($rows, $label);
+    }
+
+    // Bentuk 1 — header rapi dalam satu baris. Selain Kode Part/Qty/Nomor Faktur,
+    // bentuk ini juga membawa Lokasi/Kode/Unit Usaha yang dipakai di hasil
+    // perbandingan; bentuk lain tidak punya itu dan dibiarkan kosong.
+    private function bacaHeaderRapi(array $rows): ?array
+    {
+        $norm = fn($v) => strtolower(trim((string) $v));
+        $col = ['kodePart' => null, 'namaPart' => null, 'qty' => null, 'nomorFaktur' => null,
+                'tanggalFaktur' => null, 'lokasi' => null, 'kode' => null, 'unitUsaha' => null];
+        $headerIdx = -1;
+
+        foreach ($rows as $i => $row) {
+            foreach ($row as $ci => $cell) {
+                $n = $norm($cell);
+                if ($n === 'kode part') $col['kodePart'] = $ci;
+                if ($n === 'nama part' || $n === 'nama barang') $col['namaPart'] = $ci;
+                if ($n === 'qty') $col['qty'] = $ci;
+                if (str_contains($n, 'nomor faktur') || str_contains($n, 'no faktur') || str_contains($n, 'no. faktur')) $col['nomorFaktur'] = $ci;
+                if (str_contains($n, 'tanggal faktur')) $col['tanggalFaktur'] = $ci;
+                if ($n === 'lokasi') $col['lokasi'] = $ci;
+                if ($n === 'kode') $col['kode'] = $ci;
+                if (str_contains($n, 'unit usaha')) $col['unitUsaha'] = $ci;
+            }
+            if ($col['kodePart'] !== null && $col['qty'] !== null && $col['nomorFaktur'] !== null) {
+                $headerIdx = $i;
+                break;
+            }
+        }
+        if ($headerIdx === -1) return null;
+
+        $ambil = fn(array $row, ?int $ci) => $ci !== null ? trim((string) ($row[$ci] ?? '')) : '';
+        $items = [];
+        foreach (array_slice($rows, $headerIdx + 1) as $row) {
+            $kodePart = $ambil($row, $col['kodePart']);
+            if ($kodePart === '') continue;
+
+            $items[] = [
+                'tanggal'     => $col['tanggalFaktur'] !== null ? $this->excelDateToStr($row[$col['tanggalFaktur']] ?? null) : '',
+                'kodePart'    => $kodePart,
+                'namaPart'    => $ambil($row, $col['namaPart']),
+                'qty'         => $this->n($row[$col['qty']] ?? 0),
+                'nomorFaktur' => $ambil($row, $col['nomorFaktur']),
+                'lokasi'      => $ambil($row, $col['lokasi']),
+                'kode'        => $ambil($row, $col['kode']),
+                'unitUsaha'   => $ambil($row, $col['unitUsaha']),
+            ];
+        }
+
+        return $items;
+    }
+
+    // Bentuk 2 — "LAPORAN PEMBELIAN (Psch)": header merged-cell, sehingga posisi
+    // label ≠ posisi data (pola yang sama dengan parser HGP/Piutang Reguler).
+    // Ditemukan lewat kolom "QTY" yang posisinya stabil relatif terhadap kolom lain:
     //   TGL | NAMA SUPPLIER | NO.BUKTI | KODE PART+NAMA BARANG | QTY |
     //   HARGA BELI | DISCOUNT | NETTO | TGL.JTO
     // Offset relatif terhadap kolom QTY: tgl=-9, noBukti=-6, kodePart=-4, namaBarang=-3.
-    private function parseGudang(UploadedFile $file): array
+    private function bacaLaporanPembelian(array $rows): ?array
     {
-        $rows = $this->loadSpreadsheet($file);
-
         $colQty = null;
         foreach ($rows as $row) {
             foreach ($row as $ci => $cell) {
@@ -217,13 +310,9 @@ class MutasiPembelianController extends Controller
                 }
             }
         }
-        if ($colQty === null) {
-            // Sebagian cabang mengekspor laporan pembelian gudang TANPA baris
-            // header sama sekali — datanya langsung dari baris pertama, jadi
-            // tidak akan pernah ada tulisan "QTY" untuk dicari. Bentuknya dikenali
-            // dari isi kolomnya, bukan dari judulnya.
-            return $this->parseGudangTanpaHeader($rows);
-        }
+        // Kolom QTY di bentuk ini selalu punya 9 kolom di kirinya. Kalau tidak,
+        // yang ketemu itu judul "Qty" milik bentuk lain — bukan laporan Psch.
+        if ($colQty === null || $colQty < 9) return null;
 
         $c = fn(int $offset) => $colQty + $offset;
         $items = [];
@@ -235,16 +324,17 @@ class MutasiPembelianController extends Controller
 
             $kodePart = trim((string) ($row[$c(-4)] ?? ''));
             $namaBarang = trim((string) ($row[$c(-3)] ?? ''));
-            $noBukti = trim((string) ($row[$c(-6)] ?? ''));
-            $qty = $this->n($row[$colQty] ?? 0);
             if ($kodePart === '' && $namaBarang === '') continue;
 
             $items[] = [
-                'tanggal'    => $this->excelDateToStr($tglRaw),
-                'kodePart'   => $kodePart,
-                'namaBarang' => $namaBarang !== '' ? $namaBarang : $kodePart,
-                'qty'        => $qty,
-                'nomorFaktur'=> $noBukti,
+                'tanggal'     => $this->excelDateToStr($tglRaw),
+                'kodePart'    => $kodePart,
+                'namaPart'    => $namaBarang,
+                'qty'         => $this->n($row[$colQty] ?? 0),
+                'nomorFaktur' => trim((string) ($row[$c(-6)] ?? '')),
+                'lokasi'      => '',
+                'kode'        => '',
+                'unitUsaha'   => '',
             ];
         }
 
@@ -252,7 +342,7 @@ class MutasiPembelianController extends Controller
     }
 
     /**
-     * Laporan pembelian gudang yang diekspor TANPA baris header — misalnya:
+     * Laporan pembelian yang diekspor TANPA baris header — misalnya:
      *
      *   6 | M408/HGP/VIII/26/-- | 46265 | ALGUPP00 | PT. CAPELLA ... | 06455KVBT01 | PAD SET FR | 10
      *
@@ -268,7 +358,7 @@ class MutasiPembelianController extends Controller
      * Sengaja tidak memakai posisi kolom tetap: satu berkas contoh bukan jaminan
      * semua cabang mengekspor dengan lebar kolom yang sama persis.
      */
-    private function parseGudangTanpaHeader(array $rows): array
+    private function bacaTanpaHeader(array $rows, string $label): array
     {
         $stat = [];   // kolom => [isi, angka, teksTanpaSpasi, berspasi, garisMiring, nilai unik]
         foreach ($rows as $row) {
@@ -285,7 +375,7 @@ class MutasiPembelianController extends Controller
             }
         }
         if (!$stat) {
-            abort(422, 'File Gudang kosong — tidak ada baris data yang bisa dibaca.');
+            abort(422, "File {$label} kosong — tidak ada baris data yang bisa dibaca.");
         }
         ksort($stat);
         $unik = fn(int $ci) => count($stat[$ci]['unik']);
@@ -320,9 +410,9 @@ class MutasiPembelianController extends Controller
             }
         }
         if ($colPart === null || $colQty === null) {
-            abort(422, 'Format file Gudang tidak dikenali — kolom Kode Part & QTY tidak ditemukan, '
+            abort(422, "Format file {$label} tidak dikenali — kolom Kode Part & QTY tidak ditemukan, "
                 . 'baik lewat judul kolom maupun lewat isinya. Pastikan berkas yang diunggah memang '
-                . 'laporan pembelian gudang.');
+                . 'laporan pembelian.');
         }
 
         // No. Faktur: paling khas berbentuk "M408/HGP/VIII/26/--", jadi kolom yang
@@ -362,62 +452,14 @@ class MutasiPembelianController extends Controller
             if (!is_numeric($qtyRaw)) continue;
 
             $items[] = [
-                'tanggal'    => $colTgl !== null ? $this->excelDateToStr($row[$colTgl] ?? null) : '',
-                'kodePart'   => $kodePart,
-                'namaBarang' => $namaBarang !== '' ? $namaBarang : $kodePart,
-                'qty'        => $this->n($qtyRaw),
-                'nomorFaktur'=> $colFaktur !== null ? trim((string) ($row[$colFaktur] ?? '')) : '',
-            ];
-        }
-
-        return $items;
-    }
-
-    // Parser file Unit Usaha — header rapi 1 baris: Kode Part, Nama Part, Qty,
-    // Nomor Faktur, Tanggal Faktur, Lokasi, Kode, Unit Usaha.
-    private function parseUnitUsaha(UploadedFile $file): array
-    {
-        $rows = $this->loadSpreadsheet($file);
-
-        $norm = fn($v) => strtolower(trim((string) $v));
-        $col = ['kodePart' => null, 'namaPart' => null, 'qty' => null, 'nomorFaktur' => null, 'tanggalFaktur' => null, 'lokasi' => null, 'kode' => null, 'unitUsaha' => null];
-        $headerIdx = -1;
-
-        foreach ($rows as $i => $row) {
-            foreach ($row as $ci => $cell) {
-                $n = $norm($cell);
-                if ($n === 'kode part') $col['kodePart'] = $ci;
-                if ($n === 'nama part') $col['namaPart'] = $ci;
-                if ($n === 'qty') $col['qty'] = $ci;
-                if (str_contains($n, 'nomor faktur') || str_contains($n, 'no faktur') || str_contains($n, 'no. faktur')) $col['nomorFaktur'] = $ci;
-                if (str_contains($n, 'tanggal faktur')) $col['tanggalFaktur'] = $ci;
-                if ($n === 'lokasi') $col['lokasi'] = $ci;
-                if ($n === 'kode') $col['kode'] = $ci;
-                if (str_contains($n, 'unit usaha')) $col['unitUsaha'] = $ci;
-            }
-            if ($col['kodePart'] !== null && $col['qty'] !== null && $col['nomorFaktur'] !== null) {
-                $headerIdx = $i;
-                break;
-            }
-        }
-
-        if ($headerIdx === -1) {
-            abort(422, 'Header "Kode Part / Qty / Nomor Faktur" tidak ditemukan di file Unit Usaha.');
-        }
-
-        $items = [];
-        foreach (array_slice($rows, $headerIdx + 1) as $row) {
-            $kodePart = trim((string) ($row[$col['kodePart']] ?? ''));
-            if ($kodePart === '') continue;
-
-            $items[] = [
+                'tanggal'     => $colTgl !== null ? $this->excelDateToStr($row[$colTgl] ?? null) : '',
                 'kodePart'    => $kodePart,
-                'namaPart'    => $col['namaPart'] !== null ? trim((string) ($row[$col['namaPart']] ?? '')) : '',
-                'qty'         => $this->n($row[$col['qty']] ?? 0),
-                'nomorFaktur' => trim((string) ($row[$col['nomorFaktur']] ?? '')),
-                'lokasi'      => $col['lokasi'] !== null ? trim((string) ($row[$col['lokasi']] ?? '')) : '',
-                'kode'        => $col['kode'] !== null ? trim((string) ($row[$col['kode']] ?? '')) : '',
-                'unitUsaha'   => $col['unitUsaha'] !== null ? trim((string) ($row[$col['unitUsaha']] ?? '')) : '',
+                'namaPart'    => $namaBarang,
+                'qty'         => $this->n($qtyRaw),
+                'nomorFaktur' => $colFaktur !== null ? trim((string) ($row[$colFaktur] ?? '')) : '',
+                'lokasi'      => '',
+                'kode'        => '',
+                'unitUsaha'   => '',
             ];
         }
 
