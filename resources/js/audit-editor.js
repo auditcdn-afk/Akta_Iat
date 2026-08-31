@@ -7753,6 +7753,31 @@ function mpFmtNum(val) {
     return n.toLocaleString('id-ID');
 }
 
+// Filter tabel hasil: 'semua' | 'belum' | 'sudah', ditambah pencarian teks.
+// Auditor umumnya hanya perlu menindaklanjuti baris "Belum Terima" — dari 1.400
+// baris cuma 59 yang perlu dikejar, jadi menyaringnya menghemat banyak gulir.
+let _mpFilter = 'semua';
+let _mpCari   = '';
+
+// Baris yang lolos filter, LENGKAP dengan indeks aslinya di _mpItems. Indeks
+// asli itu wajib dibawa: kolom Keterangan dan tombol hapus bekerja per indeks,
+// jadi kalau yang dipakai nomor urut hasil saringan, auditor akan mengedit atau
+// menghapus baris yang salah.
+function mpBarisTampil() {
+    const cari = _mpCari.trim().toLowerCase();
+    const out = [];
+    _mpItems.forEach((it, i) => {
+        if (_mpFilter === 'belum' && it.matched) return;
+        if (_mpFilter === 'sudah' && !it.matched) return;
+        if (cari) {
+            const teks = `${it.kodePart ?? ''} ${it.namaPart ?? ''} ${it.nomorFaktur ?? ''}`.toLowerCase();
+            if (!teks.includes(cari)) return;
+        }
+        out.push([it, i]);
+    });
+    return out;
+}
+
 function mpRender() {
     const items = _mpItems;
     const statSec = document.getElementById('mpStatSection');
@@ -7772,17 +7797,46 @@ function mpRender() {
     set('mpStatMatch',   totalMatch);
     set('mpStatUnmatch', items.length - totalMatch);
     if (statSec) statSec.classList.remove('hidden');
-
     if (tblSec) tblSec.classList.remove('hidden');
-    if (tblCount) tblCount.textContent = `${items.length} baris`;
     if (!tblBody) return;
+
+    mpBindTableEvents(tblBody);
+    const tampil = mpBarisTampil();
+
+    // Tandai kartu statistik mana yang sedang aktif jadi filter.
+    document.querySelectorAll('.mp-filter-btn').forEach(btn => {
+        const aktif = btn.dataset.mpFilter === _mpFilter;
+        btn.classList.toggle('ring-2', aktif);
+        btn.classList.toggle('ring-blue-500', aktif);
+        btn.classList.toggle('bg-slate-800/60', !aktif);
+        btn.classList.toggle('bg-slate-700/60', aktif);
+    });
+    const labelEl = document.getElementById('mpFilterLabel');
+    const resetEl = document.getElementById('mpFilterReset');
+    const disaring = _mpFilter !== 'semua' || _mpCari.trim() !== '';
+    if (labelEl) {
+        const namaFilter = { belum: 'Belum Terima', sudah: 'Sudah Diterima', semua: '' }[_mpFilter] || '';
+        labelEl.textContent = namaFilter ? `Filter: ${namaFilter}` : 'Filter: hasil pencarian';
+        labelEl.classList.toggle('hidden', !disaring);
+    }
+    if (resetEl) resetEl.classList.toggle('hidden', !disaring);
+    if (tblCount) {
+        tblCount.textContent = disaring
+            ? `${tampil.length} dari ${items.length} baris`
+            : `${items.length} baris`;
+    }
+
+    if (!tampil.length) {
+        tblBody.innerHTML = `<tr><td colspan="11" class="px-4 py-8 text-center text-xs text-slate-400">Tidak ada baris yang cocok dengan filter/pencarian ini.</td></tr>`;
+        return;
+    }
 
     const escHtml = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-    tblBody.innerHTML = items.map((it, idx) => {
+    tblBody.innerHTML = tampil.map(([it, idx], urut) => {
         const rowCls = it.matched ? '' : 'bg-red-950/20';
         return `<tr class="group hover:bg-slate-800/30 transition-colors ${rowCls}">
-            <td class="px-3 py-2 text-slate-400 text-center">${idx + 1}</td>
+            <td class="px-3 py-2 text-slate-400 text-center">${urut + 1}</td>
             <td class="px-3 py-2 text-slate-300 font-mono">${escHtml(it.kodePart)}</td>
             <td class="px-3 py-2 text-slate-300">${escHtml(it.namaPart)}</td>
             <td class="px-3 py-2 text-right text-slate-300">${mpFmtNum(it.qty)}</td>
@@ -7805,27 +7859,44 @@ function mpRender() {
             </td>
         </tr>`;
     }).join('');
+}
 
-    tblBody.querySelectorAll('input[data-mp-idx]').forEach(inp => {
-        inp.addEventListener('input', (e) => {
-            const i = parseInt(e.target.dataset.mpIdx, 10);
-            if (_mpItems[i]) _mpItems[i].keterangan = e.target.value;
-        });
-        inp.addEventListener('blur', (e) => {
-            const i = parseInt(e.target.dataset.mpIdx, 10);
-            saveMpKeterangan(i, e.target.value).catch(() => {});
-        });
+// Satu listener di <tbody> untuk semua baris, bukan sepasang per baris: tabel
+// ini bisa 1.400 baris, dan listener-nya harus tetap benar setelah tabel
+// dirender ulang karena filter berubah.
+function mpBindTableEvents(tblBody) {
+    if (!tblBody || tblBody.dataset.bound === '1') return;
+    tblBody.dataset.bound = '1';
+
+    tblBody.addEventListener('input', (e) => {
+        const inp = e.target;
+        if (!inp.dataset?.mpIdx) return;
+        const i = parseInt(inp.dataset.mpIdx, 10);
+        if (_mpItems[i]) _mpItems[i].keterangan = inp.value;
     });
 
-    tblBody.querySelectorAll('button[data-mp-del]').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const i = parseInt(e.currentTarget.dataset.mpDel, 10);
-            const it = _mpItems[i];
-            if (!it) return;
-            if (!confirm(`Hapus baris "${it.kodePart || '-'}" (${it.nomorFaktur || '-'})? Tindakan ini tidak bisa dibatalkan.`)) return;
-            deleteMpItem(i).catch(err => showAlert(err.message || 'Gagal menghapus baris.', 'error'));
-        });
+    // focusout, bukan blur — blur tidak merambat naik jadi tidak bisa didelegasikan.
+    tblBody.addEventListener('focusout', (e) => {
+        const inp = e.target;
+        if (!inp.dataset?.mpIdx) return;
+        const i = parseInt(inp.dataset.mpIdx, 10);
+        saveMpKeterangan(i, inp.value).catch(() => {});
     });
+
+    tblBody.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-mp-del]');
+        if (!btn) return;
+        const i = parseInt(btn.dataset.mpDel, 10);
+        const it = _mpItems[i];
+        if (!it) return;
+        if (!confirm(`Hapus baris "${it.kodePart || '-'}" (${it.nomorFaktur || '-'})? Tindakan ini tidak bisa dibatalkan.`)) return;
+        deleteMpItem(i).catch(err => showAlert(err.message || 'Gagal menghapus baris.', 'error'));
+    });
+}
+
+function mpSetFilter(nilai) {
+    _mpFilter = nilai;
+    mpRender();
 }
 
 // Hapus 1 baris langsung di server (baca-ubah-simpan by index — lihat
@@ -8088,6 +8159,25 @@ function initMpForm() {
     };
     setupPicker('mpFileGudang', 'mpFileGudangName', (f) => { _mpFileGudang = f; });
     setupPicker('mpFileUu', 'mpFileUuName', (f) => { _mpFileUu = f; });
+
+    // Filter tabel: kartu statistik di atas tabel sekaligus jadi tombolnya.
+    document.querySelectorAll('.mp-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => mpSetFilter(btn.dataset.mpFilter || 'semua'));
+    });
+    document.getElementById('mpFilterReset')?.addEventListener('click', () => {
+        _mpFilter = 'semua';
+        _mpCari = '';
+        const cariEl = document.getElementById('mpTableSearch');
+        if (cariEl) cariEl.value = '';
+        mpRender();
+    });
+    // Pencarian dijeda sebentar supaya tiap ketikan tidak merender ulang tabel.
+    const mpCariEl = document.getElementById('mpTableSearch');
+    let _mpCariTimer = null;
+    mpCariEl?.addEventListener('input', () => {
+        clearTimeout(_mpCariTimer);
+        _mpCariTimer = setTimeout(() => { _mpCari = mpCariEl.value; mpRender(); }, 200);
+    });
 
     document.getElementById('mpCompareBtn')?.addEventListener('click', () => {
         mpHandleCompare().catch(() => {});
