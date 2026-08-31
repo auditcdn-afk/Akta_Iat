@@ -117,7 +117,7 @@ trait MenjagaHasilPemeriksaan
      * terlanjur discan namun tidak ada di file baru tetap dipertahankan di
      * ekor daftar supaya hasil kerjanya tidak menguap.
      */
-    private function bawaHasilPemeriksaan(array $baru, array $tersimpan): array
+    private function bawaHasilPemeriksaan(array $baru, array $tersimpan, ?callable $hitungUlang = null): array
     {
         $peta    = $this->petaPerNoPart($tersimpan);
         $terpakai = [];
@@ -132,12 +132,11 @@ trait MenjagaHasilPemeriksaan
             foreach (['fisik', 'wo', 'fisikTtp', 'logScan', 'keterangan', 'keteranganTtp', 'tgl'] as $field) {
                 if (array_key_exists($field, $lama)) $item[$field] = $lama[$field];
             }
-            // Saldo baseline-nya dari file baru, jadi akhir & selisih dihitung ulang.
-            $saldo = $this->angka($item['saldoAkhir'] ?? 0);
-            $total = $this->angka($item['fisik'] ?? 0) + $this->angka($item['wo'] ?? 0);
-            $item['akhir']   = $saldo - $total;
-            $item['selisih'] = $total - $saldo;
-            $baru[$i] = $item;
+            // Saldo baseline-nya dari file baru, jadi akhir & selisih dihitung
+            // ulang. Rumusnya beda antar tool (HGP pakai fisik+wo; HGA pakai
+            // fisik+fisikTtp dengan saldoPts sebagai acuan kalau ada), jadi
+            // controller-nya yang menyuplai — jangan diasumsikan di sini.
+            $baru[$i] = $hitungUlang ? $hitungUlang($item) : $this->hitungUlangBawaan($item);
         }
 
         foreach ($tersimpan as $lama) {
@@ -149,6 +148,17 @@ trait MenjagaHasilPemeriksaan
         }
 
         return array_values($baru);
+    }
+
+    /** Rumus bawaan (HGP & RSA HGP): total fisik = hasil scan + WO. */
+    private function hitungUlangBawaan(array $item): array
+    {
+        $saldo = $this->angka($item['saldoAkhir'] ?? 0);
+        $total = $this->angka($item['fisik'] ?? 0) + $this->angka($item['wo'] ?? 0);
+        $item['akhir']   = $saldo - $total;
+        $item['selisih'] = $total - $saldo;
+
+        return $item;
     }
 
     /**

@@ -40,7 +40,19 @@ class HgaController extends Controller
         $tersimpan = PemeriksaanHga::where('plan_audit_id', $planId)->first()?->items_json ?? [];
 
         if ($mode === 'import') {
-            $items = $this->bawaHasilPemeriksaan($items, $tersimpan);
+            // Rumus HGA: total fisik = hasil scan + Fisik TTP, dan acuan saldonya
+            // saldoPts kalau ada (lihat hgaCalcItem() di frontend & scanIncrement
+            // di bawah). Berbeda dari HGP, jadi disuplai dari sini.
+            $items = $this->bawaHasilPemeriksaan($items, $tersimpan, function (array $item): array {
+                $totalFisik = $this->n($item['fisik'] ?? 0) + $this->n($item['fisikTtp'] ?? 0);
+                $refSaldo   = array_key_exists('saldoPts', $item) && $item['saldoPts'] !== null
+                    ? $this->n($item['saldoPts'])
+                    : $this->n($item['saldoAkhir'] ?? ($item['saldoAwal'] ?? 0));
+                $item['akhir']   = $refSaldo - $totalFisik;
+                $item['selisih'] = $totalFisik - $refSaldo;
+
+                return $item;
+            });
         } elseif ($mode !== 'replace') {
             $hilang = $this->pemeriksaanYangHilang($items, $tersimpan);
             if ($hilang !== []) {

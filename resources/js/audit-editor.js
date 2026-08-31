@@ -4655,17 +4655,106 @@ function tableSentinelHtml(sisa) {
 // tahu lewat onStuck bahwa masih ada scan yang belum tersimpan.
 const SCAN_ID = () => (crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
-function createScanIncrementQueue({ endpoint, delay = 400, onItem, onStuck }) {
-    const pending = new Map();   // noPart → { qty, idx, extra, entries }
+function createScanIncrementQueue({ endpoint, simpananKey, delay = 400, maksPercobaan = 10, onItem, onStuck }) {
+    // Kunci antrean memuat plan-nya: scan HARUS masuk ke plan tempat ia ditembak,
+    // bukan ke plan yang kebetulan sedang dibuka saat request-nya berhasil
+    // terkirim. Auditor bisa berpindah plan (openPemeriksaan) selagi ada scan
+    // tertinggal karena jaringan putus.
+    const pending  = new Map();   // `${planId}|${noPart}` → { planId, noPart, qty, idx, extra, entries, percobaan }
+    const terkirim = new Map();   // `${batch}|${planId}|${noPart}` → item yang sama
     let timer = null;
     let chain = Promise.resolve();
     let gagalBeruntun = 0;
+    let batchKe = 0;
 
-    const scanTertunda = () => {
-        let n = 0;
-        pending.forEach(p => { n += p.entries.length; });
-        return n;
-    };
+    const kunci = (planId, noPart) => `${planId}|${noPart}`;
+    const semua = () => [...terkirim.values(), ...pending.values()];
+
+    // ── Antrean disimpan di perangkat ────────────────────────────────────────
+    // Antrean di memori saja tidak cukup: halaman ditutup, browser dimatikan,
+    // WebView alat scanner di-swipe dari daftar aplikasi, atau baterainya habis —
+    // semua itu melenyapkan scan yang belum sempat terkirim, dan auditor tidak
+    // punya cara tahu. Antrean karena itu ikut ditulis ke localStorage perangkat
+    // dan dipulihkan saat tab dibuka lagi. Aman diulang karena tiap entri bawa id
+    // sendiri: server melewati id yang sudah tercatat (terapkanEntriScan), jadi
+    // kiriman ulang tidak pernah menghitung dobel.
+    const kunciSimpanan = (planId) => `${simpananKey}:${planId}`;
+
+    function simpanAntrean() {
+        if (!simpananKey) return;
+        try {
+            // Yang sedang dikirim ikut disimpan sampai server mengonfirmasi:
+            // halaman bisa mati persis di tengah request.
+            const perPlan = new Map();
+            for (const p of semua()) {
+                if (!p.planId || !p.entries.length) continue;
+                if (!perPlan.has(p.planId)) perPlan.set(p.planId, []);
+                perPlan.get(p.planId).push([p.noPart, { qty: p.qty, extra: p.extra, entries: p.entries, percobaan: p.percobaan }]);
+            }
+            // Plan yang antreannya sudah habis dibersihkan dari penyimpanan.
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const k = localStorage.key(i);
+                if (k?.startsWith(`${simpananKey}:`) && !perPlan.has(Number(k.slice(simpananKey.length + 1)))) {
+                    localStorage.removeItem(k);
+                }
+            }
+            perPlan.forEach((isi, planId) => localStorage.setItem(kunciSimpanan(planId), JSON.stringify(isi)));
+        } catch (_) { /* storage penuh / mode privat — antrean di memori tetap jalan */ }
+    }
+
+    // Dipanggil saat tab dibuka: kembalikan scan yang tertinggal dari sesi
+    // sebelumnya (plan mana pun) ke antrean, lalu kirim. Entri yang id-nya sudah
+    // ada di memori dilewati supaya membuka tab berkali-kali tidak menggandakan
+    // antrean.
+    function pulihkanAntrean() {
+        if (!simpananKey) return 0;
+        const idDiMemori = new Set();
+        semua().forEach(p => p.entries.forEach(e => e.id && idDiMemori.add(e.id)));
+
+        let dipulihkan = 0;
+        let kunciTersimpan = [];
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k?.startsWith(`${simpananKey}:`)) kunciTersimpan.push(k);
+            }
+        } catch (_) { return 0; }
+
+        for (const k of kunciTersimpan) {
+            const planId = Number(k.slice(simpananKey.length + 1));
+            if (!planId) continue;
+            let isi = [];
+            try { isi = JSON.parse(localStorage.getItem(k) || '[]'); } catch (_) { continue; }
+            if (!Array.isArray(isi)) continue;
+
+            for (const baris of isi) {
+                if (!Array.isArray(baris) || baris.length < 2) continue;
+                const [noPart, p] = baris;
+                if (!noPart || !p || !Array.isArray(p.entries)) continue;
+                const entriBaru = p.entries.filter(e => e && e.id && !idDiMemori.has(e.id));
+                if (!entriBaru.length) continue;
+                entriBaru.forEach(e => idDiMemori.add(e.id));
+                kembalikan({
+                    planId,
+                    noPart: String(noPart),
+                    // qty dihitung ulang dari entri yang benar-benar dipulihkan.
+                    qty: entriBaru.reduce((n, e) => n + (Number(e.qty) || 0), 0),
+                    idx: -1,
+                    extra: p.extra && typeof p.extra === 'object' ? p.extra : {},
+                    entries: entriBaru,
+                    percobaan: 0,
+                });
+                dipulihkan += entriBaru.length;
+            }
+        }
+        if (dipulihkan) {
+            onStuck?.(scanTertunda(), null);
+            jadwalkan(0);
+        }
+        return dipulihkan;
+    }
+
+    const scanTertunda = () => semua().reduce((n, p) => n + p.entries.length, 0);
 
     function jadwalkan(ms) {
         if (timer) clearTimeout(timer);
@@ -4674,24 +4763,32 @@ function createScanIncrementQueue({ endpoint, delay = 400, onItem, onStuck }) {
 
     // Kembalikan batch yang gagal ke antrean — entri lama ditaruh di DEPAN supaya
     // urutan riwayat scan tetap sesuai kejadiannya.
-    function kembalikan(noPart, p) {
-        const cur = pending.get(noPart);
-        if (!cur) { pending.set(noPart, p); return; }
+    function kembalikan(p) {
+        const k = kunci(p.planId, p.noPart);
+        const cur = pending.get(k);
+        if (!cur) { pending.set(k, p); return; }
         cur.qty += p.qty;
         cur.entries = p.entries.concat(cur.entries);
         cur.extra = { ...p.extra, ...cur.extra };
+        cur.percobaan = Math.max(cur.percobaan, p.percobaan || 0);
     }
 
     function flush({ keepalive = false } = {}) {
         if (timer) { clearTimeout(timer); timer = null; }
         if (!pending.size) return chain;
-        const batch = Array.from(pending.entries());
+        const batch = Array.from(pending.values());
+        const tanda = ++batchKe;
         pending.clear();
+        // Kunci unik per batch: dua flush beruntun untuk No. Part yang sama tidak
+        // boleh saling menimpa slotnya, karena yang lebih dulu selesai akan
+        // menghapus entri milik batch yang lebih baru.
+        batch.forEach(p => terkirim.set(`${tanda}|${kunci(p.planId, p.noPart)}`, p));
         chain = chain.then(async () => {
             let adaGagal = false;
-            for (const [noPart, p] of batch) {
+            for (const p of batch) {
+                const kTerkirim = `${tanda}|${kunci(p.planId, p.noPart)}`;
                 try {
-                    const body = { planAuditId: activePlanId, noPart, qty: p.qty, ...p.extra };
+                    const body = { planAuditId: p.planId, noPart: p.noPart, qty: p.qty, ...p.extra };
                     if (p.entries.length) body.entries = p.entries;
                     const res = await fetchJson(endpoint, {
                         method: 'POST',
@@ -4699,18 +4796,28 @@ function createScanIncrementQueue({ endpoint, delay = 400, onItem, onStuck }) {
                         body: JSON.stringify(body),
                         keepalive,
                     });
-                    onItem?.(res, p.idx, noPart);
+                    terkirim.delete(kTerkirim);
+                    simpanAntrean();
+                    onItem?.(res, p.idx, p.noPart, p.planId);
                 } catch (err) {
-                    // 404/422 tidak akan berubah walau dikirim ulang (mis. No. Part
-                    // memang tidak ada di daftar) — beri tahu, jangan diputar terus.
-                    if (err?.status === 404 || err?.status === 422) {
-                        onStuck?.(scanTertunda(), err?.message || 'Scan ditolak server.');
+                    terkirim.delete(kTerkirim);
+                    p.percobaan = (p.percobaan || 0) + 1;
+                    // 404/422 pun TIDAK pernah dibuang: "No. Part tidak ditemukan"
+                    // dan "Data belum ada untuk plan ini" bisa sementara (import
+                    // baru berjalan, part baru ditambahkan perangkat lain). Yang
+                    // dilakukan cuma berhenti mencoba otomatis setelah sekian kali
+                    // sambil memberi tahu auditor — datanya tetap tersimpan dan
+                    // dicoba lagi saat tab dibuka atau ada scan berikutnya.
+                    const ditolak = err?.status === 404 || err?.status === 422;
+                    kembalikan(p);
+                    if (ditolak && p.percobaan >= maksPercobaan) {
+                        onStuck?.(scanTertunda(), `${err?.message || 'Scan ditolak server.'} — ${p.entries.length} scan No. Part ${p.noPart} disimpan di perangkat & akan dicoba lagi saat tab dibuka.`);
                         continue;
                     }
-                    kembalikan(noPart, p);
                     adaGagal = true;
                 }
             }
+            simpanAntrean();
             if (adaGagal) {
                 gagalBeruntun++;
                 onStuck?.(scanTertunda(), null);
@@ -4724,25 +4831,36 @@ function createScanIncrementQueue({ endpoint, delay = 400, onItem, onStuck }) {
     }
 
     return {
-        push(noPart, qty, idx, extra = {}) {
+        // scanId dibuat pemanggil supaya entri logScan optimistis di layar memakai
+        // id YANG SAMA dengan yang dikirim ke server — kalau tidak, simpan-penuh
+        // bisa menimpa log ber-id milik server dan kiriman ulang jadi dobel.
+        push(noPart, qty, idx, extra = {}, scanId = null) {
             if (!activePlanId || !noPart) return;
-            let p = pending.get(noPart);
+            const k = kunci(activePlanId, noPart);
+            let p = pending.get(k);
             if (!p) {
-                p = { qty: 0, idx, extra: {}, entries: [] };
-                pending.set(noPart, p);
+                p = { planId: activePlanId, noPart, qty: 0, idx, extra: {}, entries: [], percobaan: 0 };
+                pending.set(k, p);
             }
             p.idx = idx;
             Object.assign(p.extra, extra);
             if (qty !== 0) {
                 p.qty += qty;
-                p.entries.push({ id: SCAN_ID(), at: new Date().toISOString(), qty });
+                p.entries.push({ id: scanId || SCAN_ID(), at: new Date().toISOString(), qty });
             }
+            // Ditulis ke perangkat SEBELUM request dikirim — supaya scan-nya selamat
+            // walau halamannya mati sedetik kemudian.
+            simpanAntrean();
             if (!timer) jadwalkan(delay);
         },
         // Dipakai sebelum menimpa nilai lokal dengan balasan server: kalau masih
-        // ada scan yang belum terkirim untuk part ini, angka server sudah basi.
-        hasPending: (noPart) => (noPart === undefined ? pending.size > 0 : pending.has(noPart)),
+        // ada scan yang belum terkirim untuk part ini (di plan yang sedang dibuka),
+        // angka server sudah basi.
+        hasPending: (noPart) => (noPart === undefined
+            ? semua().some(p => p.planId === activePlanId)
+            : semua().some(p => p.planId === activePlanId && p.noPart === noPart)),
         scanTertunda,
+        pulihkanAntrean,
         flush,
     };
 }
@@ -5268,23 +5386,41 @@ function _flushHgpSaveDebounced(opts = {}) {
 // Endpoint ini cuma membawa 1 No. Part + qty, jadi ukurannya tetap kecil berapa
 // pun banyaknya item di data import — penting untuk alat scanner genggam di
 // jaringan gudang yang belum tentu kencang.
+// Cari baris berdasarkan No. Part PERSIS (bukan pencocokan longgar seperti
+// hgpFindIdx yang dipakai saat scan) — ini untuk menulis balik balasan server
+// ke baris yang benar.
+function hgpIndeksNoPart(noPart) {
+    const items = _hgpData?.items || [];
+    const cari = (noPart || '').trim().toLowerCase();
+    if (!cari) return null;
+    const k = items.findIndex(it => (it.noPart || '').trim().toLowerCase() === cari);
+    return k >= 0 ? k : null;
+}
+
 const _hgpScanQueue = createScanIncrementQueue({
     endpoint: '/api/audit-detail/hgp/scan-increment',
-    onItem: (res, idx, noPart) => {
+    simpananKey: 'akta:antrean-scan:hgp',
+    onItem: (res, idx, noPart, planId) => {
+        // Balasan bisa datang setelah daftar itemnya berubah (import ulang menata
+        // ulang & menambah item), jadi barisnya dicari ulang lewat No. Part —
+        // indeks yang ditangkap saat scan bisa sudah menunjuk item lain. Balasan
+        // untuk plan lain diabaikan sama sekali.
+        if (planId && planId !== activePlanId) return;
+        const i = (hgpIndeksNoPart(noPart) ?? idx);
         // Selaraskan dengan hasil otoritatif server (jaga-jaga ada device lain yang
         // ikut scan No. Part yang sama di waktu yang berdekatan). Kalau masih ada
         // scan yang belum terkirim untuk part ini, nilai server sudah ketinggalan —
         // biarkan angka lokal yang optimistis sampai antrean berikutnya terkirim.
-        if (!res?.item || !_hgpData?.items?.[idx]) return;
+        if (!res?.item || !_hgpData?.items?.[i]) return;
         if (_hgpScanQueue.hasPending(noPart)) return;
-        _hgpData.items[idx] = { ..._hgpData.items[idx], ...res.item };
-        hgpUpdateSingleRow(idx);
+        _hgpData.items[i] = { ..._hgpData.items[i], ...res.item };
+        hgpUpdateSingleRow(i);
     },
     onStuck: (tertunda, pesan) => hgpSetSyncWarn(tertunda, pesan),
 });
 
-function _doScanHgpIncrement(noPart, qty, idx, extra = {}) {
-    _hgpScanQueue.push(noPart, qty, idx, extra);
+function _doScanHgpIncrement(noPart, qty, idx, extra = {}, scanId = null) {
+    _hgpScanQueue.push(noPart, qty, idx, extra, scanId);
 }
 
 // Scan barcode: akumulasi fisik +1 setiap scan kode yang sama, tiap scan tercatat di log.
@@ -5311,12 +5447,16 @@ function hgpScanAccumulate(code) {
     const it = _hgpData.items[idx];
     it.fisik = hgpN(it.fisik) + 1;                       // akumulasi
     if (!Array.isArray(it.logScan)) it.logScan = [];
-    it.logScan.push({ at: new Date().toISOString(), qty: 1 }); // history per scan
+    // id yang sama dipakai di layar dan di kiriman ke server: kalau berbeda,
+    // simpan-penuh bisa menimpa log ber-id milik server sehingga kiriman ulang
+    // tidak lagi terdeteksi duplikat (fisiknya jadi dobel).
+    const scanId = SCAN_ID();
+    it.logScan.push({ id: scanId, at: new Date().toISOString(), qty: 1 }); // history per scan
     it.tgl = document.getElementById('hgpFormTgl')?.value || it.tgl;
     hgpCalcItem(it);
 
     hgpUpdateSingleRow(idx);
-    _doScanHgpIncrement(it.noPart, 1, idx);
+    _doScanHgpIncrement(it.noPart, 1, idx, {}, scanId);
 
     // Pesan hasil scan, lalu kosongkan form untuk scan berikutnya
     showMsg(`✓ ${it.noPart || it.sparepart} — ${it.sparepart} | Fisik: ${hgpN(it.fisik)} | Akhir: ${it.akhir} | Selisih: ${it.selisih >= 0 ? '+' : ''}${it.selisih} (Terscan: ${it.logScan.length})`, true);
@@ -5370,10 +5510,11 @@ function hgpFormSaveEntry() {
     it.keterangan = keterangan;
     it.tgl = tgl;
     if (!Array.isArray(it.logScan)) it.logScan = [];
-    it.logScan.push({ at: new Date().toISOString(), qty });
+    const scanId = SCAN_ID();   // lihat catatan id scan di hgpScanAccumulate()
+    it.logScan.push({ id: scanId, at: new Date().toISOString(), qty });
     hgpCalcItem(it);
     hgpUpdateSingleRow(idx);
-    _doScanHgpIncrement(it.noPart, qty, idx, { keterangan, tgl });
+    _doScanHgpIncrement(it.noPart, qty, idx, { keterangan, tgl }, scanId);
     showMsg(`✓ Tersimpan: ${it.noPart || it.sparepart} — Fisik ${hgpN(it.fisik)}, Akhir ${it.akhir}, Selisih ${it.selisih >= 0 ? '+' : ''}${it.selisih}`, true);
     hgpFormClearInputs();
 }
@@ -5393,11 +5534,18 @@ async function loadHgpTab() {
     // Scan yang masih mengantre harus sampai ke server dulu — kalau tidak,
     // data yang baru diambil di bawah ini adalah kondisi SEBELUM scan terakhir
     // dan hasil scan itu hilang dari layar.
+    // Scan dari sesi sebelumnya yang belum sempat terkirim (halaman ditutup,
+    // browser mati, baterai habis) dipulihkan dari perangkat lalu dikirim.
+    const dipulihkan = _hgpScanQueue.pulihkanAntrean();
+    if (dipulihkan) showAlert(`${dipulihkan} scan dari sesi sebelumnya belum terkirim — sedang dikirim ulang sekarang.`, 'success');
     await _flushHgpSaveDebounced();
     // Masih ada yang belum terkirim (jaringan bermasalah): menimpa state lokal
     // dengan data server sekarang akan MENGHAPUS scan itu dari layar dan dari
-    // ingatan browser. Biarkan apa adanya — antreannya masih mencoba kirim ulang.
-    if (_hgpScanQueue.hasPending()) {
+    // ingatan browser. Pertahankan yang di layar — antreannya masih mencoba
+    // kirim ulang. Tapi kalau layarnya memang belum punya data sama sekali
+    // (halaman baru dimuat), tetap ambil dari server: tabel kosong justru
+    // memancing auditor mengimpor ulang atau menekan "Hapus Semua Data".
+    if (_hgpScanQueue.hasPending() && _hgpData?.items?.length) {
         hgpSetSyncWarn(_hgpScanQueue.scanTertunda(), null);
         hgpRenderItems();
         return;
@@ -5449,7 +5597,15 @@ function initHgpForm() {
 
     // keepalive: request simpan-delta tetap diselesaikan browser walau
     // halamannya sudah ditutup.
+    // beforeunload tidak andal di Android (aplikasi di-swipe / tab dibuang dari
+    // memori tanpa memicunya). pagehide & visibilitychange yang benar-benar
+    // terpanggil di situ — antreannya sendiri sudah tersimpan di perangkat, ini
+    // sekadar upaya terakhir mengirim sebelum halaman benar-benar berhenti.
     window.addEventListener('beforeunload', () => _flushHgpSaveDebounced({ keepalive: true }));
+    window.addEventListener('pagehide', () => _flushHgpSaveDebounced({ keepalive: true }));
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') _flushHgpSaveDebounced({ keepalive: true });
+    });
 
     fileInput?.addEventListener('change', () => {
         if (fileInput.files[0]) hgpHandleFile(fileInput.files[0]);
@@ -6114,23 +6270,41 @@ function _flushRsaHgpSaveDebounced(opts = {}) {
 // Endpoint ini cuma membawa 1 No. Part + qty, jadi ukurannya tetap kecil berapa
 // pun banyaknya item di data import — penting untuk alat scanner genggam di
 // jaringan gudang yang belum tentu kencang.
+// Cari baris berdasarkan No. Part PERSIS (bukan pencocokan longgar seperti
+// rsaHgpFindIdx yang dipakai saat scan) — ini untuk menulis balik balasan server
+// ke baris yang benar.
+function rsaHgpIndeksNoPart(noPart) {
+    const items = _rsaHgpData?.items || [];
+    const cari = (noPart || '').trim().toLowerCase();
+    if (!cari) return null;
+    const k = items.findIndex(it => (it.noPart || '').trim().toLowerCase() === cari);
+    return k >= 0 ? k : null;
+}
+
 const _rsaHgpScanQueue = createScanIncrementQueue({
     endpoint: '/api/audit-detail/rsa-hgp/scan-increment',
-    onItem: (res, idx, noPart) => {
+    simpananKey: 'akta:antrean-scan:rsa-hgp',
+    onItem: (res, idx, noPart, planId) => {
+        // Balasan bisa datang setelah daftar itemnya berubah (import ulang menata
+        // ulang & menambah item), jadi barisnya dicari ulang lewat No. Part —
+        // indeks yang ditangkap saat scan bisa sudah menunjuk item lain. Balasan
+        // untuk plan lain diabaikan sama sekali.
+        if (planId && planId !== activePlanId) return;
+        const i = (rsaHgpIndeksNoPart(noPart) ?? idx);
         // Selaraskan dengan hasil otoritatif server (jaga-jaga ada device lain yang
         // ikut scan No. Part yang sama di waktu yang berdekatan). Kalau masih ada
         // scan yang belum terkirim untuk part ini, nilai server sudah ketinggalan —
         // biarkan angka lokal yang optimistis sampai antrean berikutnya terkirim.
-        if (!res?.item || !_rsaHgpData?.items?.[idx]) return;
+        if (!res?.item || !_rsaHgpData?.items?.[i]) return;
         if (_rsaHgpScanQueue.hasPending(noPart)) return;
-        _rsaHgpData.items[idx] = { ..._rsaHgpData.items[idx], ...res.item };
-        rsaHgpUpdateSingleRow(idx);
+        _rsaHgpData.items[i] = { ..._rsaHgpData.items[i], ...res.item };
+        rsaHgpUpdateSingleRow(i);
     },
     onStuck: (tertunda, pesan) => rsaHgpSetSyncWarn(tertunda, pesan),
 });
 
-function _doScanRsaHgpIncrement(noPart, qty, idx, extra = {}) {
-    _rsaHgpScanQueue.push(noPart, qty, idx, extra);
+function _doScanRsaHgpIncrement(noPart, qty, idx, extra = {}, scanId = null) {
+    _rsaHgpScanQueue.push(noPart, qty, idx, extra, scanId);
 }
 
 // Scan barcode: akumulasi fisik +1 setiap scan kode yang sama, tiap scan tercatat di log.
@@ -6157,12 +6331,16 @@ function rsaHgpScanAccumulate(code) {
     const it = _rsaHgpData.items[idx];
     it.fisik = rsaHgpN(it.fisik) + 1;                       // akumulasi
     if (!Array.isArray(it.logScan)) it.logScan = [];
-    it.logScan.push({ at: new Date().toISOString(), qty: 1 }); // history per scan
+    // id yang sama dipakai di layar dan di kiriman ke server: kalau berbeda,
+    // simpan-penuh bisa menimpa log ber-id milik server sehingga kiriman ulang
+    // tidak lagi terdeteksi duplikat (fisiknya jadi dobel).
+    const scanId = SCAN_ID();
+    it.logScan.push({ id: scanId, at: new Date().toISOString(), qty: 1 }); // history per scan
     it.tgl = document.getElementById('rsaHgpFormTgl')?.value || it.tgl;
     rsaHgpCalcItem(it);
 
     rsaHgpUpdateSingleRow(idx);
-    _doScanRsaHgpIncrement(it.noPart, 1, idx);
+    _doScanRsaHgpIncrement(it.noPart, 1, idx, {}, scanId);
 
     // Pesan hasil scan, lalu kosongkan form untuk scan berikutnya
     showMsg(`✓ ${it.noPart || it.sparepart} — ${it.sparepart} | Fisik: ${rsaHgpN(it.fisik)} | Akhir: ${it.akhir} | Selisih: ${it.selisih >= 0 ? '+' : ''}${it.selisih} (Terscan: ${it.logScan.length})`, true);
@@ -6215,10 +6393,11 @@ function rsaHgpFormSaveEntry() {
     it.keterangan = keterangan;
     it.tgl = tgl;
     if (!Array.isArray(it.logScan)) it.logScan = [];
-    it.logScan.push({ at: new Date().toISOString(), qty });
+    const scanId = SCAN_ID();   // lihat catatan id scan di hgpScanAccumulate()
+    it.logScan.push({ id: scanId, at: new Date().toISOString(), qty });
     rsaHgpCalcItem(it);
     rsaHgpUpdateSingleRow(idx);
-    _doScanRsaHgpIncrement(it.noPart, qty, idx, { keterangan, tgl });
+    _doScanRsaHgpIncrement(it.noPart, qty, idx, { keterangan, tgl }, scanId);
     showMsg(`✓ Tersimpan: ${it.noPart || it.sparepart} — Fisik ${rsaHgpN(it.fisik)}, Akhir ${it.akhir}, Selisih ${it.selisih >= 0 ? '+' : ''}${it.selisih}`, true);
     rsaHgpFormClearInputs();
 }
@@ -6238,11 +6417,18 @@ async function loadRsaHgpTab() {
     // Scan yang masih mengantre harus sampai ke server dulu — kalau tidak,
     // data yang baru diambil di bawah ini adalah kondisi SEBELUM scan terakhir
     // dan hasil scan itu hilang dari layar.
+    // Scan dari sesi sebelumnya yang belum sempat terkirim (halaman ditutup,
+    // browser mati, baterai habis) dipulihkan dari perangkat lalu dikirim.
+    const dipulihkan = _rsaHgpScanQueue.pulihkanAntrean();
+    if (dipulihkan) showAlert(`${dipulihkan} scan dari sesi sebelumnya belum terkirim — sedang dikirim ulang sekarang.`, 'success');
     await _flushRsaHgpSaveDebounced();
     // Masih ada yang belum terkirim (jaringan bermasalah): menimpa state lokal
     // dengan data server sekarang akan MENGHAPUS scan itu dari layar dan dari
-    // ingatan browser. Biarkan apa adanya — antreannya masih mencoba kirim ulang.
-    if (_rsaHgpScanQueue.hasPending()) {
+    // ingatan browser. Pertahankan yang di layar — antreannya masih mencoba
+    // kirim ulang. Tapi kalau layarnya memang belum punya data sama sekali
+    // (halaman baru dimuat), tetap ambil dari server: tabel kosong justru
+    // memancing auditor mengimpor ulang atau menekan "Hapus Semua Data".
+    if (_rsaHgpScanQueue.hasPending() && _rsaHgpData?.items?.length) {
         rsaHgpSetSyncWarn(_rsaHgpScanQueue.scanTertunda(), null);
         rsaHgpRenderItems();
         return;
@@ -6312,7 +6498,15 @@ function initRsaHgpForm() {
 
     // keepalive: request simpan-delta tetap diselesaikan browser walau
     // halamannya sudah ditutup.
+    // beforeunload tidak andal di Android (aplikasi di-swipe / tab dibuang dari
+    // memori tanpa memicunya). pagehide & visibilitychange yang benar-benar
+    // terpanggil di situ — antreannya sendiri sudah tersimpan di perangkat, ini
+    // sekadar upaya terakhir mengirim sebelum halaman benar-benar berhenti.
     window.addEventListener('beforeunload', () => _flushRsaHgpSaveDebounced({ keepalive: true }));
+    window.addEventListener('pagehide', () => _flushRsaHgpSaveDebounced({ keepalive: true }));
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') _flushRsaHgpSaveDebounced({ keepalive: true });
+    });
 
     fileInput?.addEventListener('change', () => {
         if (fileInput.files[0]) rsaHgpHandleFile(fileInput.files[0]);
@@ -6964,19 +7158,37 @@ function _flushHgaSaveDebounced(opts = {}) {
 
 // Delta scan HGA: cuma 1 No. Part + qty, jadi payload-nya tetap kecil berapa pun
 // banyaknya item — sama seperti HGP & RSA HGP.
+// Cari baris berdasarkan No. Part PERSIS (bukan pencocokan longgar seperti
+// hgaFindIdx yang dipakai saat scan) — ini untuk menulis balik balasan server
+// ke baris yang benar.
+function hgaIndeksNoPart(noPart) {
+    const items = _hgaData?.items || [];
+    const cari = (noPart || '').trim().toLowerCase();
+    if (!cari) return null;
+    const k = items.findIndex(it => (it.noPart || '').trim().toLowerCase() === cari);
+    return k >= 0 ? k : null;
+}
+
 const _hgaScanQueue = createScanIncrementQueue({
     endpoint: '/api/audit-detail/hga/scan-increment',
-    onItem: (res, idx, noPart) => {
-        if (!res?.item || !_hgaData?.items?.[idx]) return;
+    simpananKey: 'akta:antrean-scan:hga',
+    onItem: (res, idx, noPart, planId) => {
+        // Balasan bisa datang setelah daftar itemnya berubah (import ulang menata
+        // ulang & menambah item), jadi barisnya dicari ulang lewat No. Part —
+        // indeks yang ditangkap saat scan bisa sudah menunjuk item lain. Balasan
+        // untuk plan lain diabaikan sama sekali.
+        if (planId && planId !== activePlanId) return;
+        const i = (hgaIndeksNoPart(noPart) ?? idx);
+        if (!res?.item || !_hgaData?.items?.[i]) return;
         if (_hgaScanQueue.hasPending(noPart)) return;
-        _hgaData.items[idx] = { ..._hgaData.items[idx], ...res.item };
-        hgaUpdateSingleRow(idx);
+        _hgaData.items[i] = { ..._hgaData.items[i], ...res.item };
+        hgaUpdateSingleRow(i);
     },
     onStuck: (tertunda, pesan) => hgaSetSyncWarn(tertunda, pesan),
 });
 
-function _doScanHgaIncrement(noPart, qty, idx, extra = {}) {
-    _hgaScanQueue.push(noPart, qty, idx, extra);
+function _doScanHgaIncrement(noPart, qty, idx, extra = {}, scanId = null) {
+    _hgaScanQueue.push(noPart, qty, idx, extra, scanId);
 }
 
 function hgaScanAccumulate(code) {
@@ -6993,11 +7205,13 @@ function hgaScanAccumulate(code) {
     const it = _hgaData.items[idx];
     it.fisik = hgaN(it.fisik) + 1;
     if (!Array.isArray(it.logScan)) it.logScan = [];
-    it.logScan.push({ at: new Date().toISOString(), qty: 1 });
+    // Lihat catatan id scan di hgpScanAccumulate().
+    const scanId = SCAN_ID();
+    it.logScan.push({ id: scanId, at: new Date().toISOString(), qty: 1 });
     it.tgl = document.getElementById('hgaFormTgl')?.value || it.tgl;
     hgaCalcItem(it);
     hgaUpdateSingleRow(idx);
-    _doScanHgaIncrement(it.noPart, 1, idx);
+    _doScanHgaIncrement(it.noPart, 1, idx, {}, scanId);
     showMsg(`✓ ${it.noPart || it.sparepart} — ${it.sparepart} | Fisik: ${hgaN(it.fisik)} | Akhir: ${it.akhir} | Selisih: ${it.selisih >= 0 ? '+' : ''}${it.selisih} (Terscan: ${it.logScan.length})`, true);
     hgaFormClearInputs();
 }
@@ -7033,10 +7247,11 @@ function hgaFormSaveEntry() {
     it.keterangan = keterangan;
     it.tgl = tgl;
     if (!Array.isArray(it.logScan)) it.logScan = [];
-    it.logScan.push({ at: new Date().toISOString(), qty });
+    const scanId = SCAN_ID();   // lihat catatan id scan di hgpScanAccumulate()
+    it.logScan.push({ id: scanId, at: new Date().toISOString(), qty });
     hgaCalcItem(it);
     hgaUpdateSingleRow(idx);
-    _doScanHgaIncrement(it.noPart, qty, idx, { keterangan, tgl });
+    _doScanHgaIncrement(it.noPart, qty, idx, { keterangan, tgl }, scanId);
     showMsg(`✓ Tersimpan: ${it.noPart || it.sparepart} — Fisik ${hgaN(it.fisik)}, Akhir ${it.akhir}, Selisih ${it.selisih >= 0 ? '+' : ''}${it.selisih}`, true);
     hgaFormClearInputs();
 }
@@ -7159,10 +7374,18 @@ async function loadHgaTab() {
     if (!activePlanId) { _hgaData = null; hgaRenderItems(); return; }
     // Scan yang masih mengantre harus sampai ke server dulu — kalau tidak, data
     // yang diambil di bawah ini adalah kondisi SEBELUM scan terakhir.
+    // Scan dari sesi sebelumnya yang belum sempat terkirim (halaman ditutup,
+    // browser mati, baterai habis) dipulihkan dari perangkat lalu dikirim.
+    const dipulihkan = _hgaScanQueue.pulihkanAntrean();
+    if (dipulihkan) showAlert(`${dipulihkan} scan dari sesi sebelumnya belum terkirim — sedang dikirim ulang sekarang.`, 'success');
     await _flushHgaSaveDebounced();
     // Masih ada yang belum terkirim (jaringan bermasalah): menimpa state lokal
-    // sekarang akan menghapus scan itu dari layar dan dari ingatan browser.
-    if (_hgaScanQueue.hasPending()) {
+    // dengan data server sekarang akan MENGHAPUS scan itu dari layar dan dari
+    // ingatan browser. Pertahankan yang di layar — antreannya masih mencoba
+    // kirim ulang. Tapi kalau layarnya memang belum punya data sama sekali
+    // (halaman baru dimuat), tetap ambil dari server: tabel kosong justru
+    // memancing auditor mengimpor ulang atau menekan "Hapus Semua Data".
+    if (_hgaScanQueue.hasPending() && _hgaData?.items?.length) {
         hgaSetSyncWarn(_hgaScanQueue.scanTertunda(), null);
         hgaRenderItems();
         return;
@@ -7197,7 +7420,15 @@ function initHgaForm() {
     const dropzone  = document.getElementById('hgaDropzone');
     // keepalive: request simpan-delta tetap diselesaikan browser walau
     // halamannya sudah ditutup.
+    // beforeunload tidak andal di Android (aplikasi di-swipe / tab dibuang dari
+    // memori tanpa memicunya). pagehide & visibilitychange yang benar-benar
+    // terpanggil di situ — antreannya sendiri sudah tersimpan di perangkat, ini
+    // sekadar upaya terakhir mengirim sebelum halaman benar-benar berhenti.
     window.addEventListener('beforeunload', () => _flushHgaSaveDebounced({ keepalive: true }));
+    window.addEventListener('pagehide', () => _flushHgaSaveDebounced({ keepalive: true }));
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') _flushHgaSaveDebounced({ keepalive: true });
+    });
     fileInput?.addEventListener('change', () => { if (fileInput.files[0]) hgaHandleFile(fileInput.files[0]); fileInput.value = ''; });
     dropzone?.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-blue-400'); });
     dropzone?.addEventListener('dragleave', () => dropzone.classList.remove('border-blue-400'));
