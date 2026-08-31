@@ -158,6 +158,9 @@
 
                     </div>
                     <p id="rsaHgpFormMsg" class="text-xs font-medium"></p>
+                    {{-- Peringatan kalau ada hasil scan yang belum sampai ke server;
+                         diisi oleh rsaHgpSetSyncWarn() di audit-editor.js. --}}
+                    <p id="rsaHgpSyncWarn" class="hidden mt-1 rounded-lg border border-amber-600/50 bg-amber-900/20 px-3 py-2 text-xs font-semibold text-amber-300"></p>
                 </div>
             </div>
 

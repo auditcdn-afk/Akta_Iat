@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\MenjagaHasilPemeriksaan;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\PemeriksaanHga;
@@ -14,6 +15,7 @@ use PhpOffice\PhpSpreadsheet\Reader\Csv;
 class HgaController extends Controller
 {
     use RequiresAuditorAuditee;
+    use MenjagaHasilPemeriksaan;
 
     public function show(Request $request): JsonResponse
     {
@@ -22,15 +24,39 @@ class HgaController extends Controller
         return response()->json(['data' => $rec ? $rec->toAktaArray() : null]);
     }
 
+    // Simpan-penuh: menulis ULANG seluruh items_json dari apa yang dikirim browser.
+    // Payload-nya diperiksa dulu terhadap yang sudah tersimpan supaya array lama
+    // dari satu perangkat tidak menghapus hasil scan perangkat lain yang lebih
+    // baru — aturan & mode-nya sama persis dengan HgpController::save(), lihat
+    // MenjagaHasilPemeriksaan.
     public function save(Request $request): JsonResponse
     {
         $planId = $request->input('planAuditId') ?? $request->input('plan_audit_id');
         $this->ensureAuditorFilled((int) $planId, 'hga');
         $who    = $request->user()?->username ?? $request->user()?->email;
+        $mode   = (string) $request->input('mode', 'merge');
+        $items  = (array) $request->input('items', []);
+
+        $tersimpan = PemeriksaanHga::where('plan_audit_id', $planId)->first()?->items_json ?? [];
+
+        if ($mode === 'import') {
+            $items = $this->bawaHasilPemeriksaan($items, $tersimpan);
+        } elseif ($mode !== 'replace') {
+            $hilang = $this->pemeriksaanYangHilang($items, $tersimpan);
+            if ($hilang !== []) {
+                return response()->json([
+                    'message' => 'Data di server sudah lebih baru dari yang ada di layar ini — '
+                        . count($hilang) . ' item yang sudah diperiksa akan hilang kalau ditimpa. '
+                        . 'Muat ulang tab HGA dulu, hasil scan Anda yang belum terkirim tetap aman.',
+                    'stale'   => true,
+                    'noPart'  => array_slice($hilang, 0, 20),
+                ], 409);
+            }
+        }
 
         $rec = PemeriksaanHga::updateOrCreate(
             ['plan_audit_id' => $planId],
-            ['items_json' => $request->input('items', []), 'updated_by' => $who]
+            ['items_json' => $items, 'updated_by' => $who]
         );
         if (!$rec->created_by) $rec->update(['created_by' => $who]);
 
@@ -71,9 +97,17 @@ class HgaController extends Controller
         }
 
         $it = $items[$idx];
-        // qty=0 dipakai saat auditor cuma mengedit Fisik TTP/Keterangan inline di
-        // tabel (bukan scan baru) — tidak menambah fisik & tidak mencatat logScan palsu.
-        if ($qty !== 0.0) {
+        // Browser menggabung scan beruntun untuk No. Part yang sama menjadi 1 request
+        // dan mengirim rincian tiap scan lewat "entries". Tiap entri bawa id, jadi
+        // request yang diulang (jaringan gudang putus) tidak menambah fisik dua kali
+        // dan riwayat logScan tetap satu entri per scan — lihat terapkanEntriScan().
+        $entries = array_values(array_filter((array) $request->input('entries', []), 'is_array'));
+        // qty=0 tanpa entries dipakai saat auditor cuma mengedit Fisik TTP/Keterangan
+        // inline di tabel (bukan scan baru) — tidak menambah fisik & tidak mencatat
+        // logScan palsu.
+        if ($entries !== []) {
+            $it = $this->terapkanEntriScan($it, $entries);
+        } elseif ($qty !== 0.0) {
             $it['fisik'] = $this->n($it['fisik'] ?? 0) + $qty;
             $it['logScan'] = is_array($it['logScan'] ?? null) ? $it['logScan'] : [];
             $it['logScan'][] = ['at' => now()->toIso8601String(), 'qty' => $qty];

@@ -64,7 +64,13 @@ export async function fetchJson(url, options = {}) {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
         const firstError = payload.errors ? Object.values(payload.errors).flat()[0] : null;
-        throw new Error(firstError || payload.message || "Request gagal.");
+        const error = new Error(firstError || payload.message || "Request gagal.");
+        // Status & isi respons ikut dibawa: pemanggil perlu membedakan gagal
+        // karena jaringan (layak dicoba ulang) dari ditolak server seperti 409
+        // "data di server lebih baru" (harus dimuat ulang, bukan diulang kirim).
+        error.status = response.status;
+        error.payload = payload;
+        throw error;
     }
     return payload;
 }
