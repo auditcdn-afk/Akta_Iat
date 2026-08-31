@@ -269,4 +269,46 @@ class MutasiPembelianTest extends TestCase
             'fileUnitUsaha' => $this->buildUnitUsahaFile(),
         ])->assertStatus(422);
     }
+
+    /**
+     * Bentuk berkas ternyata bertukar-tukar antar cabang: berkas gudang bisa
+     * datang dengan header rapi (Kode Part | Nama Part | Qty | Nomor Faktur),
+     * sementara catatan unit usaha justru datang sebagai "LAPORAN PEMBELIAN
+     * (Psch)" yang berheader merged-cell. Dua-duanya sempat gagal:
+     * sisi gudang menghasilkan NOL baris tanpa pesan apa pun (label "Qty"-nya
+     * ketemu, tapi offset merged-cell-nya jatuh ke luar tabel), sisi unit usaha
+     * ditolak 422. Kedua sisi kini memakai pembaca yang sama.
+     */
+    public function test_bentuk_berkas_boleh_bertukar_antara_gudang_dan_unit_usaha(): void
+    {
+        $res = $this->postJson('/api/audit-detail/mutasi-pembelian/compare', [
+            'fileGudang'    => $this->buildUnitUsahaFile(),   // header rapi di sisi GUDANG
+            'fileUnitUsaha' => $this->buildGudangFile(),      // laporan Psch di sisi UNIT USAHA
+        ])->assertOk();
+
+        $data = $res->json('data');
+        $this->assertCount(2, $data, 'Berkas berheader rapi di sisi gudang harus terbaca, bukan nol baris.');
+
+        $aaa = collect($data)->firstWhere('kodePart', 'PART-AAA');
+        $this->assertSame(10.0, (float) $aaa['qty']);
+        $this->assertSame('INV-001', $aaa['nomorFaktur']);
+        $this->assertTrue($aaa['matched'], 'PART-AAA qty 10 INV-001 ada di kedua berkas.');
+
+        // PART-BBB: qty 15 di sisi gudang vs 5 di sisi unit usaha → tidak cocok.
+        $this->assertFalse(collect($data)->firstWhere('kodePart', 'PART-BBB')['matched']);
+    }
+
+    /** Berkas tanpa header pun boleh berada di sisi Unit Usaha. */
+    public function test_berkas_tanpa_header_juga_diterima_di_sisi_unit_usaha(): void
+    {
+        $res = $this->postJson('/api/audit-detail/mutasi-pembelian/compare', [
+            'fileGudang'    => $this->buildGudangTanpaHeaderFile(),
+            'fileUnitUsaha' => $this->buildGudangTanpaHeaderFile(),
+        ])->assertOk();
+
+        $data = $res->json('data');
+        $this->assertCount(6, $data);
+        // Berkas yang sama di kedua sisi → semuanya harus cocok.
+        $this->assertCount(6, array_filter($data, fn($it) => $it['matched']));
+    }
 }
