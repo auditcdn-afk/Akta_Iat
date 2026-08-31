@@ -327,6 +327,49 @@ class HgpTidakKehilanganScanTest extends TestCase
         $this->assertCount(2, PemeriksaanHga::first()->items_json[0]['logScan']);
     }
 
+    /**
+     * Rumus akhir/selisih HGA berbeda dari HGP: total fisik = hasil scan + Fisik
+     * TTP, dan acuan saldonya saldoPts kalau ada. Kalau import ulang memakai
+     * rumus HGP, angka yang tersimpan salah — dan angka itulah yang dicetak apa
+     * adanya di Report Audit PDF.
+     */
+    public function test_import_hga_memakai_rumus_hga_bukan_rumus_hgp(): void
+    {
+        $this->postJson('/api/audit-detail/auditor', [
+            'plan_audit_id' => $this->plan->id, 'tool' => 'hga', 'nama_auditee' => 'Auditee Test',
+        ])->assertOk();
+
+        PemeriksaanHga::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [[
+                'noPart' => 'PART-1', 'sparepart' => 'A', 'saldoAkhir' => 10, 'saldoPts' => 30,
+                'fisik' => 0, 'fisikTtp' => 0, 'logScan' => [],
+            ]],
+        ]);
+
+        $this->postJson('/api/audit-detail/hga/scan-increment', [
+            'planAuditId' => $this->plan->id, 'noPart' => 'PART-1', 'qty' => 5,
+        ])->assertOk();
+        $this->postJson('/api/audit-detail/hga/scan-increment', [
+            'planAuditId' => $this->plan->id, 'noPart' => 'PART-1', 'qty' => 0, 'fisikTtp' => 3,
+        ])->assertOk();
+
+        $this->postJson('/api/audit-detail/hga', [
+            'planAuditId' => $this->plan->id, 'mode' => 'import',
+            'items' => [[
+                'noPart' => 'PART-1', 'sparepart' => 'A', 'saldoAkhir' => 12, 'saldoPts' => 30,
+                'fisik' => 0, 'fisikTtp' => 0, 'logScan' => [],
+            ]],
+        ])->assertOk();
+
+        $item = PemeriksaanHga::first()->items_json[0];
+        // total fisik = 5 (scan) + 3 (TTP) = 8; acuan saldo = saldoPts 30
+        $this->assertSame(5, $item['fisik']);
+        $this->assertEquals(3, $item['fisikTtp']);
+        $this->assertEquals(22, $item['akhir'], 'akhir HGA = saldoPts - (fisik + fisikTtp)');
+        $this->assertEquals(-22, $item['selisih'], 'selisih HGA = (fisik + fisikTtp) - saldoPts');
+    }
+
     public function test_rsa_hgp_ikut_aturan_yang_sama(): void
     {
         PemeriksaanRsaHgp::create(['plan_audit_id' => $this->plan->id, 'items_json' => $this->snapshotAwal()]);
