@@ -4594,6 +4594,100 @@ function initMtForm() {
 }
 
 /* ============================================================
+   Helper performa tabel scan (dipakai HGP & RSA HGP)
+   ============================================================ */
+
+// Render baris tabel bertahap (per potongan) lewat requestAnimationFrame.
+// Daftar onhand HGP/AHM Oils bisa ratusan/ribuan baris dan tiap baris punya 2
+// <input>; menyusunnya sekaligus dalam satu innerHTML membuat browser membeku
+// beberapa detik — input scan di atas tabel ikut tidak bisa dipakai selama itu,
+// dan di WebView alat scanner genggam (mis. Honeywell EDA52) bekunya jauh lebih
+// lama daripada di laptop. Dipotong per chunk, layar sempat bernapas di sela
+// potongan sehingga scan bisa langsung dilakukan tanpa menunggu tabel selesai.
+// Token per-<tbody> memastikan render lama berhenti begitu ada render baru
+// (mis. import ulang) menyusul.
+const TABLE_RENDER_CHUNK = 150;
+let _chunkRenderSeq = 0;
+function renderRowsChunked(tbody, items, rowHtml) {
+    const token = ++_chunkRenderSeq;
+    tbody._chunkToken = token;
+    tbody.innerHTML = '';
+    let i = 0;
+    const step = () => {
+        if (tbody._chunkToken !== token) return;   // dibatalkan oleh render yang lebih baru
+        const end = Math.min(i + TABLE_RENDER_CHUNK, items.length);
+        let html = '';
+        for (; i < end; i++) html += rowHtml(items[i], i);
+        tbody.insertAdjacentHTML('beforeend', html);
+        if (i < items.length) requestAnimationFrame(step);
+    };
+    step();
+}
+
+// Antrean simpan-delta hasil scan. Sebelumnya 1 scan = 1 POST scan-increment,
+// dan tiap POST itu membuat server membaca-ubah-menulis SELURUH items_json.
+// Saat auditor menembak barcode beruntun (part yang sama discan puluhan kali),
+// request menumpuk — browser hanya mengizinkan ~6 koneksi paralel — dan
+// beberapa request bisa saling menimpa karena membaca items_json yang sama
+// sebelum yang lain sempat menulis. Di sini scan digabung per No. Part dalam
+// jendela pendek lalu dikirim berurutan (satu request aktif dalam satu waktu),
+// jadi 20 kali scan cukup 1 request, bukan 20.
+// Riwayat per scan tetap dikirim satu per satu lewat "entries" supaya hitungan
+// "Fisik Terscan" (= jumlah entri logScan) tidak menyusut karena penggabungan.
+function createScanIncrementQueue({ endpoint, delay = 400, onItem, onError }) {
+    const pending = new Map();   // noPart → { qty, idx, extra, entries }
+    let timer = null;
+    let chain = Promise.resolve();
+
+    function flush({ keepalive = false } = {}) {
+        if (timer) { clearTimeout(timer); timer = null; }
+        if (!pending.size) return chain;
+        const batch = Array.from(pending.entries());
+        pending.clear();
+        chain = chain.then(async () => {
+            for (const [noPart, p] of batch) {
+                try {
+                    const body = { planAuditId: activePlanId, noPart, qty: p.qty, ...p.extra };
+                    if (p.entries.length) body.entries = p.entries;
+                    const res = await fetchJson(endpoint, {
+                        method: 'POST',
+                        headers: authHeaders({ 'Content-Type': 'application/json' }),
+                        body: JSON.stringify(body),
+                        keepalive,
+                    });
+                    onItem?.(res, p.idx, noPart);
+                } catch (_) {
+                    onError?.();
+                }
+            }
+        });
+        return chain;
+    }
+
+    return {
+        push(noPart, qty, idx, extra = {}) {
+            if (!activePlanId || !noPart) return;
+            let p = pending.get(noPart);
+            if (!p) {
+                p = { qty: 0, idx, extra: {}, entries: [] };
+                pending.set(noPart, p);
+            }
+            p.idx = idx;
+            Object.assign(p.extra, extra);
+            if (qty !== 0) {
+                p.qty += qty;
+                p.entries.push({ at: new Date().toISOString(), qty });
+            }
+            if (!timer) timer = setTimeout(() => { timer = null; flush(); }, delay);
+        },
+        // Dipakai sebelum menimpa nilai lokal dengan balasan server: kalau masih
+        // ada scan yang belum terkirim untuk part ini, angka server sudah basi.
+        hasPending: (noPart) => (noPart === undefined ? pending.size > 0 : pending.has(noPart)),
+        flush,
+    };
+}
+
+/* ============================================================
    HGP & AHM Oils
    ============================================================ */
 let _hgpData = null; // { items: [ { sparepart, saldoAkhir, fisik, akhir, selisih, keterangan, tgl, logScan:[] } ] }
@@ -4631,126 +4725,163 @@ function hgpUpdateStats() {
     if (el('hgpTableCount'))  el('hgpTableCount').textContent  = `${total} Item`;
 }
 
+// Nilai turunan 1 baris — dipakai baik saat membangun HTML baris baru maupun
+// saat memperbarui baris yang sudah ada, supaya rumus keduanya tidak pernah
+// berbeda.
+function hgpRowView(it) {
+    const selisih = hgpN(it.selisih);
+    const harga   = hgpN(it.hargaHet);
+    const jumlah  = harga * selisih;   // negatif = kekurangan, positif = kelebihan
+    return {
+        saldo:   hgpSaldo(it),
+        fisik:   hgpN(it.fisik),
+        akhir:   hgpN(it.akhir),
+        wo:      hgpN(it.wo),
+        scan:    it.logScan?.length || 0,
+        selisih,
+        selSign:  selisih >= 0 ? '+' : '',
+        selClass: selisih < 0 ? 'text-red-400 font-bold' : selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300',
+        selTextClass: selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300',
+        tglHtml:   it.tgl || '<span class="text-slate-600">—</span>',
+        hargaHtml: harga > 0 ? harga.toLocaleString('id-ID') : '<span class="text-slate-600">—</span>',
+        jumlahFmt: jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID'),
+        jumlahClass: jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400',
+    };
+}
+
+function hgpLogHtml(v) {
+    return `<div class="flex flex-col gap-0.5 text-slate-400">
+                <span>Fisik Terscan : <span class="text-green-400 font-semibold">${v.scan}</span></span>
+                <span>Saldo Akhir : <span class="text-slate-300">${v.saldo}</span></span>
+                <span>Selisih Scan : <span class="${v.selTextClass} font-semibold">${v.selSign}${v.selisih}</span></span>
+            </div>`;
+}
+
 // Bangun HTML 1 baris tabel HGP/AHM Oil. Dipisah dari hgpRenderItems() supaya
-// bisa dipakai juga untuk update 1 baris saja setelah scan (hgpUpdateSingleRow),
-// tanpa perlu render ulang SELURUH tabel tiap kali scan — daftar onhand ini
-// bisa ratusan/ribuan baris, jadi render ulang semuanya di tiap scan bikin
-// aplikasi terasa berat/nge-freeze terutama di HP scanner yang tidak sekencang
-// laptop.
+// bisa dipakai juga untuk baris yang baru muncul lewat render bertahap.
 function hgpRowHtml(it, i) {
-    const selisih  = hgpN(it.selisih);
-    const selClass = selisih < 0 ? 'text-red-400 font-bold' : selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
-    const scan     = it.logScan?.length || 0;
-    const selSign  = selisih >= 0 ? '+' : '';
-    const harga    = hgpN(it.hargaHet);
-    const jumlah   = harga * selisih;   // negatif = kekurangan, positif = kelebihan
-    const jumlahFmt = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
-    const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
-    const wo = hgpN(it.wo);
+    const v = hgpRowView(it);
     return `<tr class="hover:bg-slate-800/40" data-hgp-row="${i}">
         <td class="px-3 py-2 text-slate-400">${i + 1}</td>
         <td class="px-3 py-2 text-slate-400 text-xs">${it.noPart || ''}</td>
         <td class="px-3 py-2 text-slate-100 font-medium">${it.sparepart || ''}</td>
-        <td class="px-3 py-2 text-center text-slate-300">${it.tgl || '<span class="text-slate-600">—</span>'}</td>
-        <td class="px-3 py-2 text-right text-slate-300">${hgpSaldo(it)}</td>
-        <td class="px-3 py-2 text-right text-slate-100 font-semibold">${hgpN(it.fisik)}</td>
+        <td class="px-3 py-2 text-center text-slate-300">${v.tglHtml}</td>
+        <td class="px-3 py-2 text-right text-slate-300">${v.saldo}</td>
+        <td class="px-3 py-2 text-right text-slate-100 font-semibold">${v.fisik}</td>
         <td class="px-3 py-2 text-right">
             <input type="number" min="0" data-hgp-i="${i}" data-hgp-f="wo"
-                value="${wo || ''}" placeholder="0"
+                value="${v.wo || ''}" placeholder="0"
                 class="hgp-inp w-16 rounded border border-amber-700/50 bg-amber-900/20 px-2 py-1 text-xs text-amber-300 text-right focus:border-amber-500 focus:outline-none">
         </td>
-        <td class="px-3 py-2 text-right text-slate-300">${hgpN(it.akhir)}</td>
-        <td class="px-3 py-2 text-right ${selClass}">${selSign}${selisih}</td>
-        <td class="px-3 py-2 text-right text-slate-300">${harga > 0 ? harga.toLocaleString('id-ID') : '<span class="text-slate-600">—</span>'}</td>
-        <td class="px-3 py-2 text-right ${jumlahClass}">${jumlahFmt}</td>
+        <td class="px-3 py-2 text-right text-slate-300">${v.akhir}</td>
+        <td class="px-3 py-2 text-right ${v.selClass}">${v.selSign}${v.selisih}</td>
+        <td class="px-3 py-2 text-right text-slate-300">${v.hargaHtml}</td>
+        <td class="px-3 py-2 text-right ${v.jumlahClass}">${v.jumlahFmt}</td>
         <td class="px-3 py-2">
             <input type="text" data-hgp-i="${i}" data-hgp-f="keterangan"
                 value="${it.keterangan || ''}"
                 placeholder="Keterangan..."
                 class="hgp-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
         </td>
-        <td class="px-3 py-2 text-xs">
-            <div class="flex flex-col gap-0.5 text-slate-400">
-                <span>Fisik Terscan : <span class="text-green-400 font-semibold">${scan}</span></span>
-                <span>Saldo Akhir : <span class="text-slate-300">${hgpSaldo(it)}</span></span>
-                <span>Selisih Scan : <span class="${selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300'} font-semibold">${selSign}${selisih}</span></span>
-            </div>
-        </td>
+        <td class="px-3 py-2 text-xs">${hgpLogHtml(v)}</td>
     </tr>`;
 }
 
-// Pasang listener input/blur utk kolom yang bisa diedit (wo, keterangan) pada
-// 1 baris <tr>. Dipanggil baik saat render penuh maupun update 1 baris.
-function hgpAttachRowListeners(tr) {
-    tr.querySelectorAll('.hgp-inp').forEach(inp => {
-        inp.addEventListener('input', () => {
-            const i = parseInt(inp.dataset.hgpI);
-            const f = inp.dataset.hgpF;
-            if (f === 'wo') {
-                _hgpData.items[i].wo = hgpN(inp.value);
-                hgpCalcItem(_hgpData.items[i]);
-                // Update only the affected cells in-place (no full re-render)
-                const row = inp.closest('tr');
-                if (row) {
-                    const it = _hgpData.items[i];
-                    const sel = hgpN(it.selisih);
-                    const selSign = sel >= 0 ? '+' : '';
-                    const selClass = sel < 0 ? 'text-red-400 font-bold' : sel > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
-                    const harga = hgpN(it.hargaHet);
-                    const jumlah = harga * sel;
-                    const jumlahFmt = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
-                    const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
-                    const cells = row.querySelectorAll('td');
-                    // col indices: 0=no,1=noPart,2=nama,3=tgl,4=saldo,5=fisik,6=wo-input,7=akhir,8=selisih,9=harga,10=jumlah,11=ket,12=log
-                    if (cells[7]) cells[7].textContent = hgpN(it.akhir);
-                    if (cells[8]) { cells[8].textContent = `${selSign}${sel}`; cells[8].className = `px-3 py-2 text-right ${selClass}`; }
-                    if (cells[10]) { cells[10].textContent = jumlahFmt; cells[10].className = `px-3 py-2 text-right ${jumlahClass}`; }
-                }
-            } else {
-                _hgpData.items[i][f] = inp.value;
-            }
-        });
-        // qty=0 lewat endpoint delta (bukan _doSaveHgp yang kirim ulang SELURUH
-        // array) — supaya edit WO/Keterangan dari 1 device tidak menimpa balik
-        // hasil scan device lain yang belum sempat ter-refresh di sini. Lihat
-        // catatan yang sama di _doScanHgpIncrement dan HgpController::scanIncrement.
-        inp.addEventListener('blur', () => {
-            const i = parseInt(inp.dataset.hgpI);
-            const it = _hgpData?.items?.[i];
-            if (!it) return;
-            _doScanHgpIncrement(it.noPart, 0, i, { wo: hgpN(it.wo), keterangan: it.keterangan ?? '' });
-        });
+// Perbarui isi 1 baris DI TEMPAT, bukan membangun ulang <tr>-nya. Selain lebih
+// murah, cara ini tidak mencabut <input> WO/Keterangan dari DOM: mengganti node
+// yang sedang difokus membuat kursor auditor hilang di tengah mengetik dan
+// memicu focusout yang mengirim simpan-delta lagi.
+// Urutan kolom: 0=no, 1=noPart, 2=nama, 3=tgl, 4=saldo, 5=fisik, 6=wo-input,
+// 7=akhir, 8=selisih, 9=harga, 10=jumlah, 11=ket-input, 12=log.
+function hgpPaintRow(row, it) {
+    const v = hgpRowView(it);
+    const cells = row.children;
+    if (cells[3])  cells[3].innerHTML   = v.tglHtml;
+    if (cells[4])  cells[4].textContent = v.saldo;
+    if (cells[5])  cells[5].textContent = v.fisik;
+    if (cells[7])  cells[7].textContent = v.akhir;
+    if (cells[8])  { cells[8].textContent  = `${v.selSign}${v.selisih}`; cells[8].className  = `px-3 py-2 text-right ${v.selClass}`; }
+    if (cells[9])  cells[9].innerHTML   = v.hargaHtml;
+    if (cells[10]) { cells[10].textContent = v.jumlahFmt; cells[10].className = `px-3 py-2 text-right ${v.jumlahClass}`; }
+    if (cells[12]) cells[12].innerHTML  = hgpLogHtml(v);
+    // Nilai input hanya disetel ulang kalau auditor tidak sedang mengetik di situ.
+    const woInp = cells[6]?.querySelector('input');
+    if (woInp && document.activeElement !== woInp) woInp.value = v.wo || '';
+    const ketInp = cells[11]?.querySelector('input');
+    if (ketInp && document.activeElement !== ketInp) ketInp.value = it.keterangan || '';
+}
+
+// Satu listener di <tbody> untuk seluruh baris (delegasi), bukan 2 listener per
+// baris. Pada daftar 1.000 item cara lama memasang 2.000 listener setiap kali
+// tabel dirender — biaya yang dibayar di muka dan membuat render terasa lama.
+function hgpBindTableEvents(tbody) {
+    if (!tbody || tbody.dataset.bound === '1') return;
+    tbody.dataset.bound = '1';
+
+    tbody.addEventListener('input', (e) => {
+        const inp = e.target;
+        if (!inp.classList?.contains('hgp-inp')) return;
+        const i  = parseInt(inp.dataset.hgpI);
+        const f  = inp.dataset.hgpF;
+        const it = _hgpData?.items?.[i];
+        if (!it) return;
+        inp.dataset.dirty = '1';
+        if (f === 'wo') {
+            it.wo = hgpN(inp.value);
+            hgpCalcItem(it);
+            const row = inp.closest('tr');
+            if (row) hgpPaintRow(row, it);
+        } else {
+            it[f] = inp.value;
+        }
+    });
+
+    // focusout, bukan blur — blur tidak merambat naik jadi tidak bisa
+    // didelegasikan. Simpan-delta hanya dikirim kalau nilainya memang diubah;
+    // sebelumnya setiap kali fokus meninggalkan input mana pun selalu ada 1
+    // request ke server, padahal sekadar melewati kolom tidak mengubah apa pun.
+    // qty=0 lewat endpoint delta (bukan _doSaveHgp yang kirim ulang SELURUH
+    // array) supaya edit WO/Keterangan dari 1 device tidak menimpa balik hasil
+    // scan device lain yang belum sempat ter-refresh di sini.
+    tbody.addEventListener('focusout', (e) => {
+        const inp = e.target;
+        if (!inp.classList?.contains('hgp-inp')) return;
+        if (inp.dataset.dirty !== '1') return;
+        delete inp.dataset.dirty;
+        const i  = parseInt(inp.dataset.hgpI);
+        const it = _hgpData?.items?.[i];
+        if (!it) return;
+        _doScanHgpIncrement(it.noPart, 0, i, { wo: hgpN(it.wo), keterangan: it.keterangan ?? '' });
     });
 }
 
 function hgpRenderItems() {
     const tbody = document.getElementById('hgpTableBody');
     if (!tbody) return;
+    hgpBindTableEvents(tbody);
+    hgpRebuildIndex();
     const items = _hgpData?.items || [];
     if (items.length === 0) {
+        tbody._chunkToken = ++_chunkRenderSeq;   // hentikan render bertahap yang mungkin masih jalan
         tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
         hgpUpdateStats();
         return;
     }
-    tbody.innerHTML = items.map((it, i) => hgpRowHtml(it, i)).join('');
-    hgpAttachRowListeners(tbody);
+    renderRowsChunked(tbody, items, hgpRowHtml);
     hgpUpdateStats();
 }
 
 // Update 1 baris saja di tabel (dipakai setelah scan barcode) — jauh lebih
 // ringan daripada render ulang seluruh tabel tiap kali scan, terutama kalau
-// data onhand-nya ratusan/ribuan baris.
+// data onhand-nya ratusan/ribuan baris. Kalau barisnya belum sempat dirender
+// (render bertahap masih berjalan), cukup lewati: potongan berikutnya akan
+// dibangun dari data yang sudah diperbarui.
 function hgpUpdateSingleRow(idx) {
     const tbody = document.getElementById('hgpTableBody');
     if (!tbody) return;
     const row = tbody.querySelector(`tr[data-hgp-row="${idx}"]`);
-    const it  = _hgpData.items[idx];
-    if (!row || !it) { hgpRenderItems(); return; }
-    const tmp = document.createElement('tbody');
-    tmp.innerHTML = hgpRowHtml(it, idx);
-    const newRow = tmp.firstElementChild;
-    hgpAttachRowListeners(newRow);
-    row.replaceWith(newRow);
+    const it  = _hgpData?.items?.[idx];
+    if (row && it) hgpPaintRow(row, it);
     hgpUpdateStats();
 }
 
@@ -4851,6 +4982,20 @@ function hgpPopulateDatalist(filterTerm) {
     }).join('');
 }
 
+// Menyusun ulang datalist di SETIAP ketikan berarti, saat alat scanner
+// "mengetikkan" 13 karakter barcode dalam hitungan milidetik, browser diminta
+// menyaring seluruh item dan membangun ulang daftar option 13 kali beruntun —
+// tepat sebelum Enter yang memproses scan. Ditunda sebentar: satu kali saring
+// setelah ketikan berhenti, jadi burst dari scanner tidak menyaring sama sekali.
+let _hgpDatalistTimer = null;
+function hgpPopulateDatalistDebounced(filterTerm, delay = 150) {
+    clearTimeout(_hgpDatalistTimer);
+    _hgpDatalistTimer = setTimeout(() => {
+        _hgpDatalistTimer = null;
+        hgpPopulateDatalist(filterTerm);
+    }, delay);
+}
+
 // No Part Honda biasanya berformat "35148-K78-N10", tapi barcode fisik di
 // kemasan kadang menyimpannya tanpa strip/spasi ("35148K78N10") atau malah
 // dengan panjang/prefix berbeda dari yang tersimpan di data import Excel.
@@ -4859,19 +5004,45 @@ function hgpPopulateDatalist(filterTerm) {
 // kasus format barcode yang beda total dari data tersimpan.
 const hgpNormalizeCode = (s) => (s || '').toString().trim().toLowerCase().replace(/[\s-]+/g, '');
 
+// Indeks pencarian No. Part. Tanpa ini, tiap scan menyapu seluruh daftar item
+// sampai 5 kali (cocok persis → nama → tanpa strip → sebagian → 5 digit
+// terakhir) sambil me-lowercase ulang tiap No. Part — pekerjaan yang terasa
+// sekali di alat scanner saat daftarnya ribuan baris. Indeks dibangun ulang
+// hanya ketika daftar itemnya berubah (lihat hgpRenderItems).
+let _hgpIndex = null;
+function hgpRebuildIndex() {
+    const byPart = new Map(), byNama = new Map(), byNorm = new Map(), byLast5 = new Map();
+    (_hgpData?.items || []).forEach((it, i) => {
+        const part = (it.noPart || '').trim().toLowerCase();
+        const nama = (it.sparepart || '').trim().toLowerCase();
+        const norm = hgpNormalizeCode(it.noPart);
+        if (part && !byPart.has(part)) byPart.set(part, i);
+        if (nama && !byNama.has(nama)) byNama.set(nama, i);
+        if (norm && !byNorm.has(norm)) byNorm.set(norm, i);
+        if (norm.length >= 5 && !byLast5.has(norm.slice(-5))) byLast5.set(norm.slice(-5), i);
+    });
+    _hgpIndex = { byPart, byNama, byNorm, byLast5 };
+}
+
+// Urutan pencocokan tetap sama seperti sebelumnya: No. Part persis → nama part
+// persis → tanpa strip/spasi → sebagian → 5 karakter terakhir. Yang berubah
+// hanya caranya: lewat indeks, bukan menyapu array berulang kali.
 function hgpFindIdx(code) {
     const term = (code || '').trim().toLowerCase();
     if (!term) return -1;
-    const items = _hgpData?.items || [];
+    if (!_hgpIndex) hgpRebuildIndex();
     const termNorm = hgpNormalizeCode(code);
-    const termLast5 = termNorm.length >= 5 ? termNorm.slice(-5) : null;
 
-    let idx = items.findIndex(it => (it.noPart || '').toLowerCase() === term);
-    if (idx < 0) idx = items.findIndex(it => (it.sparepart || '').toLowerCase() === term);
-    if (idx < 0) idx = items.findIndex(it => hgpNormalizeCode(it.noPart) === termNorm);
-    if (idx < 0) idx = items.findIndex(it => (it.noPart || '').toLowerCase().includes(term));
-    if (idx < 0 && termLast5) idx = items.findIndex(it => hgpNormalizeCode(it.noPart).endsWith(termLast5));
-    return idx;
+    let idx = _hgpIndex.byPart.get(term);
+    if (idx === undefined) idx = _hgpIndex.byNama.get(term);
+    if (idx === undefined) idx = _hgpIndex.byNorm.get(termNorm);
+    if (idx === undefined) {
+        const items = _hgpData?.items || [];
+        const found = items.findIndex(it => (it.noPart || '').toLowerCase().includes(term));
+        if (found >= 0) idx = found;
+    }
+    if (idx === undefined && termNorm.length >= 5) idx = _hgpIndex.byLast5.get(termNorm.slice(-5));
+    return idx === undefined ? -1 : idx;
 }
 
 function hgpFormRecalc() {
@@ -4934,11 +5105,16 @@ function _doSaveHgpDebounced(delay = 700) {
         _doSaveHgp().catch(() => {});
     }, delay);
 }
-function _flushHgpSaveDebounced() {
-    if (!_hgpSaveDebounceTimer) return;
-    clearTimeout(_hgpSaveDebounceTimer);
-    _hgpSaveDebounceTimer = null;
-    _doSaveHgp().catch(() => {});
+// Ikut mengirim scan yang masih mengantre di _hgpScanQueue, bukan cuma simpan
+// penuh yang tertunda — antrean itu yang sekarang memegang hasil scan terakhir.
+function _flushHgpSaveDebounced(opts = {}) {
+    const pending = _hgpScanQueue.flush(opts);
+    if (_hgpSaveDebounceTimer) {
+        clearTimeout(_hgpSaveDebounceTimer);
+        _hgpSaveDebounceTimer = null;
+        _doSaveHgp().catch(() => {});
+    }
+    return pending;
 }
 
 // Kirim HANYA delta scan (No. Part + qty) ke server, bukan seluruh daftar item —
@@ -4947,25 +5123,27 @@ function _flushHgpSaveDebounced() {
 // diupload dari alat scanner genggam (mis. Honeywell EDA52) yang jaringannya (WiFi
 // gudang/data seluler) belum tentu kencang. Endpoint ini hanya membawa 1 No. Part +
 // qty, jadi ukurannya tetap kecil berapa pun banyaknya item di data import.
+// Scan beruntun untuk No. Part yang sama digabung dulu di antrean (lihat
+// createScanIncrementQueue) supaya tidak jadi puluhan request yang saling antre.
 // Kalau request ini gagal (network putus dsb), fallback ke simpan penuh yang
 // di-debounce supaya datanya tidak hilang.
-async function _doScanHgpIncrement(noPart, qty, idx, extra = {}) {
-    if (!activePlanId || !noPart) return;
-    try {
-        const res = await fetchJson('/api/audit-detail/hgp/scan-increment', {
-            method: 'POST',
-            headers: authHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ planAuditId: activePlanId, noPart, qty, ...extra }),
-        });
+const _hgpScanQueue = createScanIncrementQueue({
+    endpoint: '/api/audit-detail/hgp/scan-increment',
+    onItem: (res, idx, noPart) => {
         // Selaraskan dengan hasil otoritatif server (jaga-jaga ada device lain yang
-        // ikut scan No. Part yang sama di waktu yang berdekatan).
-        if (res?.item && _hgpData?.items?.[idx]) {
-            _hgpData.items[idx] = { ..._hgpData.items[idx], ...res.item };
-            hgpUpdateSingleRow(idx);
-        }
-    } catch (_) {
-        _doSaveHgpDebounced();
-    }
+        // ikut scan No. Part yang sama di waktu yang berdekatan). Kalau masih ada
+        // scan yang belum terkirim untuk part ini, nilai server sudah ketinggalan —
+        // biarkan angka lokal yang optimistis sampai antrean berikutnya terkirim.
+        if (!res?.item || !_hgpData?.items?.[idx]) return;
+        if (_hgpScanQueue.hasPending(noPart)) return;
+        _hgpData.items[idx] = { ..._hgpData.items[idx], ...res.item };
+        hgpUpdateSingleRow(idx);
+    },
+    onError: () => _doSaveHgpDebounced(),
+});
+
+function _doScanHgpIncrement(noPart, qty, idx, extra = {}) {
+    _hgpScanQueue.push(noPart, qty, idx, extra);
 }
 
 // Scan barcode: akumulasi fisik +1 setiap scan kode yang sama, tiap scan tercatat di log.
@@ -5071,6 +5249,10 @@ function hgpFormReset() {
 
 async function loadHgpTab() {
     if (!activePlanId) { _hgpData = null; hgpRenderItems(); return; }
+    // Scan yang masih mengantre harus sampai ke server dulu — kalau tidak,
+    // data yang baru diambil di bawah ini adalah kondisi SEBELUM scan terakhir
+    // dan hasil scan itu hilang dari layar.
+    await _flushHgpSaveDebounced();
     const res = await fetchJson(`/api/audit-detail/hgp?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
     // Selalu timpa _hgpData dengan data plan yang baru dibuka (termasuk kalau
     // kosong) — sebelumnya hanya ditimpa kalau items tidak kosong, jadi kalau
@@ -5102,7 +5284,9 @@ function initHgpForm() {
     const fileInput = document.getElementById('hgpFileInput');
     const dropzone  = document.getElementById('hgpDropzone');
 
-    window.addEventListener('beforeunload', () => _flushHgpSaveDebounced());
+    // keepalive: request simpan-delta tetap diselesaikan browser walau
+    // halamannya sudah ditutup.
+    window.addEventListener('beforeunload', () => _flushHgpSaveDebounced({ keepalive: true }));
 
     fileInput?.addEventListener('change', () => {
         if (fileInput.files[0]) hgpHandleFile(fileInput.files[0]);
@@ -5134,7 +5318,7 @@ function initHgpForm() {
     });
     // Saring ulang datalist tiap ketik supaya isinya selalu kecil (lihat komentar di
     // hgpPopulateDatalist) — bukan cuma diisi sekali di awal dengan seluruh data import.
-    partInput?.addEventListener('input', () => hgpPopulateDatalist(partInput.value));
+    partInput?.addEventListener('input', () => hgpPopulateDatalistDebounced(partInput.value));
 
     const qtyInput = document.getElementById('hgpFormQty');
     qtyInput?.addEventListener('input', () => hgpFormRecalc());
@@ -5273,125 +5457,163 @@ function rsaHgpUpdateStats() {
     if (el('rsaHgpTableCount'))  el('rsaHgpTableCount').textContent  = `${total} Item`;
 }
 
+// Nilai turunan 1 baris — dipakai baik saat membangun HTML baris baru maupun
+// saat memperbarui baris yang sudah ada, supaya rumus keduanya tidak pernah
+// berbeda.
+function rsaHgpRowView(it) {
+    const selisih = rsaHgpN(it.selisih);
+    const harga   = rsaHgpN(it.hargaHet);
+    const jumlah  = harga * selisih;   // negatif = kekurangan, positif = kelebihan
+    return {
+        saldo:   rsaHgpSaldo(it),
+        fisik:   rsaHgpN(it.fisik),
+        akhir:   rsaHgpN(it.akhir),
+        wo:      rsaHgpN(it.wo),
+        scan:    it.logScan?.length || 0,
+        selisih,
+        selSign:  selisih >= 0 ? '+' : '',
+        selClass: selisih < 0 ? 'text-red-400 font-bold' : selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300',
+        selTextClass: selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300',
+        tglHtml:   it.tgl || '<span class="text-slate-600">—</span>',
+        hargaHtml: harga > 0 ? harga.toLocaleString('id-ID') : '<span class="text-slate-600">—</span>',
+        jumlahFmt: jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID'),
+        jumlahClass: jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400',
+    };
+}
+
+function rsaHgpLogHtml(v) {
+    return `<div class="flex flex-col gap-0.5 text-slate-400">
+                <span>Fisik Terscan : <span class="text-green-400 font-semibold">${v.scan}</span></span>
+                <span>Saldo Akhir : <span class="text-slate-300">${v.saldo}</span></span>
+                <span>Selisih Scan : <span class="${v.selTextClass} font-semibold">${v.selSign}${v.selisih}</span></span>
+            </div>`;
+}
+
 // Bangun HTML 1 baris tabel RSA HGP/AHM Oil. Dipisah dari rsaHgpRenderItems() supaya
-// bisa dipakai juga untuk update 1 baris saja setelah scan (rsaHgpUpdateSingleRow),
-// tanpa perlu render ulang SELURUH tabel tiap kali scan — daftar onhand ini
-// bisa ratusan/ribuan baris, jadi render ulang semuanya di tiap scan bikin
-// aplikasi terasa berat/nge-freeze terutama di HP scanner yang tidak sekencang
-// laptop.
+// bisa dipakai juga untuk baris yang baru muncul lewat render bertahap.
 function rsaHgpRowHtml(it, i) {
-    const selisih  = rsaHgpN(it.selisih);
-    const selClass = selisih < 0 ? 'text-red-400 font-bold' : selisih > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
-    const scan     = it.logScan?.length || 0;
-    const selSign  = selisih >= 0 ? '+' : '';
-    const harga    = rsaHgpN(it.hargaHet);
-    const jumlah   = harga * selisih;   // negatif = kekurangan, positif = kelebihan
-    const jumlahFmt = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
-    const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
-    const wo = rsaHgpN(it.wo);
+    const v = rsaHgpRowView(it);
     return `<tr class="hover:bg-slate-800/40" data-rsa-hgp-row="${i}">
         <td class="px-3 py-2 text-slate-400">${i + 1}</td>
         <td class="px-3 py-2 text-slate-400 text-xs">${it.noPart || ''}</td>
         <td class="px-3 py-2 text-slate-100 font-medium">${it.sparepart || ''}</td>
-        <td class="px-3 py-2 text-center text-slate-300">${it.tgl || '<span class="text-slate-600">—</span>'}</td>
-        <td class="px-3 py-2 text-right text-slate-300">${rsaHgpSaldo(it)}</td>
-        <td class="px-3 py-2 text-right text-slate-100 font-semibold">${rsaHgpN(it.fisik)}</td>
+        <td class="px-3 py-2 text-center text-slate-300">${v.tglHtml}</td>
+        <td class="px-3 py-2 text-right text-slate-300">${v.saldo}</td>
+        <td class="px-3 py-2 text-right text-slate-100 font-semibold">${v.fisik}</td>
         <td class="px-3 py-2 text-right">
             <input type="number" min="0" data-rsa-hgp-i="${i}" data-rsa-hgp-f="wo"
-                value="${wo || ''}" placeholder="0"
+                value="${v.wo || ''}" placeholder="0"
                 class="rsa-hgp-inp w-16 rounded border border-amber-700/50 bg-amber-900/20 px-2 py-1 text-xs text-amber-300 text-right focus:border-amber-500 focus:outline-none">
         </td>
-        <td class="px-3 py-2 text-right text-slate-300">${rsaHgpN(it.akhir)}</td>
-        <td class="px-3 py-2 text-right ${selClass}">${selSign}${selisih}</td>
-        <td class="px-3 py-2 text-right text-slate-300">${harga > 0 ? harga.toLocaleString('id-ID') : '<span class="text-slate-600">—</span>'}</td>
-        <td class="px-3 py-2 text-right ${jumlahClass}">${jumlahFmt}</td>
+        <td class="px-3 py-2 text-right text-slate-300">${v.akhir}</td>
+        <td class="px-3 py-2 text-right ${v.selClass}">${v.selSign}${v.selisih}</td>
+        <td class="px-3 py-2 text-right text-slate-300">${v.hargaHtml}</td>
+        <td class="px-3 py-2 text-right ${v.jumlahClass}">${v.jumlahFmt}</td>
         <td class="px-3 py-2">
             <input type="text" data-rsa-hgp-i="${i}" data-rsa-hgp-f="keterangan"
                 value="${it.keterangan || ''}"
                 placeholder="Keterangan..."
                 class="rsa-hgp-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
         </td>
-        <td class="px-3 py-2 text-xs">
-            <div class="flex flex-col gap-0.5 text-slate-400">
-                <span>Fisik Terscan : <span class="text-green-400 font-semibold">${scan}</span></span>
-                <span>Saldo Akhir : <span class="text-slate-300">${rsaHgpSaldo(it)}</span></span>
-                <span>Selisih Scan : <span class="${selisih < 0 ? 'text-red-400' : selisih > 0 ? 'text-yellow-400' : 'text-slate-300'} font-semibold">${selSign}${selisih}</span></span>
-            </div>
-        </td>
+        <td class="px-3 py-2 text-xs">${rsaHgpLogHtml(v)}</td>
     </tr>`;
 }
 
-// Pasang listener input/blur utk kolom yang bisa diedit (wo, keterangan) pada
-// 1 baris <tr>. Dipanggil baik saat render penuh maupun update 1 baris.
-function rsaHgpAttachRowListeners(tr) {
-    tr.querySelectorAll('.rsa-hgp-inp').forEach(inp => {
-        inp.addEventListener('input', () => {
-            const i = parseInt(inp.dataset.rsaHgpI);
-            const f = inp.dataset.rsaHgpF;
-            if (f === 'wo') {
-                _rsaHgpData.items[i].wo = rsaHgpN(inp.value);
-                rsaHgpCalcItem(_rsaHgpData.items[i]);
-                // Update only the affected cells in-place (no full re-render)
-                const row = inp.closest('tr');
-                if (row) {
-                    const it = _rsaHgpData.items[i];
-                    const sel = rsaHgpN(it.selisih);
-                    const selSign = sel >= 0 ? '+' : '';
-                    const selClass = sel < 0 ? 'text-red-400 font-bold' : sel > 0 ? 'text-yellow-400 font-bold' : 'text-slate-300';
-                    const harga = rsaHgpN(it.hargaHet);
-                    const jumlah = harga * sel;
-                    const jumlahFmt = jumlah === 0 ? '-' : (jumlah >= 0 ? '+' : '') + Math.round(jumlah).toLocaleString('id-ID');
-                    const jumlahClass = jumlah < 0 ? 'text-red-400 font-bold' : jumlah > 0 ? 'text-yellow-400 font-bold' : 'text-slate-400';
-                    const cells = row.querySelectorAll('td');
-                    // col indices: 0=no,1=noPart,2=nama,3=tgl,4=saldo,5=fisik,6=wo-input,7=akhir,8=selisih,9=harga,10=jumlah,11=ket,12=log
-                    if (cells[7]) cells[7].textContent = rsaHgpN(it.akhir);
-                    if (cells[8]) { cells[8].textContent = `${selSign}${sel}`; cells[8].className = `px-3 py-2 text-right ${selClass}`; }
-                    if (cells[10]) { cells[10].textContent = jumlahFmt; cells[10].className = `px-3 py-2 text-right ${jumlahClass}`; }
-                }
-            } else {
-                _rsaHgpData.items[i][f] = inp.value;
-            }
-        });
-        // qty=0 lewat endpoint delta (bukan _doSaveRsaHgp yang kirim ulang SELURUH
-        // array) — supaya edit WO/Keterangan dari 1 device tidak menimpa balik
-        // hasil scan device lain yang belum sempat ter-refresh di sini.
-        inp.addEventListener('blur', () => {
-            const i = parseInt(inp.dataset.rsaHgpI);
-            const it = _rsaHgpData?.items?.[i];
-            if (!it) return;
-            _doScanRsaHgpIncrement(it.noPart, 0, i, { wo: rsaHgpN(it.wo), keterangan: it.keterangan ?? '' });
-        });
+// Perbarui isi 1 baris DI TEMPAT, bukan membangun ulang <tr>-nya. Selain lebih
+// murah, cara ini tidak mencabut <input> WO/Keterangan dari DOM: mengganti node
+// yang sedang difokus membuat kursor auditor hilang di tengah mengetik dan
+// memicu focusout yang mengirim simpan-delta lagi.
+// Urutan kolom: 0=no, 1=noPart, 2=nama, 3=tgl, 4=saldo, 5=fisik, 6=wo-input,
+// 7=akhir, 8=selisih, 9=harga, 10=jumlah, 11=ket-input, 12=log.
+function rsaHgpPaintRow(row, it) {
+    const v = rsaHgpRowView(it);
+    const cells = row.children;
+    if (cells[3])  cells[3].innerHTML   = v.tglHtml;
+    if (cells[4])  cells[4].textContent = v.saldo;
+    if (cells[5])  cells[5].textContent = v.fisik;
+    if (cells[7])  cells[7].textContent = v.akhir;
+    if (cells[8])  { cells[8].textContent  = `${v.selSign}${v.selisih}`; cells[8].className  = `px-3 py-2 text-right ${v.selClass}`; }
+    if (cells[9])  cells[9].innerHTML   = v.hargaHtml;
+    if (cells[10]) { cells[10].textContent = v.jumlahFmt; cells[10].className = `px-3 py-2 text-right ${v.jumlahClass}`; }
+    if (cells[12]) cells[12].innerHTML  = rsaHgpLogHtml(v);
+    // Nilai input hanya disetel ulang kalau auditor tidak sedang mengetik di situ.
+    const woInp = cells[6]?.querySelector('input');
+    if (woInp && document.activeElement !== woInp) woInp.value = v.wo || '';
+    const ketInp = cells[11]?.querySelector('input');
+    if (ketInp && document.activeElement !== ketInp) ketInp.value = it.keterangan || '';
+}
+
+// Satu listener di <tbody> untuk seluruh baris (delegasi), bukan 2 listener per
+// baris. Pada daftar 1.000 item cara lama memasang 2.000 listener setiap kali
+// tabel dirender — biaya yang dibayar di muka dan membuat render terasa lama.
+function rsaHgpBindTableEvents(tbody) {
+    if (!tbody || tbody.dataset.bound === '1') return;
+    tbody.dataset.bound = '1';
+
+    tbody.addEventListener('input', (e) => {
+        const inp = e.target;
+        if (!inp.classList?.contains('rsa-hgp-inp')) return;
+        const i  = parseInt(inp.dataset.rsaHgpI);
+        const f  = inp.dataset.rsaHgpF;
+        const it = _rsaHgpData?.items?.[i];
+        if (!it) return;
+        inp.dataset.dirty = '1';
+        if (f === 'wo') {
+            it.wo = rsaHgpN(inp.value);
+            rsaHgpCalcItem(it);
+            const row = inp.closest('tr');
+            if (row) rsaHgpPaintRow(row, it);
+        } else {
+            it[f] = inp.value;
+        }
+    });
+
+    // focusout, bukan blur — blur tidak merambat naik jadi tidak bisa
+    // didelegasikan. Simpan-delta hanya dikirim kalau nilainya memang diubah;
+    // sebelumnya setiap kali fokus meninggalkan input mana pun selalu ada 1
+    // request ke server, padahal sekadar melewati kolom tidak mengubah apa pun.
+    // qty=0 lewat endpoint delta (bukan _doSaveRsaHgp yang kirim ulang SELURUH
+    // array) supaya edit WO/Keterangan dari 1 device tidak menimpa balik hasil
+    // scan device lain yang belum sempat ter-refresh di sini.
+    tbody.addEventListener('focusout', (e) => {
+        const inp = e.target;
+        if (!inp.classList?.contains('rsa-hgp-inp')) return;
+        if (inp.dataset.dirty !== '1') return;
+        delete inp.dataset.dirty;
+        const i  = parseInt(inp.dataset.rsaHgpI);
+        const it = _rsaHgpData?.items?.[i];
+        if (!it) return;
+        _doScanRsaHgpIncrement(it.noPart, 0, i, { wo: rsaHgpN(it.wo), keterangan: it.keterangan ?? '' });
     });
 }
 
 function rsaHgpRenderItems() {
     const tbody = document.getElementById('rsaHgpTableBody');
     if (!tbody) return;
+    rsaHgpBindTableEvents(tbody);
+    rsaHgpRebuildIndex();
     const items = _rsaHgpData?.items || [];
     if (items.length === 0) {
+        tbody._chunkToken = ++_chunkRenderSeq;   // hentikan render bertahap yang mungkin masih jalan
         tbody.innerHTML = `<tr><td colspan="12" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
         rsaHgpUpdateStats();
         return;
     }
-    tbody.innerHTML = items.map((it, i) => rsaHgpRowHtml(it, i)).join('');
-    rsaHgpAttachRowListeners(tbody);
+    renderRowsChunked(tbody, items, rsaHgpRowHtml);
     rsaHgpUpdateStats();
 }
 
 // Update 1 baris saja di tabel (dipakai setelah scan barcode) — jauh lebih
 // ringan daripada render ulang seluruh tabel tiap kali scan, terutama kalau
-// data onhand-nya ratusan/ribuan baris.
+// data onhand-nya ratusan/ribuan baris. Kalau barisnya belum sempat dirender
+// (render bertahap masih berjalan), cukup lewati: potongan berikutnya akan
+// dibangun dari data yang sudah diperbarui.
 function rsaHgpUpdateSingleRow(idx) {
     const tbody = document.getElementById('rsaHgpTableBody');
     if (!tbody) return;
     const row = tbody.querySelector(`tr[data-rsa-hgp-row="${idx}"]`);
-    const it  = _rsaHgpData.items[idx];
-    if (!row || !it) { rsaHgpRenderItems(); return; }
-    const tmp = document.createElement('tbody');
-    tmp.innerHTML = rsaHgpRowHtml(it, idx);
-    const newRow = tmp.firstElementChild;
-    rsaHgpAttachRowListeners(newRow);
-    row.replaceWith(newRow);
+    const it  = _rsaHgpData?.items?.[idx];
+    if (row && it) rsaHgpPaintRow(row, it);
     rsaHgpUpdateStats();
 }
 
@@ -5495,6 +5717,20 @@ function rsaHgpPopulateDatalist(filterTerm) {
     }).join('');
 }
 
+// Menyusun ulang datalist di SETIAP ketikan berarti, saat alat scanner
+// "mengetikkan" 13 karakter barcode dalam hitungan milidetik, browser diminta
+// menyaring seluruh item dan membangun ulang daftar option 13 kali beruntun —
+// tepat sebelum Enter yang memproses scan. Ditunda sebentar: satu kali saring
+// setelah ketikan berhenti, jadi burst dari scanner tidak menyaring sama sekali.
+let _rsaHgpDatalistTimer = null;
+function rsaHgpPopulateDatalistDebounced(filterTerm, delay = 150) {
+    clearTimeout(_rsaHgpDatalistTimer);
+    _rsaHgpDatalistTimer = setTimeout(() => {
+        _rsaHgpDatalistTimer = null;
+        rsaHgpPopulateDatalist(filterTerm);
+    }, delay);
+}
+
 // No Part Honda biasanya berformat "35148-K78-N10", tapi barcode fisik di
 // kemasan kadang menyimpannya tanpa strip/spasi ("35148K78N10") atau malah
 // dengan panjang/prefix berbeda dari yang tersimpan di data import Excel.
@@ -5503,19 +5739,45 @@ function rsaHgpPopulateDatalist(filterTerm) {
 // kasus format barcode yang beda total dari data tersimpan.
 const rsaHgpNormalizeCode = (s) => (s || '').toString().trim().toLowerCase().replace(/[\s-]+/g, '');
 
+// Indeks pencarian No. Part. Tanpa ini, tiap scan menyapu seluruh daftar item
+// sampai 5 kali (cocok persis → nama → tanpa strip → sebagian → 5 digit
+// terakhir) sambil me-lowercase ulang tiap No. Part — pekerjaan yang terasa
+// sekali di alat scanner saat daftarnya ribuan baris. Indeks dibangun ulang
+// hanya ketika daftar itemnya berubah (lihat rsaHgpRenderItems).
+let _rsaHgpIndex = null;
+function rsaHgpRebuildIndex() {
+    const byPart = new Map(), byNama = new Map(), byNorm = new Map(), byLast5 = new Map();
+    (_rsaHgpData?.items || []).forEach((it, i) => {
+        const part = (it.noPart || '').trim().toLowerCase();
+        const nama = (it.sparepart || '').trim().toLowerCase();
+        const norm = rsaHgpNormalizeCode(it.noPart);
+        if (part && !byPart.has(part)) byPart.set(part, i);
+        if (nama && !byNama.has(nama)) byNama.set(nama, i);
+        if (norm && !byNorm.has(norm)) byNorm.set(norm, i);
+        if (norm.length >= 5 && !byLast5.has(norm.slice(-5))) byLast5.set(norm.slice(-5), i);
+    });
+    _rsaHgpIndex = { byPart, byNama, byNorm, byLast5 };
+}
+
+// Urutan pencocokan tetap sama seperti sebelumnya: No. Part persis → nama part
+// persis → tanpa strip/spasi → sebagian → 5 karakter terakhir. Yang berubah
+// hanya caranya: lewat indeks, bukan menyapu array berulang kali.
 function rsaHgpFindIdx(code) {
     const term = (code || '').trim().toLowerCase();
     if (!term) return -1;
-    const items = _rsaHgpData?.items || [];
+    if (!_rsaHgpIndex) rsaHgpRebuildIndex();
     const termNorm = rsaHgpNormalizeCode(code);
-    const termLast5 = termNorm.length >= 5 ? termNorm.slice(-5) : null;
 
-    let idx = items.findIndex(it => (it.noPart || '').toLowerCase() === term);
-    if (idx < 0) idx = items.findIndex(it => (it.sparepart || '').toLowerCase() === term);
-    if (idx < 0) idx = items.findIndex(it => rsaHgpNormalizeCode(it.noPart) === termNorm);
-    if (idx < 0) idx = items.findIndex(it => (it.noPart || '').toLowerCase().includes(term));
-    if (idx < 0 && termLast5) idx = items.findIndex(it => rsaHgpNormalizeCode(it.noPart).endsWith(termLast5));
-    return idx;
+    let idx = _rsaHgpIndex.byPart.get(term);
+    if (idx === undefined) idx = _rsaHgpIndex.byNama.get(term);
+    if (idx === undefined) idx = _rsaHgpIndex.byNorm.get(termNorm);
+    if (idx === undefined) {
+        const items = _rsaHgpData?.items || [];
+        const found = items.findIndex(it => (it.noPart || '').toLowerCase().includes(term));
+        if (found >= 0) idx = found;
+    }
+    if (idx === undefined && termNorm.length >= 5) idx = _rsaHgpIndex.byLast5.get(termNorm.slice(-5));
+    return idx === undefined ? -1 : idx;
 }
 
 function rsaHgpFormRecalc() {
@@ -5578,11 +5840,16 @@ function _doSaveRsaHgpDebounced(delay = 700) {
         _doSaveRsaHgp().catch(() => {});
     }, delay);
 }
-function _flushRsaHgpSaveDebounced() {
-    if (!_rsaHgpSaveDebounceTimer) return;
-    clearTimeout(_rsaHgpSaveDebounceTimer);
-    _rsaHgpSaveDebounceTimer = null;
-    _doSaveRsaHgp().catch(() => {});
+// Ikut mengirim scan yang masih mengantre di _rsaHgpScanQueue, bukan cuma simpan
+// penuh yang tertunda — antrean itu yang sekarang memegang hasil scan terakhir.
+function _flushRsaHgpSaveDebounced(opts = {}) {
+    const pending = _rsaHgpScanQueue.flush(opts);
+    if (_rsaHgpSaveDebounceTimer) {
+        clearTimeout(_rsaHgpSaveDebounceTimer);
+        _rsaHgpSaveDebounceTimer = null;
+        _doSaveRsaHgp().catch(() => {});
+    }
+    return pending;
 }
 
 // Kirim HANYA delta scan (No. Part + qty) ke server, bukan seluruh daftar item —
@@ -5591,25 +5858,27 @@ function _flushRsaHgpSaveDebounced() {
 // diupload dari alat scanner genggam (mis. Honeywell EDA52) yang jaringannya (WiFi
 // gudang/data seluler) belum tentu kencang. Endpoint ini hanya membawa 1 No. Part +
 // qty, jadi ukurannya tetap kecil berapa pun banyaknya item di data import.
+// Scan beruntun untuk No. Part yang sama digabung dulu di antrean (lihat
+// createScanIncrementQueue) supaya tidak jadi puluhan request yang saling antre.
 // Kalau request ini gagal (network putus dsb), fallback ke simpan penuh yang
 // di-debounce supaya datanya tidak hilang.
-async function _doScanRsaHgpIncrement(noPart, qty, idx, extra = {}) {
-    if (!activePlanId || !noPart) return;
-    try {
-        const res = await fetchJson('/api/audit-detail/rsa-hgp/scan-increment', {
-            method: 'POST',
-            headers: authHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ planAuditId: activePlanId, noPart, qty, ...extra }),
-        });
+const _rsaHgpScanQueue = createScanIncrementQueue({
+    endpoint: '/api/audit-detail/rsa-hgp/scan-increment',
+    onItem: (res, idx, noPart) => {
         // Selaraskan dengan hasil otoritatif server (jaga-jaga ada device lain yang
-        // ikut scan No. Part yang sama di waktu yang berdekatan).
-        if (res?.item && _rsaHgpData?.items?.[idx]) {
-            _rsaHgpData.items[idx] = { ..._rsaHgpData.items[idx], ...res.item };
-            rsaHgpUpdateSingleRow(idx);
-        }
-    } catch (_) {
-        _doSaveRsaHgpDebounced();
-    }
+        // ikut scan No. Part yang sama di waktu yang berdekatan). Kalau masih ada
+        // scan yang belum terkirim untuk part ini, nilai server sudah ketinggalan —
+        // biarkan angka lokal yang optimistis sampai antrean berikutnya terkirim.
+        if (!res?.item || !_rsaHgpData?.items?.[idx]) return;
+        if (_rsaHgpScanQueue.hasPending(noPart)) return;
+        _rsaHgpData.items[idx] = { ..._rsaHgpData.items[idx], ...res.item };
+        rsaHgpUpdateSingleRow(idx);
+    },
+    onError: () => _doSaveRsaHgpDebounced(),
+});
+
+function _doScanRsaHgpIncrement(noPart, qty, idx, extra = {}) {
+    _rsaHgpScanQueue.push(noPart, qty, idx, extra);
 }
 
 // Scan barcode: akumulasi fisik +1 setiap scan kode yang sama, tiap scan tercatat di log.
@@ -5714,6 +5983,10 @@ function rsaHgpFormReset() {
 
 async function loadRsaHgpTab() {
     if (!activePlanId) { _rsaHgpData = null; rsaHgpRenderItems(); return; }
+    // Scan yang masih mengantre harus sampai ke server dulu — kalau tidak,
+    // data yang baru diambil di bawah ini adalah kondisi SEBELUM scan terakhir
+    // dan hasil scan itu hilang dari layar.
+    await _flushRsaHgpSaveDebounced();
     const res = await fetchJson(`/api/audit-detail/rsa-hgp?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
     // Selalu timpa _rsaHgpData dengan data plan yang baru dibuka (termasuk kalau
     // kosong) — sebelumnya hanya ditimpa kalau items tidak kosong, jadi kalau
@@ -5769,7 +6042,9 @@ function initRsaHgpForm() {
     const fileInput = document.getElementById('rsaHgpFileInput');
     const dropzone  = document.getElementById('rsaHgpDropzone');
 
-    window.addEventListener('beforeunload', () => _flushRsaHgpSaveDebounced());
+    // keepalive: request simpan-delta tetap diselesaikan browser walau
+    // halamannya sudah ditutup.
+    window.addEventListener('beforeunload', () => _flushRsaHgpSaveDebounced({ keepalive: true }));
 
     fileInput?.addEventListener('change', () => {
         if (fileInput.files[0]) rsaHgpHandleFile(fileInput.files[0]);
@@ -5801,7 +6076,7 @@ function initRsaHgpForm() {
     });
     // Saring ulang datalist tiap ketik supaya isinya selalu kecil (lihat komentar di
     // rsaHgpPopulateDatalist) — bukan cuma diisi sekali di awal dengan seluruh data import.
-    partInput?.addEventListener('input', () => rsaHgpPopulateDatalist(partInput.value));
+    partInput?.addEventListener('input', () => rsaHgpPopulateDatalistDebounced(partInput.value));
 
     const qtyInput = document.getElementById('rsaHgpFormQty');
     qtyInput?.addEventListener('input', () => rsaHgpFormRecalc());

@@ -8,6 +8,7 @@ use App\Models\PemeriksaanRsaHgp;
 use App\Models\PlanAudit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -230,5 +231,126 @@ class HgpScanIncrementSyncTest extends TestCase
 
         $item = PemeriksaanHga::first()->items_json[0];
         $this->assertCount(1, $item['logScan']);
+    }
+
+    /**
+     * Scan beruntun untuk No. Part yang sama sekarang digabung browser jadi 1
+     * request (lihat createScanIncrementQueue di audit-editor.js) supaya alat
+     * scanner tidak menumpuk puluhan request yang masing-masing menulis ulang
+     * seluruh items_json. Rincian tiap scan tetap dikirim lewat "entries", jadi
+     * riwayat logScan harus tetap satu entri per scan — kalau digabung jadi satu
+     * entri, angka "Fisik Terscan" di layar auditor ikut menyusut.
+     */
+    public function test_scan_gabungan_menambah_fisik_dan_mencatat_tiap_scan(): void
+    {
+        PemeriksaanHgp::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [
+                ['noPart' => 'PART-1', 'sparepart' => 'Sparepart 1', 'saldoAkhir' => 10, 'fisik' => 0, 'logScan' => []],
+            ],
+        ]);
+
+        $this->postJson('/api/audit-detail/hgp/scan-increment', [
+            'planAuditId' => $this->plan->id, 'noPart' => 'PART-1', 'qty' => 3,
+            'entries' => [
+                ['at' => '2026-08-22T08:00:01+07:00', 'qty' => 1],
+                ['at' => '2026-08-22T08:00:02+07:00', 'qty' => 1],
+                ['at' => '2026-08-22T08:00:03+07:00', 'qty' => 1],
+            ],
+        ])->assertOk()
+            ->assertJsonPath('item.fisik', 3)
+            // akhir = saldo(10) - fisik(3) = 7; selisih = 3 - 10 = -7
+            ->assertJsonPath('item.akhir', 7)
+            ->assertJsonPath('item.selisih', -7);
+
+        $item = PemeriksaanHgp::first()->items_json[0];
+        $this->assertCount(3, $item['logScan']);
+        $this->assertSame(1.0, (float) $item['logScan'][0]['qty']);
+        // Waktu scan dari alat auditor dipakai apa adanya, bukan waktu request
+        // gabungannya sampai di server.
+        $this->assertSame(
+            '2026-08-22T08:00:01+07:00',
+            Carbon::parse($item['logScan'][0]['at'])->toIso8601String()
+        );
+    }
+
+    /** Qty di luar "entries" tidak boleh ikut dihitung — kalau ya, fisiknya dobel. */
+    public function test_scan_gabungan_tidak_menghitung_qty_dua_kali(): void
+    {
+        PemeriksaanHgp::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [
+                ['noPart' => 'PART-1', 'sparepart' => 'Sparepart 1', 'saldoAkhir' => 10, 'fisik' => 0, 'logScan' => []],
+            ],
+        ]);
+
+        $this->postJson('/api/audit-detail/hgp/scan-increment', [
+            'planAuditId' => $this->plan->id, 'noPart' => 'PART-1', 'qty' => 2,
+            'entries' => [['at' => '2026-08-22T08:00:01+07:00', 'qty' => 2]],
+        ])->assertOk()->assertJsonPath('item.fisik', 2);
+
+        $this->assertCount(1, PemeriksaanHgp::first()->items_json[0]['logScan']);
+    }
+
+    /** Jalur lama (tanpa "entries") harus tetap jalan apa adanya. */
+    public function test_scan_tanpa_entries_tetap_memakai_qty_seperti_sebelumnya(): void
+    {
+        PemeriksaanHgp::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [
+                ['noPart' => 'PART-1', 'sparepart' => 'Sparepart 1', 'saldoAkhir' => 10, 'fisik' => 0, 'logScan' => []],
+            ],
+        ]);
+
+        $this->postJson('/api/audit-detail/hgp/scan-increment', [
+            'planAuditId' => $this->plan->id, 'noPart' => 'PART-1', 'qty' => 2,
+        ])->assertOk()->assertJsonPath('item.fisik', 2);
+
+        $this->assertCount(1, PemeriksaanHgp::first()->items_json[0]['logScan']);
+    }
+
+    public function test_rsa_hgp_scan_gabungan_mencatat_tiap_scan(): void
+    {
+        $this->postJson('/api/audit-detail/auditor', [
+            'plan_audit_id' => $this->plan->id,
+            'tool' => 'rsa-hgp', 'nama_auditee' => 'Auditee Test',
+        ])->assertOk();
+
+        PemeriksaanRsaHgp::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [
+                ['noPart' => 'PART-1', 'sparepart' => 'Sparepart 1', 'saldoAkhir' => 10, 'fisik' => 0, 'logScan' => []],
+            ],
+        ]);
+
+        $this->postJson('/api/audit-detail/rsa-hgp/scan-increment', [
+            'planAuditId' => $this->plan->id, 'noPart' => 'PART-1', 'qty' => 2,
+            'entries' => [
+                ['at' => '2026-08-22T08:00:01+07:00', 'qty' => 1],
+                ['at' => '2026-08-22T08:00:02+07:00', 'qty' => 1],
+            ],
+        ])->assertOk()->assertJsonPath('item.fisik', 2);
+
+        $this->assertCount(2, PemeriksaanRsaHgp::first()->items_json[0]['logScan']);
+    }
+
+    /** Edit WO/Keterangan inline (tanpa scan) tetap tidak mencatat logScan palsu. */
+    public function test_entries_kosong_tidak_mencatat_logscan(): void
+    {
+        PemeriksaanHgp::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [
+                ['noPart' => 'PART-1', 'sparepart' => 'Sparepart 1', 'saldoAkhir' => 10, 'fisik' => 3, 'wo' => 0, 'logScan' => [['at' => now(), 'qty' => 3]]],
+            ],
+        ]);
+
+        $this->postJson('/api/audit-detail/hgp/scan-increment', [
+            'planAuditId' => $this->plan->id, 'noPart' => 'PART-1', 'qty' => 0,
+            'entries' => [], 'wo' => 2,
+        ])->assertOk()
+            ->assertJsonPath('item.fisik', 3)
+            ->assertJsonPath('item.wo', 2);
+
+        $this->assertCount(1, PemeriksaanHgp::first()->items_json[0]['logScan']);
     }
 }
