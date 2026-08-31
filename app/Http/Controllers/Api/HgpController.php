@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\MenjagaHasilPemeriksaan;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\DbHet;
@@ -9,7 +10,6 @@ use App\Models\PemeriksaanHgp;
 use App\Models\PlanAudit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
 use PhpOffice\PhpSpreadsheet\Reader\Xls;
 use PhpOffice\PhpSpreadsheet\Reader\Csv;
@@ -17,6 +17,7 @@ use PhpOffice\PhpSpreadsheet\Reader\Csv;
 class HgpController extends Controller
 {
     use RequiresAuditorAuditee;
+    use MenjagaHasilPemeriksaan;
 
     // Khusus jenis audit ini, tool "HGP & AHM Oils" (bukan tool terpisah
     // "RSA HGP & AHM Oils") ikut disampling acak 30 item saat import — item
@@ -34,15 +35,42 @@ class HgpController extends Controller
         return response()->json(['data' => $rec ? $rec->toAktaArray() : null]);
     }
 
+    // Simpan-penuh: menulis ULANG seluruh items_json dari apa yang dikirim browser.
+    // Karena itu payload-nya diperiksa dulu terhadap yang sudah tersimpan — array
+    // lama dari satu perangkat tidak boleh menghapus hasil scan perangkat lain yang
+    // lebih baru (lihat MenjagaHasilPemeriksaan). Mode:
+    //   merge (bawaan) — ditolak 409 kalau ada jejak pemeriksaan yang akan hilang
+    //   import         — daftar & saldo baru dari Excel, hasil scan di server dibawa
+    //   replace        — benar-benar menimpa; hanya dari "Hapus Semua Data"
     public function save(Request $request): JsonResponse
     {
         $planId = $request->input('planAuditId') ?? $request->input('plan_audit_id');
         $this->ensureAuditorFilled((int) $planId, 'hgp');
         $who    = $request->user()?->username ?? $request->user()?->email;
+        $mode   = (string) $request->input('mode', 'merge');
+        $items  = (array) $request->input('items', []);
+
+        $rec       = PemeriksaanHgp::where('plan_audit_id', $planId)->first();
+        $tersimpan = $rec?->items_json ?? [];
+
+        if ($mode === 'import') {
+            $items = $this->bawaHasilPemeriksaan($items, $tersimpan);
+        } elseif ($mode !== 'replace') {
+            $hilang = $this->pemeriksaanYangHilang($items, $tersimpan);
+            if ($hilang !== []) {
+                return response()->json([
+                    'message' => 'Data di server sudah lebih baru dari yang ada di layar ini — '
+                        . count($hilang) . ' item yang sudah diperiksa akan hilang kalau ditimpa. '
+                        . 'Muat ulang tab HGP dulu, hasil scan Anda yang belum terkirim tetap aman.',
+                    'stale'   => true,
+                    'noPart'  => array_slice($hilang, 0, 20),
+                ], 409);
+            }
+        }
 
         $rec = PemeriksaanHgp::updateOrCreate(
             ['plan_audit_id' => $planId],
-            ['items_json' => $request->input('items', []), 'updated_by' => $who]
+            ['items_json' => $items, 'updated_by' => $who]
         );
         if (!$rec->created_by) $rec->update(['created_by' => $who]);
 
@@ -94,13 +122,10 @@ class HgpController extends Controller
         // qty=0 tanpa entries dipakai saat auditor cuma mengedit WO/Keterangan inline
         // di tabel (bukan scan baru) — tidak menambah fisik & tidak mencatat logScan palsu.
         if ($entries !== []) {
-            $it['logScan'] = is_array($it['logScan'] ?? null) ? $it['logScan'] : [];
-            foreach ($entries as $entry) {
-                $q = $this->n($entry['qty'] ?? 0);
-                if ($q === 0.0) continue;
-                $it['fisik'] = $this->n($it['fisik'] ?? 0) + $q;
-                $it['logScan'][] = ['at' => $this->scanTime($entry['at'] ?? null), 'qty' => $q];
-            }
+            // Tiap entri bawa id dari browser: kalau request-nya diulang karena
+            // jaringan gudang putus, entri yang sudah tercatat dilewati sehingga
+            // fisiknya tidak bertambah dua kali (lihat terapkanEntriScan).
+            $it = $this->terapkanEntriScan($it, $entries);
         } elseif ($qty !== 0.0) {
             $it['fisik'] = $this->n($it['fisik'] ?? 0) + $qty;
             $it['logScan'] = is_array($it['logScan'] ?? null) ? $it['logScan'] : [];
@@ -366,22 +391,6 @@ class HgpController extends Controller
             $map[$r->kode] = ['nama' => $r->nama, 'hargaHet' => $r->harga_het];
         }
         return response()->json(['data' => $map]);
-    }
-
-    // Waktu scan dari alat auditor dipakai apa adanya kalau bisa dibaca, supaya
-    // riwayat menunjukkan kapan barang benar-benar discan — bukan kapan request
-    // gabungannya sampai di server. Format asing jatuh ke waktu server.
-    private function scanTime(mixed $at): string
-    {
-        if (is_string($at) && trim($at) !== '') {
-            try {
-                return Carbon::parse($at)->toIso8601String();
-            } catch (\Throwable) {
-                // biarkan jatuh ke waktu server di bawah
-            }
-        }
-
-        return now()->toIso8601String();
     }
 
     private function n(mixed $val): float

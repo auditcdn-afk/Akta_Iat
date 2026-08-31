@@ -4641,12 +4641,46 @@ function tableSentinelHtml(sisa) {
 // sebelum yang lain sempat menulis. Di sini scan digabung per No. Part dalam
 // jendela pendek lalu dikirim berurutan (satu request aktif dalam satu waktu),
 // jadi 20 kali scan cukup 1 request, bukan 20.
-// Riwayat per scan tetap dikirim satu per satu lewat "entries" supaya hitungan
-// "Fisik Terscan" (= jumlah entri logScan) tidak menyusut karena penggabungan.
-function createScanIncrementQueue({ endpoint, delay = 400, onItem, onError }) {
+//
+// Tiap scan membawa id sendiri dan riwayatnya dikirim satu per satu lewat
+// "entries". Dua manfaatnya: hitungan "Fisik Terscan" (= jumlah entri logScan)
+// tidak menyusut karena penggabungan, DAN request yang gagal bisa dikirim ulang
+// dengan aman — server melewati entri ber-id yang sudah tercatat, jadi fisiknya
+// tidak bertambah dua kali.
+//
+// Scan yang gagal terkirim TIDAK pernah dijatuhkan ke "simpan penuh": mengirim
+// ulang seluruh array dari layar ini akan menimpa hasil scan perangkat lain yang
+// lebih baru — persis cara hasil pemeriksaan bisa hilang. Yang gagal dimasukkan
+// lagi ke antrean dan dicoba ulang dengan jeda menaik, sambil auditor diberi
+// tahu lewat onStuck bahwa masih ada scan yang belum tersimpan.
+const SCAN_ID = () => (crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
+function createScanIncrementQueue({ endpoint, delay = 400, onItem, onStuck }) {
     const pending = new Map();   // noPart → { qty, idx, extra, entries }
     let timer = null;
     let chain = Promise.resolve();
+    let gagalBeruntun = 0;
+
+    const scanTertunda = () => {
+        let n = 0;
+        pending.forEach(p => { n += p.entries.length; });
+        return n;
+    };
+
+    function jadwalkan(ms) {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => { timer = null; flush(); }, ms);
+    }
+
+    // Kembalikan batch yang gagal ke antrean — entri lama ditaruh di DEPAN supaya
+    // urutan riwayat scan tetap sesuai kejadiannya.
+    function kembalikan(noPart, p) {
+        const cur = pending.get(noPart);
+        if (!cur) { pending.set(noPart, p); return; }
+        cur.qty += p.qty;
+        cur.entries = p.entries.concat(cur.entries);
+        cur.extra = { ...p.extra, ...cur.extra };
+    }
 
     function flush({ keepalive = false } = {}) {
         if (timer) { clearTimeout(timer); timer = null; }
@@ -4654,6 +4688,7 @@ function createScanIncrementQueue({ endpoint, delay = 400, onItem, onError }) {
         const batch = Array.from(pending.entries());
         pending.clear();
         chain = chain.then(async () => {
+            let adaGagal = false;
             for (const [noPart, p] of batch) {
                 try {
                     const body = { planAuditId: activePlanId, noPart, qty: p.qty, ...p.extra };
@@ -4665,9 +4700,24 @@ function createScanIncrementQueue({ endpoint, delay = 400, onItem, onError }) {
                         keepalive,
                     });
                     onItem?.(res, p.idx, noPart);
-                } catch (_) {
-                    onError?.();
+                } catch (err) {
+                    // 404/422 tidak akan berubah walau dikirim ulang (mis. No. Part
+                    // memang tidak ada di daftar) — beri tahu, jangan diputar terus.
+                    if (err?.status === 404 || err?.status === 422) {
+                        onStuck?.(scanTertunda(), err?.message || 'Scan ditolak server.');
+                        continue;
+                    }
+                    kembalikan(noPart, p);
+                    adaGagal = true;
                 }
+            }
+            if (adaGagal) {
+                gagalBeruntun++;
+                onStuck?.(scanTertunda(), null);
+                jadwalkan(Math.min(30000, 1000 * 2 ** Math.min(gagalBeruntun - 1, 5)));
+            } else if (gagalBeruntun) {
+                gagalBeruntun = 0;
+                onStuck?.(scanTertunda(), null);
             }
         });
         return chain;
@@ -4685,13 +4735,14 @@ function createScanIncrementQueue({ endpoint, delay = 400, onItem, onError }) {
             Object.assign(p.extra, extra);
             if (qty !== 0) {
                 p.qty += qty;
-                p.entries.push({ at: new Date().toISOString(), qty });
+                p.entries.push({ id: SCAN_ID(), at: new Date().toISOString(), qty });
             }
-            if (!timer) timer = setTimeout(() => { timer = null; flush(); }, delay);
+            if (!timer) jadwalkan(delay);
         },
         // Dipakai sebelum menimpa nilai lokal dengan balasan server: kalau masih
         // ada scan yang belum terkirim untuk part ini, angka server sudah basi.
         hasPending: (noPart) => (noPart === undefined ? pending.size > 0 : pending.has(noPart)),
+        scanTertunda,
         flush,
     };
 }
@@ -5034,7 +5085,19 @@ async function hgpHandleFile(file) {
         if (msg) { msg.textContent = `${res.data.length} item diimport (data lama diganti).${sampleNote}`; }
         hgpRenderItems();
         hgpPopulateDatalist();
-        _doSaveHgp().catch(() => {});
+        // mode 'import': daftar & saldo baru dari file, tapi hasil scan yang sudah
+        // tercatat di server ikut dibawa server-side — snapshot layar ini bisa saja
+        // ketinggalan dari perangkat lain. Karena itu hasil akhirnya diambil dari
+        // balasan server, bukan dari gabungan versi layar ini.
+        _doSaveHgp('import').then(async (saved) => {
+            if (!Array.isArray(saved?.data?.items)) return;
+            _hgpData.items = saved.data.items;
+            _hgpData.items.forEach(it => hgpCalcItem(it));
+            await hgpEnrichWithHet(_hgpData.items);
+            hgpRenderItems();
+            hgpPopulateDatalist();
+            if (msg) msg.textContent = `${_hgpData.items.length} item aktif setelah import${sampleNote}`;
+        }).catch(err => { if (msg) msg.textContent = 'Gagal menyimpan hasil import: ' + (err.message || ''); });
     } catch (e) {
         if (msg) msg.textContent = 'Gagal: ' + (e.message || 'Unknown error');
     }
@@ -5178,41 +5241,33 @@ function hgpFormSelectPart(code) {
     hgpFormRecalc();
 }
 
-// Simpan ke server di-debounce: scan barcode berturut-turut (device scanner bisa
-// beberapa kali per detik) tidak perlu masing-masing menunggu round-trip network +
-// tulis ulang seluruh items_json ke DB — cukup simpan sekali setelah scan berhenti
-// sejenak. _flushHgpSaveDebounced() dipanggil sebelum pindah tab / tutup halaman
-// supaya scan terakhir tidak hilang.
-let _hgpSaveDebounceTimer = null;
-function _doSaveHgpDebounced(delay = 700) {
-    clearTimeout(_hgpSaveDebounceTimer);
-    _hgpSaveDebounceTimer = setTimeout(() => {
-        _hgpSaveDebounceTimer = null;
-        _doSaveHgp().catch(() => {});
-    }, delay);
-}
-// Ikut mengirim scan yang masih mengantre di _hgpScanQueue, bukan cuma simpan
-// penuh yang tertunda — antrean itu yang sekarang memegang hasil scan terakhir.
-function _flushHgpSaveDebounced(opts = {}) {
-    const pending = _hgpScanQueue.flush(opts);
-    if (_hgpSaveDebounceTimer) {
-        clearTimeout(_hgpSaveDebounceTimer);
-        _hgpSaveDebounceTimer = null;
-        _doSaveHgp().catch(() => {});
+// Scan yang belum sampai ke server tidak lagi jatuh ke "simpan penuh" (kirim
+// ulang SELURUH array) — jalur itulah yang bisa menimpa hasil scan perangkat
+// lain. Yang gagal tetap diantre & dicoba ulang oleh _hgpScanQueue, dan
+// auditor diberi tahu lewat peringatan di bawah form.
+function hgpSetSyncWarn(tertunda, pesan) {
+    const el = document.getElementById('hgpSyncWarn');
+    if (!el) return;
+    if (pesan) {
+        el.classList.remove('hidden');
+        el.textContent = `⚠️ ${pesan}`;
+        return;
     }
-    return pending;
+    if (!tertunda) { el.classList.add('hidden'); el.textContent = ''; return; }
+    el.classList.remove('hidden');
+    el.textContent = `⚠️ ${tertunda} scan belum tersimpan ke server — masih dicoba ulang otomatis. Jangan tutup halaman ini dulu.`;
 }
 
-// Kirim HANYA delta scan (No. Part + qty) ke server, bukan seluruh daftar item —
-// _doSaveHgp() mengirim SEMUA item (termasuk riwayat logScan tiap item) setiap kali
-// dipanggil; kalau daftar onhand-nya ratusan/ribuan item, payload itu bisa berat untuk
-// diupload dari alat scanner genggam (mis. Honeywell EDA52) yang jaringannya (WiFi
-// gudang/data seluler) belum tentu kencang. Endpoint ini hanya membawa 1 No. Part +
-// qty, jadi ukurannya tetap kecil berapa pun banyaknya item di data import.
-// Scan beruntun untuk No. Part yang sama digabung dulu di antrean (lihat
-// createScanIncrementQueue) supaya tidak jadi puluhan request yang saling antre.
-// Kalau request ini gagal (network putus dsb), fallback ke simpan penuh yang
-// di-debounce supaya datanya tidak hilang.
+// Kirim scan yang masih mengantre sekarang juga (dipanggil sebelum pindah tab /
+// menutup halaman). Namanya dipertahankan karena dipakai switchTab().
+function _flushHgpSaveDebounced(opts = {}) {
+    return _hgpScanQueue.flush(opts);
+}
+
+// Kirim HANYA delta scan (No. Part + qty) ke server, bukan seluruh daftar item.
+// Endpoint ini cuma membawa 1 No. Part + qty, jadi ukurannya tetap kecil berapa
+// pun banyaknya item di data import — penting untuk alat scanner genggam di
+// jaringan gudang yang belum tentu kencang.
 const _hgpScanQueue = createScanIncrementQueue({
     endpoint: '/api/audit-detail/hgp/scan-increment',
     onItem: (res, idx, noPart) => {
@@ -5225,7 +5280,7 @@ const _hgpScanQueue = createScanIncrementQueue({
         _hgpData.items[idx] = { ..._hgpData.items[idx], ...res.item };
         hgpUpdateSingleRow(idx);
     },
-    onError: () => _doSaveHgpDebounced(),
+    onStuck: (tertunda, pesan) => hgpSetSyncWarn(tertunda, pesan),
 });
 
 function _doScanHgpIncrement(noPart, qty, idx, extra = {}) {
@@ -5339,6 +5394,14 @@ async function loadHgpTab() {
     // data yang baru diambil di bawah ini adalah kondisi SEBELUM scan terakhir
     // dan hasil scan itu hilang dari layar.
     await _flushHgpSaveDebounced();
+    // Masih ada yang belum terkirim (jaringan bermasalah): menimpa state lokal
+    // dengan data server sekarang akan MENGHAPUS scan itu dari layar dan dari
+    // ingatan browser. Biarkan apa adanya — antreannya masih mencoba kirim ulang.
+    if (_hgpScanQueue.hasPending()) {
+        hgpSetSyncWarn(_hgpScanQueue.scanTertunda(), null);
+        hgpRenderItems();
+        return;
+    }
     const res = await fetchJson(`/api/audit-detail/hgp?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
     // Selalu timpa _hgpData dengan data plan yang baru dibuka (termasuk kalau
     // kosong) — sebelumnya hanya ditimpa kalau items tidak kosong, jadi kalau
@@ -5351,19 +5414,33 @@ async function loadHgpTab() {
     hgpPopulateDatalist();
 }
 
-async function _doSaveHgp() {
+// Simpan penuh: menulis ulang SELURUH daftar item di server dari apa yang ada
+// di layar ini. Karena itu server memeriksa dulu (lihat MenjagaHasilPemeriksaan
+// di sisi PHP) — mode 'merge' ditolak 409 kalau ada hasil pemeriksaan yang akan
+// hilang, 'import' membiarkan server membawa hasil scan yang sudah ada, dan
+// 'replace' hanya dipakai tombol "Hapus Semua Data".
+async function _doSaveHgp(mode = 'merge') {
     if (!activePlanId) throw new Error('Pilih plan audit terlebih dahulu.');
     if (!_hgpData) _hgpData = hgpEmptyData();
     return await fetchJson('/api/audit-detail/hgp', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ planAuditId: activePlanId, items: _hgpData.items }),
+        body: JSON.stringify({ planAuditId: activePlanId, items: _hgpData.items, mode }),
     });
 }
 
 async function saveHgp() {
-    const res = await _doSaveHgp();
-    showAlert(res.message, 'success');
+    try {
+        const res = await _doSaveHgp();
+        showAlert(res.message, 'success');
+    } catch (err) {
+        if (err?.status !== 409) throw err;
+        // Layar ini ketinggalan dari server (perangkat lain sudah menyimpan scan
+        // yang lebih baru). Jangan ditimpa — muat ulang supaya auditor melihat
+        // kondisi terkini; scan yang belum terkirim tetap aman di antrean.
+        showAlert(err.message, 'error');
+        await loadHgpTab();
+    }
 }
 
 function initHgpForm() {
@@ -5510,7 +5587,9 @@ function initHgpForm() {
         hgpFormReset();
         const msg = document.getElementById('hgpImportMsg');
         if (msg) { msg.classList.remove('hidden'); msg.textContent = 'Data dikosongkan. Silakan import ulang file Excel.'; }
-        _doSaveHgp().catch(() => {});
+        // Satu-satunya jalur yang memang boleh menghapus hasil pemeriksaan —
+        // auditor sudah mengonfirmasinya lewat dialog di atas.
+        _doSaveHgp('replace').catch(err => showAlert(err.message || 'Gagal mengosongkan data.', 'error'));
     });
 }
 
@@ -5855,7 +5934,16 @@ async function rsaHgpHandleFile(file) {
         rsaHgpRenderItems();
         rsaHgpPopulateDatalist();
         rsaHgpUpdateSampleInfo();
-        _doSaveRsaHgp().catch(() => {});
+        // Lihat catatan mode 'import' di hgpHandleFile().
+        _doSaveRsaHgp('import').then(async (saved) => {
+            if (!Array.isArray(saved?.data?.items)) return;
+            _rsaHgpData.items = saved.data.items;
+            _rsaHgpData.items.forEach(it => rsaHgpCalcItem(it));
+            await rsaHgpEnrichWithHet(_rsaHgpData.items);
+            rsaHgpRenderItems();
+            rsaHgpPopulateDatalist();
+            if (msg) msg.textContent = `${_rsaHgpData.items.length} item aktif setelah import${sampleNote}`;
+        }).catch(err => { if (msg) msg.textContent = 'Gagal menyimpan hasil import: ' + (err.message || ''); });
     } catch (e) {
         if (msg) msg.textContent = 'Gagal: ' + (e.message || 'Unknown error');
     }
@@ -5999,41 +6087,33 @@ function rsaHgpFormSelectPart(code) {
     rsaHgpFormRecalc();
 }
 
-// Simpan ke server di-debounce: scan barcode berturut-turut (device scanner bisa
-// beberapa kali per detik) tidak perlu masing-masing menunggu round-trip network +
-// tulis ulang seluruh items_json ke DB — cukup simpan sekali setelah scan berhenti
-// sejenak. _flushRsaHgpSaveDebounced() dipanggil sebelum pindah tab / tutup halaman
-// supaya scan terakhir tidak hilang.
-let _rsaHgpSaveDebounceTimer = null;
-function _doSaveRsaHgpDebounced(delay = 700) {
-    clearTimeout(_rsaHgpSaveDebounceTimer);
-    _rsaHgpSaveDebounceTimer = setTimeout(() => {
-        _rsaHgpSaveDebounceTimer = null;
-        _doSaveRsaHgp().catch(() => {});
-    }, delay);
-}
-// Ikut mengirim scan yang masih mengantre di _rsaHgpScanQueue, bukan cuma simpan
-// penuh yang tertunda — antrean itu yang sekarang memegang hasil scan terakhir.
-function _flushRsaHgpSaveDebounced(opts = {}) {
-    const pending = _rsaHgpScanQueue.flush(opts);
-    if (_rsaHgpSaveDebounceTimer) {
-        clearTimeout(_rsaHgpSaveDebounceTimer);
-        _rsaHgpSaveDebounceTimer = null;
-        _doSaveRsaHgp().catch(() => {});
+// Scan yang belum sampai ke server tidak lagi jatuh ke "simpan penuh" (kirim
+// ulang SELURUH array) — jalur itulah yang bisa menimpa hasil scan perangkat
+// lain. Yang gagal tetap diantre & dicoba ulang oleh _rsaHgpScanQueue, dan
+// auditor diberi tahu lewat peringatan di bawah form.
+function rsaHgpSetSyncWarn(tertunda, pesan) {
+    const el = document.getElementById('rsaHgpSyncWarn');
+    if (!el) return;
+    if (pesan) {
+        el.classList.remove('hidden');
+        el.textContent = `⚠️ ${pesan}`;
+        return;
     }
-    return pending;
+    if (!tertunda) { el.classList.add('hidden'); el.textContent = ''; return; }
+    el.classList.remove('hidden');
+    el.textContent = `⚠️ ${tertunda} scan belum tersimpan ke server — masih dicoba ulang otomatis. Jangan tutup halaman ini dulu.`;
 }
 
-// Kirim HANYA delta scan (No. Part + qty) ke server, bukan seluruh daftar item —
-// _doSaveRsaHgp() mengirim SEMUA item (termasuk riwayat logScan tiap item) setiap kali
-// dipanggil; kalau daftar onhand-nya ratusan/ribuan item, payload itu bisa berat untuk
-// diupload dari alat scanner genggam (mis. Honeywell EDA52) yang jaringannya (WiFi
-// gudang/data seluler) belum tentu kencang. Endpoint ini hanya membawa 1 No. Part +
-// qty, jadi ukurannya tetap kecil berapa pun banyaknya item di data import.
-// Scan beruntun untuk No. Part yang sama digabung dulu di antrean (lihat
-// createScanIncrementQueue) supaya tidak jadi puluhan request yang saling antre.
-// Kalau request ini gagal (network putus dsb), fallback ke simpan penuh yang
-// di-debounce supaya datanya tidak hilang.
+// Kirim scan yang masih mengantre sekarang juga (dipanggil sebelum pindah tab /
+// menutup halaman). Namanya dipertahankan karena dipakai switchTab().
+function _flushRsaHgpSaveDebounced(opts = {}) {
+    return _rsaHgpScanQueue.flush(opts);
+}
+
+// Kirim HANYA delta scan (No. Part + qty) ke server, bukan seluruh daftar item.
+// Endpoint ini cuma membawa 1 No. Part + qty, jadi ukurannya tetap kecil berapa
+// pun banyaknya item di data import — penting untuk alat scanner genggam di
+// jaringan gudang yang belum tentu kencang.
 const _rsaHgpScanQueue = createScanIncrementQueue({
     endpoint: '/api/audit-detail/rsa-hgp/scan-increment',
     onItem: (res, idx, noPart) => {
@@ -6046,7 +6126,7 @@ const _rsaHgpScanQueue = createScanIncrementQueue({
         _rsaHgpData.items[idx] = { ..._rsaHgpData.items[idx], ...res.item };
         rsaHgpUpdateSingleRow(idx);
     },
-    onError: () => _doSaveRsaHgpDebounced(),
+    onStuck: (tertunda, pesan) => rsaHgpSetSyncWarn(tertunda, pesan),
 });
 
 function _doScanRsaHgpIncrement(noPart, qty, idx, extra = {}) {
@@ -6159,6 +6239,14 @@ async function loadRsaHgpTab() {
     // data yang baru diambil di bawah ini adalah kondisi SEBELUM scan terakhir
     // dan hasil scan itu hilang dari layar.
     await _flushRsaHgpSaveDebounced();
+    // Masih ada yang belum terkirim (jaringan bermasalah): menimpa state lokal
+    // dengan data server sekarang akan MENGHAPUS scan itu dari layar dan dari
+    // ingatan browser. Biarkan apa adanya — antreannya masih mencoba kirim ulang.
+    if (_rsaHgpScanQueue.hasPending()) {
+        rsaHgpSetSyncWarn(_rsaHgpScanQueue.scanTertunda(), null);
+        rsaHgpRenderItems();
+        return;
+    }
     const res = await fetchJson(`/api/audit-detail/rsa-hgp?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
     // Selalu timpa _rsaHgpData dengan data plan yang baru dibuka (termasuk kalau
     // kosong) — sebelumnya hanya ditimpa kalau items tidak kosong, jadi kalau
@@ -6190,7 +6278,8 @@ function rsaHgpUpdateSampleInfo() {
     el.textContent = `ℹ️ Random Sampling Audit: ${size} item disampling otomatis dari ${total} item yang ditemukan di file import.`;
 }
 
-async function _doSaveRsaHgp() {
+// Lihat catatan di _doSaveHgp() — mode yang sama berlaku di sini.
+async function _doSaveRsaHgp(mode = 'merge') {
     if (!activePlanId) throw new Error('Pilih plan audit terlebih dahulu.');
     if (!_rsaHgpData) _rsaHgpData = rsaHgpEmptyData();
     return await fetchJson('/api/audit-detail/rsa-hgp', {
@@ -6201,13 +6290,20 @@ async function _doSaveRsaHgp() {
             items: _rsaHgpData.items,
             totalDitemukan: _rsaHgpData.totalDitemukan,
             sampleSize: _rsaHgpData.sampleSize,
+            mode,
         }),
     });
 }
 
 async function saveRsaHgp() {
-    const res = await _doSaveRsaHgp();
-    showAlert(res.message, 'success');
+    try {
+        const res = await _doSaveRsaHgp();
+        showAlert(res.message, 'success');
+    } catch (err) {
+        if (err?.status !== 409) throw err;
+        showAlert(err.message, 'error');
+        await loadRsaHgpTab();
+    }
 }
 
 function initRsaHgpForm() {
@@ -6354,7 +6450,9 @@ function initRsaHgpForm() {
         rsaHgpFormReset();
         const msg = document.getElementById('rsaHgpImportMsg');
         if (msg) { msg.classList.remove('hidden'); msg.textContent = 'Data dikosongkan. Silakan import ulang file Excel.'; }
-        _doSaveRsaHgp().catch(() => {});
+        // Satu-satunya jalur yang memang boleh menghapus hasil pemeriksaan —
+        // auditor sudah mengonfirmasinya lewat dialog di atas.
+        _doSaveRsaHgp('replace').catch(err => showAlert(err.message || 'Gagal mengosongkan data.', 'error'));
     });
 }
 
