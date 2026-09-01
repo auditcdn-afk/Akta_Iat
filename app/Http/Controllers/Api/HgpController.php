@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\MenjagaHasilPemeriksaan;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\DbHet;
+use App\Models\PemeriksaanAuditor;
 use App\Models\PemeriksaanHgp;
 use App\Models\PlanAudit;
 use Illuminate\Http\JsonResponse;
@@ -13,6 +14,12 @@ use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
 use PhpOffice\PhpSpreadsheet\Reader\Xls;
 use PhpOffice\PhpSpreadsheet\Reader\Csv;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class HgpController extends Controller
 {
@@ -399,5 +406,96 @@ class HgpController extends Controller
         if (is_numeric($val)) return (float)$val;
         $clean = preg_replace('/[^0-9.\-]/', '', (string)$val);
         return ($clean === '' || $clean === '-') ? 0.0 : (float)$clean;
+    }
+
+    // Export item yang selisih-nya tidak nol saja ke Excel, supaya auditor tidak
+    // perlu menyaring manual dari ribuan baris di layar. Selisih dihitung ulang
+    // di sini dari field mentahnya (bukan dipercaya dari items_json apa adanya)
+    // supaya hasilnya tetap benar walau field turunan itu sempat tidak sinkron.
+    public function exportSelisih(Request $request): StreamedResponse
+    {
+        $planId = $request->query('plan_audit_id');
+        abort_unless($planId, 422, 'plan_audit_id wajib diisi.');
+
+        $plan      = PlanAudit::find($planId);
+        $rec       = PemeriksaanHgp::where('plan_audit_id', $planId)->first();
+        $auditor   = PemeriksaanAuditor::where('plan_audit_id', $planId)->where('tool', 'hgp')->first();
+        $items     = $rec?->items_json ?? [];
+
+        $baris = [];
+        foreach ($items as $it) {
+            $fisik  = $this->n($it['fisik'] ?? 0);
+            $wo     = $this->n($it['wo'] ?? 0);
+            $saldo  = $this->n($it['saldoAkhir'] ?? ($it['saldoAwal'] ?? 0));
+            $akhir  = $saldo - ($fisik + $wo);
+            $selisih = ($fisik + $wo) - $saldo;
+            if ($selisih === 0.0) continue;
+
+            $harga  = $this->n($it['hargaHet'] ?? 0);
+            $baris[] = [
+                'noPart'     => $it['noPart'] ?? '',
+                'sparepart'  => $it['sparepart'] ?? '',
+                'tgl'        => $it['tgl'] ?? '',
+                'saldo'      => $saldo,
+                'fisik'      => $fisik,
+                'wo'         => $wo,
+                'akhir'      => $akhir,
+                'selisih'    => $selisih,
+                'harga'      => $harga,
+                'jumlah'     => $harga * $selisih,
+                'keterangan' => $it['keterangan'] ?? '',
+            ];
+        }
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Selisih HGP & AHM Oils');
+
+        $sheet->setCellValue('A1', 'No SPT: ' . ($plan->no_spt ?? '-'));
+        $sheet->setCellValue('A2', 'Cabang/Area: ' . ($plan->cabang_area ?? $plan->cabang ?? '-'));
+        $sheet->setCellValue('A3', 'Auditor: ' . ($auditor->nama_auditor ?? '-') . '   Auditee: ' . ($auditor->nama_auditee ?? '-'));
+        $sheet->getStyle('A1:A3')->getFont()->setItalic(true)->getColor()->setRGB('64748B');
+
+        $headers = ['No', 'No. Part', 'Nama Sparepart', 'Tanggal', 'Saldo', 'Fisik', 'WO', 'Akhir', 'Selisih', 'Harga HET', 'Jumlah', 'Keterangan'];
+        $headerRow = 5;
+        foreach ($headers as $i => $header) {
+            $sheet->setCellValue([$i + 1, $headerRow], $header);
+        }
+        $lastCol = count($headers);
+        $headerRange = 'A' . $headerRow . ':' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($lastCol) . $headerRow;
+        $sheet->getStyle($headerRange)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle($headerRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('1E3A8A');
+        $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+        $rowIndex = $headerRow + 1;
+        foreach ($baris as $i => $b) {
+            $values = [
+                $i + 1, $b['noPart'], $b['sparepart'], $b['tgl'],
+                $b['saldo'], $b['fisik'], $b['wo'], $b['akhir'], $b['selisih'],
+                $b['harga'], $b['jumlah'], $b['keterangan'],
+            ];
+            foreach ($values as $ci => $value) {
+                $sheet->setCellValue([$ci + 1, $rowIndex], $value);
+            }
+            $rowIndex++;
+        }
+
+        if ($rowIndex > $headerRow + 1) {
+            $dataRange = 'A' . $headerRow . ':' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($lastCol) . ($rowIndex - 1);
+            $sheet->getStyle($dataRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        }
+        foreach (range(1, $lastCol) as $colIdx) {
+            $sheet->getColumnDimensionByColumn($colIdx)->setAutoSize(true);
+        }
+
+        $filename = 'hgp-selisih-' . ($plan->no_spt ?? $planId) . '-' . now()->format('Y-m-d_H-i') . '.xlsx';
+        $filename = preg_replace('/[^A-Za-z0-9._-]/', '_', $filename);
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            $writer = new XlsxWriter($spreadsheet);
+            $writer->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
     }
 }

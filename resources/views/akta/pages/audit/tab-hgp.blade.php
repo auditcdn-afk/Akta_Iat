@@ -3,6 +3,11 @@
             <div class="flex items-center justify-between">
                 <h3 class="text-base font-bold text-slate-100">Pemeriksaan HGP &amp; AHM Oils</h3>
                 <div class="flex items-center gap-2">
+                    <button id="hgpExportSelisihBtn" type="button"
+                        class="inline-flex items-center gap-2 rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800 active:scale-95 transition"
+                        title="Simpan data lalu unduh item yang selisihnya tidak nol sebagai Excel">
+                        📥 Export Selisih
+                    </button>
                     <button id="hgpClearBtn" type="button"
                         class="inline-flex items-center gap-2 rounded-xl border border-red-600/50 bg-red-600/10 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-600/20 active:scale-95 transition">
                         🗑️ Hapus Semua Data
