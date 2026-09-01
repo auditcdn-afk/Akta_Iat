@@ -71,10 +71,6 @@
                 class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
                 SMH Tarikan
             </button>
-            <button type="button" data-tab="lampiran"
-                class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
-                Lampiran
-            </button>
             <button type="button" data-tab="mutasi-pembelian"
                 class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
                 Mutasi Pembelian
@@ -82,6 +78,14 @@
             <button type="button" data-tab="ttp-csc"
                 class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
                 TTP CSC
+            </button>
+            {{-- Lampiran sengaja ditaruh paling akhir: isinya (file PDF/gambar
+                 yang di-embed penuh) bisa sangat panjang di Report Audit PDF,
+                 jadi section-nya juga paling akhir supaya tidak memotong alur
+                 baca section lain di tengah-tengah. --}}
+            <button type="button" data-tab="lampiran"
+                class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition text-slate-300 hover:bg-slate-800">
+                Lampiran
             </button>
         </div>
 
