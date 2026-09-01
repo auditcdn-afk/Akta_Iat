@@ -703,7 +703,10 @@ async function pinjamanLoadList(taskId) {
                         <span class="text-slate-300">Rp ${Number(r.nominal).toLocaleString('id-ID')}</span>
                         ${r.jenis === 'BPK' ? `<span class="mx-2 text-slate-500">|</span><span class="text-slate-400">${(r.cabangRealisasi ?? []).join(', ')}</span>` : ''}
                     </div>
-                    <span class="${statusColor} font-semibold">${r.status.replace(/_/g,' ')}</span>
+                    <div class="flex items-center gap-2">
+                        <a href="/akta/pinjaman/${r.id}/memo" target="_blank" rel="noopener" class="text-blue-400 hover:underline">🖨️ Memo</a>
+                        <span class="${statusColor} font-semibold">${r.status.replace(/_/g,' ')}</span>
+                    </div>
                 </div>`;
             }).join('');
     } catch (_) {}
@@ -754,7 +757,10 @@ async function pinjamanApprovalLoadList(taskId) {
             html.push(`<div class="rounded-xl border border-slate-700 bg-slate-800/60 p-3 space-y-2">
                 <div class="flex items-center justify-between">
                     <span class="font-bold text-sm ${jenis === 'BPK' ? 'text-blue-300' : 'text-purple-300'}">${escapeHtml(jenis)}</span>
-                    <span class="text-xs ${scolor} font-semibold">${escapeHtml(slabel)}</span>
+                    <div class="flex items-center gap-2">
+                        <a href="/akta/pinjaman/${r.id}/memo" target="_blank" rel="noopener" class="text-xs text-blue-400 hover:underline">🖨️ Memo</a>
+                        <span class="text-xs ${scolor} font-semibold">${escapeHtml(slabel)}</span>
+                    </div>
                 </div>
                 <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-400">
                     <div><span class="text-slate-500">Nominal:</span> Rp ${fmtRp(r.nominal)}</div>
