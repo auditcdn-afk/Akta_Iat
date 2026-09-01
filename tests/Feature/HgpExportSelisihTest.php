@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\DbAhmOil;
 use App\Models\PemeriksaanAuditor;
 use App\Models\PemeriksaanHgp;
 use App\Models\PlanAudit;
@@ -13,9 +14,13 @@ use Tests\TestCase;
 
 /**
  * Tombol "Export Selisih" di tab HGP & AHM Oils — auditor ingin menarik item
- * yang selisihnya saja tanpa menyaring manual dari ribuan baris. Selisih
- * dihitung ULANG di server dari field mentahnya (fisik, wo, saldoAkhir),
- * bukan dipercaya dari kolom "selisih" yang mungkin sudah tidak sinkron.
+ * yang selisihnya saja tanpa menyaring manual dari ribuan baris, DAN tanpa
+ * memisah sendiri mana yang AHM Oil vs sparepart biasa. Selisih dihitung
+ * ULANG di server dari field mentahnya (fisik, wo, saldoAkhir), bukan
+ * dipercaya dari kolom "selisih" yang mungkin sudah tidak sinkron. Hasilnya
+ * berupa 2 sheet: sheet 0 = AHM OIL'S, sheet 1 = SPAREPART — pengelompokan
+ * memakai kode yang sama dengan rekap selisih di Report Audit PDF
+ * (ReportPdfController::splitOilSparepart), supaya keduanya konsisten.
  */
 class HgpExportSelisihTest extends TestCase
 {
@@ -43,14 +48,25 @@ class HgpExportSelisihTest extends TestCase
         ]);
     }
 
-    private function sheetRows(string $xlsxContent): array
+    /** @return array{0: string, 1: string} [teksSheetOil, teksSheetSparepart] */
+    private function teksTiapSheet(string $xlsxContent): array
     {
         $path = tempnam(sys_get_temp_dir(), 'hgp_selisih_') . '.xlsx';
         file_put_contents($path, $xlsxContent);
-        $sheet = IOFactory::load($path)->getActiveSheet();
-        $rows = $sheet->toArray(null, true, true, false);
+        $spreadsheet = IOFactory::load($path);
+        $join = fn($sheet) => implode(' ', array_map(
+            fn($r) => implode(' ', array_map('strval', $r)),
+            $sheet->toArray(null, true, true, false)
+        ));
+        $teks = [$join($spreadsheet->getSheet(0)), $join($spreadsheet->getSheet(1))];
         unlink($path);
-        return $rows;
+        return $teks;
+    }
+
+    private function export(): array
+    {
+        $res = $this->get("/api/audit-detail/hgp/export-selisih?plan_audit_id={$this->plan->id}")->assertOk();
+        return $this->teksTiapSheet($res->streamedContent());
     }
 
     public function test_hanya_item_dengan_selisih_yang_diekspor(): void
@@ -63,14 +79,33 @@ class HgpExportSelisihTest extends TestCase
             ],
         ]);
 
-        $res = $this->get("/api/audit-detail/hgp/export-selisih?plan_audit_id={$this->plan->id}")->assertOk();
-        $rows = $this->sheetRows($res->streamedContent());
+        [$oil, $sparepart] = $this->export();
 
-        $joined = implode(' ', array_map(fn($r) => implode(' ', array_map('strval', $r)), $rows));
-        $this->assertStringContainsString('31500KZR602', $joined);
-        $this->assertStringNotContainsString('99999XXX', $joined);
-        $this->assertStringContainsString('0433/28/07/2026/SPT-IAT', $joined);
-        $this->assertStringContainsString('Sahril Mahendra & Rian Alfian', $joined);
+        $this->assertStringContainsString('31500KZR602', $sparepart);
+        $this->assertStringNotContainsString('99999XXX', $sparepart);
+        $this->assertStringNotContainsString('99999XXX', $oil);
+        $this->assertStringContainsString('0433/28/07/2026/SPT-IAT', $sparepart);
+        $this->assertStringContainsString('Sahril Mahendra & Rian Alfian', $sparepart);
+    }
+
+    public function test_item_terdaftar_di_db_ahm_oil_masuk_sheet_oil_sisanya_sheet_sparepart(): void
+    {
+        DbAhmOil::create(['kode' => '08232M99K8LN0', 'nama' => 'SCOOTER GEAR OIL']);
+
+        PemeriksaanHgp::create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json' => [
+                ['noPart' => '08232M99K8LN0', 'sparepart' => 'SCOOTER GEAR OIL (120ML)REP', 'saldoAkhir' => 349, 'fisik' => 347, 'wo' => 0, 'hargaHet' => 16500],
+                ['noPart' => '31500KZR602', 'sparepart' => 'BATTERY(GTZ6V)', 'saldoAkhir' => 8, 'fisik' => 7, 'wo' => 0, 'hargaHet' => 302000],
+            ],
+        ]);
+
+        [$oil, $sparepart] = $this->export();
+
+        $this->assertStringContainsString('SCOOTER GEAR OIL', $oil);
+        $this->assertStringNotContainsString('BATTERY', $oil);
+        $this->assertStringContainsString('BATTERY', $sparepart);
+        $this->assertStringNotContainsString('SCOOTER GEAR OIL', $sparepart);
     }
 
     public function test_selisih_dihitung_ulang_bukan_dipercaya_dari_field_tersimpan(): void
@@ -87,12 +122,10 @@ class HgpExportSelisihTest extends TestCase
             ],
         ]);
 
-        $res = $this->get("/api/audit-detail/hgp/export-selisih?plan_audit_id={$this->plan->id}")->assertOk();
-        $rows = $this->sheetRows($res->streamedContent());
-        $joined = implode(' ', array_map(fn($r) => implode(' ', array_map('strval', $r)), $rows));
+        [, $sparepart] = $this->export();
 
-        $this->assertStringContainsString('STALE SELISIH', $joined);
-        $this->assertStringNotContainsString('STALE PUNYA SELISIH PALSU', $joined);
+        $this->assertStringContainsString('STALE SELISIH', $sparepart);
+        $this->assertStringNotContainsString('STALE PUNYA SELISIH PALSU', $sparepart);
     }
 
     public function test_wo_ikut_dihitung_sebagai_penambah_fisik(): void
@@ -105,18 +138,16 @@ class HgpExportSelisihTest extends TestCase
             ],
         ]);
 
-        $res = $this->get("/api/audit-detail/hgp/export-selisih?plan_audit_id={$this->plan->id}")->assertOk();
-        $rows = $this->sheetRows($res->streamedContent());
-        $joined = implode(' ', array_map(fn($r) => implode(' ', array_map('strval', $r)), $rows));
+        [, $sparepart] = $this->export();
 
-        $this->assertStringNotContainsString('WO MENUTUP SELISIH', $joined);
+        $this->assertStringNotContainsString('WO MENUTUP SELISIH', $sparepart);
     }
 
     public function test_tanpa_data_hgp_tetap_menghasilkan_file_kosong_bukan_error(): void
     {
-        $res = $this->get("/api/audit-detail/hgp/export-selisih?plan_audit_id={$this->plan->id}")->assertOk();
-        $rows = $this->sheetRows($res->streamedContent());
-        $this->assertNotEmpty($rows); // minimal header info + baris judul kolom
+        [$oil, $sparepart] = $this->export();
+        $this->assertStringContainsString('SPT', $oil);
+        $this->assertStringContainsString('SPT', $sparepart);
     }
 
     public function test_plan_audit_id_wajib_diisi(): void
