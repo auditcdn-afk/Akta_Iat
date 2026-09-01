@@ -90,7 +90,13 @@ async function validateSession(session) {
     });
 
     if (!response.ok) {
-        throw new Error("Session tidak valid.");
+        // Status ikut dibawa supaya pemanggil bisa membedakan token yang
+        // BENAR-BENAR tidak valid (401 dari Sanctum) dari kegagalan lain
+        // (jaringan/sinyal lemah, server 500/502/503 sesaat, timeout) — lihat
+        // catatan di pemanggil kenapa ini penting.
+        const error = new Error("Session tidak valid.");
+        error.status = response.status;
+        throw error;
     }
 
     return response.json();
@@ -304,8 +310,19 @@ document.addEventListener("DOMContentLoaded", () => {
                 applyUser(user);
             }
         })
-        .catch(() => {
-            clearSession();
-            redirectToLogin();
+        .catch((error) => {
+            // Sebelumnya SETIAP kegagalan di sini (termasuk sinyal/koneksi
+            // putus sesaat, atau server sempat 500/502/503/timeout) langsung
+            // menghapus sesi dan melempar ke halaman login — padahal token-nya
+            // sendiri sebenarnya masih sah. Auditor yang koneksinya sekadar
+            // lemot sesaat jadi ikut ter-logout tanpa alasan. Sekarang hanya
+            // 401 (Sanctum memang menolak token-nya — kadaluarsa/dihapus/tidak
+            // valid) yang memaksa logout; kegagalan lain dibiarkan saja, sesi
+            // yang sudah ada di layar tetap dipakai sampai request berikutnya
+            // berhasil atau memang benar-benar ditolak.
+            if (error?.status === 401) {
+                clearSession();
+                redirectToLogin();
+            }
         });
 });
