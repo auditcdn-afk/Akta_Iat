@@ -127,9 +127,15 @@ function renderTasks() {
                 ${lampiran}
             </td>
             <td class="px-4 py-4 text-right">
-                <button type="button" class="execute-task rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10" data-id="${task.id}">
-                    ${isBranchUser() ? "Mulai Cabang" : isViewOnly() ? "Tinjau" : (task.status === "done" ? "Lihat / Ubah" : "Kerjakan")}
-                </button>
+                <div class="flex flex-wrap justify-end gap-1.5">
+                    ${task.planAuditId ? `
+                    <a href="/akta/plan-audit/${task.planAuditId}/spt" target="_blank" rel="noopener"
+                        class="rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10">🖨️ SPT</a>
+                    ` : ""}
+                    <button type="button" class="execute-task rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10" data-id="${task.id}">
+                        ${isBranchUser() ? "Mulai Cabang" : isViewOnly() ? "Tinjau" : (task.status === "done" ? "Lihat / Ubah" : "Kerjakan")}
+                    </button>
+                </div>
             </td>
         </tr>`;
     }).join("");
