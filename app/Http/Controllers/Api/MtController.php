@@ -56,6 +56,7 @@ class MtController extends Controller
             'nama'          => $r->nama_peralatan ?: $r->nama_singkat,
             'namaSingkat'   => $r->nama_singkat,
             'kode'          => $r->kode_peralatan,
+            'harga'         => $r->harga !== null ? (float) $r->harga : null,
             'jenis'         => $r->jenis,
         ]);
 

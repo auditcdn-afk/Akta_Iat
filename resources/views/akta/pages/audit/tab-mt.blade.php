@@ -2,10 +2,17 @@
 
             <div class="flex items-center justify-between">
                 <h3 class="text-base font-bold text-slate-100">Pemeriksaan MT</h3>
-                <button id="mtSaveBtn" type="button"
-                    class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500 active:scale-95 transition">
-                    💾 Simpan
-                </button>
+                <div class="flex items-center gap-2">
+                    <button id="mtCetakRekapBtn" type="button"
+                        class="inline-flex items-center gap-2 rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800 active:scale-95 transition"
+                        title="Cetak rekap tools yang statusnya Rusak / Hilang, terpisah dari Report Audit lengkap">
+                        🖨️ Cetak Rusak &amp; Hilang
+                    </button>
+                    <button id="mtSaveBtn" type="button"
+                        class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500 active:scale-95 transition">
+                        💾 Simpan
+                    </button>
+                </div>
             </div>
 
             {{-- Daftar Mekanik --}}

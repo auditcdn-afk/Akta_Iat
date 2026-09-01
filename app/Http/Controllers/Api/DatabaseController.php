@@ -36,7 +36,10 @@ class DatabaseController extends Controller
         'perlengkapan' => ['kode', 'wilayah', 'nama', 'satuan', 'qty', 'keterangan'],
         'unit-usaha'   => ['unit_usaha', 'wilayah', 'jenis'],
         'grading'      => ['id_grading', 'jenis', 'wilayah', 'nama_pemeriksaan', 'hasil_pemeriksaan', 'nilai', 'bknf', 'pknf', 'bkf', 'pkf', 'bnknf', 'pnknf', 'bnkf', 'pnkf'],
-        'mt'           => ['nomor', 'nama_singkat', '_x', 'nama_peralatan', 'kode_peralatan'],
+        // Kolom 'harga' opsional & di ekor: berkas lama yang cuma punya 5 kolom
+        // (tanpa harga) tetap terbaca apa adanya — lihat catatan flatten
+        // multi-group di import() soal kenapa ini aman ditambahkan di ekor.
+        'mt'           => ['nomor', 'nama_singkat', '_x', 'nama_peralatan', 'kode_peralatan', 'harga'],
         'het'          => ['kode', 'nama', 'harga_het'],
         'ahm-oil'      => ['kode', 'nama', 'keterangan'],
     ];

@@ -2550,6 +2550,30 @@ window.addEventListener('load', function() {
     @endif
   </div>
 </div>
+
+{{-- ── REKAP TOOLS RUSAK & HILANG — replika format laporan lama, dicetak
+     terpisah dari kartu/tabel MT di atas. Dilewati kalau memang tidak ada
+     tool rusak/hilang sama sekali (auditor lain tidak perlu ganti halaman
+     percuma), tapi tetap tampil dengan pesan kosong kalau tab MT-nya
+     sendiri terisi tapi kebetulan semua tool statusnya bagus. Lihat
+     MtRekapBuilder untuk cara kode & harga tool didapat. ── --}}
+@if($mt)
+<div class="section" style="page-break-before:always;">
+  <div class="section-title">13a. REKAP TOOLS RUSAK (MT)</div>
+  <div class="section-body">
+    @include('akta.pdf.partials.mt-rekap-header', ['plan' => $plan, 'auditor' => $auditors['mt'] ?? null, 'judulRekap' => 'RUSAK'])
+    @include('akta.pdf.partials.mt-rekap-tables', ['rekap' => $mtRekap['rusak'] ?? [], 'kategori' => 'rusak'])
+  </div>
+</div>
+
+<div class="section" style="page-break-before:always;">
+  <div class="section-title">13b. REKAP TOOLS HILANG (MT)</div>
+  <div class="section-body">
+    @include('akta.pdf.partials.mt-rekap-header', ['plan' => $plan, 'auditor' => $auditors['mt'] ?? null, 'judulRekap' => 'HILANG'])
+    @include('akta.pdf.partials.mt-rekap-tables', ['rekap' => $mtRekap['hilang'] ?? [], 'kategori' => 'hilang'])
+  </div>
+</div>
+@endif
 @endif
 
 {{-- ═══════════════════════════════════════════════

@@ -32,6 +32,7 @@ use App\Models\PemeriksaanSmhTarikan;
 use App\Models\PemeriksaanTtpCsc;
 use App\Models\PemeriksaanTtpGantung;
 use App\Models\PlanAudit;
+use App\Services\MtRekapBuilder;
 use App\Services\PerlengkapanOnhand;
 use App\Models\SmhOnhandItem;
 use Illuminate\Http\Response;
@@ -49,6 +50,25 @@ class ReportPdfController extends Controller
         $viewData = $this->buildViewData($plan);
         $viewData['autoprint'] = true;
         return view('akta.pdf.report-audit', $viewData);
+    }
+
+    /**
+     * Halaman cetak khusus "REKAP TOOLS RUSAK & HILANG" — dipakai tombol
+     * "🖨️ Cetak Rusak & Hilang" di tab pemeriksaan MT, supaya auditor tidak
+     * perlu membuka seluruh Report Audit hanya untuk mencetak rekap ini.
+     * Sama persis dengan section MT di Report Audit PDF (MtRekapBuilder yang
+     * sama), hanya dibungkus halaman cetak sendiri.
+     */
+    public function mtRekap(PlanAudit $plan): View
+    {
+        $mt = PemeriksaanMt::where('plan_audit_id', $plan->id)->first();
+
+        return view('akta.pdf.mt-rekap', [
+            'plan'      => $plan,
+            'auditor'   => PemeriksaanAuditor::where('plan_audit_id', $plan->id)->where('tool', 'mt')->first(),
+            'mtRekap'   => app(MtRekapBuilder::class)->build($mt),
+            'autoprint' => (bool) request()->query('autoprint'),
+        ]);
     }
 
     private function buildViewData(PlanAudit $plan): array
@@ -131,6 +151,11 @@ class ReportPdfController extends Controller
         [$hgpOilItems, $hgpSparepartItems] = $this->splitOilSparepart($hgp?->items_json ?? [], $kodeOli);
         [$rsaHgpOilItems, $rsaHgpSparepartItems] = $this->splitOilSparepart($rsaHgp?->items_json ?? [], $kodeOli);
 
+        // Rekap Tools Rusak & Hilang (MT) — lihat MtRekapBuilder untuk kenapa
+        // ini butuh join manual ke katalog db_mt (data pemeriksaan cuma
+        // menyimpan nama tool, bukan kode/harganya).
+        $mtRekap = app(MtRekapBuilder::class)->build($mt);
+
         $visibleTabs = $this->buildVisibleTabs($plan);
         $plafon = ($visibleTabs['plafon'] ?? true) ? $this->buildPlafonAnalisa($plan) : $this->emptyPlafonAnalisa($plan);
 
@@ -149,7 +174,7 @@ class ReportPdfController extends Controller
             'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'rsaHgp', 'hga',
             'smhTarikan', 'lampiran', 'lampiranEmbeds', 'mutasiPembelian', 'ttpCsc', 'visibleTabs', 'auditors', 'blankos',
             'perlengkapanOnhand', 'hgpOilItems', 'hgpSparepartItems',
-            'rsaHgpOilItems', 'rsaHgpSparepartItems', 'karyawans'
+            'rsaHgpOilItems', 'rsaHgpSparepartItems', 'karyawans', 'mtRekap'
         );
     }
 
