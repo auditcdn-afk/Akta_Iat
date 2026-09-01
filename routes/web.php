@@ -21,6 +21,7 @@ Route::prefix('akta')->name('akta.')->group(function () {
     Route::view('/database', 'akta.pages.database')->name('database');
 
     Route::view('/plan-audit', 'akta.pages.plan-audit')->name('plan-audit');
+    Route::get('/plan-audit/{plan}/spt', [\App\Http\Controllers\PlanAuditPdfController::class, 'spt'])->name('plan-audit.spt');
 
     Route::view('/task', 'akta.pages.task')->name('task');
 

@@ -184,6 +184,14 @@ async function loadPlans() {
 function actionButtons(plan) {
     const buttons = [];
 
+    // Cetak SPT — selalu terlihat berapa pun status plan-nya; halamannya
+    // sendiri yang menampilkan tahap birokrasi mana yang sudah/belum terjadi
+    // (lihat PlanAuditPdfController), jadi tidak perlu digating di sini.
+    buttons.push(
+        `<a href="/akta/plan-audit/${plan.id}/spt" target="_blank" rel="noopener"
+            class="rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10">🖨️ SPT</a>`
+    );
+
     // Advance button
     if (canAdvancePlan(plan)) {
         const t = TRANSITIONS[plan.status];
