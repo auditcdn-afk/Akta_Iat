@@ -112,9 +112,19 @@ return [
     | rid of old sessions from storage. Here are the chances that it will
     | happen on a given request. By default, the odds are 2 out of 100.
     |
+    | Dinaikkan dari [2,100] bawaan Laravel karena hosting SIMPAS-IAT tidak
+    | punya cron server (`php artisan schedule:run` tidak pernah jalan — lihat
+    | catatan di routes/console.php & DeployController) untuk menjalankan
+    | `session:gc` sendiri. Tanpa cron, lottery bawaan yang kecil berarti
+    | storage/framework/sessions bisa terus menumpuk selama berbulan-bulan
+    | dan makin banyak file di satu folder membuat operasi baca/tulis session
+    | (termasuk saat login/membuka halaman mana pun) makin lambat seiring
+    | waktu — persis gejala "aplikasi lama untuk masuk" yang dilaporkan.
+    | [10,100] menyapu lebih sering tanpa membebani tiap request berarti.
+    |
     */
 
-    'lottery' => [2, 100],
+    'lottery' => [10, 100],
 
     /*
     |--------------------------------------------------------------------------
