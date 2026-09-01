@@ -24,7 +24,9 @@ return [
     'rsa-hgp'         => 'RSA HGP & AHM Oils',
     'hga'             => 'HGA (Accessories)',
     'smh-tarikan'     => 'SMH Tarikan',
-    'lampiran'        => 'Lampiran',
     'mutasi-pembelian' => 'Mutasi Pembelian',
     'ttp-csc'         => 'TTP CSC',
+    // Lampiran sengaja paling akhir — lihat catatan di tabs-nav.blade.php dan
+    // report-audit.blade.php soal alasan urutannya.
+    'lampiran'        => 'Lampiran',
 ];

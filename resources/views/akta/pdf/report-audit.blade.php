@@ -3193,11 +3193,145 @@ window.addEventListener('load', function() {
 @endif
 
 {{-- ═══════════════════════════════════════════════
-     17. LAMPIRAN
+     17. MUTASI PEMBELIAN
+     ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['mutasi-pembelian'] ?? true))
+<div class="section">
+  <div class="section-title">17. MUTASI PEMBELIAN</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'mutasi-pembelian'])
+  <div class="section-body">
+    @if(!$mutasiPembelian || empty($mutasiPembelian->items_json))
+      <p class="empty">Belum ada data.</p>
+    @else
+      @php
+        $mpItems = $mutasiPembelian->items_json ?? [];
+        $mpMatch = collect($mpItems)->where('matched', true)->count();
+      @endphp
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val">{{ count($mpItems) }}</div>
+          <div class="cs-lbl">Total Baris Gudang</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="color:#4ade80;">{{ $mpMatch }}</div>
+          <div class="cs-lbl">Sudah Diterima</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="color:#f87171;">{{ count($mpItems) - $mpMatch }}</div>
+          <div class="cs-lbl">Belum Terima</div>
+        </div>
+      </div>
+
+      <div class="tbl-scroll" style="overflow-x:auto;">
+      <table style="font-size:9.5px;">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Kode Part</th>
+            <th>Nama Part</th>
+            <th style="text-align:right;">Qty</th>
+            <th>Nomor Faktur</th>
+            <th>Tanggal Faktur</th>
+            <th>Lokasi</th>
+            <th>Kode</th>
+            <th>Unit Usaha</th>
+            <th>Keterangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach($mpItems as $i => $mp)
+          <tr @if(!($mp['matched'] ?? false)) style="background:#7f1d1d1a;" @endif>
+            <td>{{ (int)$i+1 }}</td>
+            <td style="font-family:monospace;">{{ $mp['kodePart'] ?? '-' }}</td>
+            <td>{{ $mp['namaPart'] ?? '-' }}</td>
+            <td style="text-align:right;">{{ ($mp['qty'] ?? 0) ? number_format($mp['qty'],0,',','.') : '-' }}</td>
+            <td style="font-family:monospace;">{{ $mp['nomorFaktur'] ?? '-' }}</td>
+            <td>{{ $mp['tanggalFaktur'] ?? '-' }}</td>
+            <td>{{ $mp['lokasi'] ?: '-' }}</td>
+            <td>{{ $mp['kode'] ?? '-' }}</td>
+            <td>{{ $mp['unitUsaha'] ?? '-' }}</td>
+            <td style="color:{{ ($mp['matched'] ?? false) ? '#4ade80' : '#f87171' }};font-weight:600;">{{ $mp['keterangan'] ?? '-' }}</td>
+          </tr>
+          @endforeach
+        </tbody>
+      </table>
+      </div>
+    @endif
+  </div>
+</div>
+@endif
+
+{{-- ═══════════════════════════════════════════════
+     18. TTP CSC
+     ═══════════════════════════════════════════════ --}}
+@if(($visibleTabs['ttp-csc'] ?? true))
+<div class="section">
+  <div class="section-title">18. TTP CSC</div>
+  @include('akta.pdf.partials.auditor-line', ['tool' => 'ttp-csc'])
+  <div class="section-body">
+    @if(!$ttpCsc || empty($ttpCsc->items_json))
+      <p class="empty">Belum ada data.</p>
+    @else
+      @php
+        $tcItems  = $ttpCsc->items_json ?? [];
+        $tcSesuai = collect($tcItems)->where('keterangan', 'Data Sesuai')->count();
+      @endphp
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val">{{ count($tcItems) }}</div>
+          <div class="cs-lbl">Total TTP</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="color:#4ade80;">{{ $tcSesuai }}</div>
+          <div class="cs-lbl">Data Sesuai</div>
+        </div>
+        <div class="card-stat" style="flex:1;min-width:100px;">
+          <div class="cs-val" style="color:#f87171;">{{ count($tcItems) - $tcSesuai }}</div>
+          <div class="cs-lbl">Selisih / Belum Dicek</div>
+        </div>
+      </div>
+
+      <table style="font-size:9.5px;">
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>TTP</th>
+            <th>Tanggal</th>
+            <th>Nama</th>
+            <th style="text-align:right;">Nilai</th>
+            <th>Tanggal Portal</th>
+            <th style="text-align:right;">Selisih Tgl</th>
+            <th>Keterangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach($tcItems as $tc)
+          <tr>
+            <td>{{ $tc['no'] ?? '-' }}</td>
+            <td style="font-family:monospace;">{{ $tc['ttp'] ?? '-' }}</td>
+            <td>{{ $tc['tanggal'] ?? '-' }}</td>
+            <td>{{ $tc['nama'] ?? '-' }}</td>
+            <td style="text-align:right;">{{ ($tc['nilai'] ?? 0) ? 'Rp '.number_format($tc['nilai'],0,',','.') : '-' }}</td>
+            <td>{{ $tc['tanggalPortal'] ?: '-' }}</td>
+            <td style="text-align:right;">{{ $tc['tanggalPortal'] ? ($tc['selisihTgl'] ?? 0) : '-' }}</td>
+            <td style="color:{{ $tc['keterangan'] === 'Data Sesuai' ? '#4ade80' : (($tc['keterangan'] ?? '') !== '' ? '#f87171' : '#6b7280') }};font-weight:600;">{{ $tc['keterangan'] ?: '-' }}</td>
+          </tr>
+          @endforeach
+        </tbody>
+      </table>
+    @endif
+  </div>
+</div>
+@endif
+
+{{-- ═══════════════════════════════════════════════
+     19. LAMPIRAN
      ═══════════════════════════════════════════════ --}}
 @if(($visibleTabs['lampiran'] ?? true))
 <div class="section">
-  <div class="section-title">17. LAMPIRAN AUDIT</div>
+  <div class="section-title">19. LAMPIRAN AUDIT</div>
   @include('akta.pdf.partials.auditor-line', ['tool' => 'lampiran'])
   <div class="section-body" style="padding:0;">
     @if(!$lampiran)
@@ -3309,140 +3443,6 @@ window.addEventListener('load', function() {
       @else
         <p class="empty" style="padding:12px;">Tidak ada file lampiran.</p>
       @endif
-    @endif
-  </div>
-</div>
-@endif
-
-{{-- ═══════════════════════════════════════════════
-     18. MUTASI PEMBELIAN
-     ═══════════════════════════════════════════════ --}}
-@if(($visibleTabs['mutasi-pembelian'] ?? true))
-<div class="section">
-  <div class="section-title">18. MUTASI PEMBELIAN</div>
-  @include('akta.pdf.partials.auditor-line', ['tool' => 'mutasi-pembelian'])
-  <div class="section-body">
-    @if(!$mutasiPembelian || empty($mutasiPembelian->items_json))
-      <p class="empty">Belum ada data.</p>
-    @else
-      @php
-        $mpItems = $mutasiPembelian->items_json ?? [];
-        $mpMatch = collect($mpItems)->where('matched', true)->count();
-      @endphp
-
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-        <div class="card-stat" style="flex:1;min-width:100px;">
-          <div class="cs-val">{{ count($mpItems) }}</div>
-          <div class="cs-lbl">Total Baris Gudang</div>
-        </div>
-        <div class="card-stat" style="flex:1;min-width:100px;">
-          <div class="cs-val" style="color:#4ade80;">{{ $mpMatch }}</div>
-          <div class="cs-lbl">Sudah Diterima</div>
-        </div>
-        <div class="card-stat" style="flex:1;min-width:100px;">
-          <div class="cs-val" style="color:#f87171;">{{ count($mpItems) - $mpMatch }}</div>
-          <div class="cs-lbl">Belum Terima</div>
-        </div>
-      </div>
-
-      <div class="tbl-scroll" style="overflow-x:auto;">
-      <table style="font-size:9.5px;">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Kode Part</th>
-            <th>Nama Part</th>
-            <th style="text-align:right;">Qty</th>
-            <th>Nomor Faktur</th>
-            <th>Tanggal Faktur</th>
-            <th>Lokasi</th>
-            <th>Kode</th>
-            <th>Unit Usaha</th>
-            <th>Keterangan</th>
-          </tr>
-        </thead>
-        <tbody>
-          @foreach($mpItems as $i => $mp)
-          <tr @if(!($mp['matched'] ?? false)) style="background:#7f1d1d1a;" @endif>
-            <td>{{ (int)$i+1 }}</td>
-            <td style="font-family:monospace;">{{ $mp['kodePart'] ?? '-' }}</td>
-            <td>{{ $mp['namaPart'] ?? '-' }}</td>
-            <td style="text-align:right;">{{ ($mp['qty'] ?? 0) ? number_format($mp['qty'],0,',','.') : '-' }}</td>
-            <td style="font-family:monospace;">{{ $mp['nomorFaktur'] ?? '-' }}</td>
-            <td>{{ $mp['tanggalFaktur'] ?? '-' }}</td>
-            <td>{{ $mp['lokasi'] ?: '-' }}</td>
-            <td>{{ $mp['kode'] ?? '-' }}</td>
-            <td>{{ $mp['unitUsaha'] ?? '-' }}</td>
-            <td style="color:{{ ($mp['matched'] ?? false) ? '#4ade80' : '#f87171' }};font-weight:600;">{{ $mp['keterangan'] ?? '-' }}</td>
-          </tr>
-          @endforeach
-        </tbody>
-      </table>
-      </div>
-    @endif
-  </div>
-</div>
-@endif
-
-{{-- ═══════════════════════════════════════════════
-     19. TTP CSC
-     ═══════════════════════════════════════════════ --}}
-@if(($visibleTabs['ttp-csc'] ?? true))
-<div class="section">
-  <div class="section-title">19. TTP CSC</div>
-  @include('akta.pdf.partials.auditor-line', ['tool' => 'ttp-csc'])
-  <div class="section-body">
-    @if(!$ttpCsc || empty($ttpCsc->items_json))
-      <p class="empty">Belum ada data.</p>
-    @else
-      @php
-        $tcItems  = $ttpCsc->items_json ?? [];
-        $tcSesuai = collect($tcItems)->where('keterangan', 'Data Sesuai')->count();
-      @endphp
-
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-        <div class="card-stat" style="flex:1;min-width:100px;">
-          <div class="cs-val">{{ count($tcItems) }}</div>
-          <div class="cs-lbl">Total TTP</div>
-        </div>
-        <div class="card-stat" style="flex:1;min-width:100px;">
-          <div class="cs-val" style="color:#4ade80;">{{ $tcSesuai }}</div>
-          <div class="cs-lbl">Data Sesuai</div>
-        </div>
-        <div class="card-stat" style="flex:1;min-width:100px;">
-          <div class="cs-val" style="color:#f87171;">{{ count($tcItems) - $tcSesuai }}</div>
-          <div class="cs-lbl">Selisih / Belum Dicek</div>
-        </div>
-      </div>
-
-      <table style="font-size:9.5px;">
-        <thead>
-          <tr>
-            <th>No</th>
-            <th>TTP</th>
-            <th>Tanggal</th>
-            <th>Nama</th>
-            <th style="text-align:right;">Nilai</th>
-            <th>Tanggal Portal</th>
-            <th style="text-align:right;">Selisih Tgl</th>
-            <th>Keterangan</th>
-          </tr>
-        </thead>
-        <tbody>
-          @foreach($tcItems as $tc)
-          <tr>
-            <td>{{ $tc['no'] ?? '-' }}</td>
-            <td style="font-family:monospace;">{{ $tc['ttp'] ?? '-' }}</td>
-            <td>{{ $tc['tanggal'] ?? '-' }}</td>
-            <td>{{ $tc['nama'] ?? '-' }}</td>
-            <td style="text-align:right;">{{ ($tc['nilai'] ?? 0) ? 'Rp '.number_format($tc['nilai'],0,',','.') : '-' }}</td>
-            <td>{{ $tc['tanggalPortal'] ?: '-' }}</td>
-            <td style="text-align:right;">{{ $tc['tanggalPortal'] ? ($tc['selisihTgl'] ?? 0) : '-' }}</td>
-            <td style="color:{{ $tc['keterangan'] === 'Data Sesuai' ? '#4ade80' : (($tc['keterangan'] ?? '') !== '' ? '#f87171' : '#6b7280') }};font-weight:600;">{{ $tc['keterangan'] ?: '-' }}</td>
-          </tr>
-          @endforeach
-        </tbody>
-      </table>
     @endif
   </div>
 </div>
