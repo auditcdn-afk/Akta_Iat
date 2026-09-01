@@ -7604,7 +7604,7 @@ function lampiranFmtSize(bytes) {
 }
 
 function lampiranIcon(ext) {
-    const icons = { pdf: '📄', jpg: '🖼️', jpeg: '🖼️', png: '🖼️', doc: '📝', docx: '📝' };
+    const icons = { pdf: '📄', jpg: '🖼️', jpeg: '🖼️', png: '🖼️', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊' };
     return icons[ext] || '📎';
 }
 

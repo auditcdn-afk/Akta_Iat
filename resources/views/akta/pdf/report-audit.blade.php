@@ -3220,6 +3220,8 @@ window.addEventListener('load', function() {
             'PNG'  => ['bg' => '#d1fae5', 'text' => '#065f46', 'border' => '#6ee7b7'],
             'DOC'  => ['bg' => '#ede9fe', 'text' => '#5b21b6', 'border' => '#c4b5fd'],
             'DOCX' => ['bg' => '#ede9fe', 'text' => '#5b21b6', 'border' => '#c4b5fd'],
+            'XLS'  => ['bg' => '#dcfce7', 'text' => '#166534', 'border' => '#86efac'],
+            'XLSX' => ['bg' => '#dcfce7', 'text' => '#166534', 'border' => '#86efac'],
         ];
         $getExtStyle = fn($ext) => $extColor[strtoupper($ext)] ?? ['bg' => '#f3f4f6', 'text' => '#374151', 'border' => '#d1d5db'];
       @endphp
