@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Concerns\MenjagaHasilPemeriksaan;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
+use App\Models\DbAhmOil;
 use App\Models\DbHet;
 use App\Models\PemeriksaanAuditor;
 use App\Models\PemeriksaanHgp;
@@ -412,6 +413,10 @@ class HgpController extends Controller
     // perlu menyaring manual dari ribuan baris di layar. Selisih dihitung ulang
     // di sini dari field mentahnya (bukan dipercaya dari items_json apa adanya)
     // supaya hasilnya tetap benar walau field turunan itu sempat tidak sinkron.
+    // Dipecah ke 2 sheet (AHM OIL'S & SPAREPART) memakai pencocokan kode yang
+    // SAMA dengan rekap selisih di Report Audit PDF (ReportPdfController::
+    // splitOilSparepart) — supaya kedua tempat konsisten mengelompokkan item
+    // yang sama, dan auditor tidak perlu memisah manual lagi.
     public function exportSelisih(Request $request): StreamedResponse
     {
         $planId = $request->query('plan_audit_id');
@@ -422,7 +427,13 @@ class HgpController extends Controller
         $auditor   = PemeriksaanAuditor::where('plan_audit_id', $planId)->where('tool', 'hgp')->first();
         $items     = $rec?->items_json ?? [];
 
-        $baris = [];
+        $kodeOli = DbAhmOil::query()->pluck('kode')
+            ->map(fn($k) => strtolower(trim((string) $k)))
+            ->filter()
+            ->flip();
+
+        $oilBaris = [];
+        $sparepartBaris = [];
         foreach ($items as $it) {
             $fisik  = $this->n($it['fisik'] ?? 0);
             $wo     = $this->n($it['wo'] ?? 0);
@@ -432,7 +443,7 @@ class HgpController extends Controller
             if ($selisih === 0.0) continue;
 
             $harga  = $this->n($it['hargaHet'] ?? 0);
-            $baris[] = [
+            $baris = [
                 'noPart'     => $it['noPart'] ?? '',
                 'sparepart'  => $it['sparepart'] ?? '',
                 'tgl'        => $it['tgl'] ?? '',
@@ -445,19 +456,60 @@ class HgpController extends Controller
                 'jumlah'     => $harga * $selisih,
                 'keterangan' => $it['keterangan'] ?? '',
             ];
+
+            $kode = strtolower(trim((string) ($it['noPart'] ?? '')));
+            if ($kode !== '' && $kodeOli->has($kode)) {
+                $oilBaris[] = $baris;
+            } else {
+                $sparepartBaris[] = $baris;
+            }
         }
 
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Selisih HGP & AHM Oils');
+        $infoLines = [
+            'No SPT: ' . ($plan->no_spt ?? '-'),
+            'Cabang/Area: ' . ($plan->cabang_area ?? $plan->cabang ?? '-'),
+            'Auditor: ' . ($auditor->nama_auditor ?? '-') . '   Auditee: ' . ($auditor->nama_auditee ?? '-'),
+        ];
 
-        $sheet->setCellValue('A1', 'No SPT: ' . ($plan->no_spt ?? '-'));
-        $sheet->setCellValue('A2', 'Cabang/Area: ' . ($plan->cabang_area ?? $plan->cabang ?? '-'));
-        $sheet->setCellValue('A3', 'Auditor: ' . ($auditor->nama_auditor ?? '-') . '   Auditee: ' . ($auditor->nama_auditee ?? '-'));
-        $sheet->getStyle('A1:A3')->getFont()->setItalic(true)->getColor()->setRGB('64748B');
+        $spreadsheet = new Spreadsheet();
+        $this->tulisSheetSelisih($spreadsheet->getActiveSheet(), "AHM OIL'S", $infoLines, $oilBaris);
+        $sheetSparepart = $spreadsheet->createSheet();
+        $this->tulisSheetSelisih($sheetSparepart, 'SPAREPART', $infoLines, $sparepartBaris);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        $filename = 'hgp-selisih-' . ($plan->no_spt ?? $planId) . '-' . now()->format('Y-m-d_H-i') . '.xlsx';
+        $filename = preg_replace('/[^A-Za-z0-9._-]/', '_', $filename);
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            $writer = new XlsxWriter($spreadsheet);
+            $writer->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    private function tulisSheetSelisih(
+        \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet,
+        string $judul,
+        array $infoLines,
+        array $baris
+    ): void {
+        // Nama sheet Excel tidak boleh mengandung karakter ' \ / ? * [ ] dan
+        // maksimal 31 karakter — "AHM OIL'S" punya tanda kutip, jadi dibersihkan.
+        $sheet->setTitle(substr(str_replace(["'", '\\', '/', '?', '*', '[', ']'], '', $judul), 0, 31));
+
+        foreach ($infoLines as $i => $line) {
+            $sheet->setCellValue([1, $i + 1], $line);
+        }
+        $infoRange = 'A1:A' . count($infoLines);
+        $sheet->getStyle($infoRange)->getFont()->setItalic(true)->getColor()->setRGB('64748B');
+
+        $judulRow = count($infoLines) + 2;
+        $sheet->setCellValue([1, $judulRow], $judul . ' (' . count($baris) . ' item selisih)');
+        $sheet->getStyle('A' . $judulRow)->getFont()->setBold(true)->setSize(12);
 
         $headers = ['No', 'No. Part', 'Nama Sparepart', 'Tanggal', 'Saldo', 'Fisik', 'WO', 'Akhir', 'Selisih', 'Harga HET', 'Jumlah', 'Keterangan'];
-        $headerRow = 5;
+        $headerRow = $judulRow + 1;
         foreach ($headers as $i => $header) {
             $sheet->setCellValue([$i + 1, $headerRow], $header);
         }
@@ -487,15 +539,5 @@ class HgpController extends Controller
         foreach (range(1, $lastCol) as $colIdx) {
             $sheet->getColumnDimensionByColumn($colIdx)->setAutoSize(true);
         }
-
-        $filename = 'hgp-selisih-' . ($plan->no_spt ?? $planId) . '-' . now()->format('Y-m-d_H-i') . '.xlsx';
-        $filename = preg_replace('/[^A-Za-z0-9._-]/', '_', $filename);
-
-        return response()->streamDownload(function () use ($spreadsheet) {
-            $writer = new XlsxWriter($spreadsheet);
-            $writer->save('php://output');
-        }, $filename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ]);
     }
 }
