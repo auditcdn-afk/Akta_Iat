@@ -131,12 +131,6 @@ window.addEventListener('load', function () {
       {{ optional($plan->tgl_selesai)->format('d/m/Y') ?: '-' }}
     </div>
   </div>
-  @if($plan->keterangan)
-  <div class="field-row">
-    <div class="lbl">Keterangan</div><div class="colon">:</div>
-    <div class="val" style="font-weight:400;">{{ $plan->keterangan }}</div>
-  </div>
-  @endif
 
   <p class="intro" style="margin-top:12px;">
     Surat Perintah Tugas ini berlaku sejak diajukan sampai dengan pemeriksaan pada unit usaha
