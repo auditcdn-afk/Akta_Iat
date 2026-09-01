@@ -18,11 +18,23 @@ class AuditTaskController extends Controller
     // Role kantor pusat (HO) yang boleh melihat semua task.
     private const HO_OVERSIGHT = ['admin', 'manajer', 'koordinator', 'coo'];
 
-    // Role approval: hanya melihat task yang plannya menunggu persetujuan mereka.
+    // Role approval PLAN: hanya melihat task yang plannya menunggu persetujuan mereka.
     private const APPROVAL_STAGE = [
         'koordinator' => 'pending_koordinator',
         'manajer'     => 'pending_manajer',
         'coo'         => 'pending_coo',
+    ];
+
+    // Role approval PINJAMAN CABANG (bukan plan): 'unit' & 'bpk' tidak pernah
+    // ditugaskan sebuah task (assigned_to selalu nama cabang/auditor), jadi
+    // tanpa aturan ini mereka jatuh ke cabang "$onlyMine" biasa dan daftar
+    // task-nya SELALU kosong — tidak pernah bisa membuka task manapun untuk
+    // menyetujui/menolak pinjaman yang sebenarnya menunggu mereka. Sama seperti
+    // APPROVAL_STAGE di atas: task otomatis hilang dari daftar begitu mereka
+    // sudah bertindak, karena pinjamannya sudah pindah ke tahap berikutnya.
+    private const PINJAMAN_APPROVAL_STAGE = [
+        'unit' => 'pending_unit',
+        'bpk'  => 'pending_bpk',
     ];
 
     public function index(Request $request, PlanTaskService $planTasks): JsonResponse
@@ -47,23 +59,29 @@ class AuditTaskController extends Controller
         // Admin/manajer/koordinator/COO melihat seluruh task (pengawasan).
         $onlyMine = ! in_array($role, self::HO_OVERSIGHT, true);
 
-        // Untuk branch user (bukan HO, bukan approval), sertakan unit_usaha agar
-        // task cabang (assigned_to = cabang name) bisa cocok.
+        // Untuk branch user (bukan HO, bukan approval plan/pinjaman), sertakan
+        // unit_usaha agar task cabang (assigned_to = cabang name) bisa cocok.
         $identities = array_values(array_filter([
             $user?->display_name,
             $user?->name,
             $user?->username,
-            (! in_array($role, self::HO_OVERSIGHT, true) && ! isset(self::APPROVAL_STAGE[$role]))
+            (! in_array($role, self::HO_OVERSIGHT, true)
+                && ! isset(self::APPROVAL_STAGE[$role])
+                && ! isset(self::PINJAMAN_APPROVAL_STAGE[$role]))
                 ? $user?->unit_usaha
                 : null,
         ]));
 
         // Task hanya tempat persinggahan kegiatan:
-        // - Role approval (koordinator/manajer/coo) hanya melihat task yang
-        //   plannya sedang menunggu persetujuan mereka. Setelah disetujui,
-        //   plan pindah tahap dan task otomatis hilang dari daftar mereka.
+        // - Role approval plan (koordinator/manajer/coo) hanya melihat task
+        //   yang plannya sedang menunggu persetujuan mereka.
+        // - Role approval pinjaman (unit/bpk) hanya melihat task yang punya
+        //   pinjaman cabang sedang menunggu persetujuan mereka.
+        //   Setelah disetujui, tahapnya pindah dan task otomatis hilang dari
+        //   daftar mereka.
         // - Selain itu, task yang sudah selesai (status done) selalu disembunyikan.
         $approvalStage = self::APPROVAL_STAGE[$role] ?? null;
+        $pinjamanStage = self::PINJAMAN_APPROVAL_STAGE[$role] ?? null;
 
         // Riwayat status plan hanya ditampilkan di modal detail satu task, bukan di
         // tabel daftar. Ikut memuatnya di endpoint daftar berarti satu query per task
@@ -77,7 +95,10 @@ class AuditTaskController extends Controller
             ->when($approvalStage, function ($query) use ($approvalStage) {
                 $query->whereHas('planAudit', fn($q) => $q->where('status', $approvalStage));
             })
-            ->when(! $approvalStage, function ($query) use ($onlyMine, $identities, $role) {
+            ->when($pinjamanStage, function ($query) use ($pinjamanStage) {
+                $query->whereHas('pinjamanCabang', fn($q) => $q->where('status', $pinjamanStage));
+            })
+            ->when(! $approvalStage && ! $pinjamanStage, function ($query) use ($onlyMine, $identities, $role) {
                 // Auditor/cabang: hanya task miliknya. Semua role non-approval:
                 // sembunyikan task yang sudah selesai (transit), kecuali admin
                 // yang butuh akses untuk koreksi status.

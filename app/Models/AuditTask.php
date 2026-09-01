@@ -100,4 +100,9 @@ class AuditTask extends Model
     {
         return $this->hasMany(AuditRecommendation::class, 'audit_task_id');
     }
+
+    public function pinjamanCabang(): HasMany
+    {
+        return $this->hasMany(PinjamanCabang::class, 'audit_task_id');
+    }
 }
