@@ -203,9 +203,22 @@ class DatabaseController extends Controller
         // template (kadang tepat setelah Kode Peralatan, kadang ada kolom
         // "Gambar" di antaranya) — jadi sebelum baris header dibuang, posisi
         // kolomnya dibaca dulu dari ISI header itu (bukan diasumsikan tetap).
-        // Null berarti berkasnya memang tanpa header sama sekali (baris pertama
-        // sudah data) — fallback ke posisi lama yang sudah dikenal.
-        $mtKolom = ($type === 'mt' && !empty($rows)) ? $this->detectMtColumns($rows[0] ?? []) : null;
+        // Header-nya sendiri juga tidak selalu di baris pertama — berkas MT
+        // Lama nyata punya baris kosong pemisah SEBELUM baris header, jadi
+        // dicari dulu baris header-nya (melewati baris kosong di atasnya)
+        // alih-alih langsung mengasumsikan baris ke-0.
+        $mtKolom = null;
+        if ($type === 'mt' && !empty($rows)) {
+            $headerIdx = $this->mtCariIndeksHeader($rows);
+            if ($headerIdx !== null) {
+                $mtKolom = $this->detectMtColumns($rows[$headerIdx]);
+                array_splice($rows, 0, $headerIdx + 1);
+            } else {
+                // Tidak ada baris header yang dikenali sampai baris data
+                // pertama — berkasnya memang tanpa header sama sekali.
+                $mtKolom = $this->detectMtColumns([]);
+            }
+        }
 
         // Remove header row (non-numeric first cell)
         if (!empty($rows)) {
@@ -397,19 +410,25 @@ class DatabaseController extends Controller
      *   header sama sekali, baris pertama sudah data) — pemanggil jatuh ke
      *   posisi lama yang sudah dikenal (0,1,3,4, harga tidak ada).
      */
+    private function mtLabelUntukSel(string $n): ?string
+    {
+        if ($n === '') return null;
+        if ($n === 'no' || $n === 'no.' || $n === 'nomor') return 'nomor';
+        if (str_contains($n, 'nama singkat')) return 'nama_singkat';
+        if (str_contains($n, 'nama peralatan')) return 'nama_peralatan';
+        if (str_contains($n, 'kode peralatan')) return 'kode_peralatan';
+        if (str_contains($n, 'harga')) return 'harga';
+        return null;
+    }
+
     private function detectMtColumns(array $headerRow): array
     {
         $posisi = ['nomor' => null, 'nama_singkat' => null, 'nama_peralatan' => null, 'kode_peralatan' => null, 'harga' => null];
         $adaHeader = false;
 
         foreach ($headerRow as $ci => $cell) {
-            $n = strtolower(trim((string) $cell));
-            if ($n === '') continue;
-            if ($n === 'no' || $n === 'no.' || $n === 'nomor') { $posisi['nomor'] = $ci; $adaHeader = true; }
-            elseif (str_contains($n, 'nama singkat')) { $posisi['nama_singkat'] = $ci; $adaHeader = true; }
-            elseif (str_contains($n, 'nama peralatan')) { $posisi['nama_peralatan'] = $ci; $adaHeader = true; }
-            elseif (str_contains($n, 'kode peralatan')) { $posisi['kode_peralatan'] = $ci; $adaHeader = true; }
-            elseif (str_contains($n, 'harga')) { $posisi['harga'] = $ci; $adaHeader = true; }
+            $field = $this->mtLabelUntukSel(strtolower(trim((string) $cell)));
+            if ($field !== null) { $posisi[$field] = $ci; $adaHeader = true; }
         }
 
         if (!$adaHeader) {
@@ -419,6 +438,28 @@ class DatabaseController extends Controller
         }
 
         return $posisi;
+    }
+
+    /**
+     * Cari indeks baris header MT, melompati baris kosong (pemisah) di
+     * atasnya. Kalau baris non-kosong pertama yang ditemukan bukan header
+     * (tidak ada label yang dikenali), berkasnya dianggap memang tanpa
+     * header — baris itu sudah data, kembalikan null.
+     */
+    private function mtCariIndeksHeader(array $rows): ?int
+    {
+        foreach (array_slice($rows, 0, 10, true) as $ri => $row) {
+            $trimmed = array_map(fn($c) => trim((string) $c), $row);
+            if (empty(array_filter($trimmed))) continue;
+
+            foreach ($trimmed as $cell) {
+                if ($this->mtLabelUntukSel(strtolower($cell)) !== null) {
+                    return $ri;
+                }
+            }
+            return null;
+        }
+        return null;
     }
 
     private function parseCsv(string $path): array

@@ -67,6 +67,25 @@ class DatabaseMtImportTest extends TestCase
         return $this->saveTemp($sheet, 'mt_tanpa_gambar.xlsx');
     }
 
+    /**
+     * Bentuk berkas MT Lama nyata: ada baris kosong pemisah SEBELUM baris
+     * header (dan satu lagi sesudahnya), serta dua kolom yang sama-sama
+     * mengandung kata "harga" (kolom "HARGA" kosong lalu kolom "Harga" yang
+     * benar-benar berisi angka) — kolom terakhir yang cocok yang harus dipakai.
+     */
+    private function buildFileMtLamaDenganBarisKosong(): UploadedFile
+    {
+        $sheet = new Spreadsheet();
+        $ws = $sheet->getActiveSheet();
+        $ws->fromArray(['', '', '', '', '', '', '', '', ''], null, 'A1');
+        $ws->fromArray(['No.', 'Nama Singkat', '', 'Nama Peralatan (IND)', 'Kode Peralatan', 'Gambar', 'Jumlah Alat', 'HARGA', 'Harga'], null, 'A2');
+        $ws->fromArray(['', '', '', '', '', '', '', '', ''], null, 'A3');
+        $ws->fromArray([1, 'SPANNER 6X7', '', 'Kunci Pas 6 x 7', '07600-KLH-1210', '', 1, '', 179820], null, 'A4');
+        $ws->fromArray([2, 'SPANNER 8X9', '', 'Kunci Pas 8 x 9', '07600-KLH-1240', '', 1, '', 179820], null, 'A5');
+
+        return $this->saveTemp($sheet, 'mt_lama_baris_kosong.xlsx');
+    }
+
     /** Bentuk lama sebelum Harga ada sama sekali: TANPA baris header. */
     private function buildFileLegacyTanpaHeader(): UploadedFile
     {
@@ -109,6 +128,22 @@ class DatabaseMtImportTest extends TestCase
         $row = DbMt::where('kode_peralatan', '07600KLH1240')->firstOrFail();
         $this->assertSame('SPANNER 8X9', $row->nama_singkat);
         $this->assertEquals(179820.0, $row->harga);
+    }
+
+    public function test_import_mt_lama_dengan_baris_kosong_sebelum_header_tetap_dapat_harga(): void
+    {
+        Storage::fake('local');
+
+        $this->post('/api/database/mt/import', [
+            'file' => $this->buildFileMtLamaDenganBarisKosong(),
+            'mt_jenis' => 'MT Lama',
+        ])->assertOk()->assertJsonPath('imported', 2);
+
+        $row = DbMt::where('kode_peralatan', '07600-KLH-1210')->firstOrFail();
+        $this->assertSame('SPANNER 6X7', $row->nama_singkat);
+        $this->assertSame('Kunci Pas 6 x 7', $row->nama_peralatan);
+        $this->assertEquals(179820.0, $row->harga);
+        $this->assertSame('MT Lama', $row->jenis);
     }
 
     public function test_import_berkas_lama_tanpa_header_dan_tanpa_harga_tetap_terbaca(): void
