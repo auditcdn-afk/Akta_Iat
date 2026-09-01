@@ -36,10 +36,13 @@ class DatabaseController extends Controller
         'perlengkapan' => ['kode', 'wilayah', 'nama', 'satuan', 'qty', 'keterangan'],
         'unit-usaha'   => ['unit_usaha', 'wilayah', 'jenis'],
         'grading'      => ['id_grading', 'jenis', 'wilayah', 'nama_pemeriksaan', 'hasil_pemeriksaan', 'nilai', 'bknf', 'pknf', 'bkf', 'pkf', 'bnknf', 'pnknf', 'bnkf', 'pnkf'],
-        // Kolom 'harga' opsional & di ekor: berkas lama yang cuma punya 5 kolom
-        // (tanpa harga) tetap terbaca apa adanya — lihat catatan flatten
-        // multi-group di import() soal kenapa ini aman ditambahkan di ekor.
-        'mt'           => ['nomor', 'nama_singkat', '_x', 'nama_peralatan', 'kode_peralatan', 'harga'],
+        // Harga TIDAK dimasukkan di sini secara posisi tetap — lihat detectMtColumns()
+        // di import(). Berkas nyata yang diunggah auditor membuktikan kenapa:
+        // posisi kolom Harga berbeda-beda antar template (kadang persis setelah
+        // Kode Peralatan, kadang ada kolom "Gambar" di antaranya), jadi mengunci
+        // ke satu indeks tetap gampang meleset lagi begitu templatenya berubah
+        // sedikit saja — sama seperti yang baru saja terjadi.
+        'mt'           => ['nomor', 'nama_singkat', '_x', 'nama_peralatan', 'kode_peralatan'],
         'het'          => ['kode', 'nama', 'harga_het'],
         'ahm-oil'      => ['kode', 'nama', 'keterangan'],
     ];
@@ -196,6 +199,14 @@ class DatabaseController extends Controller
             default      => throw new \InvalidArgumentException("Format file '{$ext}' tidak didukung. Gunakan .xlsx atau .csv."),
         };
 
+        // Kolom Harga di berkas MT terbukti berpindah-pindah posisi antar
+        // template (kadang tepat setelah Kode Peralatan, kadang ada kolom
+        // "Gambar" di antaranya) — jadi sebelum baris header dibuang, posisi
+        // kolomnya dibaca dulu dari ISI header itu (bukan diasumsikan tetap).
+        // Null berarti berkasnya memang tanpa header sama sekali (baris pertama
+        // sudah data) — fallback ke posisi lama yang sudah dikenal.
+        $mtKolom = ($type === 'mt' && !empty($rows)) ? $this->detectMtColumns($rows[0] ?? []) : null;
+
         // Remove header row (non-numeric first cell)
         if (!empty($rows)) {
             $first = trim((string) ($rows[0][0] ?? ''));
@@ -212,12 +223,24 @@ class DatabaseController extends Controller
         $sampleLen = !empty($rows) ? max(array_map('count', array_slice($rows, 0, 5))) : 0;
         $groups    = 1;
 
-        // Perlengkapan uses variable-width rows (item per column), skip group expansion
-        if ($type !== 'perlengkapan' && $sampleLen > $colCount && $sampleLen % $colCount === 0) {
+        // Perlengkapan (lebar kolom variabel per baris) dan MT (lebar kolomnya
+        // sendiri sudah ditangani lewat $mtKolom di atas, memotongnya ke
+        // $colCount di sini akan membuang kolom Harga yang posisinya bisa lebih
+        // jauh dari $colCount) — dua-duanya dilewatkan apa adanya, tidak dipotong.
+        if ($type !== 'perlengkapan' && $type !== 'mt' && $sampleLen > $colCount && $sampleLen % $colCount === 0) {
             $groups = intdiv($sampleLen, $colCount);
         }
 
         foreach ($rows as $row) {
+            if ($type === 'mt') {
+                // Lebar barisnya bisa lebih panjang dari $colCount (mis. ada
+                // kolom Gambar/Harga) — dibiarkan utuh, disaring di bawah.
+                $trimmed = array_map('trim', $row);
+                if (!empty(array_filter($trimmed))) {
+                    $flatRows[] = $row;
+                }
+                continue;
+            }
             for ($g = 0; $g < $groups; $g++) {
                 $slice = array_slice($row, $g * $colCount, $colCount);
                 $trimmed = array_map('trim', $slice);
@@ -234,9 +257,51 @@ class DatabaseController extends Controller
         $imported  = 0;
         $mtJenis   = ($type === 'mt') ? trim((string) $request->input('mt_jenis', '')) : null;
 
-        DB::transaction(function () use ($flatRows, $model, $cols, $type, $mtJenis, &$imported) {
+        DB::transaction(function () use ($flatRows, $model, $cols, $type, $mtJenis, $mtKolom, &$imported) {
             foreach ($flatRows as $row) {
                 if (empty(array_filter(array_map('trim', $row)))) {
+                    continue;
+                }
+
+                // MT: kolomnya diambil lewat posisi yang terdeteksi dari header
+                // (atau posisi lama sebagai fallback kalau berkasnya tanpa
+                // header) — bukan potongan tetap $colCount, lihat catatan di
+                // atas soal kenapa Harga bisa berpindah posisi.
+                if ($type === 'mt') {
+                    $ambil = fn(?int $ci) => $ci !== null ? trim((string) ($row[$ci] ?? '')) : '';
+                    $nomor = $ambil($mtKolom['nomor']);
+                    $nama_singkat = $ambil($mtKolom['nama_singkat']);
+                    $nama_peralatan = $ambil($mtKolom['nama_peralatan']);
+                    $kode_peralatan = $ambil($mtKolom['kode_peralatan']);
+                    $hargaRaw = $ambil($mtKolom['harga']);
+
+                    if ($nama_singkat === '' && $nama_peralatan === '' && $kode_peralatan === '') continue;
+
+                    $harga = null;
+                    if ($hargaRaw !== '') {
+                        $numHarga = preg_replace('/[^0-9.\-]/', '', str_replace(',', '.', $hargaRaw));
+                        $harga = is_numeric($numHarga) ? $numHarga : null;
+                    }
+
+                    $data = [
+                        'nomor'          => $nomor !== '' ? $nomor : null,
+                        'nama_singkat'   => $nama_singkat !== '' ? $nama_singkat : null,
+                        'nama_peralatan' => $nama_peralatan !== '' ? $nama_peralatan : null,
+                        'kode_peralatan' => $kode_peralatan !== '' ? $kode_peralatan : null,
+                        'harga'          => $harga,
+                    ];
+                    if ($mtJenis !== null && $mtJenis !== '') {
+                        $data['jenis'] = $mtJenis;
+                    }
+                    $uniqueKeys = self::$uniqueKeys[$type] ?? [];
+                    $keyData    = array_intersect_key($data, array_flip($uniqueKeys));
+                    $valData    = array_diff_key($data, array_flip($uniqueKeys));
+                    if (!empty($keyData)) {
+                        $model::updateOrCreate($keyData, $valData);
+                    } else {
+                        $model::create($data);
+                    }
+                    $imported++;
                     continue;
                 }
 
@@ -314,6 +379,46 @@ class DatabaseController extends Controller
             'message'  => "{$imported} data berhasil diimport.",
             'imported' => $imported,
         ]);
+    }
+
+    /**
+     * Posisi kolom berkas import MT, dibaca dari ISI baris header (bukan
+     * indeks tetap) — dua template nyata yang sempat diunggah auditor untuk
+     * berkas "sama" (Database MT) sudah cukup membuktikan urutan/kehadiran
+     * kolomnya tidak bisa diasumsikan stabil:
+     *   No. | Nama Singkat | (kosong) | Nama Peralatan (IND) | Kode Peralatan | Gambar | Harga
+     * Kolom "Gambar" di situ bukan sekadar berbeda posisi — bisa hadir atau
+     * tidak — sehingga Harga ikut bergeser. Dengan membaca posisi dari label
+     * headernya sendiri, berapa pun kolom tambahan di antaranya (atau urutan
+     * kolom yang tertukar) tetap terbaca benar.
+     *
+     * @return array{nomor:?int,nama_singkat:?int,nama_peralatan:?int,kode_peralatan:?int,harga:?int}
+     *   Semua null kalau baris yang diberikan bukan header (mis. berkas tanpa
+     *   header sama sekali, baris pertama sudah data) — pemanggil jatuh ke
+     *   posisi lama yang sudah dikenal (0,1,3,4, harga tidak ada).
+     */
+    private function detectMtColumns(array $headerRow): array
+    {
+        $posisi = ['nomor' => null, 'nama_singkat' => null, 'nama_peralatan' => null, 'kode_peralatan' => null, 'harga' => null];
+        $adaHeader = false;
+
+        foreach ($headerRow as $ci => $cell) {
+            $n = strtolower(trim((string) $cell));
+            if ($n === '') continue;
+            if ($n === 'no' || $n === 'no.' || $n === 'nomor') { $posisi['nomor'] = $ci; $adaHeader = true; }
+            elseif (str_contains($n, 'nama singkat')) { $posisi['nama_singkat'] = $ci; $adaHeader = true; }
+            elseif (str_contains($n, 'nama peralatan')) { $posisi['nama_peralatan'] = $ci; $adaHeader = true; }
+            elseif (str_contains($n, 'kode peralatan')) { $posisi['kode_peralatan'] = $ci; $adaHeader = true; }
+            elseif (str_contains($n, 'harga')) { $posisi['harga'] = $ci; $adaHeader = true; }
+        }
+
+        if (!$adaHeader) {
+            // Tanpa header dikenali sama sekali — pola lama sebelum Harga ada:
+            // No.(0) | Nama Singkat(1) | kosong(2) | Nama Peralatan(3) | Kode Peralatan(4).
+            return ['nomor' => 0, 'nama_singkat' => 1, 'nama_peralatan' => 3, 'kode_peralatan' => 4, 'harga' => null];
+        }
+
+        return $posisi;
     }
 
     private function parseCsv(string $path): array
