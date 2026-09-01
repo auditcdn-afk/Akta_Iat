@@ -284,6 +284,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // ── HGP & AHM Oils ──
     Route::get('/audit-detail/hgp',              [HgpController::class, 'show']);
+    Route::get('/audit-detail/hgp/export-selisih', [HgpController::class, 'exportSelisih']);
     Route::get('/audit-detail/hgp/lookup-het',    [HgpController::class, 'lookupHet']);
     Route::post('/audit-detail/hgp/batch-het',    [HgpController::class, 'batchHet']);
     Route::post('/audit-detail/hgp',             [HgpController::class, 'save'])

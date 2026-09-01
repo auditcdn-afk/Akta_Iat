@@ -5605,6 +5605,41 @@ async function saveHgp() {
     }
 }
 
+// Simpan dulu (supaya file yang diunduh mencerminkan hasil scan terbaru,
+// bukan ketinggalan dari yang ada di layar), lalu unduh item yang selisihnya
+// tidak nol saja sebagai Excel — dibangun di server dari data yang baru
+// disimpan itu (lihat HgpController::exportSelisih).
+async function exportHgpSelisih() {
+    if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
+    const btn = document.getElementById('hgpExportSelisihBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Menyiapkan...'; }
+    try {
+        try {
+            await _doSaveHgp();
+        } catch (err) {
+            if (err?.status !== 409) throw err;
+            showAlert(err.message, 'error');
+            await loadHgpTab();
+            return;
+        }
+        const res = await fetch(`/api/audit-detail/hgp/export-selisih?plan_audit_id=${activePlanId}`, {
+            headers: authHeaders(),
+        });
+        if (!res.ok) throw new Error(`Gagal membuat file Excel (status ${res.status})`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `hgp-selisih-${activePlanId}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        showAlert(err.message || 'Gagal export selisih.', 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '📥 Export Selisih'; }
+    }
+}
+
 function initHgpForm() {
     const fileInput = document.getElementById('hgpFileInput');
     const dropzone  = document.getElementById('hgpDropzone');
@@ -5637,6 +5672,9 @@ function initHgpForm() {
 
     document.getElementById('hgpSaveBtn')?.addEventListener('click', () => {
         saveHgp().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
+    });
+    document.getElementById('hgpExportSelisihBtn')?.addEventListener('click', () => {
+        exportHgpSelisih();
     });
 
     // Form pemeriksaan: scan / pilih No. Part
