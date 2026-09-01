@@ -8,7 +8,9 @@ class DbMt extends Model
 {
     protected $table = 'db_mt';
 
-    protected $fillable = ['nomor', 'nama_singkat', 'nama_peralatan', 'kode_peralatan', 'jenis'];
+    protected $fillable = ['nomor', 'nama_singkat', 'nama_peralatan', 'kode_peralatan', 'harga', 'jenis'];
+
+    protected $casts = ['harga' => 'float'];
 
     public function toAktaArray(): array
     {
@@ -18,6 +20,7 @@ class DbMt extends Model
             'namaSingkat'   => $this->nama_singkat,
             'namaPeralatan' => $this->nama_peralatan,
             'kodePeralatan' => $this->kode_peralatan,
+            'harga'         => $this->harga !== null ? (float) $this->harga : null,
             'jenis'         => $this->jenis,
             'createdAt'     => optional($this->created_at)->toDateTimeString(),
         ];

@@ -4591,6 +4591,20 @@ function initMtForm() {
     document.getElementById('mtSaveBtn')?.addEventListener('click', () => {
         saveMt().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
     });
+
+    // Cetak rekap Rusak & Hilang: simpan dulu (rekapnya dibaca dari server,
+    // bukan dari layar) supaya tab yang dicetak tidak ketinggalan dari
+    // perubahan yang baru saja diketik, lalu buka halaman cetaknya di tab baru.
+    document.getElementById('mtCetakRekapBtn')?.addEventListener('click', async () => {
+        if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
+        try {
+            await _doSaveMt();
+        } catch (err) {
+            showAlert(err.message || 'Gagal menyimpan sebelum mencetak.', 'error');
+            return;
+        }
+        window.open(`/akta/report-audit/mt-rekap/${activePlanId}?autoprint=1`, '_blank');
+    });
 }
 
 /* ============================================================

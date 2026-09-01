@@ -216,11 +216,19 @@ const TABS = {
             { key: "nama_singkat",   label: "Nama Singkat",      type: "text",     span: 1 },
             { key: "nama_peralatan", label: "Nama Peralatan (IND)", type: "textarea", span: 2 },
             { key: "kode_peralatan", label: "Kode Peralatan",    type: "text",     span: 1 },
+            { key: "harga",          label: "Harga (Rp) — nilai kalau tool ini rusak/hilang", type: "number", span: 1 },
             { key: "jenis",          label: "Jenis (MT FI / MT Lama / MT Baru)", type: "text", span: 1 },
         ],
         renderRow(row, no, isAdmin) {
             const jenisBadge = row.jenis
                 ? `<span class="ml-1 inline-flex rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-xs font-semibold text-blue-300">${escHtml(row.jenis)}</span>`
+                : "";
+            // Harga tidak punya kolom header sendiri (lihat catatan lebar tabel di
+            // database.blade.php — thead-nya generik untuk semua jenis database,
+            // cuma 3 label kolom). Ditumpangkan sebagai chip kecil di sel Kode
+            // Peralatan, sama seperti grading menumpangkan kolom-kolom tambahannya.
+            const hargaChip = row.harga
+                ? `<span class="ml-1.5 text-xs font-sans font-semibold text-emerald-300">${fmtRupiah(row.harga)}</span>`
                 : "";
             return `
             <tr class="hover:bg-slate-950/50">
@@ -229,12 +237,12 @@ const TABS = {
                     ${escHtml(row.namaSingkat)}${jenisBadge}
                 </td>
                 <td class="px-4 py-3 text-xs text-slate-400 max-w-xs truncate" title="${escHtml(row.namaPeralatan)}">${escHtml(row.namaPeralatan)}</td>
-                <td class="px-4 py-3 text-sm font-mono text-slate-300">${escHtml(row.kodePeralatan)}</td>
+                <td class="px-4 py-3 text-sm font-mono text-slate-300">${escHtml(row.kodePeralatan)}${hargaChip}</td>
                 ${adminActions(row.id, isAdmin)}
             </tr>`;
         },
         getFormData(row) {
-            return { nomor: row?.nomor || "", nama_singkat: row?.namaSingkat || "", nama_peralatan: row?.namaPeralatan || "", kode_peralatan: row?.kodePeralatan || "", jenis: row?.jenis || "" };
+            return { nomor: row?.nomor || "", nama_singkat: row?.namaSingkat || "", nama_peralatan: row?.namaPeralatan || "", kode_peralatan: row?.kodePeralatan || "", harga: row?.harga || "", jenis: row?.jenis || "" };
         },
     },
     het: {
