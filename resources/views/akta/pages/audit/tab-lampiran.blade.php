@@ -35,10 +35,10 @@
                 class="cursor-pointer rounded-2xl border-2 border-dashed border-slate-600/60 bg-slate-800/20 p-8 text-center transition hover:border-blue-400 hover:bg-blue-900/10">
                 <div class="mb-3 text-4xl">📁</div>
                 <p class="text-sm font-semibold text-slate-300 mb-1">Drag &amp; drop file ke sini</p>
-                <p class="text-xs text-slate-400 mb-4">Format didukung: <span class="text-blue-400">PDF, JPG, PNG, DOC, DOCX</span> — maks. 20 MB per file</p>
+                <p class="text-xs text-slate-400 mb-4">Format didukung: <span class="text-blue-400">PDF, JPG, PNG, DOC, DOCX, XLS, XLSX</span> — maks. 20 MB per file</p>
                 <label class="inline-block cursor-pointer rounded-xl bg-blue-600 px-5 py-2 text-sm font-bold text-white hover:bg-blue-500 transition">
                     📂 Pilih File
-                    <input id="lampiranFileInput" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" multiple class="hidden">
+                    <input id="lampiranFileInput" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" multiple class="hidden">
                 </label>
                 <p id="lampiranUploadMsg" class="hidden mt-3 text-xs text-slate-400"></p>
             </div>

@@ -15,7 +15,7 @@ class LampiranController extends Controller
 {
     use RequiresAuditorAuditee;
 
-    private const ALLOWED = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
+    private const ALLOWED = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'];
 
     public function show(Request $request): JsonResponse
     {
@@ -52,7 +52,7 @@ class LampiranController extends Controller
         $ext  = strtolower($file->getClientOriginalExtension());
 
         if (!in_array($ext, self::ALLOWED, true)) {
-            return response()->json(['message' => 'Format tidak didukung. Gunakan PDF, JPG, PNG, DOC, atau DOCX.'], 422);
+            return response()->json(['message' => 'Format tidak didukung. Gunakan PDF, JPG, PNG, DOC, DOCX, XLS, atau XLSX.'], 422);
         }
 
         $planId   = $request->input('plan_audit_id');
@@ -115,7 +115,7 @@ class LampiranController extends Controller
         $files = array_values($files);
 
         if (empty($files)) {
-            return response()->json(['message' => 'Tidak ada file PDF/gambar untuk digabung. File Word tidak bisa digabung otomatis.'], 422);
+            return response()->json(['message' => 'Tidak ada file PDF/gambar untuk digabung. File Word/Excel tidak bisa digabung otomatis.'], 422);
         }
 
         $pdf = new Fpdi();
