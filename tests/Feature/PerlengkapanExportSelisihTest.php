@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\DbPerlengkapan;
 use App\Models\DbUnitUsaha;
 use App\Models\PemeriksaanAuditor;
+use App\Models\PemeriksaanPerlengkapan;
 use App\Models\PemeriksaanSmh;
 use App\Models\PlanAudit;
 use App\Models\SmhOnhandItem;
@@ -91,6 +92,53 @@ class PerlengkapanExportSelisihTest extends TestCase
         return $hasil;
     }
 
+    /** Seluruh baris sheet yang punya label di kolom B, termasuk baris TOTAL. */
+    private function barisSheet(string $query = ''): array
+    {
+        $res = $this->get('/api/audit-detail/perlengkapan/export-selisih?plan_audit_id=' . $this->plan->id . $query);
+        $res->assertOk();
+
+        $tmp = tempnam(sys_get_temp_dir(), 'xlsx');
+        file_put_contents($tmp, $res->streamedContent());
+        $rows = IOFactory::load($tmp)->getActiveSheet()->toArray();
+        @unlink($tmp);
+
+        $hasil = [];
+        foreach ($rows as $row) {
+            if (! empty($row[1])) $hasil[$row[1]] = $row;
+        }
+
+        return $hasil;
+    }
+
+    /**
+     * Data yang mencakup semua bentuk selisih sekaligus:
+     *  - Helm Open Face : kurang (2 butuh, 1 ketemu di unit)
+     *  - Toolset Matic  : pas    (2 butuh, 2 ketemu di unit)
+     *  - Baterai 3 Ah   : lebih  (tidak ada di db_perlengkapan, hanya Luar SMH)
+     */
+    private function dataBermacamSelisih(): void
+    {
+        PemeriksaanPerlengkapan::query()->create([
+            'plan_audit_id'      => $this->plan->id,
+            'jenis_perlengkapan' => 'Baterai 3 Ah',
+            'fisik'              => 3,
+            'saldo'              => 0,
+            'selisih'            => 3,
+            'penjelasan'         => 'Stok gudang lebih',
+        ]);
+
+        // Helm yang kurang ditutup sebagian dari gudang.
+        PemeriksaanPerlengkapan::query()->create([
+            'plan_audit_id'      => $this->plan->id,
+            'jenis_perlengkapan' => 'Helm Open Face',
+            'fisik'              => 1,
+            'saldo'              => 1,
+            'selisih'            => 0,
+            'penjelasan'         => 'Ditemukan di gudang',
+        ]);
+    }
+
     public function test_hanya_jenis_yang_ada_selisih_yang_diunduh(): void
     {
         $baris = $this->unduh();
@@ -116,17 +164,78 @@ class PerlengkapanExportSelisihTest extends TestCase
         $this->assertSame(-1, (int) $helm[8], 'Total Selisih');
     }
 
-    public function test_angkanya_sama_dengan_report_audit(): void
+    /** Baris rekap gabungan yang dipakai halaman Report Audit. */
+    private function rekapReportAudit(): array
     {
-        $helmExcel = $this->unduh()['Helm Open Face'];
+        return $this->get(route('akta.report-audit.pdf', $this->plan))
+            ->assertOk()->original->getData()['rekapGabungan'] ?? [];
+    }
 
-        $data = $this->get(route('akta.report-audit.pdf', $this->plan))->assertOk()->original->getData();
-        $helmReport = collect($data['rekapGabungan'] ?? [])->firstWhere('jenis', 'Helm Open Face');
+    /**
+     * Jaminan inti: SETIAP baris dan SETIAP kolom di Excel sama dengan Report
+     * Audit — bukan hanya satu jenis yang kebetulan dicek. Dijalankan pada data
+     * yang mencakup semua bentuk selisih: kurang, pas, lebih, dan jenis yang
+     * hanya ada di Luar SMH.
+     */
+    public function test_seluruh_baris_dan_kolom_sama_dengan_report_audit(): void
+    {
+        $this->dataBermacamSelisih();
 
-        $this->assertNotNull($helmReport, 'Report Audit harus punya baris Helm Open Face.');
-        $this->assertSame((int) $helmReport['smhSaldo'], (int) $helmExcel[2]);
-        $this->assertSame((int) $helmReport['smhFisik'], (int) $helmExcel[3]);
-        $this->assertSame((int) $helmReport['totalSelisih'], (int) $helmExcel[8]);
+        $excel  = $this->unduh('&semua=1');
+        $report = $this->rekapReportAudit();
+
+        $this->assertNotEmpty($report, 'Report Audit harus punya baris rekap gabungan.');
+        $this->assertSame(
+            count($report),
+            count($excel),
+            'Jumlah jenis di Excel harus sama dengan di Report Audit.'
+        );
+
+        foreach ($report as $r) {
+            $jenis = $r['jenis'];
+            $this->assertArrayHasKey($jenis, $excel, "Jenis {$jenis} ada di laporan tapi tidak di Excel.");
+
+            $baris = $excel[$jenis];
+            $this->assertSame((int) $r['smhSaldo'],     (int) $baris[2], "SMH Saldo {$jenis}");
+            $this->assertSame((int) $r['smhFisik'],     (int) $baris[3], "SMH Fisik {$jenis}");
+            $this->assertSame((int) $r['smhSelisih'],   (int) $baris[4], "SMH Selisih {$jenis}");
+            $this->assertSame((int) $r['luarSaldo'],    (int) $baris[5], "Luar Saldo {$jenis}");
+            $this->assertSame((int) $r['luarFisik'],    (int) $baris[6], "Luar Fisik {$jenis}");
+            $this->assertSame((int) $r['luarSelisih'],  (int) $baris[7], "Luar Selisih {$jenis}");
+            $this->assertSame((int) $r['totalSelisih'], (int) $baris[8], "Total Selisih {$jenis}");
+            $this->assertSame($r['keterangan'] ?: '-',  (string) $baris[9], "Keterangan {$jenis}");
+        }
+    }
+
+    /**
+     * Baris TOTAL juga harus cocok. Saat yang diunduh hanya jenis berselisih,
+     * TOTAL baris yang tampil memang lebih kecil — karena itu sheet-nya ikut
+     * menulis "TOTAL SELURUH JENIS" yang angkanya sama dengan laporan, supaya
+     * tidak ada angka yang terlihat bertentangan.
+     */
+    public function test_baris_total_seluruh_jenis_sama_dengan_report_audit(): void
+    {
+        $this->dataBermacamSelisih();
+
+        $report = $this->rekapReportAudit();
+        $totalReport = [
+            'smhSaldo'     => array_sum(array_column($report, 'smhSaldo')),
+            'smhFisik'     => array_sum(array_column($report, 'smhFisik')),
+            'luarSaldo'    => array_sum(array_column($report, 'luarSaldo')),
+            'luarFisik'    => array_sum(array_column($report, 'luarFisik')),
+            'totalSelisih' => array_sum(array_column($report, 'totalSelisih')),
+        ];
+
+        foreach (['' => 'TOTAL SELURUH JENIS (sama dengan Report Audit)', '&semua=1' => 'TOTAL'] as $query => $label) {
+            $baris = $this->barisSheet($query)[$label] ?? null;
+            $this->assertNotNull($baris, "Baris \"{$label}\" harus ada di sheet.");
+
+            $this->assertSame($totalReport['smhSaldo'],     (int) $baris[2], "TOTAL SMH Saldo ({$label})");
+            $this->assertSame($totalReport['smhFisik'],     (int) $baris[3], "TOTAL SMH Fisik ({$label})");
+            $this->assertSame($totalReport['luarSaldo'],    (int) $baris[5], "TOTAL Luar Saldo ({$label})");
+            $this->assertSame($totalReport['luarFisik'],    (int) $baris[6], "TOTAL Luar Fisik ({$label})");
+            $this->assertSame($totalReport['totalSelisih'], (int) $baris[8], "TOTAL Selisih ({$label})");
+        }
     }
 
     public function test_bisa_mengunduh_seluruh_jenis_bila_diminta(): void
