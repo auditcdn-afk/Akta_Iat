@@ -686,14 +686,34 @@ function showSmhSuggestions(q) {
     // sebagai jalan lain menemukan unit yang sama.
     const last5 = lowerNoSpace.length >= 5 ? lowerNoSpace.slice(-5) : null;
     const endsWithLast5 = (s) => last5 !== null && stripSpace(s).endsWith(last5);
-    const matches = smhItems.filter(it =>
-        (it.noMesin || '').toLowerCase().includes(lower) ||
-        (it.noRangka || '').toLowerCase().includes(lower) ||
-        stripSpace(it.noMesin).includes(lowerNoSpace) ||
-        stripSpace(it.noRangka).includes(lowerNoSpace) ||
-        endsWithLast5(it.noMesin) ||
-        endsWithLast5(it.noRangka)
-    ).slice(0, 20);
+
+    // Dua unit berbeda bisa punya ekor nomor yang sama (mis. no mesin unit A
+    // "...2361532" vs no rangka unit B "...TK361532"). Semua tetap ditampilkan,
+    // tapi diurut: kecocokan penuh di atas, kecocokan ekor 5 karakter di bawah —
+    // dan kalau sudah ada kecocokan sungguhan, hasil "nyangkut" lewat ekor
+    // dibuang supaya tidak bikin bingung.
+    const skor = (it) => {
+        const mesin  = stripSpace(it.noMesin);
+        const rangka = stripSpace(it.noRangka);
+        if (mesin && mesin === lowerNoSpace)  return 100;
+        if (rangka && rangka === lowerNoSpace) return 90;
+        if (mesin && mesin.endsWith(lowerNoSpace))   return 80;
+        if (rangka && rangka.endsWith(lowerNoSpace)) return 70;
+        if (mesin && mesin.includes(lowerNoSpace))   return 60;
+        if (rangka && rangka.includes(lowerNoSpace)) return 50;
+        if ((it.noMesin || '').toLowerCase().includes(lower))  return 40;
+        if ((it.noRangka || '').toLowerCase().includes(lower)) return 30;
+        if (endsWithLast5(it.noMesin))  return 20;
+        if (endsWithLast5(it.noRangka)) return 10;
+        return 0;
+    };
+
+    let scored = smhItems
+        .map(it => ({ it, s: skor(it) }))
+        .filter(r => r.s > 0)
+        .sort((a, b) => b.s - a.s);
+    if (scored.some(r => r.s > 20)) scored = scored.filter(r => r.s > 20);
+    const matches = scored.slice(0, 20).map(r => r.it);
 
     if (!matches.length) { ul.classList.add('hidden'); ul.innerHTML = ''; return; }
 
@@ -705,7 +725,7 @@ function showSmhSuggestions(q) {
             : '<span class="text-slate-300">○</span>';
         const bg = it.statusFisik === 'ada' ? 'hover:bg-emerald-500/10' : it.statusFisik === 'tidak_ada' ? 'hover:bg-red-500/10' : 'hover:bg-slate-800';
         return `<li class="smh-suggestion cursor-pointer px-3 py-2 text-xs border-b border-slate-800 ${bg} flex items-center gap-2"
-                    data-mesin="${escapeHtml(it.noMesin || '')}" data-rangka="${escapeHtml(it.noRangka || '')}">
+                    data-id="${it.id}" data-mesin="${escapeHtml(it.noMesin || '')}" data-rangka="${escapeHtml(it.noRangka || '')}">
                     ${statusDot}
                     <div>
                         <div class="font-semibold text-slate-100">${escapeHtml(it.noMesin || '-')}</div>
@@ -807,12 +827,38 @@ function smhPerlengkapanChecklist(perlengkapan, saved = []) {
         </div>`;
 }
 
-async function smhScanUnit(q) {
+async function smhScanUnit(q, itemId = null) {
     const res = document.getElementById('smhScanResult');
-    if (!q || q.length < 2) { res.classList.add('hidden'); return; }
-    const payload = await fetchJson(`/api/audit-detail/smh/scan?q=${encodeURIComponent(q)}&plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    if (!itemId && (!q || q.length < 2)) { res.classList.add('hidden'); return; }
+    const url = `/api/audit-detail/smh/scan?q=${encodeURIComponent(q || '')}&plan_audit_id=${activePlanId}`
+        + (itemId ? `&item_id=${encodeURIComponent(itemId)}` : '');
+    const payload = await fetchJson(url, { headers: authHeaders() });
     const it = payload.data;
     const perlengkapan = payload.perlengkapan || [];
+
+    // Nomor yang discan cocok ke lebih dari satu unit (mis. 4-5 angka
+    // terakhirnya kebetulan sama padahal no mesinnya beda) — jangan tebak
+    // salah satu, tampilkan semuanya supaya auditor memilih sendiri.
+    if (!it && payload.ambiguous && (payload.matches || []).length) {
+        res.className = 'rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 text-sm space-y-3';
+        res.innerHTML = `
+            <div class="text-xs font-bold text-amber-300">
+                ${escapeHtml(payload.message || 'Ada beberapa unit dengan nomor mirip.')}
+            </div>
+            <ul class="space-y-1.5">
+                ${payload.matches.map(m => `
+                <li>
+                    <button type="button" class="smh-pick-unit w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-left hover:border-emerald-500 hover:bg-slate-800"
+                        data-id="${m.id}" data-mesin="${escapeHtml(m.noMesin || '')}">
+                        <div class="font-mono text-sm font-bold text-slate-100">${escapeHtml(m.noMesin || '-')}</div>
+                        <div class="font-mono text-xs text-slate-400">${escapeHtml(m.noRangka || '-')} &nbsp;|&nbsp; ${escapeHtml(m.kodeModel || '')} ${escapeHtml(m.warna || '')} &nbsp;|&nbsp; ${escapeHtml(m.gudang || '')}</div>
+                    </button>
+                </li>`).join('')}
+            </ul>`;
+        res.classList.remove('hidden');
+        res.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+    }
 
     if (!it) {
         res.className = 'rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300';
@@ -1863,7 +1909,9 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
         const q = li.dataset.mesin || li.dataset.rangka;
         document.getElementById('smhScanInput').value = q;
         hideSmhSuggestions();
-        smhScanUnit(q).catch((err) => showAlert(err.message, 'error'));
+        // Kirim id unitnya, bukan cuma teks nomor: unit yang diklik itu yang
+        // dibuka, walau ada unit lain dengan ekor nomor yang mirip.
+        smhScanUnit(q, li.dataset.id).catch((err) => showAlert(err.message, 'error'));
     });
 
     document.addEventListener('click', (e) => {
@@ -1949,6 +1997,16 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
     });
 
     document.getElementById('smhScanResult')?.addEventListener('click', async (e) => {
+        // Pilih salah satu unit saat nomor scan cocok ke beberapa unit
+        const pickBtn = e.target.closest('.smh-pick-unit');
+        if (pickBtn) {
+            const scanInput = document.getElementById('smhScanInput');
+            if (scanInput && pickBtn.dataset.mesin) scanInput.value = pickBtn.dataset.mesin;
+            try {
+                await smhScanUnit(pickBtn.dataset.mesin || '', pickBtn.dataset.id);
+            } catch (err) { showAlert(err.message, 'error'); }
+            return;
+        }
         // Tombol Simpan Pemeriksaan
         const simpanBtn = e.target.closest('#smhFormSimpanBtn');
         if (simpanBtn) {
@@ -1991,8 +2049,10 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
             await smhCheckItem(itemId, { status_fisik: val, keterangan_fisik: 'Fisik Tidak Ada' });
             renderSmhTable(document.getElementById('smhFilterStatus')?.value || '');
             populateSmhDropdown();
+            // Muat ulang unit yang SAMA (pakai id), bukan cari ulang dari teks
+            // scan yang bisa cocok ke unit lain dengan ekor nomor mirip.
             const q = document.getElementById('smhScanInput').value.trim();
-            await smhScanUnit(q);
+            await smhScanUnit(q, itemId);
         } catch (err) { showAlert(err.message, 'error'); }
     });
 
