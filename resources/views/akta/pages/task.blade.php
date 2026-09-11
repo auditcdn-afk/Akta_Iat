@@ -151,11 +151,16 @@
                     <div id="pinjamanBpkForm" class="hidden space-y-4">
                         <div>
                             <label class="mb-1 block text-xs font-semibold text-blue-400">Cabang Realisasi <span class="text-red-400">*</span></label>
-                            <select id="pinjamanCabang"
+                            {{-- Daftar unit usaha panjang, jadi dropdown biasa memaksa auditor
+                                 menggulir mencari cabangnya. Pakai input + datalist (pola yang
+                                 sama dengan Keterangan Kondisi di pemeriksaan SMH): bisa diketik
+                                 untuk menyaring, bisa juga tetap dipilih dari daftar. Nilai yang
+                                 diketik divalidasi ke daftar sebelum dikirim. --}}
+                            <input id="pinjamanCabang" list="pinjamanCabangList" autocomplete="off"
+                                placeholder="Ketik nama cabang, mis. SO ALB..."
                                 class="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-                                <option value="">-- Pilih Unit Usaha --</option>
-                            </select>
-                            <p class="mt-1 text-xs text-slate-500">Diambil dari data user role H1</p>
+                            <datalist id="pinjamanCabangList"></datalist>
+                            <p class="mt-1 text-xs text-slate-500">Diambil dari data user role H1 — ketik untuk mencari, atau pilih dari daftar.</p>
                         </div>
                         <div class="grid gap-3 sm:grid-cols-2">
                             <div>

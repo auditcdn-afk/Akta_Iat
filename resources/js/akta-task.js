@@ -582,16 +582,34 @@ async function saveExecution(event) {
 
 // ── Pinjaman Cabang ───────────────────────────────────────────────────────────
 let _pinjamanTaskId = null;
+// Daftar unit usaha yang sah untuk Cabang Realisasi. Disimpan karena kolomnya
+// sekarang bisa diketik: yang diketik harus dicocokkan balik ke daftar ini
+// sebelum dikirim, supaya salah ketik tidak tersimpan sebagai cabang yang tidak
+// ada (alur persetujuannya menunggu role unit usaha cabang tersebut).
+let _pinjamanCabangOptions = [];
 
 async function loadPinjamanCabangOptions() {
-    const sel = document.getElementById('pinjamanCabang');
-    if (!sel) return;
+    const list = document.getElementById('pinjamanCabangList');
+    if (!list) return;
     try {
         const res = await fetchJson('/api/users/unit-usaha-by-role?role=h1', { headers: authHeaders() });
-        const opts = res.data ?? [];
-        sel.innerHTML = '<option value="">-- Pilih Unit Usaha --</option>' +
-            opts.map(u => `<option value="${u}">${u}</option>`).join('');
+        _pinjamanCabangOptions = res.data ?? [];
+        list.innerHTML = _pinjamanCabangOptions
+            .map(u => `<option value="${escapeHtml(u)}"></option>`)
+            .join('');
     } catch (_) {}
+}
+
+/**
+ * Cocokkan teks yang diketik ke daftar unit usaha: spasi berlebih dibuang dan
+ * huruf besar/kecil diabaikan. Mengembalikan ejaan resmi dari daftar, atau null
+ * kalau tidak ada yang cocok.
+ */
+function cocokkanCabangRealisasi(teks) {
+    const rapikan = (v) => String(v ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+    const cari = rapikan(teks);
+    if (!cari) return null;
+    return _pinjamanCabangOptions.find(u => rapikan(u) === cari) ?? null;
 }
 
 function initPinjaman() {
@@ -631,8 +649,13 @@ function initPinjaman() {
     // Submit BPK
     document.getElementById('pinjamanBpkSubmit')?.addEventListener('click', async () => {
         if (!_pinjamanTaskId) return;
-        const cabang = document.getElementById('pinjamanCabang')?.value;
-        if (!cabang) { alert('Pilih Cabang Realisasi.'); return; }
+        const cabangKetikan = document.getElementById('pinjamanCabang')?.value;
+        if (!cabangKetikan?.trim()) { alert('Pilih Cabang Realisasi.'); return; }
+        const cabang = cocokkanCabangRealisasi(cabangKetikan);
+        if (!cabang) {
+            alert(`Cabang Realisasi "${cabangKetikan.trim()}" tidak ada dalam daftar. Ketik sebagian namanya lalu pilih dari saran yang muncul.`);
+            return;
+        }
         const noSpd   = document.getElementById('pinjamanNoSpd')?.value.trim();
         const nominal = document.getElementById('pinjamanNominal')?.value || '0';
         if (!noSpd) { alert('No SPD wajib diisi.'); return; }
