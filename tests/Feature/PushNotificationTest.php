@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\KirimPushNotification;
 use App\Models\AppNotification;
+use App\Models\AppData;
 use App\Models\PlanAudit;
 use App\Models\PushSubscription;
 use App\Models\User;
@@ -12,6 +13,7 @@ use App\Services\WebPush\Base64Url;
 use App\Services\WebPush\P256;
 use App\Services\WebPush\PushEncryptor;
 use App\Services\WebPush\Vapid;
+use App\Services\WebPush\VapidKeyStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -39,6 +41,16 @@ class PushNotificationTest extends TestCase
 
     private const KUNCI_PUBLIK_UJI = 'BIK_8QpcQo5OB-A1xCowAWav078WDbyHqvhlOlekiiZuiKAtyx9mx4ZGv9oeeKQvi-BPEElxMYRT9uALsPXA7LU';
     private const KUNCI_PRIVAT_UJI = '5NoNjnuaYBIAHCo47mIyOUwhIpwGassFODxpZzOqleA';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Kunci di-ingat dalam proses supaya tidak menambah query ke tiap
+        // pembuatan notifikasi; antar-tes ingatannya harus dikosongkan.
+        VapidKeyStore::lupakanIngatan();
+        config(['webpush.public_key' => '', 'webpush.private_key' => '']);
+    }
 
     private function pasangKunciVapid(): void
     {
@@ -400,6 +412,81 @@ class PushNotificationTest extends TestCase
         $this->postJson('/api/push/test', ['endpoint' => $endpoint])
             ->assertOk()
             ->assertJson(['ok' => true]);
+    }
+
+    // ── Menyalakan fitur dari dalam aplikasi (tanpa menyentuh .env) ─────────
+
+    public function test_admin_bisa_menyalakan_notifikasi_tanpa_menyentuh_env(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/push/public-key')
+            ->assertOk()
+            ->assertJson(['enabled' => false, 'canActivate' => true, 'needsMigration' => false]);
+
+        $this->postJson('/api/push/aktifkan')
+            ->assertOk()
+            ->assertJson(['ok' => true, 'enabled' => true]);
+
+        VapidKeyStore::lupakanIngatan();
+
+        $this->getJson('/api/push/public-key')
+            ->assertOk()
+            ->assertJson(['enabled' => true, 'canActivate' => false])
+            ->assertJsonPath('publicKey', fn ($kunci) => is_string($kunci) && strlen($kunci) > 80);
+    }
+
+    public function test_menyalakan_dua_kali_tidak_mengganti_kunci_yang_sudah_dipakai(): void
+    {
+        Sanctum::actingAs(User::factory()->create(['role' => 'admin']));
+
+        $pertama = $this->postJson('/api/push/aktifkan')->assertOk()->json('publicKey');
+        VapidKeyStore::lupakanIngatan();
+        $kedua = $this->postJson('/api/push/aktifkan')->assertOk()->json('publicKey');
+
+        $this->assertSame($pertama, $kedua,
+            'Mengganti pasangan kunci akan membuat SEMUA langganan yang sudah terdaftar ditolak server push.');
+    }
+
+    public function test_kunci_dari_env_selalu_menang_atas_yang_tersimpan(): void
+    {
+        Sanctum::actingAs(User::factory()->create(['role' => 'admin']));
+        $this->postJson('/api/push/aktifkan')->assertOk();
+
+        $this->pasangKunciVapid();
+        VapidKeyStore::lupakanIngatan();
+
+        $this->assertSame(self::KUNCI_PUBLIK_UJI, Vapid::dariKonfigurasi()->kunciPublik());
+    }
+
+    public function test_bukan_admin_tidak_bisa_menyalakan(): void
+    {
+        Sanctum::actingAs(User::factory()->create(['role' => 'auditor']));
+
+        $this->postJson('/api/push/aktifkan')->assertForbidden();
+
+        $this->getJson('/api/push/public-key')
+            ->assertOk()
+            ->assertJson(['canActivate' => false]);
+    }
+
+    public function test_kunci_privat_tidak_bisa_dibaca_lewat_api_data_umum(): void
+    {
+        Sanctum::actingAs(User::factory()->create(['role' => 'admin']));
+        $this->postJson('/api/push/aktifkan')->assertOk();
+
+        $this->assertNotNull(AppData::where('data_key', VapidKeyStore::KUNCI)->first(),
+            'Prasyarat: kuncinya memang tersimpan di app_data.');
+
+        // Kalau kunci ini sampai terdaftar di DataKeys, endpoint umum
+        // /api/data/{key} akan menyerahkan kunci privatnya ke siapa pun yang login.
+        $this->getJson('/api/data/'.VapidKeyStore::KUNCI)->assertNotFound();
+
+        $this->getJson('/api/push/public-key')
+            ->assertOk()
+            ->assertJsonMissing(['privat' => true])
+            ->assertJsonMissingPath('privateKey');
     }
 
     public function test_notifikasi_percobaan_untuk_perangkat_asing_ditolak(): void

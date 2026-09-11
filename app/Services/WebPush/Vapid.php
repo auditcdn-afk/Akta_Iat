@@ -30,9 +30,11 @@ final class Vapid
 
     public static function dariKonfigurasi(): self
     {
+        $pasangan = VapidKeyStore::pasangan() ?? ['publik' => '', 'privat' => ''];
+
         return new self(
-            (string) config('webpush.public_key'),
-            (string) config('webpush.private_key'),
+            $pasangan['publik'],
+            $pasangan['privat'],
             (string) config('webpush.subject'),
         );
     }

@@ -45,6 +45,7 @@ export function initPushNotifikasi(authHeaders) {
     const tombol = document.getElementById("pushToggleBtn");
     const keterangan = document.getElementById("pushToggleHint");
     const tombolUji = document.getElementById("pushTestBtn");
+    const tombolAktifkan = document.getElementById("pushActivateBtn");
 
     if (!tombol) return;
 
@@ -66,6 +67,11 @@ export function initPushNotifikasi(authHeaders) {
         tombol.classList.add("hidden");
         if (tombolUji) tombolUji.classList.add("hidden");
         setKeterangan(alasan);
+    };
+
+    /** Tombol admin hanya relevan selama fiturnya memang belum dinyalakan. */
+    const tampilkanTombolAktifkan = (tampil) => {
+        if (tombolAktifkan) tombolAktifkan.classList.toggle("hidden", !tampil);
     };
 
     const simpanKeServer = (subscription) =>
@@ -166,23 +172,44 @@ export function initPushNotifikasi(authHeaders) {
         });
     }
 
-    if (!didukung()) {
-        matikanTombol(
-            iosBelumDipasang()
-                ? "Di iPhone, tambahkan dulu aplikasi ini ke Home Screen (Bagikan → Tambah ke Layar Utama), baru notifikasi bisa diaktifkan."
-                : "Browser ini belum mendukung notifikasi ke layar HP."
-        );
-        return;
-    }
+    // Perangkat ini mungkin tidak bisa MENERIMA push (iPhone yang belum dipasang
+    // ke Home Screen, browser lama). Itu urusan tombol per-perangkat saja —
+    // menyalakan fiturnya untuk seluruh aplikasi tetap harus bisa dilakukan
+    // admin dari perangkat mana pun, termasuk dari iPhone.
+    const perangkatIniMendukung = didukung();
 
-    fetch("/api/push/public-key", { headers: authHeaders() })
+    const muatStatus = () =>
+        fetch("/api/push/public-key", { headers: authHeaders() })
         .then((res) => (res.ok ? res.json() : Promise.reject(new Error("gagal"))))
         .then(async (payload) => {
             if (!payload.enabled || !payload.publicKey) {
-                matikanTombol("Notifikasi HP belum diaktifkan oleh administrator.");
+                // Sebutkan APA yang kurang. "Belum diaktifkan administrator"
+                // saja membuat orang menunggu sesuatu yang tidak akan datang.
+                if (payload.needsMigration) {
+                    tampilkanTombolAktifkan(false);
+                    matikanTombol("Tabel notifikasi belum dibuat di server. Jalankan /deploy/migrate lebih dulu.");
+                } else if (payload.canActivate) {
+                    tampilkanTombolAktifkan(true);
+                    matikanTombol("Notifikasi HP belum dinyalakan. Sebagai admin, Anda bisa menyalakannya sekarang.");
+                } else {
+                    tampilkanTombolAktifkan(false);
+                    matikanTombol("Notifikasi HP belum diaktifkan oleh administrator.");
+                }
                 return;
             }
 
+            tampilkanTombolAktifkan(false);
+
+            if (!perangkatIniMendukung) {
+                matikanTombol(
+                    iosBelumDipasang()
+                        ? "Notifikasi sudah aktif. Di iPhone, tambahkan dulu aplikasi ini ke Home Screen (Bagikan → Tambah ke Layar Utama) supaya bisa dinyalakan di sini."
+                        : "Browser ini belum mendukung notifikasi ke layar HP."
+                );
+                return;
+            }
+
+            tombol.classList.remove("hidden");
             publicKey = payload.publicKey;
 
             const subscription = await subscriptionSaatIni();
@@ -204,4 +231,28 @@ export function initPushNotifikasi(authHeaders) {
         .catch(() => {
             matikanTombol("Status notifikasi tidak bisa dimuat.");
         });
+
+    if (tombolAktifkan) {
+        tombolAktifkan.addEventListener("click", (event) => {
+            event.stopPropagation();
+            tombolAktifkan.disabled = true;
+            setKeterangan("Menyalakan notifikasi untuk seluruh aplikasi...");
+
+            fetch("/api/push/aktifkan", { method: "POST", headers: authHeaders() })
+                .then((res) => res.json().catch(() => ({})).then((body) => ({ ok: res.ok, body })))
+                .then(({ ok, body }) => {
+                    if (!ok) {
+                        setKeterangan(body.message || "Gagal menyalakan notifikasi.");
+                        return;
+                    }
+                    return muatStatus().then(() => setKeterangan(body.message || "Notifikasi push diaktifkan."));
+                })
+                .catch(() => setKeterangan("Gagal menyalakan notifikasi."))
+                .finally(() => {
+                    tombolAktifkan.disabled = false;
+                });
+        });
+    }
+
+    muatStatus();
 }
