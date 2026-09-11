@@ -6496,6 +6496,13 @@ async function rsaHgpHandleFile(file) {
         const sampleNote = res.sampled
             ? ` — disampling otomatis ${res.data.length} dari ${res.totalFound} item ditemukan (ukuran sample: ${res.sampleSize}).`
             : '';
+        // File tanpa baris header (mis. export "stock Pagi" dari gudang): kolom
+        // stoknya ditebak dari isi datanya. Nomornya disebutkan supaya auditor bisa
+        // langsung mencocokkan — salah kolom pada data audit tidak boleh baru
+        // ketahuan setelah angkanya dipakai.
+        const kolomNote = res.kolomStok
+            ? ` Stok dibaca dari kolom ${res.kolomStok} file (file tanpa header).`
+            : '';
         if (!_rsaHgpData) _rsaHgpData = rsaHgpEmptyData();
         // Replace: import = master data baru. Pertahankan fisik & logScan untuk noPart yang cocok.
         const prevByPart = {};
@@ -6515,7 +6522,7 @@ async function rsaHgpHandleFile(file) {
         _rsaHgpData.sampleSize = res.sampleSize;
         if (msg) { msg.textContent = `${res.data.length} item diimport${sampleNote} — memuat harga HET...`; }
         await rsaHgpEnrichWithHet(_rsaHgpData.items);
-        if (msg) { msg.textContent = `${res.data.length} item diimport (data lama diganti).${sampleNote}`; }
+        if (msg) { msg.textContent = `${res.data.length} item diimport (data lama diganti).${sampleNote}${kolomNote}`; }
         rsaHgpRenderItems();
         rsaHgpPopulateDatalist();
         rsaHgpUpdateSampleInfo();

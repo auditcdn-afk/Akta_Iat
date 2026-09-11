@@ -16,7 +16,7 @@ use PhpOffice\PhpSpreadsheet\Reader\Csv;
 
 // RSA HGP & AHM Oils — sama seperti HgpController, tapi bertipe "Random Sampling
 // Audit": saat import Excel, item yang disimpan/ditampilkan untuk discan HANYA
-// sample-nya (30 item, atau 50 item untuk unit usaha ber-role WHS), bukan seluruh
+// sample-nya (30 item, atau 50 item untuk gudang WHS Part / WHS Unit), bukan seluruh
 // data hasil parse (file sumbernya bisa 1000+ baris). Master data HET (lookupHet/
 // batchHet) tetap memakai endpoint HgpController — itu data referensi bersama,
 // tidak spesifik per tool.
@@ -278,6 +278,17 @@ class RsaHgpController extends Controller
             ];
         }
 
+        // File "stock Pagi" dari sistem gudang tidak punya baris header sama sekali:
+        // isinya langsung no part;nama;...;stok;...;harga;kode gudang. Jalur di atas
+        // menuntut sel "AWAL"/"QTY"/"JUMLAH", jadi tidak satu pun barisnya terbaca —
+        // sementara jalur cadangan di bawah malah memungut baris yang nomor partnya
+        // kebetulan seluruhnya angka lalu membaca nama part sebagai no part dan stok
+        // dari kolom yang tidak ada (jadi 0). Diam-diam salah, bukan gagal.
+        $kolomStok = null;
+        if (!$headerPassed) {
+            [$items, $kolomStok] = $this->bacaDaftarStokTanpaHeader($rows);
+        }
+
         if (empty($items)) {
             foreach ($rows as $row) {
                 if (!is_numeric(trim((string)($row[0] ?? '')))) continue;
@@ -309,13 +320,117 @@ class RsaHgpController extends Controller
             'totalFound'  => $totalFound,
             'sampleSize'  => $sampleSize,
             'sampled'     => $sampled,
+            // Untuk file tanpa header, kolom stoknya ditebak dari isi datanya.
+            // Nomornya ikut dikirim supaya auditor bisa langsung melihat kolom
+            // mana yang dibaca — salah kolom pada file audit tidak boleh cuma
+            // ketahuan belakangan saat angkanya sudah dipakai.
+            'kolomStok'   => $kolomStok,
         ]);
     }
 
-    // Tentukan ukuran sample RSA berdasarkan role unit usaha pada plan audit ini:
-    // 50 item untuk unit usaha ber-role WHS (WHS UNIT / WHS PART), 30 untuk lainnya
-    // (Cabang / Bengkel / default). Cek db_unit_usaha.jenis dulu, fallback ke
-    // plan_audits.jenis_audit kalau unit usahanya tidak ada di master data.
+    /**
+     * Baca daftar stok yang sama sekali tidak punya baris header.
+     *
+     * Bentuk yang ditangani: kolom pertama nomor part, kolom kedua nama part,
+     * lalu sederet kolom angka. Contoh (export "stock Pagi", pemisah titik koma):
+     *
+     *     03512HDL000;HONDA DISC LOCK;1;302;0;302;119000;GTM
+     *
+     * Kolom stoknya dipilih dengan aturan: kolom angka PERTAMA setelah nama yang
+     * nilainya tidak sama di semua baris. Kolom satuan/pengali yang isinya 1 terus
+     * (dan kolom 0 terus) otomatis terlewati karena tidak pernah berubah, sedangkan
+     * kolom harga tidak pernah terpilih karena letaknya di belakang kolom stok.
+     *
+     * @return array{0: list<array<string, mixed>>, 1: int|null} item dan nomor kolom stok (1-based)
+     */
+    private function bacaDaftarStokTanpaHeader(array $rows): array
+    {
+        $baris = [];
+        foreach ($rows as $row) {
+            $noPart = trim((string)($row[0] ?? ''));
+
+            // Yang wajib hanya nomor partnya. Nama boleh kosong — di file gudang
+            // sungguhan ada baris seperti "FUEL TANK STAND K;;1;3;0;3;0;GTM" yang
+            // stoknya nyata; membuangnya berarti diam-diam mengurangi saldo yang
+            // harus dipertanggungjawabkan auditor.
+            if ($noPart === '') continue;
+            if (count($row) < 3) continue;
+
+            $baris[] = $row;
+        }
+
+        if (count($baris) < 2) {
+            return [[], null];
+        }
+
+        $kolomStok = $this->tebakKolomStok($baris);
+        if ($kolomStok === null) {
+            return [[], null];
+        }
+
+        $items = [];
+        foreach ($baris as $row) {
+            $saldoAkhir = $this->n($row[$kolomStok] ?? 0);
+
+            $items[] = [
+                'noPart'     => trim((string)$row[0]),
+                'sparepart'  => trim((string)($row[1] ?? '')) !== ''
+                    ? trim((string)$row[1])
+                    : trim((string)$row[0]),
+                'saldoAkhir' => $saldoAkhir,
+                'fisik'      => 0,
+                'akhir'      => $saldoAkhir,
+                'selisih'    => -$saldoAkhir,
+                'keterangan' => '',
+                'tgl'        => date('Y-m-d'),
+                'logScan'    => [],
+            ];
+        }
+
+        return [$items, $kolomStok + 1];
+    }
+
+    /** @param list<array<int, mixed>> $baris */
+    private function tebakKolomStok(array $baris): ?int
+    {
+        $jumlahKolom = max(array_map('count', $baris));
+
+        for ($ci = 2; $ci < $jumlahKolom; $ci++) {
+            $nilai = [];
+            foreach ($baris as $row) {
+                $sel = trim((string)($row[$ci] ?? ''));
+                if ($sel === '' || !is_numeric(str_replace([',', ' '], ['.', ''], $sel))) {
+                    // Satu sel saja bukan angka dan kolom ini bukan kolom stok —
+                    // lebih baik lanjut mencari daripada mengarang nilai nol.
+                    continue 2;
+                }
+                $nilai[$sel] = true;
+            }
+
+            // Kolom yang isinya sama persis di seluruh baris adalah satuan/pengali
+            // (mis. selalu "1") atau kolom mutasi yang memang kosong (selalu "0"),
+            // bukan stok. Lewati, cari kolom berikutnya.
+            if (count($nilai) > 1) {
+                return $ci;
+            }
+        }
+
+        return null;
+    }
+
+    // Tentukan ukuran sample RSA berdasarkan unit usaha pada plan audit ini:
+    // 50 item untuk gudang (WHS Part / WHS Unit), 30 untuk lainnya (Cabang /
+    // Bengkel / default).
+    //
+    // Tiga petunjuk dipakai berurutan, dari yang paling tepercaya:
+    //   1. db_unit_usaha.jenis — master data, mis. "WHS PART";
+    //   2. nama unit usahanya sendiri — "WHS Part KIM" sudah menyebut dirinya
+    //      gudang, jadi sample-nya tetap 50 walau unitnya belum terdaftar di
+    //      master data (sebelumnya kasus ini diam-diam jatuh ke 30);
+    //   3. jenis auditnya — penyelamat terakhir kalau cabangnya pun kosong.
+    //
+    // Kata "WAREHOUSE" ikut dikenali karena jenis audit menyebutnya lengkap
+    // ("Audit Warehouse PART"), sementara master data & nama unit memakai "WHS".
     private function sampleSize(mixed $planId): int
     {
         if (!$planId) {
@@ -328,9 +443,16 @@ class RsaHgpController extends Controller
         }
 
         $unitUsaha = DbUnitUsaha::where('unit_usaha', $plan->cabang)->first();
-        $jenis = strtoupper($unitUsaha?->jenis ?? $plan->jenis_audit ?? '');
 
-        return str_contains($jenis, 'WHS') ? self::WHS_SAMPLE_SIZE : self::DEFAULT_SAMPLE_SIZE;
+        $petunjuk = trim((string) ($unitUsaha?->jenis ?: ''));
+        if ($petunjuk === '') {
+            $petunjuk = trim((string) ($plan->cabang ?: $plan->jenis_audit ?: ''));
+        }
+        $petunjuk = strtoupper($petunjuk);
+
+        return (str_contains($petunjuk, 'WHS') || str_contains($petunjuk, 'WAREHOUSE'))
+            ? self::WHS_SAMPLE_SIZE
+            : self::DEFAULT_SAMPLE_SIZE;
     }
 
     // Ambil sample acak sejumlah $sampleSize dari $items, dikembalikan dalam urutan
