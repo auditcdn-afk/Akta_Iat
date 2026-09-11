@@ -20,6 +20,25 @@ class PemeriksaanSmhController extends Controller
 
     private array $writeRoles = ['admin', 'manajer', 'auditor'];
 
+    /**
+     * Batas skor {@see skorCocokScan()} yang dianggap "cocok penuh": nomor
+     * persis sama, atau nomor tersimpan berakhiran persis hasil scan. Di bawah
+     * itu kecocokannya cuma sepotong, jadi unitnya tidak boleh dipilih otomatis
+     * kalau kandidatnya lebih dari satu.
+     */
+    private const SKOR_COCOK_PENUH = 70;
+
+    /** Skor {@see skorCocokScan()} untuk nomor yang sama persis. */
+    private const SKOR_NOMOR_PERSIS = 90;
+
+    /**
+     * Panjang minimal nomor hasil scan (tanpa spasi) supaya kecocokan
+     * "berakhiran" boleh dianggap pasti. Potongan pendek seperti 4 angka
+     * terakhir terlalu sering nyangkut ke unit lain, jadi kalau kandidatnya
+     * lebih dari satu auditor yang memilih.
+     */
+    private const MIN_PANJANG_YAKIN = 8;
+
     // ── GET /api/audit-detail/smh ─────────────────────────────────────────────
 
     public function index(Request $request): JsonResponse
@@ -205,12 +224,34 @@ class PemeriksaanSmhController extends Controller
 
     public function scan(Request $request): JsonResponse
     {
-        $q = trim((string) $request->query('q', ''));
-        if (strlen($q) < 2) {
-            return response()->json(['data' => null, 'message' => 'Minimal 2 karakter.']);
+        $q      = trim((string) $request->query('q', ''));
+        $planId = $request->query('plan_audit_id');
+        $itemId = (int) $request->query('item_id', 0);
+
+        // Unit dipilih eksplisit dari daftar saran / daftar kandidat: ambil
+        // baris itu apa adanya, TANPA pencarian lagi. Ini yang bikin dua unit
+        // berbeda yang kebetulan punya 4-5 angka ekor sama tetap bisa dipilih
+        // satu per satu — dulu klik saran cuma mengirim teks nomornya, lalu
+        // dicari ulang dan yang ketemu duluan (unit lain) yang kepilih.
+        if ($itemId > 0) {
+            $query = SmhOnhandItem::query()->whereKey($itemId);
+            if ($planId) {
+                $query->whereHas('pemeriksaan', fn($q2) => $q2->where('plan_audit_id', $planId));
+            }
+            $item = $query->first();
+
+            return response()->json([
+                'data'         => $item ? $this->formatItem($item) : null,
+                'perlengkapan' => $item ? $this->perlengkapanForItem($item, $planId) : [],
+                'matches'      => [],
+                'ambiguous'    => false,
+                'message'      => $item ? 'Unit ditemukan.' : 'Unit tidak ditemukan dalam daftar onhand.',
+            ]);
         }
 
-        $planId = $request->query('plan_audit_id');
+        if (strlen($q) < 2) {
+            return response()->json(['data' => null, 'matches' => [], 'ambiguous' => false, 'message' => 'Minimal 2 karakter.']);
+        }
 
         // No mesin/rangka hasil import Excel kadang ada spasi (mis. "JMK2E
         // 1003815"), tapi barcode fisik di unit biasanya tidak ada spasi sama
@@ -244,22 +285,102 @@ class PemeriksaanSmhController extends Controller
             $query->whereHas('pemeriksaan', fn($q2) => $q2->where('plan_audit_id', $planId));
         }
 
-        $item = $query->first();
+        // Dulu langsung ->first(): unit mana pun yang duluan tersimpan yang
+        // kepilih, walau ada unit lain yang nomornya PERSIS sama dengan hasil
+        // scan. Sekarang semua kandidat diambil lalu diperingkat; kecocokan
+        // penuh selalu menang atas kecocokan ekor 4-5 angka.
+        $candidates = $query->limit(50)->get();
 
-        // Ambil perlengkapan berdasarkan prefix no_mesin + wilayah unit usaha plan
-        $perlengkapan = [];
-        if ($item) {
-            $prefix  = strtoupper(substr(str_replace(' ', '', $item->no_mesin ?? ''), 0, 5));
-            $wilayah = $this->wilayahFromPlan($planId);
-            $plRow   = $this->findPerlengkapan($prefix, $wilayah);
-            $perlengkapan = $plRow ? $plRow->itemList() : [];
+        if ($candidates->isEmpty()) {
+            return response()->json([
+                'data'         => null,
+                'perlengkapan' => [],
+                'matches'      => [],
+                'ambiguous'    => false,
+                'message'      => 'Unit tidak ditemukan dalam daftar onhand.',
+            ]);
         }
 
+        $scored = $candidates
+            ->map(fn(SmhOnhandItem $it) => ['item' => $it, 'score' => $this->skorCocokScan($it, $qNoSpace, $qLast5)])
+            ->sortBy([['score', 'desc'], ['item.id', 'asc']])
+            ->values();
+
+        $skorTerbaik = $scored->first()['score'];
+        $terbaik     = $scored->where('score', $skorTerbaik)->values();
+
+        // Boleh langsung dipilihkan HANYA kalau satu unit menang telak lewat
+        // kecocokan penuh (nomor persis / berakhiran nomor hasil scan). Kalau
+        // cuma cocok sepotong di tengah atau lewat fallback ekor 5 karakter,
+        // dan kandidatnya lebih dari satu, jangan tebak — dua unit berbeda
+        // memang bisa punya 4-5 angka yang sama di nomor yang berbeda.
+        $yakin = $terbaik->count() === 1 && (
+            $skorTerbaik >= self::SKOR_NOMOR_PERSIS
+            || ($skorTerbaik >= self::SKOR_COCOK_PENUH && strlen($qNoSpace) >= self::MIN_PANJANG_YAKIN)
+        );
+
+        if (!$yakin && $scored->count() > 1) {
+            // Tampilkan semua kandidat (paling mirip di urutan atas), bukan
+            // cuma yang skornya sama, supaya unit yang dicari pasti ada di
+            // daftar walau kemiripannya lewat kolom yang berbeda.
+            $kandidat = $scored->take(10);
+
+            return response()->json([
+                'data'         => null,
+                'perlengkapan' => [],
+                'matches'      => $kandidat->map(fn($row) => $this->formatItem($row['item']))->values(),
+                'ambiguous'    => true,
+                'message'      => 'Ada ' . $kandidat->count() . ' unit dengan nomor mirip — pilih unit yang sedang diperiksa.',
+            ]);
+        }
+
+        $item = $scored->first()['item'];
+
         return response()->json([
-            'data'         => $item ? $this->formatItem($item) : null,
-            'perlengkapan' => $perlengkapan,
-            'message'      => $item ? 'Unit ditemukan.' : 'Unit tidak ditemukan dalam daftar onhand.',
+            'data'         => $this->formatItem($item),
+            'perlengkapan' => $this->perlengkapanForItem($item, $planId),
+            'matches'      => [],
+            'ambiguous'    => false,
+            'message'      => 'Unit ditemukan.',
         ]);
+    }
+
+    /**
+     * Peringkat kecocokan hasil scan terhadap satu unit onhand. Makin tinggi
+     * makin yakin, dan kecocokan pada NO MESIN diutamakan karena itu yang
+     * biasanya discan/diketik auditor di kolom Fisik Scan.
+     */
+    private function skorCocokScan(SmhOnhandItem $it, string $qNoSpace, ?string $qLast5): int
+    {
+        $mesin  = strtoupper(str_replace(' ', '', (string) $it->no_mesin));
+        $rangka = strtoupper(str_replace(' ', '', (string) $it->no_rangka));
+        $needle = strtoupper($qNoSpace);
+
+        if ($needle !== '' && $mesin === $needle)  return 100;   // no mesin persis
+        if ($needle !== '' && $rangka === $needle) return 90;    // no rangka persis
+        if ($needle !== '' && $mesin !== '' && str_ends_with($mesin, $needle))   return 80;
+        if ($needle !== '' && $rangka !== '' && str_ends_with($rangka, $needle)) return 70;
+        if ($needle !== '' && $mesin !== '' && str_contains($mesin, $needle))    return 60;
+        if ($needle !== '' && $rangka !== '' && str_contains($rangka, $needle))  return 50;
+
+        // Sisanya cuma nyangkut lewat fallback ekor 5 karakter — paling lemah.
+        if ($qLast5 !== null) {
+            $tail = strtoupper($qLast5);
+            if ($mesin !== '' && str_ends_with($mesin, $tail))   return 20;
+            if ($rangka !== '' && str_ends_with($rangka, $tail)) return 10;
+        }
+
+        return 0;
+    }
+
+    /** Perlengkapan SMH untuk satu unit, berdasarkan prefix no mesin + wilayah plan. */
+    private function perlengkapanForItem(SmhOnhandItem $item, ?string $planId): array
+    {
+        $prefix  = strtoupper(substr(str_replace(' ', '', $item->no_mesin ?? ''), 0, 5));
+        $wilayah = $this->wilayahFromPlan($planId);
+        $plRow   = $this->findPerlengkapan($prefix, $wilayah);
+
+        return $plRow ? $plRow->itemList() : [];
     }
 
     // ── GET /api/audit-detail/smh/{pmx}/sync-perlengkapan ────────────────────
