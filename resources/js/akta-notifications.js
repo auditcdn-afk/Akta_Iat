@@ -56,8 +56,8 @@ function renderList(notifications, onItemClick) {
                     class="notif-item flex w-full items-start gap-2 border-b border-slate-800 px-4 py-3 text-left transition hover:bg-slate-800/60 ${n.read ? "opacity-60" : ""}">
                     ${unreadDot}
                     <span class="min-w-0 flex-1">
-                        <span class="block text-sm font-semibold text-slate-100">${escapeHtml(n.title)}</span>
-                        ${n.message ? `<span class="mt-0.5 block text-xs text-slate-400">${escapeHtml(n.message)}</span>` : ""}
+                        <span class="block break-words text-sm font-semibold text-slate-100">${escapeHtml(n.title)}</span>
+                        ${n.message ? `<span class="mt-0.5 block break-words text-xs text-slate-400">${escapeHtml(n.message)}</span>` : ""}
                         <span class="mt-1 block text-[11px] text-slate-500">${timeAgo(n.createdAt)}</span>
                     </span>
                 </button>
