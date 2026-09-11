@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditTask;
 use App\Models\PinjamanCabang;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -10,13 +11,39 @@ use Illuminate\Support\Facades\Storage;
 
 class PinjamanCabangController extends Controller
 {
-    // Daftar pinjaman per task
+    /**
+     * Daftar pinjaman satu PLAN (bukan satu task).
+     *
+     * Pinjaman tercatat pada audit_task_id, sementara satu plan punya satu task
+     * per petugas. Kalau daftarnya dibatasi ke satu task, pengajuan yang dibuat
+     * dari task Kepala Tim tidak terlihat dari task anggota tim — dan tidak
+     * terlihat lagi begitu task-nya selesai lalu disembunyikan dari daftar.
+     * Auditor jadi tidak tahu pinjamannya sudah diajukan atau belum, dan
+     * berisiko mengajukan dua kali. Jadi audit_task_id diperluas ke seluruh
+     * task pada plan yang sama.
+     */
     public function index(Request $request): JsonResponse
     {
         $taskId = $request->query('audit_task_id');
-        $rows   = PinjamanCabang::where('audit_task_id', $taskId)
-            ->orderByDesc('created_at')->get()
-            ->map(fn($p) => $p->toAktaArray());
+        $planId = $request->query('plan_audit_id');
+
+        if (! $planId && $taskId) {
+            $planId = AuditTask::whereKey($taskId)->value('plan_audit_id');
+        }
+
+        $query = PinjamanCabang::query();
+
+        if ($planId) {
+            $query->whereIn('audit_task_id', AuditTask::where('plan_audit_id', $planId)->select('id'));
+        } elseif ($taskId) {
+            // Task lepas tanpa plan: tetap per task.
+            $query->where('audit_task_id', $taskId);
+        } else {
+            return response()->json(['data' => []]);
+        }
+
+        $rows = $query->orderByDesc('created_at')->get()->map(fn($p) => $p->toAktaArray());
+
         return response()->json(['data' => $rows]);
     }
 
@@ -38,7 +65,7 @@ class PinjamanCabangController extends Controller
         $pinjaman = PinjamanCabang::create([
             'audit_task_id'   => $request->input('audit_task_id'),
             'jenis'           => $request->input('jenis'),
-            'cabang_realisasi'=> $request->input('cabang_realisasi', []),
+            'cabang_realisasi'=> $this->normalkanCabangRealisasi($request->input('cabang_realisasi', [])),
             'no_spd'          => $request->input('no_spd'),
             'catatan'         => $request->input('catatan'),
             'nominal'         => $request->input('nominal', 0),
@@ -58,6 +85,28 @@ class PinjamanCabangController extends Controller
         ]);
 
         return response()->json(['message' => 'Pinjaman ' . $pinjaman->jenis . ' diajukan.', 'data' => $pinjaman->toAktaArray()], 201);
+    }
+
+    /**
+     * Cabang realisasi dikirim form lewat FormData sebagai teks JSON (mis.
+     * '["SO ARK"]'), sementara kolomnya di-cast 'array'. Tanpa diurai dulu,
+     * yang tersimpan adalah teks JSON yang ter-encode dua kali — bukan daftar —
+     * dan setiap pemakainya (daftar riwayat di form, memo PDF) pecah saat
+     * mencoba menggabungkannya.
+     *
+     * @return array<int,string>
+     */
+    private function normalkanCabangRealisasi(mixed $nilai): array
+    {
+        if (is_string($nilai)) {
+            $decoded = json_decode($nilai, true);
+            $nilai = is_array($decoded) ? $decoded : ($nilai !== '' ? [$nilai] : []);
+        }
+
+        return array_values(array_filter(
+            array_map(fn($v) => is_string($v) ? trim($v) : $v, (array) ($nilai ?? [])),
+            fn($v) => is_string($v) && $v !== ''
+        ));
     }
 
     // Approve / reject oleh role yang berwenang

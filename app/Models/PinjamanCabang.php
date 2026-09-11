@@ -41,13 +41,41 @@ class PinjamanCabang extends Model
         return $idx !== false && isset($flow[$idx + 1]) ? $flow[$idx + 1] : null;
     }
 
+    /**
+     * Cabang realisasi SELALU sebagai daftar.
+     *
+     * Form mengirim kolom ini sebagai teks JSON (mis. '["SO ARK"]') lewat
+     * FormData, dan sebagian baris lama terlanjur tersimpan begitu — teks JSON
+     * yang ter-encode sekali lagi oleh cast 'array', bukan daftar. Dibiarkan
+     * apa adanya, pemakainya pecah: implode()/join() atas sebuah string
+     * melempar error, dan itu membuat daftar riwayat pinjaman gagal tampil
+     * sama sekali (auditor jadi tidak tahu sudah mengajukan atau belum) serta
+     * memo PDF-nya gagal dicetak.
+     *
+     * @return array<int,string>
+     */
+    public function daftarCabangRealisasi(): array
+    {
+        $nilai = $this->cabang_realisasi;
+
+        if (is_string($nilai)) {
+            $decoded = json_decode($nilai, true);
+            $nilai = is_array($decoded) ? $decoded : ($nilai !== '' ? [$nilai] : []);
+        }
+
+        return array_values(array_filter(
+            array_map(fn($v) => is_string($v) ? trim($v) : $v, (array) ($nilai ?? [])),
+            fn($v) => is_string($v) && $v !== ''
+        ));
+    }
+
     public function toAktaArray(): array
     {
         return [
             'id'               => $this->id,
             'auditTaskId'      => $this->audit_task_id,
             'jenis'            => $this->jenis,
-            'cabangRealisasi'  => $this->cabang_realisasi ?? [],
+            'cabangRealisasi'  => $this->daftarCabangRealisasi(),
             'noSpd'            => $this->no_spd,
             'catatan'          => $this->catatan,
             'nominal'          => $this->nominal,
@@ -58,6 +86,7 @@ class PinjamanCabang extends Model
             'approvals'        => $this->approvals ?? [],
             'nextStatus'       => $this->nextStatus(),
             'createdBy'        => $this->created_by,
+            'createdAt'        => optional($this->created_at)->format('Y-m-d H:i'),
             'updatedAt'        => optional($this->updated_at)->format('Y-m-d H:i'),
         ];
     }
