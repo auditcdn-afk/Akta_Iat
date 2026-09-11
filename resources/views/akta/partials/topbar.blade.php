@@ -46,6 +46,14 @@
                                 class="hidden rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-400 transition hover:border-slate-500 hover:text-slate-200 disabled:opacity-50">
                                 Coba kirim
                             </button>
+                            {{-- Hanya muncul untuk admin, dan hanya selama fiturnya
+                                 memang belum dinyalakan. Ditampilkan dari JS setelah
+                                 server memastikan keduanya — bukan lewat data-roles,
+                                 yang akan menampilkannya ke admin selamanya. --}}
+                            <button id="pushActivateBtn" type="button"
+                                class="hidden rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50">
+                                Aktifkan untuk seluruh aplikasi
+                            </button>
                         </div>
                         <p id="pushToggleHint" class="mt-2 text-[11px] leading-relaxed text-slate-500">
                             Dapatkan pemberitahuan di layar HP walau aplikasi tertutup.

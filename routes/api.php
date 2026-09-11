@@ -87,6 +87,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/push/subscribe', [PushSubscriptionController::class, 'store']);
     Route::post('/push/unsubscribe', [PushSubscriptionController::class, 'destroy']);
     Route::post('/push/test', [PushSubscriptionController::class, 'test']);
+    Route::post('/push/aktifkan', [PushSubscriptionController::class, 'aktifkan'])
+        ->middleware('akta.role:admin');
 
     // ─── Data Karyawan (per unit usaha) ───────────────────────────
     Route::get('/karyawan', [KaryawanController::class, 'index']);

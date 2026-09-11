@@ -19,7 +19,7 @@ final class WebPushSender
 
     public static function siap(): bool
     {
-        return config('webpush.public_key') !== '' && config('webpush.private_key') !== '';
+        return VapidKeyStore::ada();
     }
 
     /**

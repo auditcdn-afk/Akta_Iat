@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\PushSubscription;
 use App\Services\WebPush\Vapid;
+use App\Services\WebPush\VapidKeyStore;
 use App\Services\WebPush\WebPushSender;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class PushSubscriptionController extends Controller
 {
@@ -21,13 +23,60 @@ class PushSubscriptionController extends Controller
     public function publicKey(Request $request): JsonResponse
     {
         $aktif = WebPushSender::siap();
+        $siapMenyimpan = $this->tabelLanggananAda();
 
         return response()->json([
             'ok' => true,
-            'enabled' => $aktif,
-            'publicKey' => $aktif ? Vapid::dariKonfigurasi()->kunciPublik() : null,
-            'subscribed' => $aktif && $this->sudahBerlangganan($request),
+            'enabled' => $aktif && $siapMenyimpan,
+            'publicKey' => $aktif && $siapMenyimpan ? Vapid::dariKonfigurasi()->kunciPublik() : null,
+            'subscribed' => $aktif && $siapMenyimpan && $this->sudahBerlangganan($request),
+
+            // Kalau fiturnya belum hidup, jangan cuma bilang "belum aktif" —
+            // sebutkan APA yang kurang, dan (untuk admin) tawarkan tombolnya.
+            'canActivate' => ! $aktif && $siapMenyimpan && $request->user()?->isAdmin(),
+            'needsMigration' => ! $siapMenyimpan,
         ]);
+    }
+
+    /**
+     * Nyalakan notifikasi push untuk seluruh aplikasi, sekali saja.
+     *
+     * Kunci VAPID dibuat di server dan disimpan di database; tidak ada yang
+     * perlu menyalin apa pun. Kalau kuncinya sudah ada — entah dari .env atau
+     * dari penekanan tombol sebelumnya — yang lama dipakai terus, TIDAK ditimpa:
+     * mengganti pasangan kunci membuat semua langganan yang sudah terdaftar
+     * ditolak server push.
+     */
+    public function aktifkan(Request $request): JsonResponse
+    {
+        if (! $this->tabelLanggananAda()) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Tabel push_subscriptions belum ada. Jalankan /deploy/migrate lebih dulu.',
+            ], 422);
+        }
+
+        $sudahAda = WebPushSender::siap();
+        VapidKeyStore::pasangSekali($request->user()?->username);
+
+        return response()->json([
+            'ok' => true,
+            'enabled' => true,
+            'publicKey' => Vapid::dariKonfigurasi()->kunciPublik(),
+            'message' => $sudahAda
+                ? 'Notifikasi push memang sudah aktif sejak sebelumnya.'
+                : 'Notifikasi push diaktifkan. Sekarang setiap pengguna bisa menyalakannya di perangkat masing-masing.',
+        ]);
+    }
+
+    /** Migrasi produksi dijalankan manual, jadi tabelnya bisa saja belum ada. */
+    private function tabelLanggananAda(): bool
+    {
+        try {
+            return Schema::hasTable('push_subscriptions');
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /**
