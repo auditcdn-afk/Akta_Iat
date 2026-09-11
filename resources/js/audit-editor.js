@@ -839,6 +839,8 @@ function updateSmhSummary(data) {
 async function loadSmhForm() {
     smhPmxId = null;
     smhItems = [];
+    _smhGagalSimpan.clear();
+    smhPerbaruiPapanGagal();
     ['smhSummary', 'smhScanBox', 'smhTableWrap', 'smhSyncResult'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
     document.getElementById('smhTglOnhand').textContent = '';
     if (!activePlanId) return;
@@ -901,11 +903,16 @@ function smhPerbaruiBaris(itemId) {
     const it  = smhItems.find(i => i.id === itemId);
     if (filter || !row || !it) { renderSmhTable(filter); return; }
 
-    row.className = `border-b border-slate-800 hover:bg-slate-800/60 ${smhStatusRowClass(it.statusFisik)}`;
+    const gagal = _smhGagalSimpan.has(itemId);
+    row.className = `border-b border-slate-800 hover:bg-slate-800/60 ${smhStatusRowClass(it.statusFisik)}`
+        + (gagal ? ' ring-2 ring-red-500' : '');
     const sel = row.querySelector('.smh-status-select');
     if (sel) sel.value = it.statusFisik || '';
     const ket = row.querySelector('.smh-ket-input');
-    if (ket) ket.value = it.keteranganFisik || '';
+    if (ket) {
+        ket.value = it.keteranganFisik || '';
+        ket.placeholder = gagal ? 'GAGAL DISIMPAN — ulangi' : 'ket...';
+    }
 }
 
 function smhTandaiBarisMenyimpan(itemId, menyimpan) {
@@ -918,12 +925,79 @@ function smhTandaiBarisMenyimpan(itemId, menyimpan) {
 
 // Unit yang penyimpanannya masih berjalan di latar belakang.
 const _smhSimpanTertunda = new Set();
+// Unit yang kirimannya GAGAL: pemeriksaannya belum tercatat di server.
+const _smhGagalSimpan = new Map();
 
 window.addEventListener('beforeunload', (e) => {
-    if (!_smhSimpanTertunda.size) return;
+    if (!_smhSimpanTertunda.size && !_smhGagalSimpan.size) return;
     e.preventDefault();
     e.returnValue = '';
 });
+
+/**
+ * Papan peringatan unit yang gagal disimpan.
+ *
+ * showAlert() menghilang sendiri setelah 4 detik. Untuk penyimpanan yang
+ * berjalan di latar belakang itu tidak cukup: auditor sudah pindah ke unit
+ * berikutnya dan bisa melewatkan kabar bahwa satu unit gagal tercatat. Papan
+ * ini menetap sampai unitnya benar-benar tersimpan, jadi tidak ada pemeriksaan
+ * yang hilang tanpa disadari.
+ */
+function smhPapanGagal() {
+    let el = document.getElementById('smhGagalSimpanBanner');
+    if (!el) {
+        const anchor = document.getElementById('smhScanBox');
+        if (!anchor) return null;
+        el = document.createElement('div');
+        el.id = 'smhGagalSimpanBanner';
+        el.className = 'hidden mt-3 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200';
+        anchor.insertAdjacentElement('afterend', el);
+    }
+    return el;
+}
+
+function smhPerbaruiPapanGagal() {
+    const el = smhPapanGagal();
+    if (!el) return;
+
+    if (!_smhGagalSimpan.size) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+
+    const daftar = [..._smhGagalSimpan.values()]
+        .map(g => `<li class="font-mono">${escapeHtml(g.noMesin || '-')} — ${escapeHtml(g.pesan || 'gagal terkirim')}</li>`)
+        .join('');
+
+    el.innerHTML = `
+        <p class="font-bold">⚠ ${_smhGagalSimpan.size} unit BELUM tercatat di server</p>
+        <ul class="mt-1 list-disc pl-5 text-xs">${daftar}</ul>
+        <p class="mt-1 text-xs">Scan ulang unit di atas lalu simpan lagi. Peringatan ini menetap sampai semuanya tersimpan.</p>`;
+    el.classList.remove('hidden');
+}
+
+/** Gagal karena jaringan/server sesaat (layak diulang), bukan ditolak server. */
+const smhLayakUlang = (err) => !err?.status || err.status >= 500 || err.status === 429;
+
+/**
+ * Kirim dengan beberapa kali percobaan. Sinyal di gudang sering putus sesaat;
+ * sekali gagal belum tentu benar-benar gagal, dan mengulang sendiri jauh lebih
+ * baik daripada menyuruh auditor scan ulang unit yang sama.
+ */
+async function smhKirimDenganUlangan(itemId, body, percobaan = 3) {
+    let terakhir;
+    for (let ke = 1; ke <= percobaan; ke++) {
+        try {
+            return await smhCheckItem(itemId, body);
+        } catch (err) {
+            terakhir = err;
+            if (!smhLayakUlang(err) || ke === percobaan) throw err;
+            await new Promise(r => setTimeout(r, 800 * ke));
+        }
+    }
+    throw terakhir;
+}
 
 /**
  * Simpan pemeriksaan satu unit tanpa menahan auditor.
@@ -951,13 +1025,19 @@ async function smhSimpanLatarBelakang(itemId, body) {
     _smhSimpanTertunda.add(itemId);
 
     try {
-        await smhCheckItem(itemId, body);
+        await smhKirimDenganUlangan(itemId, body);
+        _smhGagalSimpan.delete(itemId);
+        smhPerbaruiPapanGagal();
         smhPerbaruiBaris(itemId);
     } catch (err) {
+        // Kembalikan baris ke keadaan semula: lebih baik terlihat BELUM
+        // diperiksa daripada terlihat tersimpan padahal server tidak menerimanya.
         if (idx >= 0 && sebelum) smhItems[idx] = sebelum;
         smhSegarkanRingkasan();
+        _smhGagalSimpan.set(itemId, { noMesin: sebelum?.noMesin || String(itemId), pesan: err.message });
+        smhPerbaruiPapanGagal();
         smhPerbaruiBaris(itemId);
-        showAlert(`Gagal menyimpan unit ${sebelum?.noMesin || itemId}: ${err.message}. Pemeriksaan unit itu belum tercatat — silakan scan dan simpan ulang.`, 'error');
+        showAlert(`Gagal menyimpan unit ${sebelum?.noMesin || itemId}: ${err.message}. Pemeriksaan unit itu BELUM tercatat — scan dan simpan ulang.`, 'error');
     } finally {
         _smhSimpanTertunda.delete(itemId);
         smhTandaiBarisMenyimpan(itemId, false);
