@@ -174,7 +174,54 @@ class PlanTaskService
             AuditTask::query()->insert($batch);
         }
 
+        // Rapikan juga plan yang sudah selesai/dibatalkan tapi task-nya masih
+        // terbuka — termasuk plan lama dari sebelum aturan ini ada.
+        AuditTask::query()
+            ->where('status', '!=', 'done')
+            ->whereIn(
+                'plan_audit_id',
+                PlanAudit::query()->whereIn('status', ['done', 'cancelled'])->select('id')
+            )
+            ->update([
+                'status'       => 'done',
+                'completed_at' => now(),
+                'updated_by'   => $actor ?: 'system',
+                'updated_at'   => now(),
+            ]);
+
         return count($newRows);
+    }
+
+    /**
+     * Tutup task yang masih terbuka pada plan yang sudah SELESAI atau DIBATALKAN.
+     *
+     * Halaman Task adalah tempat persinggahan pekerjaan yang masih berjalan,
+     * dan task hanya tertutup kalau ada yang merekam pelaksanaannya. Plan yang
+     * ditutup lewat jalur lain — mis. seluruh tahapnya dilewatkan admin, atau
+     * dinyatakan selesai/dibatalkan dari halaman Plan Audit — tidak pernah
+     * menyentuh task-nya, jadi barisnya menumpuk sebagai "Belum Dikerjakan" di
+     * daftar auditor selamanya padahal tidak ada lagi yang perlu dikerjakan.
+     *
+     * Barisnya TIDAK dihapus, hanya ditandai selesai, jadi riwayatnya utuh dan
+     * admin tetap bisa melihatnya lewat filter "Selesai".
+     *
+     * @return int jumlah task yang ditutup
+     */
+    public function tutupTaskPlanSelesai(PlanAudit $plan, ?string $actor = null): int
+    {
+        if (! in_array($plan->status, ['done', 'cancelled'], true)) {
+            return 0;
+        }
+
+        return AuditTask::query()
+            ->where('plan_audit_id', $plan->id)
+            ->where('status', '!=', 'done')
+            ->update([
+                'status'       => 'done',
+                'completed_at' => now(),
+                'updated_by'   => $actor ?: 'system',
+                'updated_at'   => now(),
+            ]);
     }
 
     /**

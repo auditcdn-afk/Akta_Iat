@@ -293,6 +293,10 @@ class PlanAuditController extends Controller
             }
         }
 
+        // Plan yang sudah selesai tidak boleh meninggalkan task "Belum Dikerjakan"
+        // di daftar auditor — tidak ada lagi yang perlu dikerjakan di situ.
+        app(PlanTaskService::class)->tutupTaskPlanSelesai($plan, $request->user()?->username);
+
         NotificationDispatcher::resolvePlanAuditStatus($plan, $status);
         NotificationDispatcher::notifyPlanAuditStep($plan);
 
@@ -364,6 +368,11 @@ class PlanAuditController extends Controller
 
         $plan->recordLog('reject', $oldStatus, $newStatus, $request->user(),
             "Koreksi admin: {$alasan}");
+
+        // Kalau admin menutup plan (selesai/dibatalkan), task auditornya ikut
+        // ditutup — kalau dikembalikan ke status berjalan, task yang sudah ada
+        // sengaja tidak dibuka ulang: pelaksanaan yang sudah direkam tetap sah.
+        app(PlanTaskService::class)->tutupTaskPlanSelesai($plan, $who);
 
         NotificationDispatcher::resolvePlanAuditStatus($plan, $oldStatus);
         NotificationDispatcher::notifyPlanAuditStep($plan);
