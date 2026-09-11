@@ -92,6 +92,15 @@
 
             {{-- ── Form Pelaksanaan (auditor / admin / manajer) ── --}}
             <div id="execSection" class="space-y-4">
+                {{-- Satu plan dikerjakan satu kali oleh timnya, bukan per orang: begitu salah
+                     satu anggota merekam pelaksanaan, task anggota lain pada plan yang sama
+                     ikut tertutup. Dikatakan di sini supaya auditor tidak mengira harus
+                     mengisi sendiri-sendiri. --}}
+                <p class="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs text-blue-200">
+                    Cukup diisi oleh <strong>salah satu</strong> petugas pada plan ini (Kepala Tim atau anggota Tim Audit).
+                    Begitu tersimpan, tugas anggota tim lain untuk plan yang sama otomatis ikut selesai — tidak perlu diisi ulang.
+                </p>
+
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div>
                         <label class="mb-1 block text-sm font-medium text-slate-300">
