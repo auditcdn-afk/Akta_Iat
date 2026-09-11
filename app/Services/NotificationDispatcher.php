@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Jobs\KirimPushNotification;
 use App\Models\AppNotification;
 use App\Models\AuditRecommendation;
 use App\Models\PlanAudit;
 use App\Models\SuratKeputusan;
+use App\Services\WebPush\WebPushSender;
 use Throwable;
 
 class NotificationDispatcher
@@ -240,7 +242,7 @@ class NotificationDispatcher
             return;
         }
 
-        AppNotification::query()->create([
+        $notifikasi = AppNotification::query()->create([
             'user_id' => $userId,
             'type' => $type,
             'notifiable_type' => $notifiableType,
@@ -250,5 +252,35 @@ class NotificationDispatcher
             'message' => $message,
             'url' => $url,
         ]);
+
+        static::dorongKePerangkat($notifikasi);
+    }
+
+    /**
+     * Teruskan notifikasi ke layar HP penerimanya (Web Push), lewat antrean.
+     *
+     * Yang masuk ke permintaan pengguna hanyalah satu baris ke tabel antrean;
+     * pengiriman sesungguhnya — satu permintaan HTTPS per perangkat — dikerjakan
+     * di latar belakang, supaya tombol Approve tidak ikut menunggu.
+     *
+     * Koneksi antreannya disebut eksplisit, bukan default aplikasi: kalau .env
+     * produksi kebetulan masih QUEUE_CONNECTION=sync, pengiriman itu akan
+     * diam-diam ditarik kembali ke dalam permintaan pengguna dan justru
+     * menghadirkan kembali delay yang ingin dihindari.
+     */
+    private static function dorongKePerangkat(AppNotification $notifikasi): void
+    {
+        if (! WebPushSender::siap()) {
+            return;
+        }
+
+        try {
+            KirimPushNotification::dispatch($notifikasi->id)
+                ->onConnection(config('webpush.queue_connection'))
+                ->onQueue(config('webpush.queue'));
+        } catch (Throwable) {
+            // Antrean belum siap (mis. tabel jobs belum dimigrasi) tidak boleh
+            // menggagalkan approval; notifikasi in-app-nya sudah tersimpan.
+        }
     }
 }

@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\PlanAuditMandiriCrosscheckController;
 use App\Http\Controllers\Api\AuditTaskController;
 use App\Http\Controllers\Api\AuditRecommendationController;
 use App\Http\Controllers\Api\AppNotificationController;
+use App\Http\Controllers\Api\PushSubscriptionController;
 use App\Http\Controllers\Api\KaryawanController;
 use App\Http\Controllers\Api\PicaController;
 use App\Http\Controllers\Api\AuditTabConfigController;
@@ -80,6 +81,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/notifications', [AppNotificationController::class, 'index']);
     Route::post('/notifications/{notification}/read', [AppNotificationController::class, 'markRead']);
     Route::post('/notifications/read-all', [AppNotificationController::class, 'markAllRead']);
+
+    // Notifikasi push ke layar HP (Web Push / PWA).
+    Route::get('/push/public-key', [PushSubscriptionController::class, 'publicKey']);
+    Route::post('/push/subscribe', [PushSubscriptionController::class, 'store']);
+    Route::post('/push/unsubscribe', [PushSubscriptionController::class, 'destroy']);
+    Route::post('/push/test', [PushSubscriptionController::class, 'test']);
 
     // ─── Data Karyawan (per unit usaha) ───────────────────────────
     Route::get('/karyawan', [KaryawanController::class, 'index']);
