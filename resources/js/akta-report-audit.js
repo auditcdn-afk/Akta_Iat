@@ -343,31 +343,21 @@ async function crosscheckAutoFill(planId) {
 
         // ── 4. PERLENGKAPAN SMH — rekap gabungan per jenis ──
         try {
-            const [smhSumRes, luarRes] = await Promise.all([
-                fetchJson(`/api/audit-detail/perlengkapan/smh-summary?plan_audit_id=${planId}`, { headers: authHeaders() }),
-                fetchJson(`/api/audit-detail/perlengkapan?plan_audit_id=${planId}`, { headers: authHeaders() }),
-            ]);
-            const smhMap = {};
-            for (const r of (smhSumRes.data ?? [])) {
-                const nm = (r.nama || "").trim();
-                if (nm) smhMap[nm] = { smhSaldo: Number(r.total ?? 0), smhFisik: Number(r.ada ?? 0) };
-            }
-            const luarMap = {};
-            for (const p of (luarRes.data ?? [])) {
-                const nm = (p.jenisPerlengkapan ?? p.jenis_perlengkapan ?? p.jenis ?? "").trim();
-                if (!nm) continue;
-                if (!luarMap[nm]) luarMap[nm] = { luarSelisih: 0 };
-                luarMap[nm].luarSelisih += Number(p.selisih ?? 0);
-            }
-            const allJenis = [...new Set([...Object.keys(smhMap), ...Object.keys(luarMap)])].sort();
+            // Angkanya diambil dari server, BUKAN dihitung ulang di sini. Ini
+            // bagian C Report Audit yang sama persis (dan sama dengan tombol
+            // Export Selisih) — rekomendasi resmi tidak boleh berangkat dari
+            // angka yang berbeda dengan laporannya.
+            const res = await fetchJson(
+                `/api/audit-detail/perlengkapan/rekap-gabungan?plan_audit_id=${planId}`,
+                { headers: authHeaders() }
+            );
+
             const rows = [];
             let grandSel = 0;
-            for (const jenis of allJenis) {
-                const smhD = smhMap[jenis] ?? { smhSaldo: 0, smhFisik: 0 };
-                const luarD = luarMap[jenis] ?? { luarSelisih: 0 };
-                const totalSel = (smhD.smhFisik - smhD.smhSaldo) + luarD.luarSelisih;
+            for (const r of (res.data ?? [])) {
+                const totalSel = Number(r.totalSelisih ?? 0);
                 grandSel += totalSel;
-                if (totalSel !== 0) rows.push(`  • ${jenis.padEnd(26)} selisih: ${totalSel}`);
+                if (totalSel !== 0) rows.push(`  • ${String(r.jenis).padEnd(26)} selisih: ${totalSel}`);
             }
             if (rows.length) blocks.push(`4. PERLENGKAPAN SMH\n${rows.join("\n")}\n  ${"─".repeat(40)}\n  Total selisih: ${grandSel}`);
         } catch {}
