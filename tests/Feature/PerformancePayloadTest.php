@@ -114,7 +114,11 @@ class PerformancePayloadTest extends TestCase
 
         $response->assertOk();
         $this->assertCount(5, $response->json('data'));
-        $this->assertSame([], $response->json('data.0.planAudit.logs'));
+
+        // Plan dikirim sekali dalam peta tersendiri, bukan disalin ke tiap task.
+        $planId = $response->json('data.0.planAuditId');
+        $this->assertNull($response->json('data.0.planAudit'));
+        $this->assertSame([], $response->json("plans.{$planId}.logs"));
 
         // Jumlah query harus tetap sama berapa pun banyaknya task. Ambang 12
         // memberi ruang untuk query auth/cache/sinkronisasi task, tapi jauh di
@@ -138,7 +142,8 @@ class PerformancePayloadTest extends TestCase
         $response = $this->getJson('/api/tasks?with_logs=1');
 
         $response->assertOk();
-        $this->assertSame('created', $response->json('data.0.planAudit.logs.0.action'));
+        $planId = $response->json('data.0.planAuditId');
+        $this->assertSame('created', $response->json("plans.{$planId}.logs.0.action"));
     }
 
     /**

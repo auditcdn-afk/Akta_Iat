@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AuditTask;
 use App\Models\BuPerformance;
+use App\Models\PlanAudit;
 use App\Services\ActivityLogger;
 use App\Services\PlanTaskService;
 use Illuminate\Http\JsonResponse;
@@ -141,11 +142,23 @@ class AuditTaskController extends Controller
         // tidak menjalankan satu query BuPerformance untuk tiap task cabang_active.
         $buPerformanceUnits = BuPerformance::query()->distinct()->pluck('unit_usaha')->all();
 
-        $tasks = $tasks->map(fn(AuditTask $task) => $task->toAktaArray($buPerformanceUnits));
+        // Plan dikirim SEKALI dalam peta tersendiri, bukan disalin ke tiap task.
+        // Satu plan bisa punya beberapa task (satu per petugas), jadi menyalin
+        // datanya ke tiap baris berarti mengirim hal yang sama berulang kali —
+        // pada data seukuran produksi itu 453 KB dari 1,18 MB balasan. Halaman
+        // Task menyambungkannya kembali lewat planAuditId saat daftar dimuat.
+        $plans = $tasks
+            ->pluck('planAudit')
+            ->filter()
+            ->unique('id')
+            ->mapWithKeys(fn(PlanAudit $plan) => [
+                $plan->id => $plan->toAktaRingkasArray($buPerformanceUnits),
+            ]);
 
         return response()->json([
-            'ok' => true,
-            'data' => $tasks,
+            'ok'    => true,
+            'data'  => $tasks->map(fn(AuditTask $task) => $task->toAktaListArray())->values(),
+            'plans' => $plans,
         ]);
     }
 
