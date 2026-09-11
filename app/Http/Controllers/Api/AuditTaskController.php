@@ -300,6 +300,17 @@ class AuditTaskController extends Controller
         $task->save();
         $task->load('planAudit');
 
+        // Satu plan = satu pelaksanaan, bukan satu pelaksanaan per orang.
+        // Plan menugaskan Kepala Tim + beberapa anggota Tim Audit, dan tiap
+        // orang punya barisnya sendiri di daftar Task supaya tugasnya kelihatan.
+        // Tapi auditnya sendiri dikerjakan bersama SEKALI: dulu setiap anggota
+        // masih harus mengisi Mulai/Selesai sendiri-sendiri untuk plan yang sama
+        // — pengisian dobel untuk satu pekerjaan yang sama. Sekarang begitu
+        // salah satu merekam pelaksanaan, seluruh task auditor pada plan itu
+        // ikut tertutup dengan data yang sama, jadi tidak ada lagi yang harus
+        // mengisi ulang.
+        $ikut = $this->tutupTaskTimSatuPlan($task, $user?->display_name ?: $user?->name ?: $user?->username);
+
         // Catat di riwayat birokrasi plan
         if ($task->planAudit) {
             $task->planAudit->recordLog(
@@ -321,9 +332,62 @@ class AuditTaskController extends Controller
 
         return response()->json([
             'ok' => true,
-            'message' => 'Pelaksanaan audit berhasil disimpan.',
+            'message' => $ikut > 0
+                ? 'Pelaksanaan audit berhasil disimpan dan berlaku untuk seluruh tim (' . ($ikut + 1) . ' petugas) — tidak perlu diisi ulang.'
+                : 'Pelaksanaan audit berhasil disimpan.',
             'data' => $task->toAktaArray(),
         ]);
+    }
+
+    /**
+     * Tutup task auditor lain pada plan yang sama dengan pelaksanaan yang baru
+     * direkam. Mengembalikan jumlah task yang ikut tertutup.
+     *
+     * Task cabang (assigned_to = nama cabang) sengaja TIDAK ikut: itu pekerjaan
+     * lain (konfirmasi kedatangan auditor & menyatakan pemeriksaan selesai) yang
+     * dijalankan pihak cabang lewat alurnya sendiri, bukan pelaksanaan audit.
+     */
+    private function tutupTaskTimSatuPlan(AuditTask $task, ?string $perekam): int
+    {
+        if (! $task->plan_audit_id) {
+            return 0;
+        }
+
+        $cabang = $task->planAudit?->cabang;
+
+        $lain = AuditTask::query()
+            ->where('plan_audit_id', $task->plan_audit_id)
+            ->whereKeyNot($task->getKey())
+            ->when($cabang, fn($q) => $q->where('assigned_to', '!=', $cabang))
+            ->get();
+
+        foreach ($lain as $sibling) {
+            $sibling->started_at    = $task->started_at;
+            $sibling->finished_at   = $task->finished_at;
+            $sibling->status        = 'done';
+            $sibling->completed_at  = $task->completed_at;
+            $sibling->lampiran_path = $task->lampiran_path;
+            $sibling->catatan       = $this->catatanDirekamOleh($sibling->catatan, $perekam);
+            $sibling->updated_by    = $task->updated_by;
+            $sibling->save();
+        }
+
+        return $lain->count();
+    }
+
+    /** Catatan task anggota tim: sebutkan siapa yang merekam pelaksanaannya. */
+    private function catatanDirekamOleh(?string $catatan, ?string $perekam): ?string
+    {
+        $penanda = 'Pelaksanaan direkam oleh ';
+        // Buang keterangan dari perekaman sebelumnya supaya tidak menumpuk tiap
+        // kali pelaksanaan diperbaiki.
+        $dasar = trim(explode($penanda, (string) $catatan, 2)[0]);
+
+        if (! $perekam) {
+            return $dasar !== '' ? $dasar : null;
+        }
+
+        return trim($dasar . "\n" . $penanda . $perekam . ' (satu pelaksanaan untuk satu plan).');
     }
 
     private function validatedPayload(Request $request): array
