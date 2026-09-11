@@ -1,5 +1,6 @@
 import { SESSION_KEY, readSession, cachedUser, updateCachedUser } from "./akta-session.js";
 import { initNotificationBell } from "./akta-notifications.js";
+import { initPushNotifikasi } from "./akta-push.js";
 
 const SIDEBAR_SCROLL_KEY = "akta_sidebar_scroll_top";
 
@@ -287,6 +288,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     initNotificationBell(() => authHeaders(session));
+    initPushNotifikasi(() => authHeaders(session));
 
     // Objek user sudah tersimpan sejak login, jadi nama/role/menu bisa langsung
     // digambar tanpa menunggu jaringan sama sekali.

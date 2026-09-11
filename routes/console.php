@@ -34,3 +34,18 @@ Schedule::command('akta:notify-pending-birokrasi')->dailyAt('07:00')->withoutOve
 // sudah dihitung TIDAK ikut terhapus.
 Schedule::command('analisa-zona:recompute-scores')->dailyAt('01:00')->withoutOverlapping();
 Schedule::command('analisa-zona:purge-old-data')->dailyAt('01:30')->withoutOverlapping();
+
+// Penggerak antrean. Hosting SIMPAS-IAT hanya punya FTP — tidak ada SSH, jadi
+// tidak ada daemon `queue:work` yang bisa hidup terus. Yang ada cuma cron yang
+// memanggil `schedule:run` tiap menit, dan dari situlah antrean dijalankan:
+// ambil pekerjaan yang menumpuk, kerjakan sampai habis, lalu berhenti sendiri.
+//
+// --max-time=50 menjaga proses berakhir sebelum cron berikutnya menyala, dan
+// withoutOverlapping() mencegah dua pekerja berebut pekerjaan yang sama.
+//
+// Konsekuensinya yang perlu diketahui: notifikasi push bisa datang dengan jeda
+// hingga ~1 menit. Itu pertukaran yang disengaja — sebagai gantinya, tombol
+// Approve tidak pernah ikut menunggu pengiriman ke server push.
+Schedule::command('queue:work --stop-when-empty --max-time=50 --tries=2')
+    ->everyMinute()
+    ->withoutOverlapping();

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
@@ -69,6 +70,12 @@ class User extends Authenticatable
     public function canAnalisaZona(): bool
     {
         return (bool) $this->analisa_zona_access;
+    }
+
+    /** Perangkat yang sudah mengizinkan notifikasi push untuk akun ini. */
+    public function pushSubscriptions(): HasMany
+    {
+        return $this->hasMany(PushSubscription::class);
     }
 
     public function toAktaArray(): array

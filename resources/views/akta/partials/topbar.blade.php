@@ -32,6 +32,25 @@
                     <div id="notifList" class="max-h-96 overflow-y-auto akta-scrollbar">
                         <p class="px-4 py-6 text-center text-sm text-slate-400">Memuat...</p>
                     </div>
+
+                    {{-- Notifikasi ke layar HP. Ditaruh di kaki dropdown, bukan di
+                         halaman pengaturan tersendiri: di sinilah orang berada saat
+                         terpikir "kenapa saya tidak diberi tahu?". --}}
+                    <div class="border-t border-slate-800 px-4 py-3">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button id="pushToggleBtn" type="button"
+                                class="rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-blue-500 hover:bg-blue-500/10 hover:text-blue-200 disabled:opacity-50">
+                                Aktifkan notifikasi HP
+                            </button>
+                            <button id="pushTestBtn" type="button"
+                                class="hidden rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-400 transition hover:border-slate-500 hover:text-slate-200 disabled:opacity-50">
+                                Coba kirim
+                            </button>
+                        </div>
+                        <p id="pushToggleHint" class="mt-2 text-[11px] leading-relaxed text-slate-500">
+                            Dapatkan pemberitahuan di layar HP walau aplikasi tertutup.
+                        </p>
+                    </div>
                 </div>
             </div>
 
