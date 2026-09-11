@@ -9497,41 +9497,23 @@ async function rekomendasiAutoFill() {
             }
         } catch {}
 
-        // ── 3. PERLENGKAPAN SMH — rekap gabungan per jenis ──
+        // ── 4. PERLENGKAPAN SMH — rekap gabungan per jenis ──
         try {
-            const [smhSumRes, luarRes] = await Promise.all([
-                fetchJson(`/api/audit-detail/perlengkapan/smh-summary?plan_audit_id=${activePlanId}`, { headers: authHeaders() }),
-                fetchJson(`/api/audit-detail/perlengkapan?plan_audit_id=${activePlanId}`, { headers: authHeaders() }),
-            ]);
-            const smhMap = {};
-            for (const r of (smhSumRes.data ?? [])) {
-                const nm = (r.nama || '').trim();
-                if (nm) smhMap[nm] = { smhSaldo: Number(r.total ?? 0), smhFisik: Number(r.ada ?? 0) };
-            }
-            const luarMap = {};
-            for (const p of (luarRes.data ?? [])) {
-                const nm = (p.jenisPerlengkapan ?? p.jenis_perlengkapan ?? p.jenis ?? '').trim();
-                if (!nm) continue;
-                // Pakai fisik mentah, BUKAN kolom selisih tersimpan — kolom itu cuma
-                // potret saat baris disimpan dan jadi basi begitu checklist Cek Fisik
-                // SMH berubah sesudahnya (lihat komentar di report-audit.blade.php
-                // bagian "C. Rekap Gabungan Perlengkapan"). Dihitung ulang di bawah
-                // supaya selalu sinkron dengan tabel itu.
-                if (!luarMap[nm]) luarMap[nm] = { luarFisik: 0 };
-                luarMap[nm].luarFisik += Number(p.fisik ?? 0);
-            }
-            const allJenis = [...new Set([...Object.keys(smhMap), ...Object.keys(luarMap)])].sort();
+            // Angkanya diambil dari server, BUKAN dihitung ulang di sini. Ini
+            // bagian C Report Audit yang sama persis (dan sama dengan tombol
+            // Export Selisih) — rekomendasi resmi tidak boleh berangkat dari
+            // angka yang berbeda dengan laporannya.
+            const res = await fetchJson(
+                `/api/audit-detail/perlengkapan/rekap-gabungan?plan_audit_id=${activePlanId}`,
+                { headers: authHeaders() }
+            );
+
             const rows = [];
             let grandSel = 0;
-            for (const jenis of allJenis) {
-                const smhD  = smhMap[jenis]  ?? { smhSaldo: 0, smhFisik: 0 };
-                const luarD = luarMap[jenis] ?? { luarFisik: 0 };
-                // Sama seperti "Total Selisih" di Report Audit PDF: seluruh fisik yang
-                // tertanggung (ditemukan menempel di unit SMH + ditemukan terpisah di
-                // luar SMH) dikurangi jumlah unit yang membutuhkannya.
-                const totalSel = (smhD.smhFisik + luarD.luarFisik) - smhD.smhSaldo;
+            for (const r of (res.data ?? [])) {
+                const totalSel = Number(r.totalSelisih ?? 0);
                 grandSel += totalSel;
-                if (totalSel !== 0) rows.push(`  • ${jenis.padEnd(26)} selisih: ${totalSel}`);
+                if (totalSel !== 0) rows.push(`  • ${String(r.jenis).padEnd(26)} selisih: ${totalSel}`);
             }
             if (rows.length) blocks.push(`4. PERLENGKAPAN SMH\n${rows.join('\n')}\n  ${'─'.repeat(40)}\n  Total selisih: ${grandSel}`);
         } catch {}

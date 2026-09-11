@@ -36,6 +36,35 @@ class PemeriksaanPerlengkapanController extends Controller
     {
     }
 
+    // ── GET /api/audit-detail/perlengkapan/rekap-gabungan ────────────────────
+
+    /**
+     * Rekap gabungan perlengkapan per jenis, dalam bentuk JSON.
+     *
+     * Isinya persis sama dengan bagian "C. REKAP GABUNGAN PERLENGKAPAN PER
+     * JENIS" di Report Audit dan dengan tombol Export Selisih — ketiganya
+     * memanggil PerlengkapanOnhand::rekapGabungan().
+     *
+     * Endpoint ini ada supaya penyusun teks Rekomendasi di browser tidak perlu
+     * menghitung ulang angkanya sendiri. Dulu ia menghitung sendiri dari
+     * smh-summary, memakai kolom "total" (unit yang checklist-nya sudah diisi)
+     * sebagai saldo, padahal laporan memakai "totalOnhand" (seluruh unit yang
+     * membutuhkan perlengkapan itu). Akibatnya tiap jenis yang unitnya belum
+     * selesai diperiksa memunculkan selisih yang tidak ada di laporan —
+     * rekomendasi resmi berangkat dari angka yang berbeda dengan laporannya.
+     */
+    public function rekapGabungan(Request $request): JsonResponse
+    {
+        $planId = $request->query('plan_audit_id');
+
+        return response()->json([
+            'data' => $this->onhand->rekapGabungan(
+                $planId ? (string) $planId : null,
+                PemeriksaanPerlengkapan::where('plan_audit_id', $planId)->get()
+            ),
+        ]);
+    }
+
     // ── GET /api/audit-detail/perlengkapan/export-selisih ────────────────────
 
     /**
