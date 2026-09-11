@@ -90,6 +90,9 @@ class AuditTaskController extends Controller
         // itu ~600 query dan >1,6 MB JSON. Sekarang opt-in lewat ?with_logs=1.
         $withLogs = $request->boolean('with_logs');
 
+        // Admin: ikut sertakan task yang sudah selesai (lihat alasannya di bawah).
+        $sertakanSelesai = $request->boolean('include_done');
+
         $tasks = AuditTask::query()
             ->with(['planAudit'])
             ->when($withLogs, fn($q) => $q->with(['planAudit.logs' => fn($l) => $l->orderBy('created_at')]))
@@ -99,14 +102,20 @@ class AuditTaskController extends Controller
             ->when($pinjamanStage, function ($query) use ($pinjamanStage) {
                 $query->whereHas('pinjamanCabang', fn($q) => $q->where('status', $pinjamanStage));
             })
-            ->when(! $approvalStage && ! $pinjamanStage, function ($query) use ($onlyMine, $identities, $role) {
-                // Auditor/cabang: hanya task miliknya. Semua role non-approval:
-                // sembunyikan task yang sudah selesai (transit), kecuali admin
-                // yang butuh akses untuk koreksi status.
+            ->when(! $approvalStage && ! $pinjamanStage, function ($query) use ($onlyMine, $identities, $role, $sertakanSelesai) {
+                // Auditor/cabang: hanya task miliknya.
                 if ($onlyMine && ! empty($identities)) {
                     $query->whereIn('assigned_to', $identities);
                 }
-                if ($role !== 'admin') {
+
+                // Task selesai disembunyikan: halaman Task adalah tempat
+                // persinggahan pekerjaan yang masih berjalan. Admin tetap bisa
+                // melihatnya untuk koreksi, tapi tidak lagi ikut terunduh pada
+                // setiap pembukaan halaman — riwayat selesai bertambah terus dan
+                // itu bagian terbesar dari daftar admin. Datanya TIDAK dihapus
+                // atau disembunyikan permanen: cukup pilih "Selesai" di filter
+                // status, dan halaman memuatnya lewat include_done=1.
+                if ($role !== 'admin' || ! $sertakanSelesai) {
                     $query->where('status', '!=', 'done');
                 }
             })
