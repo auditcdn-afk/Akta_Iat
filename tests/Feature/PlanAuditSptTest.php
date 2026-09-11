@@ -210,6 +210,40 @@ class PlanAuditSptTest extends TestCase
         );
     }
 
+    /**
+     * Periode Audit (Rencana) diisi lewat form Plan Audit dan tercetak di SPT.
+     * Dulu kolomnya tidak ada di form sama sekali, jadi tgl_mulai/tgl_selesai
+     * selalu kosong dan SPT selalu tercetak "- s/d -".
+     */
+    public function test_periode_rencana_tercetak_bila_diisi(): void
+    {
+        $this->postJson('/api/plans', [
+            'no_spt'      => '0002/TEST/SPT-IAT',
+            'cabang'      => 'CSC TEST',
+            'jenis_audit' => 'Audit Full SO',
+            'kepala_tim'  => 'Abdul Aziz',
+            'tim'         => [],
+            'tgl_mulai'   => '2026-09-15',
+            'tgl_selesai' => '2026-09-18',
+        ])->assertCreated();
+
+        $plan = PlanAudit::where('no_spt', '0002/TEST/SPT-IAT')->firstOrFail();
+        $html = $this->get(route('akta.plan-audit.spt', $plan))->assertOk()->getContent();
+
+        $this->assertStringContainsString('15/09/2026', $html);
+        $this->assertStringContainsString('18/09/2026', $html);
+    }
+
+    /** Kalau memang belum ditetapkan, dikatakan apa adanya — bukan "- s/d -". */
+    public function test_periode_rencana_kosong_dikatakan_belum_ditetapkan(): void
+    {
+        $plan = $this->buatPlan();
+
+        $html = $this->get(route('akta.plan-audit.spt', $plan))->assertOk()->getContent();
+
+        $this->assertStringContainsString('Belum ditetapkan', $html);
+    }
+
     public function test_jabatan_kepala_tim_diambil_dari_role_user_yang_cocok(): void
     {
         User::factory()->create(['display_name' => 'Abdul Aziz', 'role' => 'auditor']);

@@ -126,9 +126,15 @@ window.addEventListener('load', function () {
   <div class="field-row">
     <div class="lbl">Periode Audit (Rencana)</div><div class="colon">:</div>
     <div class="val">
-      {{ optional($plan->tgl_mulai)->format('d/m/Y') ?: '-' }}
-      s/d
-      {{ optional($plan->tgl_selesai)->format('d/m/Y') ?: '-' }}
+      @if($plan->tgl_mulai || $plan->tgl_selesai)
+        {{ optional($plan->tgl_mulai)->format('d/m/Y') ?: '-' }}
+        s/d
+        {{ optional($plan->tgl_selesai)->format('d/m/Y') ?: '-' }}
+      @else
+        {{-- "- s/d -" terbaca seperti data hilang. Periode ini memang boleh
+             dikosongkan saat plan dibuat, jadi dikatakan apa adanya. --}}
+        Belum ditetapkan
+      @endif
     </div>
   </div>
 

@@ -126,6 +126,21 @@
                     <p class="mt-1 text-xs text-slate-500">Terisi otomatis saat plan dibuat.</p>
                 </div>
 
+                {{-- Periode Audit (Rencana) dicetak di Surat Perintah Tugas. Dulu
+                     kolomnya tidak ada di form ini sama sekali, jadi tgl_mulai &
+                     tgl_selesai SELALU kosong dan SPT-nya selalu tercetak
+                     "- s/d -" walau plannya sudah dibuat. --}}
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Periode Audit (Rencana)</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input id="tglMulai" type="date" aria-label="Rencana mulai audit"
+                            class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                        <input id="tglSelesai" type="date" aria-label="Rencana selesai audit"
+                            class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                    </div>
+                    <p class="mt-1 text-xs text-slate-500">Mulai s/d selesai — tercetak di Surat Perintah Tugas. Boleh dikosongkan bila belum pasti.</p>
+                </div>
+
                 <div>
                     <label class="mb-1 block text-sm font-medium text-slate-300">Cabang <span class="text-red-400">*</span></label>
                     <div class="relative">
