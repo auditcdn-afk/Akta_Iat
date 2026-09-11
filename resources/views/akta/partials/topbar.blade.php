@@ -9,7 +9,7 @@
             </p>
         </div>
 
-        <div class="flex shrink-0 items-center gap-3">
+        <div class="flex shrink-0 items-center gap-2 sm:gap-3">
             <div class="relative">
                 <button id="notifBellBtn" type="button"
                     class="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-700 text-slate-200 transition hover:border-blue-500 hover:bg-blue-500/10 hover:text-blue-200"
@@ -21,15 +21,21 @@
                         class="absolute -right-1 -top-1 hidden min-w-[1.1rem] rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-[1.1rem] text-white">0</span>
                 </button>
 
+                {{-- Di lebar HP panel ini dipaku ke layar (fixed), bukan digantung
+                     pada tombol lonceng. Digantung pada tombolnya, panel selebar
+                     320px ikut terdorong keluar layar mengikuti posisi lonceng —
+                     isinya terpotong dan judul notifikasi mengular satu huruf per
+                     baris. Mulai lebar sm ke atas, perilaku menggantung dipakai lagi. --}}
                 <div id="notifDropdown"
-                    class="absolute right-0 z-40 mt-2 hidden w-80 max-w-[90vw] rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
+                    class="fixed inset-x-3 top-[4.5rem] z-50 hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl
+                           sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80">
                     <div class="flex items-center justify-between border-b border-slate-800 px-4 py-3">
                         <span class="text-sm font-semibold text-slate-100">Notifikasi</span>
                         <button id="notifMarkAllReadBtn" type="button" class="text-xs font-semibold text-blue-400 hover:text-blue-300">
                             Tandai semua terbaca
                         </button>
                     </div>
-                    <div id="notifList" class="max-h-96 overflow-y-auto akta-scrollbar">
+                    <div id="notifList" class="max-h-[55vh] overflow-y-auto akta-scrollbar sm:max-h-96">
                         <p class="px-4 py-6 text-center text-sm text-slate-400">Memuat...</p>
                     </div>
 
