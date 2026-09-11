@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AuditTask;
 use App\Models\BuPerformance;
+use App\Models\PlanAuditLog;
 use App\Models\PlanAudit;
 use App\Models\User;
 use App\Services\PlanTaskService;
@@ -102,6 +103,98 @@ class PlanSelesaiTutupTaskTest extends TestCase
         app(PlanTaskService::class)->syncAll();
 
         $this->assertGreaterThan(0, $this->taskTerbuka($plan));
+    }
+
+    /**
+     * Kegiatan yang DI-BYPASS admin: langkah "Mulai Audit (berangkat)"
+     * dijalankan admin, bukan auditornya. Seluruh birokrasi sudah selesai
+     * secara administratif, jadi task auditor tidak boleh menggantung.
+     */
+    public function test_mulai_audit_oleh_admin_menutup_task_auditor(): void
+    {
+        Sanctum::actingAs(User::factory()->create(['role' => 'admin', 'username' => 'admin1']));
+
+        $plan = $this->plan('scheduled');
+        $this->assertGreaterThan(0, $this->taskTerbuka($plan));
+
+        // scheduled -> running, dijalankan admin
+        $this->postJson("/api/plans/{$plan->id}/advance")->assertOk();
+
+        $this->assertSame('running', $plan->fresh()->status);
+        $this->assertSame(
+            0,
+            AuditTask::where('plan_audit_id', $plan->id)
+                ->where('assigned_to', 'Abdul Aziz')->where('status', '!=', 'done')->count(),
+            'Task auditor harus tertutup saat kegiatannya di-bypass admin.'
+        );
+    }
+
+    /** Task cabang TIDAK ikut ditutup — konfirmasi kedatangan tetap urusan cabang. */
+    public function test_task_cabang_tidak_ikut_tertutup_saat_dibypass_admin(): void
+    {
+        Sanctum::actingAs(User::factory()->create(['role' => 'admin', 'username' => 'admin1']));
+
+        $plan = $this->plan('scheduled');
+        $this->postJson("/api/plans/{$plan->id}/advance")->assertOk();
+
+        $this->assertSame(
+            1,
+            AuditTask::where('plan_audit_id', $plan->id)
+                ->where('assigned_to', 'SO BBT')->where('status', '!=', 'done')->count(),
+            'Task cabang harus tetap terbuka.'
+        );
+    }
+
+    /** Kalau auditornya sendiri yang memulai audit, task-nya tetap ada. */
+    public function test_mulai_audit_oleh_auditor_tidak_menutup_task(): void
+    {
+        Sanctum::actingAs(User::factory()->create([
+            'role' => 'auditor', 'username' => 'aziz', 'name' => 'Abdul Aziz',
+        ]));
+
+        $plan = $this->plan('scheduled');
+        $this->postJson("/api/plans/{$plan->id}/advance")->assertOk();
+
+        $this->assertSame('running', $plan->fresh()->status);
+        $this->assertGreaterThan(0, $this->taskTerbuka($plan), 'Task auditor harus tetap ada.');
+    }
+
+    /** Plan lama yang sudah terlanjur di-bypass ikut dirapikan sinkronisasi. */
+    public function test_plan_lama_yang_dibypass_admin_ikut_dirapikan(): void
+    {
+        $plan = $this->plan('running');
+        PlanAuditLog::query()->create([
+            'plan_audit_id' => $plan->id, 'action' => 'advance',
+            'from_status' => 'scheduled', 'to_status' => 'running',
+            'actor' => 'admin', 'actor_role' => 'admin', 'note' => 'Disetujui / dilanjutkan',
+        ]);
+        $this->assertGreaterThan(0, $this->taskTerbuka($plan));
+
+        app(PlanTaskService::class)->syncAll();
+
+        $this->assertSame(
+            0,
+            AuditTask::where('plan_audit_id', $plan->id)
+                ->where('assigned_to', 'Abdul Aziz')->where('status', '!=', 'done')->count()
+        );
+    }
+
+    /** Tanggal pelaksanaan dibiarkan kosong: tidak ada yang benar-benar direkam. */
+    public function test_task_yang_ditutup_otomatis_tidak_diberi_tanggal_pelaksanaan(): void
+    {
+        $plan = $this->plan('running');
+        PlanAuditLog::query()->create([
+            'plan_audit_id' => $plan->id, 'action' => 'advance',
+            'from_status' => 'scheduled', 'to_status' => 'running',
+            'actor' => 'admin', 'actor_role' => 'admin',
+        ]);
+
+        app(PlanTaskService::class)->syncAll();
+
+        $task = AuditTask::where('plan_audit_id', $plan->id)->where('assigned_to', 'Abdul Aziz')->firstOrFail();
+        $this->assertSame('done', $task->status);
+        $this->assertNull($task->started_at);
+        $this->assertNull($task->finished_at);
     }
 
     /** Barisnya ditandai selesai, bukan dihapus — riwayatnya tetap utuh. */

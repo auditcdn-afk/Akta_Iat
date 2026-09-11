@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AuditTask;
 use App\Models\PlanAudit;
+use App\Models\PlanAuditLog;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -189,6 +190,31 @@ class PlanTaskService
                 'updated_at'   => now(),
             ]);
 
+        // Begitu juga plan yang kegiatannya di-bypass admin (langkah "Mulai
+        // Audit" dijalankan admin): tidak ada lagi yang perlu dikerjakan
+        // auditornya. Task cabang dikecualikan — konfirmasi kedatangan auditor
+        // tetap urusan pihak cabang.
+        AuditTask::query()
+            ->where('status', '!=', 'done')
+            ->whereIn(
+                'plan_audit_id',
+                PlanAuditLog::query()
+                    ->where('to_status', 'running')
+                    ->where('actor_role', 'admin')
+                    ->select('plan_audit_id')
+            )
+            ->whereNotExists(fn($q) => $q
+                ->selectRaw('1')
+                ->from('plan_audits')
+                ->whereColumn('plan_audits.id', 'audit_tasks.plan_audit_id')
+                ->whereColumn('plan_audits.cabang', 'audit_tasks.assigned_to'))
+            ->update([
+                'status'       => 'done',
+                'completed_at' => now(),
+                'updated_by'   => $actor ?: 'system',
+                'updated_at'   => now(),
+            ]);
+
         return count($newRows);
     }
 
@@ -216,6 +242,49 @@ class PlanTaskService
         return AuditTask::query()
             ->where('plan_audit_id', $plan->id)
             ->where('status', '!=', 'done')
+            ->update([
+                'status'       => 'done',
+                'completed_at' => now(),
+                'updated_by'   => $actor ?: 'system',
+                'updated_at'   => now(),
+            ]);
+    }
+
+    /**
+     * Tutup task auditor pada plan yang kegiatannya DI-BYPASS admin.
+     *
+     * Kalau langkah "Mulai Audit (berangkat)" dijalankan admin — bukan auditor
+     * yang bersangkutan — artinya seluruh birokrasi plan itu sudah diselesaikan
+     * secara administratif dan tidak ada lagi yang perlu dikerjakan auditor.
+     * Tanpa aturan ini, plannya menggantung sebagai "Belum Dikerjakan" di daftar
+     * auditor selamanya, karena task hanya tertutup bila ada yang merekam
+     * pelaksanaannya.
+     *
+     * Task cabang (assigned_to = nama cabang) TIDAK ikut ditutup: konfirmasi
+     * kedatangan auditor adalah urusan pihak cabang, bukan bagian yang
+     * di-bypass di sini.
+     *
+     * Tanggal pelaksanaan sengaja dibiarkan kosong — tidak ada pelaksanaan yang
+     * benar-benar direkam auditor, jadi tidak ada tanggal yang jujur untuk diisi.
+     *
+     * @return int jumlah task yang ditutup
+     */
+    public function tutupTaskPlanDibypassAdmin(PlanAudit $plan, ?string $actor = null): int
+    {
+        $dibypassAdmin = PlanAuditLog::query()
+            ->where('plan_audit_id', $plan->id)
+            ->where('to_status', 'running')
+            ->where('actor_role', 'admin')
+            ->exists();
+
+        if (! $dibypassAdmin) {
+            return 0;
+        }
+
+        return AuditTask::query()
+            ->where('plan_audit_id', $plan->id)
+            ->where('status', '!=', 'done')
+            ->when($plan->cabang, fn($q) => $q->where('assigned_to', '!=', $plan->cabang))
             ->update([
                 'status'       => 'done',
                 'completed_at' => now(),

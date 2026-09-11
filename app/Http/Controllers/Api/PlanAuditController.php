@@ -293,9 +293,12 @@ class PlanAuditController extends Controller
             }
         }
 
-        // Plan yang sudah selesai tidak boleh meninggalkan task "Belum Dikerjakan"
-        // di daftar auditor — tidak ada lagi yang perlu dikerjakan di situ.
-        app(PlanTaskService::class)->tutupTaskPlanSelesai($plan, $request->user()?->username);
+        // Plan yang sudah selesai — atau yang kegiatannya di-bypass admin — tidak
+        // boleh meninggalkan task "Belum Dikerjakan" di daftar auditor: tidak ada
+        // lagi yang perlu dikerjakan di situ.
+        $planTasks = app(PlanTaskService::class);
+        $planTasks->tutupTaskPlanSelesai($plan, $request->user()?->username);
+        $planTasks->tutupTaskPlanDibypassAdmin($plan, $request->user()?->username);
 
         NotificationDispatcher::resolvePlanAuditStatus($plan, $status);
         NotificationDispatcher::notifyPlanAuditStep($plan);
@@ -369,10 +372,14 @@ class PlanAuditController extends Controller
         $plan->recordLog('reject', $oldStatus, $newStatus, $request->user(),
             "Koreksi admin: {$alasan}");
 
-        // Kalau admin menutup plan (selesai/dibatalkan), task auditornya ikut
-        // ditutup — kalau dikembalikan ke status berjalan, task yang sudah ada
-        // sengaja tidak dibuka ulang: pelaksanaan yang sudah direkam tetap sah.
-        app(PlanTaskService::class)->tutupTaskPlanSelesai($plan, $who);
+        // Admin menutup plan (selesai/dibatalkan) ATAU melompatkannya langsung ke
+        // "Audit Berjalan" — keduanya berarti kegiatannya diselesaikan secara
+        // administratif, jadi task auditornya ikut ditutup. Task yang sudah
+        // tertutup tidak pernah dibuka ulang: pelaksanaan yang sudah direkam
+        // tetap sah.
+        $planTasks = app(PlanTaskService::class);
+        $planTasks->tutupTaskPlanSelesai($plan, $who);
+        $planTasks->tutupTaskPlanDibypassAdmin($plan, $who);
 
         NotificationDispatcher::resolvePlanAuditStatus($plan, $oldStatus);
         NotificationDispatcher::notifyPlanAuditStep($plan);
