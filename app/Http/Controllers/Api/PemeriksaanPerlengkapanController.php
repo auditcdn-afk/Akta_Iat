@@ -10,9 +10,16 @@ use App\Models\PemeriksaanPerlengkapan;
 use App\Models\PemeriksaanSmh;
 use App\Models\PlanAudit;
 use App\Models\SmhOnhandItem;
+use App\Models\PemeriksaanAuditor;
 use App\Services\PerlengkapanOnhand;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PemeriksaanPerlengkapanController extends Controller
 {
@@ -27,6 +34,166 @@ class PemeriksaanPerlengkapanController extends Controller
      */
     public function __construct(private readonly PerlengkapanOnhand $onhand)
     {
+    }
+
+    // ── GET /api/audit-detail/perlengkapan/export-selisih ────────────────────
+
+    /**
+     * Unduh rekap gabungan perlengkapan per jenis sebagai Excel.
+     *
+     * Isinya sama persis dengan bagian "C. REKAP GABUNGAN PERLENGKAPAN PER
+     * JENIS" di Report Audit — angkanya dari service yang sama
+     * (PerlengkapanOnhand::rekapGabungan), bukan dihitung ulang di sini, supaya
+     * tidak mungkin berbeda dengan laporannya.
+     *
+     * Bawaannya hanya jenis yang SELISIH-nya tidak nol, karena itu yang
+     * ditindaklanjuti auditor. Tambahkan semua=1 untuk mengunduh seluruh jenis.
+     */
+    public function exportSelisih(Request $request): StreamedResponse
+    {
+        $planId = $request->query('plan_audit_id');
+        abort_unless($planId, 422, 'plan_audit_id wajib diisi.');
+
+        $plan    = PlanAudit::find($planId);
+        $auditor = PemeriksaanAuditor::where('plan_audit_id', $planId)
+            ->where('tool', 'perlengkapan')->first();
+
+        // Seluruh jenis — sama persis dengan yang dipakai Report Audit bagian C.
+        $semuaBaris = $this->onhand->rekapGabungan(
+            (string) $planId,
+            PemeriksaanPerlengkapan::where('plan_audit_id', $planId)->get()
+        );
+
+        $semua = $request->boolean('semua');
+        $baris = $semua
+            ? $semuaBaris
+            : array_values(array_filter($semuaBaris, fn($r) => $r['totalSelisih'] != 0));
+
+        $spreadsheet = new Spreadsheet();
+        $this->tulisSheetRekap($spreadsheet->getActiveSheet(), [
+            'No SPT: ' . ($plan->no_spt ?? '-'),
+            'Cabang/Area: ' . ($plan->cabang_area ?? $plan->cabang ?? '-'),
+            'Auditor: ' . ($auditor->nama_auditor ?? '-') . '   Auditee: ' . ($auditor->nama_auditee ?? '-'),
+            'Diunduh: ' . now()->format('d/m/Y H:i'),
+            'Angka tiap jenis sama persis dengan Report Audit bagian C. Rekap Gabungan Perlengkapan per Jenis.',
+        ], $baris, $semuaBaris, $semua);
+
+        $filename = 'perlengkapan-selisih-' . ($plan->no_spt ?? $planId) . '-' . now()->format('Y-m-d_H-i') . '.xlsx';
+        $filename = preg_replace('/[^A-Za-z0-9._-]/', '_', $filename);
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            (new XlsxWriter($spreadsheet))->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    /** Susun satu sheet rekap gabungan, mengikuti bentuk tabel di Report Audit. */
+    private function tulisSheetRekap(
+        \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet,
+        array $infoLines,
+        array $baris,
+        array $semuaBaris,
+        bool $semua
+    ): void {
+        $sheet->setTitle('Rekap Perlengkapan');
+
+        foreach ($infoLines as $i => $line) {
+            $sheet->setCellValue([1, $i + 1], $line);
+        }
+        $sheet->getStyle('A1:A' . count($infoLines))->getFont()->setItalic(true)->getColor()->setRGB('64748B');
+
+        $judulRow = count($infoLines) + 2;
+        $sheet->setCellValue([1, $judulRow], 'REKAP GABUNGAN PERLENGKAPAN PER JENIS'
+            . ($semua ? ' — semua jenis' : ' — hanya yang ada selisih')
+            . ' (' . count($baris) . ' jenis)');
+        $sheet->getStyle('A' . $judulRow)->getFont()->setBold(true)->setSize(12);
+
+        $headers = [
+            'No', 'Jenis Perlengkapan',
+            'SMH Saldo (unit)', 'SMH Fisik (ada)', 'SMH Selisih',
+            'Luar SMH Saldo (buku)', 'Luar SMH Fisik', 'Luar SMH Selisih',
+            'Total Selisih', 'Keterangan',
+        ];
+        $headerRow = $judulRow + 1;
+        foreach ($headers as $i => $header) {
+            $sheet->setCellValue([$i + 1, $headerRow], $header);
+        }
+
+        $lastCol = count($headers);
+        $kolomTerakhir = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($lastCol);
+        $headerRange = "A{$headerRow}:{$kolomTerakhir}{$headerRow}";
+        $sheet->getStyle($headerRange)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle($headerRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('0F766E');
+        $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setWrapText(true);
+
+        $rowIndex = $headerRow + 1;
+        $totalSmhSaldo = $totalSmhFisik = $totalLuarSaldo = $totalLuarFisik = $totalSelisih = 0;
+
+        foreach ($baris as $i => $r) {
+            $values = [
+                $i + 1, $r['jenis'],
+                $r['smhSaldo'], $r['smhFisik'], $r['smhSelisih'],
+                $r['luarSaldo'], $r['luarFisik'], $r['luarSelisih'],
+                $r['totalSelisih'], $r['keterangan'] ?: '-',
+            ];
+            foreach ($values as $ci => $value) {
+                $sheet->setCellValue([$ci + 1, $rowIndex], $value);
+            }
+
+            $totalSmhSaldo  += $r['smhSaldo'];
+            $totalSmhFisik  += $r['smhFisik'];
+            $totalLuarSaldo += $r['luarSaldo'];
+            $totalLuarFisik += $r['luarFisik'];
+            $totalSelisih   += $r['totalSelisih'];
+            $rowIndex++;
+        }
+
+        if ($baris) {
+            $barisTotal = [[
+                'label' => $semua ? 'TOTAL' : 'TOTAL (baris yang ditampilkan)',
+                'smhSaldo' => $totalSmhSaldo, 'smhFisik' => $totalSmhFisik,
+                'luarSaldo' => $totalLuarSaldo, 'luarFisik' => $totalLuarFisik,
+                'totalSelisih' => $totalSelisih,
+            ]];
+
+            // Saat hanya selisih yang diunduh, baris TOTAL di atas hanya
+            // menjumlah baris yang tampil — jadi kolom Saldo/Fisik-nya lebih
+            // kecil daripada TOTAL di Report Audit yang menjumlah SELURUH jenis.
+            // Supaya tidak ada angka yang terlihat berbeda dari laporan, total
+            // seluruh jenis ikut ditulis dan diberi nama yang jelas.
+            if (! $semua) {
+                $barisTotal[] = [
+                    'label'        => 'TOTAL SELURUH JENIS (sama dengan Report Audit)',
+                    'smhSaldo'     => array_sum(array_column($semuaBaris, 'smhSaldo')),
+                    'smhFisik'     => array_sum(array_column($semuaBaris, 'smhFisik')),
+                    'luarSaldo'    => array_sum(array_column($semuaBaris, 'luarSaldo')),
+                    'luarFisik'    => array_sum(array_column($semuaBaris, 'luarFisik')),
+                    'totalSelisih' => array_sum(array_column($semuaBaris, 'totalSelisih')),
+                ];
+            }
+
+            foreach ($barisTotal as $t) {
+                // Indeksnya harus sejajar dengan $values pada baris data di atas:
+                // 1=Jenis, 2=SMH Saldo, 3=SMH Fisik, 4=SMH Selisih, 5=Luar Saldo,
+                // 6=Luar Fisik, 7=Luar Selisih, 8=Total Selisih.
+                foreach ([1 => $t['label'], 2 => $t['smhSaldo'], 3 => $t['smhFisik'],
+                          4 => $t['smhFisik'] - $t['smhSaldo'], 5 => $t['luarSaldo'],
+                          6 => $t['luarFisik'], 7 => $t['luarFisik'] - $t['luarSaldo'],
+                          8 => $t['totalSelisih']] as $col => $value) {
+                    $sheet->setCellValue([$col + 1, $rowIndex], $value);
+                }
+                $sheet->getStyle("A{$rowIndex}:{$kolomTerakhir}{$rowIndex}")->getFont()->setBold(true);
+                $rowIndex++;
+            }
+
+            $sheet->getStyle("A{$headerRow}:{$kolomTerakhir}" . ($rowIndex - 1))
+                ->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        }
+
+        foreach (range(1, $lastCol) as $colIdx) {
+            $sheet->getColumnDimensionByColumn($colIdx)->setAutoSize(true);
+        }
     }
 
     // ── GET /api/audit-detail/perlengkapan ───────────────────────────────────

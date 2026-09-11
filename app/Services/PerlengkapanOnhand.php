@@ -141,6 +141,70 @@ class PerlengkapanOnhand
     }
 
     /**
+     * Rekap gabungan per jenis perlengkapan — isi bagian "C. REKAP GABUNGAN
+     * PERLENGKAPAN PER JENIS" pada Report Audit, dan sumber tombol Export
+     * Selisih di tab Perlengkapan.
+     *
+     * Ditaruh di sini supaya laporan dan file Excel-nya menghitung dengan rumus
+     * yang SAMA PERSIS. Kalau masing-masing menghitung sendiri, cepat atau
+     * lambat keduanya akan berbeda angka untuk plan yang sama — dan auditor
+     * tidak punya cara tahu mana yang benar.
+     *
+     * @param  iterable  $barisLuarSmh  baris PemeriksaanPerlengkapan plan ini
+     * @return array<int, array<string, mixed>> terurut menurut nama jenis
+     */
+    public function rekapGabungan(?string $planId, iterable $barisLuarSmh): array
+    {
+        $smhMap = [];
+        foreach ($this->summaryPerJenis($planId) as $nama => $row) {
+            $smhMap[$nama] = ['smhSaldo' => $row['totalOnhand'], 'smhFisik' => $row['ada']];
+        }
+
+        $luarMap = [];
+        foreach ($barisLuarSmh as $p) {
+            $nama = trim($p->jenis_perlengkapan ?? '');
+            if ($nama === '') continue;
+
+            $luarMap[$nama] ??= ['luarFisik' => 0, 'penjelasan' => []];
+            $luarMap[$nama]['luarFisik'] += (int) ($p->fisik ?? 0);
+            if ($p->penjelasan) $luarMap[$nama]['penjelasan'][] = $p->penjelasan;
+        }
+
+        $semuaJenis = array_unique(array_merge(array_keys($smhMap), array_keys($luarMap)));
+        sort($semuaJenis);
+
+        $hasil = [];
+        foreach ($semuaJenis as $jenis) {
+            $smh  = $smhMap[$jenis] ?? ['smhSaldo' => 0, 'smhFisik' => 0];
+            $luar = $luarMap[$jenis] ?? ['luarFisik' => 0, 'penjelasan' => []];
+
+            // Saldo (buku) Luar SMH = sisa yang BELUM tertanggung setelah cek fisik
+            // unit. Dihitung ulang di sini, bukan dibaca dari kolom `saldo` yang
+            // tersimpan: nilai tersimpan itu hanya potret saat baris disimpan, dan
+            // menjadi basi begitu checklist Cek Fisik unit berubah sesudahnya.
+            $luarSaldo = max(0, $smh['smhSaldo'] - $smh['smhFisik']);
+
+            // Total Selisih = SELURUH fisik yang tertanggung (ditemukan menempel di
+            // unit saat cek fisik + ditemukan terpisah di gudang) dikurangi jumlah
+            // unit yang membutuhkannya.
+            $hasil[] = [
+                'jenis'        => $jenis,
+                'smhSaldo'     => $smh['smhSaldo'],
+                'smhFisik'     => $smh['smhFisik'],
+                'smhSelisih'   => $smh['smhFisik'] - $smh['smhSaldo'],
+                'luarSaldo'    => $luarSaldo,
+                'luarFisik'    => $luar['luarFisik'],
+                'luarSelisih'  => $luar['luarFisik'] - $luarSaldo,
+                'totalSelisih' => ($smh['smhFisik'] + $luar['luarFisik']) - $smh['smhSaldo'],
+                'adaLuar'      => isset($luarMap[$jenis]),
+                'keterangan'   => implode('; ', $luar['penjelasan']),
+            ];
+        }
+
+        return $hasil;
+    }
+
+    /**
      * Saldo buku satu jenis perlengkapan = unit yang membutuhkannya dikurangi
      * unit yang perlengkapannya sudah ditemukan saat periksa fisik.
      */

@@ -88,6 +88,11 @@ class ReportPdfController extends Controller
         // yang status fisiknya 'ada' dan checklist-nya sudah tersinkron — sehingga
         // kedua sisi tabel tidak pernah bisa direkonsiliasi.
         $perlengkapanOnhand = app(PerlengkapanOnhand::class)->summaryPerJenis((string) $id);
+
+        // Bagian "C. REKAP GABUNGAN PERLENGKAPAN PER JENIS". Rumusnya di service
+        // yang sama dengan tombol Export Selisih di tab Perlengkapan, supaya
+        // laporan dan file Excel-nya tidak mungkin berbeda angka.
+        $rekapGabungan = app(PerlengkapanOnhand::class)->rekapGabungan((string) $id, $perlengkapan);
         $bank       = PemeriksaanBank::where('plan_audit_id', $id)->get();
         $materai    = PemeriksaanMaterai::where('plan_audit_id', $id)->get();
         $bpkbOnhand = BpkbOnhandItem::where('plan_audit_id', $id)->get();
@@ -173,7 +178,7 @@ class ReportPdfController extends Controller
             'bpkbOnhand', 'bpkbInproses', 'kwitansi', 'piutangReguler',
             'piutangCdn', 'ttpGantung', 'cekFisik', 'mt', 'hgp', 'rsaHgp', 'hga',
             'smhTarikan', 'lampiran', 'lampiranEmbeds', 'mutasiPembelian', 'ttpCsc', 'visibleTabs', 'auditors', 'blankos',
-            'perlengkapanOnhand', 'hgpOilItems', 'hgpSparepartItems',
+            'perlengkapanOnhand', 'rekapGabungan', 'hgpOilItems', 'hgpSparepartItems',
             'rsaHgpOilItems', 'rsaHgpSparepartItems', 'karyawans', 'mtRekap'
         );
     }

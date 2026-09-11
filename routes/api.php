@@ -207,6 +207,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/audit-detail/perlengkapan', [PemeriksaanPerlengkapanController::class, 'index']);
     Route::get('/audit-detail/perlengkapan/jenis', [PemeriksaanPerlengkapanController::class, 'jenis']);
     Route::get('/audit-detail/perlengkapan/smh-summary', [PemeriksaanPerlengkapanController::class, 'smhSummary']);
+    Route::get('/audit-detail/perlengkapan/export-selisih', [PemeriksaanPerlengkapanController::class, 'exportSelisih']);
     Route::post('/audit-detail/perlengkapan', [PemeriksaanPerlengkapanController::class, 'store']);
     Route::put('/audit-detail/perlengkapan/{pemeriksaanPerlengkapan}', [PemeriksaanPerlengkapanController::class, 'update']);
     Route::delete('/audit-detail/perlengkapan/{pemeriksaanPerlengkapan}', [PemeriksaanPerlengkapanController::class, 'destroy']);

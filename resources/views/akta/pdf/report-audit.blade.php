@@ -876,38 +876,12 @@ window.addEventListener('load', function() {
     @endif
 
     {{-- ── C. Rekap Gabungan Perlengkapan ── --}}
-    @php
-      // Map SMH: nama → {smhSaldo (unit yang MEMBUTUHKAN), smhFisik (yang ditemukan)}.
-      //
-      // Penyebutnya (smhSaldo) diambil dari App\Services\PerlengkapanOnhand —
-      // sumber yang sama dengan Saldo buku "Perlengkapan di luar SMH" di tab
-      // Perlengkapan. Dulu bagian ini menghitung sendiri dengan hanya menjumlah
-      // unit yang status fisiknya 'ada' DAN checklist perlengkapannya sudah
-      // tersinkron. Unit yang tidak ditemukan fisik — atau yang checklist-nya
-      // belum diisi — tetap membutuhkan perlengkapannya, jadi mengeluarkannya
-      // dari penyebut membuat kekurangan pada sisi SMH lebih kecil daripada
-      // Saldo Luar SMH, dan kedua sisi tabel tidak pernah bisa direkonsiliasi.
-      $smhPlMap = [];
-      foreach($perlengkapanOnhand as $nm => $row) {
-          $smhPlMap[$nm] = ['smhSaldo' => $row['totalOnhand'], 'smhFisik' => $row['ada']];
-      }
-      // Bangun map dari perlengkapan luar SMH: jenis → {luarSaldo, luarFisik, luarSelisih, penjelasan[]}
-      $luarPlMap = [];
-      foreach($perlengkapan as $p) {
-          $nm = trim($p->jenis_perlengkapan ?? '');
-          if($nm === '') continue;
-          if(!isset($luarPlMap[$nm])) $luarPlMap[$nm] = ['luarSaldo'=>0,'luarFisik'=>0,'luarSelisih'=>0,'penjelasan'=>[]];
-          $luarPlMap[$nm]['luarSaldo']  += (float)($p->saldo ?? 0);
-          $luarPlMap[$nm]['luarFisik']  += (int)($p->fisik ?? 0);
-          $luarPlMap[$nm]['luarSelisih']+= (float)($p->selisih ?? 0);
-          if($p->penjelasan) $luarPlMap[$nm]['penjelasan'][] = $p->penjelasan;
-      }
-      // Gabungkan semua kunci
-      $allJenis = array_unique(array_merge(array_keys($smhPlMap), array_keys($luarPlMap)));
-      sort($allJenis);
-    @endphp
+    {{-- $rekapGabungan disiapkan ReportPdfController lewat
+         PerlengkapanOnhand::rekapGabungan() — service yang sama dipakai tombol
+         "Export Selisih" di tab Perlengkapan, supaya laporan ini dan file
+         Excel-nya tidak mungkin berbeda angka untuk plan yang sama. --}}
 
-    @if(count($allJenis))
+    @if(count($rekapGabungan))
     <div style="font-weight:700;font-size:11px;color:#0f766e;border-bottom:2px solid #0f766e;padding-bottom:3px;margin-bottom:10px;margin-top:20px;">C. REKAP GABUNGAN PERLENGKAPAN PER JENIS</div>
     @php
       $grandSmhSaldo=$grandSmhFisik=$grandSmhSel=0;
@@ -934,62 +908,42 @@ window.addEventListener('load', function() {
         </tr>
       </thead>
       <tbody>
-        @foreach($allJenis as $idx => $jns)
+        @foreach($rekapGabungan as $idx => $r)
         @php
-          $smhD  = $smhPlMap[$jns]  ?? ['smhSaldo'=>0,'smhFisik'=>0];
-          $hasLuar = isset($luarPlMap[$jns]);
-          $luarD = $luarPlMap[$jns] ?? ['luarSaldo'=>0,'luarFisik'=>0,'luarSelisih'=>0,'penjelasan'=>[]];
-          $smhSel  = $smhD['smhFisik'] - $smhD['smhSaldo'];
-
-          // Saldo (buku) Luar SMH = sisa yang BELUM tertanggung setelah cek fisik unit.
-          // Dihitung ulang di sini, bukan dibaca dari kolom `saldo` yang tersimpan:
-          // nilai tersimpan itu hanya potret saat baris disimpan, dan menjadi basi
-          // begitu checklist Cek Fisik unit berubah sesudahnya. Contoh nyata dari
-          // lapangan: Baterai 3 Ah butuh 14 unit, 1 ketemu di unit, 13 ketemu di
-          // gudang — mestinya pas (0), tapi kolom `saldo` masih menyimpan 14 (bukan
-          // 13) sehingga selisihnya terbaca -1 padahal tidak ada yang kurang.
-          $luarSaldo = max(0, $smhD['smhSaldo'] - $smhD['smhFisik']);
-          $luarSel   = $luarD['luarFisik'] - $luarSaldo;
-
-          // Total Selisih = SELURUH fisik yang tertanggung (ditemukan menempel di unit
-          // saat cek fisik + ditemukan terpisah di gudang) dikurangi jumlah unit yang
-          // membutuhkannya. Ditulis eksplisit begini supaya tidak bergantung pada
-          // angka tersimpan mana pun, dan supaya jelas bahwa kedua sumber fisik
-          // memang dijumlahkan — bukan salah satunya saja.
-          $totalSel = ($smhD['smhFisik'] + $luarD['luarFisik']) - $smhD['smhSaldo'];
-
-          $grandSmhSaldo  += $smhD['smhSaldo'];
-          $grandSmhFisik  += $smhD['smhFisik'];
+          $smhSel   = $r['smhSelisih'];
+          $luarSel  = $r['luarSelisih'];
+          $totalSel = $r['totalSelisih'];
+          $grandSmhSaldo  += $r['smhSaldo'];
+          $grandSmhFisik  += $r['smhFisik'];
           $grandSmhSel    += $smhSel;
-          $grandLuarSaldo += $luarSaldo;
-          $grandLuarFisik += $luarD['luarFisik'];
+          $grandLuarSaldo += $r['luarSaldo'];
+          $grandLuarFisik += $r['luarFisik'];
           $grandLuarSel   += $luarSel;
           $grandTotalSel  += $totalSel;
-          $ket = implode('; ', $luarD['penjelasan']);
         @endphp
         <tr>
           <td>{{ $idx + 1 }}</td>
-          <td style="font-weight:600">{{ $jns }}</td>
+          <td style="font-weight:600">{{ $r['jenis'] }}</td>
           {{-- SMH --}}
-          <td style="text-align:right">{{ $smhD['smhSaldo'] ?: '-' }}</td>
-          <td style="text-align:right">{{ $smhD['smhFisik'] ?: '-' }}</td>
+          <td style="text-align:right">{{ $r['smhSaldo'] ?: '-' }}</td>
+          <td style="text-align:right">{{ $r['smhFisik'] ?: '-' }}</td>
           <td style="text-align:right;font-weight:700;color:{{ $smhSel < 0 ? '#dc2626' : ($smhSel > 0 ? '#d97706' : '#059669') }}">
-            {{ $smhD['smhSaldo'] ? ($smhSel > 0 ? '+'.$smhSel : $smhSel) : '-' }}
+            {{ $r['smhSaldo'] ? ($smhSel > 0 ? '+'.$smhSel : $smhSel) : '-' }}
           </td>
           {{-- Luar SMH --}}
-          <td style="text-align:right">{{ $luarSaldo ? number_format($luarSaldo,0,',','.') : '-' }}</td>
-          <td style="text-align:right">{{ $luarD['luarFisik'] ? number_format($luarD['luarFisik'],0,',','.') : '-' }}</td>
+          <td style="text-align:right">{{ $r['luarSaldo'] ? number_format($r['luarSaldo'],0,',','.') : '-' }}</td>
+          <td style="text-align:right">{{ $r['luarFisik'] ? number_format($r['luarFisik'],0,',','.') : '-' }}</td>
           <td style="text-align:right;font-weight:700;color:{{ $luarSel != 0 ? '#dc2626' : '#059669' }}">
-            {{ ($luarSaldo || $hasLuar) ? number_format($luarSel,0,',','.') : '-' }}
+            {{ ($r['luarSaldo'] || $r['adaLuar']) ? number_format($luarSel,0,',','.') : '-' }}
           </td>
           {{-- Total Selisih --}}
           <td style="text-align:center;font-weight:700;background:#fef9c3;color:{{ $totalSel < 0 ? '#dc2626' : ($totalSel > 0 ? '#d97706' : '#059669') }}">
-            @if($smhD['smhSaldo'] || $hasLuar)
+            @if($r['smhSaldo'] || $r['adaLuar'])
               {{ $totalSel > 0 ? '+'.$totalSel : $totalSel }}
             @else -
             @endif
           </td>
-          <td style="font-size:9px">{{ $ket ?: '-' }}</td>
+          <td style="font-size:9px">{{ $r['keterangan'] ?: '-' }}</td>
         </tr>
         @endforeach
         <tr style="background:#e6fffa;font-weight:700;border-top:2px solid #0f766e;">

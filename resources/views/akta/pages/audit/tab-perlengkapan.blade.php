@@ -2,9 +2,19 @@
 
             {{-- Form Tambah --}}
             <div class="rounded-2xl border border-slate-700 bg-slate-900 p-5 space-y-4">
-                <div class="flex items-center justify-between">
+                <div class="flex flex-wrap items-center justify-between gap-2">
                     <h3 class="text-sm font-bold uppercase tracking-wide text-slate-300">📦 Perlengkapan di Luar SMH</h3>
-                    <span id="plSmhBadge" class="hidden rounded-full bg-blue-900/50 px-3 py-0.5 text-xs text-blue-300"></span>
+                    <div class="flex items-center gap-2">
+                        <span id="plSmhBadge" class="hidden rounded-full bg-blue-900/50 px-3 py-0.5 text-xs text-blue-300"></span>
+                        {{-- Isinya sama persis dengan bagian "C. REKAP GABUNGAN PERLENGKAPAN PER
+                             JENIS" di Report Audit (angkanya dari service yang sama), jadi auditor
+                             bisa mengambil data selisihnya tanpa harus mencetak seluruh laporan. --}}
+                        <button id="plExportSelisihBtn" type="button"
+                            class="inline-flex items-center gap-2 rounded-xl border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800 active:scale-95 transition"
+                            title="Unduh rekap gabungan perlengkapan SMH per jenis yang selisihnya tidak nol, dalam bentuk Excel">
+                            📥 Export Selisih
+                        </button>
+                    </div>
                 </div>
 
                 <div class="grid gap-4 sm:grid-cols-2">
