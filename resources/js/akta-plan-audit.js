@@ -439,6 +439,8 @@ async function openModal(plan = null) {
         document.getElementById("noSpt").value = plan.noSpt || "";
         document.getElementById("jenisAudit").value = plan.jenisAudit || firstJenisAuditOption();
         document.getElementById("tglPlan").value = plan.tglPlan || "";
+        document.getElementById("tglMulai").value = plan.tglMulai || "";
+        document.getElementById("tglSelesai").value = plan.tglSelesai || "";
         document.getElementById("keterangan").value = plan.keterangan || "";
     } else {
         title.textContent = "Tambah Plan Audit";
@@ -472,6 +474,10 @@ function getFormPayload() {
         cabang:      document.getElementById("cabang").value,
         kepala_tim:  document.getElementById("kepalaTim").value,
         tim,
+        // Periode rencana audit — dicetak di SPT. Dikirim null (bukan "") saat
+        // dikosongkan supaya validasi tanggal di server tidak menolaknya.
+        tgl_mulai:   document.getElementById("tglMulai").value || null,
+        tgl_selesai: document.getElementById("tglSelesai").value || null,
         keterangan:  document.getElementById("keterangan").value.trim(),
     };
 }
