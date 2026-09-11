@@ -74,13 +74,22 @@ class PlanAuditPdfController extends Controller
             ->orderBy('created_at')
             ->get();
 
-        $tahapan = $this->susunTahapan($logs);
+        $tahapan = $this->susunTahapan($logs, $plan);
+
+        // Tanggal "Diterbitkan" = saat COO benar-benar menyetujui (transisi ke
+        // 'scheduled'), bukan tanggal surat ini dicetak. Surat tugas terbit
+        // sekali, sementara pencetakan bisa berkali-kali — memakai now() membuat
+        // tanggal terbitnya berubah tiap kali dicetak ulang. Selama COO belum
+        // menyetujui, suratnya memang belum terbit, jadi dikosongkan (bukan
+        // diisi tanggal hari ini yang menyesatkan).
+        $tglTerbit = $logs->firstWhere('to_status', 'scheduled')?->created_at;
 
         return view('akta.pdf.plan-audit-spt', [
             'plan'          => $plan,
             'deskripsiTugas' => $this->deskripsiTugas($plan->jenis_audit),
             'jabatanKepalaTim' => $this->jabatanUntukNama($plan->kepala_tim),
             'tahapan'       => $tahapan,
+            'tglTerbit'     => $tglTerbit,
             'statusLabel'   => self::STATUS_LABEL[$plan->status] ?? $plan->status,
             'autoprint'     => (bool) request()->query('autoprint'),
         ]);
@@ -115,7 +124,7 @@ class PlanAuditPdfController extends Controller
      * waktu & aktor kosong, bukan dihilangkan, supaya progres yang tersisa
      * tetap terlihat di suratnya.
      */
-    private function susunTahapan($logs): array
+    private function susunTahapan($logs, PlanAudit $plan): array
     {
         $cariAksi = fn(string $toStatus) => $logs->firstWhere('to_status', $toStatus);
         $diajukan = $logs->firstWhere('action', 'created');
@@ -126,8 +135,19 @@ class PlanAuditPdfController extends Controller
             'aktor' => $log ? $this->namaAktor($log->actor) : null,
         ];
 
+        // Baris "Diajukan" menyebut AUDITOR yang mengajukan tugas ini, yaitu
+        // Kepala Tim pada plan — bukan akun yang kebetulan merekam plannya ke
+        // sistem (sering Manajer Audit). Surat ini adalah surat tugas auditor;
+        // menuliskan nama manajer di baris "Diajukan" membuat seolah manajer
+        // yang mengajukan tugas untuk dirinya sendiri. Kalau Kepala Tim belum
+        // diisi, dipakai nama perekamnya supaya barisnya tidak kosong.
+        $barisDiajukan = $baris('Diajukan', $diajukan);
+        if ($diajukan && $plan->kepala_tim) {
+            $barisDiajukan['aktor'] = $plan->kepala_tim;
+        }
+
         return [
-            $baris('Diajukan', $diajukan),
+            $barisDiajukan,
             $baris('Disetujui Koordinator', $cariAksi('pending_manajer')),
             $baris('Disetujui Manajer', $cariAksi('pending_coo')),
             $baris('Disetujui COO', $cariAksi('scheduled')),

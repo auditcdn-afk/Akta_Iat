@@ -130,6 +130,86 @@ class PlanAuditSptTest extends TestCase
         $this->assertSame(4, substr_count($html, 'Belum terjadi'));
     }
 
+    /** Simpan log dengan waktu tertentu (created_at tidak mass-assignable). */
+    private function log(PlanAudit $plan, array $attrs, $waktu): PlanAuditLog
+    {
+        $log = new PlanAuditLog(array_merge(['plan_audit_id' => $plan->id], $attrs));
+        $log->forceFill(['created_at' => $waktu, 'updated_at' => $waktu])->save();
+
+        return $log;
+    }
+
+    /**
+     * Tanggal "Diterbitkan" harus mengikuti waktu COO menyetujui, bukan tanggal
+     * surat dicetak — surat tugas terbit sekali, sementara pencetakannya bisa
+     * berkali-kali.
+     */
+    public function test_tanggal_diterbitkan_mengikuti_waktu_approve_coo(): void
+    {
+        $plan = $this->buatPlan(['status' => 'running']);
+        $waktuCoo = now()->subDays(4);
+
+        $this->log($plan, ['action' => 'created', 'to_status' => 'draft', 'actor' => 'admin'], now()->subDays(6));
+        $this->log($plan, ['action' => 'advance', 'from_status' => 'pending_coo', 'to_status' => 'scheduled', 'actor' => 'coo1'], $waktuCoo);
+
+        $html = $this->get(route('akta.plan-audit.spt', $plan))->assertOk()->getContent();
+
+        $this->assertStringContainsString('Diterbitkan, ' . $waktuCoo->format('d/m/Y'), $html);
+        $this->assertStringNotContainsString('Diterbitkan, ' . now()->format('d/m/Y'), $html);
+    }
+
+    /** Selama COO belum menyetujui, suratnya memang belum terbit. */
+    public function test_belum_disetujui_coo_tidak_memakai_tanggal_hari_ini(): void
+    {
+        $plan = $this->buatPlan(['status' => 'pending_coo']);
+        $this->log($plan, ['action' => 'created', 'to_status' => 'draft', 'actor' => 'admin'], now()->subDays(2));
+
+        $html = $this->get(route('akta.plan-audit.spt', $plan))->assertOk()->getContent();
+
+        $this->assertStringContainsString('Belum diterbitkan', $html);
+        $this->assertStringNotContainsString('Diterbitkan, ' . now()->format('d/m/Y'), $html);
+    }
+
+    /**
+     * Baris "Diajukan" menyebut auditor (Kepala Tim) yang mengajukan tugas,
+     * bukan akun yang merekam plannya ke sistem — di lapangan plan sering
+     * direkam Manajer Audit, dan menulis namanya di situ menyesatkan.
+     */
+    public function test_baris_diajukan_menyebut_auditor_bukan_perekam_plan(): void
+    {
+        $plan = $this->buatPlan(['kepala_tim' => "SARI'I"]);
+        User::factory()->create(['username' => 'yosep1', 'display_name' => 'Yosep', 'role' => 'manajer']);
+        $this->log($plan, ['action' => 'created', 'to_status' => 'draft', 'actor' => 'yosep1'], now()->subDays(3));
+
+        $html = $this->get(route('akta.plan-audit.spt', $plan))->assertOk()->getContent();
+
+        $barisDiajukan = substr($html, strpos($html, '>Diajukan<'), 400);
+        // Blade meng-escape tanda kutip pada nama, jadi dibandingkan dalam
+        // bentuk yang benar-benar tercetak di HTML.
+        $this->assertStringContainsString(e("SARI'I"), $barisDiajukan);
+        $this->assertStringNotContainsString('Yosep', $barisDiajukan);
+    }
+
+    /** Blok tanda tangan berada DI ATAS tabel realisasi pelaksanaan. */
+    public function test_realisasi_pelaksanaan_berada_di_bawah_blok_diterbitkan(): void
+    {
+        $plan = $this->buatPlan(['status' => 'running']);
+        $this->log($plan, ['action' => 'created', 'to_status' => 'draft', 'actor' => 'admin'], now()->subDay());
+
+        $html = $this->get(route('akta.plan-audit.spt', $plan))->assertOk()->getContent();
+
+        $posTtd = strpos($html, 'Chief Operating Officer');
+        $posRealisasi = strpos($html, 'Realisasi Pelaksanaan Tugas');
+
+        $this->assertNotFalse($posTtd);
+        $this->assertNotFalse($posRealisasi);
+        $this->assertLessThan(
+            $posRealisasi,
+            $posTtd,
+            'Blok "Diterbitkan / Chief Operating Officer" harus muncul sebelum tabel Realisasi Pelaksanaan Tugas.'
+        );
+    }
+
     public function test_jabatan_kepala_tim_diambil_dari_role_user_yang_cocok(): void
     {
         User::factory()->create(['display_name' => 'Abdul Aziz', 'role' => 'auditor']);
