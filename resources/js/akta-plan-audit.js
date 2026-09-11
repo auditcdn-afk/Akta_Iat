@@ -170,14 +170,45 @@ function ensureModalData() {
 }
 
 async function loadPlans() {
-    const q = document.getElementById("planSearch")?.value || "";
-    const status = document.getElementById("planStatusFilter")?.value || "";
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (status) params.set("status", status);
-    const url = params.toString() ? `/api/plans?${params}` : "/api/plans";
-    const payload = await fetchJson(url);
+    // Cari & filter dikerjakan di browser (lihat planTerlihat()), bukan dengan
+    // bertanya ulang ke server: daftarnya sudah lengkap di sini, dan tiap
+    // permintaan baru berarti menunggu satu perjalanan lagi.
+    const payload = await fetchJson("/api/plans");
     plans = payload.data || [];
+    renderPlans();
+}
+
+/** Plan yang lolos kotak cari + filter status, dicocokkan di browser. */
+function planTerlihat() {
+    const q = (document.getElementById("planSearch")?.value || "").trim().toLowerCase();
+    const status = document.getElementById("planStatusFilter")?.value || "";
+
+    return plans.filter((p) => {
+        if (status && p.status !== status) return false;
+        if (!q) return true;
+        // Kolom yang sama dengan pencarian di server (PlanAuditController::index).
+        return [p.noSpt, p.cabang, p.jenisAudit, p.kepalaTim]
+            .some((v) => String(v ?? "").toLowerCase().includes(q));
+    });
+}
+
+// ── Perbarui daftar dari balasan aksi, bukan unduh ulang semuanya ────────────
+// Tiap aksi dulu diikuti loadPlans(): satu perjalanan ke server lagi untuk
+// menarik SELURUH daftar plan. Di hosting ini satu perjalanan saja sudah terasa
+// beberapa detik, jadi satu aksi = dua kali menunggu. Balasan aksinya sudah
+// memuat plan versi terbaru, jadi cukup dipakai memperbarui barisnya.
+
+/** Sisipkan/ganti satu plan pada daftar lokal lalu gambar ulang tabel. */
+function terapkanPlan(plan) {
+    if (!plan?.id) { loadPlans().catch(() => {}); return; }
+    const idx = plans.findIndex((p) => String(p.id) === String(plan.id));
+    if (idx >= 0) plans[idx] = plan;
+    else plans.unshift(plan);
+    renderPlans();
+}
+
+function hapusPlanLokal(id) {
+    plans = plans.filter((p) => String(p.id) !== String(id));
     renderPlans();
 }
 
@@ -244,12 +275,18 @@ function renderPlans() {
     const tbody = document.getElementById("plansTableBody");
     if (!tbody) return;
 
-    if (!plans.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">Belum ada plan audit.</td></tr>`;
+    const terlihat = planTerlihat();
+
+    if (!terlihat.length) {
+        const adaFilter = (document.getElementById("planSearch")?.value || "").trim()
+            || document.getElementById("planStatusFilter")?.value;
+        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">${
+            adaFilter ? "Tidak ada plan yang cocok dengan pencarian/filter." : "Belum ada plan audit."
+        }</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = plans.map((plan) => {
+    tbody.innerHTML = terlihat.map((plan) => {
         const badge = STATUS_BADGE[plan.status] || STATUS_BADGE.draft;
         const label = STATUS_LABELS[plan.status] || plan.status;
 
@@ -478,7 +515,7 @@ async function savePlan(event) {
 
         closeModal();
         showAlert(payload.message || "Plan audit berhasil disimpan.");
-        await loadPlans();
+        terapkanPlan(payload.data);
     } finally {
         isSavingPlan = false;
         if (saveButton) saveButton.disabled = false;
@@ -508,7 +545,7 @@ async function advancePlan(id) {
     });
     showAlert(payload.message || "Status berhasil diperbarui.");
     notifyPlanChanged(id, "updated");
-    await loadPlans();
+    terapkanPlan(payload.data);
 }
 
 async function rejectPlan(id) {
@@ -521,7 +558,7 @@ async function rejectPlan(id) {
     const payload = await fetchJson(`/api/plans/${id}/reject`, { method: "POST" });
     showAlert(payload.message || "Plan dikembalikan ke Draft.");
     notifyPlanChanged(id, "updated");
-    await loadPlans();
+    terapkanPlan(payload.data);
 }
 
 async function deletePlan(id) {
@@ -534,18 +571,16 @@ async function deletePlan(id) {
     const payload = await fetchJson(`/api/plans/${id}`, { method: "DELETE" });
     showAlert(payload.message || "Plan audit berhasil dihapus.");
     notifyPlanChanged(id, "deleted");
-    await loadPlans();
+    hapusPlanLokal(id);
 }
 
 function setupFilters() {
     let timer = null;
     document.getElementById("planSearch")?.addEventListener("input", () => {
         clearTimeout(timer);
-        timer = setTimeout(() => loadPlans().catch((e) => showAlert(e.message, "error")), 300);
+        timer = setTimeout(renderPlans, 120);
     });
-    document.getElementById("planStatusFilter")?.addEventListener("change", () => {
-        loadPlans().catch((e) => showAlert(e.message, "error"));
-    });
+    document.getElementById("planStatusFilter")?.addEventListener("change", renderPlans);
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
