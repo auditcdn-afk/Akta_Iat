@@ -669,49 +669,130 @@ function renderSmhTable(filter = '') {
         </tr>`).join('');
 }
 
+// ── Pencocokan unit SMH di sisi klien ─────────────────────────────────────────
+// Seluruh daftar onhand sudah ada di browser sejak loadSmhForm(), jadi mencari
+// unit hasil scan TIDAK perlu bertanya ke server. Peringkatnya dibuat sama
+// persis dengan PemeriksaanSmhController::skorCocokScan() supaya hasilnya
+// identik, termasuk kapan sebuah kecocokan dianggap pasti.
+const SMH_SKOR_COCOK_PENUH  = 70;
+const SMH_SKOR_NOMOR_PERSIS = 90;
+const SMH_MIN_PANJANG_YAKIN = 8;
+
+const smhTanpaSpasi = (s) => (s ?? '').toString().toLowerCase().replace(/\s+/g, '');
+
+function smhSkorCocok(it, needle, last5) {
+    const mesin  = smhTanpaSpasi(it.noMesin);
+    const rangka = smhTanpaSpasi(it.noRangka);
+    if (!needle) return 0;
+    if (mesin && mesin === needle)  return 100;
+    if (rangka && rangka === needle) return 90;
+    if (mesin && mesin.endsWith(needle))   return 80;
+    if (rangka && rangka.endsWith(needle)) return 70;
+    if (mesin && mesin.includes(needle))   return 60;
+    if (rangka && rangka.includes(needle)) return 50;
+    if (last5) {
+        if (mesin && mesin.endsWith(last5))  return 20;
+        if (rangka && rangka.endsWith(last5)) return 10;
+    }
+    return 0;
+}
+
+/** Kandidat unit untuk satu teks scan, terurut dari yang paling cocok. */
+function smhKandidat(q) {
+    const needle = smhTanpaSpasi(q);
+    const last5  = needle.length >= 5 ? needle.slice(-5) : null;
+
+    return smhItems
+        .map(it => ({ it, s: smhSkorCocok(it, needle, last5) }))
+        .filter(r => r.s > 0)
+        .sort((a, b) => b.s - a.s || (a.it.id - b.it.id));
+}
+
+/**
+ * Selesaikan hasil scan dari data yang sudah ada di browser.
+ * Bentuk hasilnya menyerupai balasan endpoint /smh/scan supaya pemakainya sama.
+ */
+function smhCariLokal(q, itemId = null) {
+    if (itemId) {
+        const it = smhItems.find(i => String(i.id) === String(itemId));
+        return { item: it || null, matches: [], ambiguous: false };
+    }
+
+    const scored = smhKandidat(q);
+    if (!scored.length) return { item: null, matches: [], ambiguous: false };
+
+    const skorTerbaik = scored[0].s;
+    const terbaik     = scored.filter(r => r.s === skorTerbaik);
+    const needle      = smhTanpaSpasi(q);
+    const yakin = terbaik.length === 1 && (
+        skorTerbaik >= SMH_SKOR_NOMOR_PERSIS
+        || (skorTerbaik >= SMH_SKOR_COCOK_PENUH && needle.length >= SMH_MIN_PANJANG_YAKIN)
+    );
+
+    if (!yakin && scored.length > 1) {
+        return { item: null, matches: scored.slice(0, 10).map(r => r.it), ambiguous: true };
+    }
+
+    return { item: scored[0].it, matches: [], ambiguous: false };
+}
+
+// ── Perlengkapan per tipe motor: diambil sekali, lalu dipakai ulang ───────────
+// Satu-satunya bagian kartu hasil scan yang memang harus dari server. Disimpan
+// per prefix no mesin (5 huruf pertama, sama seperti di server) karena satu
+// dealer memakai tipe motor yang itu-itu saja — unit kedua dan seterusnya dari
+// tipe yang sama tidak perlu menunggu jaringan lagi.
+const _smhPlCache    = new Map();
+const _smhPlInflight = new Map();
+
+const smhPrefixMotor = (noMesin) => smhTanpaSpasi(noMesin).slice(0, 5).toUpperCase();
+
+async function smhAmbilPerlengkapan(noMesin) {
+    const kode = smhPrefixMotor(noMesin);
+    if (!kode) return [];
+    if (_smhPlCache.has(kode)) return _smhPlCache.get(kode);
+    if (_smhPlInflight.has(kode)) return _smhPlInflight.get(kode);
+
+    const req = fetchJson(
+        `/api/audit-detail/smh/perlengkapan?kode=${encodeURIComponent(kode)}&plan_audit_id=${activePlanId}`,
+        { headers: authHeaders() }
+    ).then(res => {
+        const items = res.items || [];
+        _smhPlCache.set(kode, items);
+        return items;
+    }).catch(() => []).finally(() => {
+        _smhPlInflight.delete(kode);
+    });
+
+    _smhPlInflight.set(kode, req);
+    return req;
+}
+
+/**
+ * Hangatkan cache perlengkapan untuk SELURUH tipe motor pada plan ini lewat
+ * satu permintaan (endpoint sync-perlengkapan sudah mengelompokkan per prefix),
+ * jadi scan pertama pun tidak menunggu jaringan. Gagal? Tidak apa-apa — tiap
+ * unit masih bisa mengambil perlengkapannya sendiri saat dibuka.
+ */
+function smhPrefetchPerlengkapan() {
+    if (!smhPmxId) return;
+    fetchJson(`/api/audit-detail/smh/${smhPmxId}/sync-perlengkapan`, { headers: authHeaders() })
+        .then(res => {
+            (res.data || []).forEach(row => {
+                if (row.kode) _smhPlCache.set(String(row.kode).toUpperCase(), row.items_db || []);
+            });
+        })
+        .catch(() => {});
+}
+
 function showSmhSuggestions(q) {
     const ul = document.getElementById('smhSuggestions');
     if (!ul) return;
     if (!q || q.length < 2) { ul.classList.add('hidden'); ul.innerHTML = ''; return; }
 
-    // No mesin/rangka hasil import Excel kadang ada spasi, tapi barcode fisik
-    // biasanya tidak — bandingkan juga versi tanpa spasi supaya hasil scan
-    // tetap muncul di daftar saran.
-    const stripSpace = (s) => (s || '').toLowerCase().replace(/\s+/g, '');
-    const lower = q.toLowerCase();
-    const lowerNoSpace = stripSpace(q);
-    // Barcode No. Rangka kadang berupa nomor lengkap (mis. "MH1KFG112TK001838")
-    // sedangkan data onhand tersimpan versi ringkas (mis. "KD1112TK722826") —
-    // beda total, bukan cuma beda spasi. Cocokkan juga 5 karakter terakhirnya
-    // sebagai jalan lain menemukan unit yang sama.
-    const last5 = lowerNoSpace.length >= 5 ? lowerNoSpace.slice(-5) : null;
-    const endsWithLast5 = (s) => last5 !== null && stripSpace(s).endsWith(last5);
-
-    // Dua unit berbeda bisa punya ekor nomor yang sama (mis. no mesin unit A
-    // "...2361532" vs no rangka unit B "...TK361532"). Semua tetap ditampilkan,
-    // tapi diurut: kecocokan penuh di atas, kecocokan ekor 5 karakter di bawah —
-    // dan kalau sudah ada kecocokan sungguhan, hasil "nyangkut" lewat ekor
-    // dibuang supaya tidak bikin bingung.
-    const skor = (it) => {
-        const mesin  = stripSpace(it.noMesin);
-        const rangka = stripSpace(it.noRangka);
-        if (mesin && mesin === lowerNoSpace)  return 100;
-        if (rangka && rangka === lowerNoSpace) return 90;
-        if (mesin && mesin.endsWith(lowerNoSpace))   return 80;
-        if (rangka && rangka.endsWith(lowerNoSpace)) return 70;
-        if (mesin && mesin.includes(lowerNoSpace))   return 60;
-        if (rangka && rangka.includes(lowerNoSpace)) return 50;
-        if ((it.noMesin || '').toLowerCase().includes(lower))  return 40;
-        if ((it.noRangka || '').toLowerCase().includes(lower)) return 30;
-        if (endsWithLast5(it.noMesin))  return 20;
-        if (endsWithLast5(it.noRangka)) return 10;
-        return 0;
-    };
-
-    let scored = smhItems
-        .map(it => ({ it, s: skor(it) }))
-        .filter(r => r.s > 0)
-        .sort((a, b) => b.s - a.s);
+    // Kecocokan penuh di atas, kecocokan ekor 5 karakter di bawah — dan kalau
+    // sudah ada kecocokan sungguhan, hasil "nyangkut" lewat ekor dibuang supaya
+    // tidak bikin bingung.
+    let scored = smhKandidat(q);
     if (scored.some(r => r.s > 20)) scored = scored.filter(r => r.s > 20);
     const matches = scored.slice(0, 20).map(r => r.it);
 
@@ -773,6 +854,9 @@ async function loadSmhForm() {
     updateSmhSummary(rec);
     renderSmhTable();
     populateSmhDropdown();
+    // Ambil daftar perlengkapan tiap tipe motor sekali di latar belakang, supaya
+    // scan pertama pun tidak perlu menunggu jaringan.
+    smhPrefetchPerlengkapan();
 }
 
 async function smhCheckItem(itemId, body) {
@@ -790,13 +874,94 @@ async function smhCheckItem(itemId, body) {
         keteranganKondisi: updated.keteranganKondisi,
         perlengkapanJson: updated.perlengkapanJson,
     });
+    smhSegarkanRingkasan();
+    return payload;
+}
+
+function smhSegarkanRingkasan() {
     updateSmhSummary({
         totalUnit: smhItems.length,
         totalDitemukan: smhItems.filter(i => i.statusFisik === 'ada').length,
         totalTidakDitemukan: smhItems.filter(i => i.statusFisik === 'tidak_ada').length,
         totalBelumDiperiksa: smhItems.filter(i => !i.statusFisik).length,
     });
-    return payload;
+}
+
+const smhBarisEl = (itemId) => document.querySelector(`#smhTableBody tr[data-item-id="${itemId}"]`);
+
+/**
+ * Perbarui SATU baris tabel, bukan menggambar ulang seluruh daftar.
+ * Menggambar ulang ratusan baris untuk satu unit yang berubah membuat layar
+ * tersendat tiap kali menyimpan. Kalau filter status sedang aktif, keanggotaan
+ * barisnya bisa berubah — di situ barulah digambar ulang seluruhnya.
+ */
+function smhPerbaruiBaris(itemId) {
+    const filter = document.getElementById('smhFilterStatus')?.value || '';
+    const row = smhBarisEl(itemId);
+    const it  = smhItems.find(i => i.id === itemId);
+    if (filter || !row || !it) { renderSmhTable(filter); return; }
+
+    row.className = `border-b border-slate-800 hover:bg-slate-800/60 ${smhStatusRowClass(it.statusFisik)}`;
+    const sel = row.querySelector('.smh-status-select');
+    if (sel) sel.value = it.statusFisik || '';
+    const ket = row.querySelector('.smh-ket-input');
+    if (ket) ket.value = it.keteranganFisik || '';
+}
+
+function smhTandaiBarisMenyimpan(itemId, menyimpan) {
+    const row = smhBarisEl(itemId);
+    if (!row) return;
+    row.classList.toggle('opacity-60', menyimpan);
+    const sel = row.querySelector('.smh-status-select');
+    if (sel) sel.disabled = menyimpan;
+}
+
+// Unit yang penyimpanannya masih berjalan di latar belakang.
+const _smhSimpanTertunda = new Set();
+
+window.addEventListener('beforeunload', (e) => {
+    if (!_smhSimpanTertunda.size) return;
+    e.preventDefault();
+    e.returnValue = '';
+});
+
+/**
+ * Simpan pemeriksaan satu unit tanpa menahan auditor.
+ *
+ * Tabel & ringkasan diperbarui lebih dulu supaya hasilnya langsung terlihat,
+ * lalu dikirim ke server. Kalau kirimannya gagal, baris itu DIKEMBALIKAN ke
+ * keadaan semula dan muncul peringatan bernama unitnya — jangan sampai ada yang
+ * terlihat tersimpan padahal tidak.
+ */
+async function smhSimpanLatarBelakang(itemId, body) {
+    const idx = smhItems.findIndex(i => i.id === itemId);
+    const sebelum = idx >= 0 ? { ...smhItems[idx] } : null;
+
+    if (idx >= 0) Object.assign(smhItems[idx], {
+        statusFisik:       body.status_fisik,
+        keteranganFisik:   body.keterangan_fisik,
+        tglPeriksa:        body.tgl_periksa,
+        keteranganKondisi: body.keterangan_kondisi,
+        perlengkapanJson:  body.perlengkapan_json,
+    });
+
+    smhSegarkanRingkasan();
+    smhPerbaruiBaris(itemId);
+    smhTandaiBarisMenyimpan(itemId, true);
+    _smhSimpanTertunda.add(itemId);
+
+    try {
+        await smhCheckItem(itemId, body);
+        smhPerbaruiBaris(itemId);
+    } catch (err) {
+        if (idx >= 0 && sebelum) smhItems[idx] = sebelum;
+        smhSegarkanRingkasan();
+        smhPerbaruiBaris(itemId);
+        showAlert(`Gagal menyimpan unit ${sebelum?.noMesin || itemId}: ${err.message}. Pemeriksaan unit itu belum tercatat — silakan scan dan simpan ulang.`, 'error');
+    } finally {
+        _smhSimpanTertunda.delete(itemId);
+        smhTandaiBarisMenyimpan(itemId, false);
+    }
 }
 
 function smhPerlengkapanChecklist(perlengkapan, saved = []) {
@@ -827,9 +992,24 @@ function smhPerlengkapanChecklist(perlengkapan, saved = []) {
         </div>`;
 }
 
+/**
+ * Buka satu unit hasil scan.
+ *
+ * Unitnya dicari dulu dari daftar onhand yang SUDAH ada di browser, jadi
+ * kartunya tampil seketika. Dulu setiap scan menunggu satu perjalanan ke server
+ * (di hosting produksi ~2 detik) hanya untuk mencari baris yang datanya sebetulnya
+ * sudah dipegang halaman ini — dikali ratusan unit, itu menit-menit menunggu.
+ * Server hanya ditanya kalau pencocokan lokal tidak menemukan apa pun (mis.
+ * barcode berformat lain), dan perlengkapannya menyusul di latar belakang.
+ */
 async function smhScanUnit(q, itemId = null) {
     const res = document.getElementById('smhScanResult');
     if (!itemId && (!q || q.length < 2)) { res.classList.add('hidden'); return; }
+
+    const lokal = smhCariLokal(q, itemId);
+    if (lokal.ambiguous) { smhTampilkanKandidat(lokal.matches, 'Ada beberapa unit dengan nomor mirip — pilih unit yang sedang diperiksa.'); return; }
+    if (lokal.item) { smhTampilkanUnit(lokal.item, q); return; }
+
     const url = `/api/audit-detail/smh/scan?q=${encodeURIComponent(q || '')}&plan_audit_id=${activePlanId}`
         + (itemId ? `&item_id=${encodeURIComponent(itemId)}` : '');
     const payload = await fetchJson(url, { headers: authHeaders() });
@@ -840,23 +1020,7 @@ async function smhScanUnit(q, itemId = null) {
     // terakhirnya kebetulan sama padahal no mesinnya beda) — jangan tebak
     // salah satu, tampilkan semuanya supaya auditor memilih sendiri.
     if (!it && payload.ambiguous && (payload.matches || []).length) {
-        res.className = 'rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 text-sm space-y-3';
-        res.innerHTML = `
-            <div class="text-xs font-bold text-amber-300">
-                ${escapeHtml(payload.message || 'Ada beberapa unit dengan nomor mirip.')}
-            </div>
-            <ul class="space-y-1.5">
-                ${payload.matches.map(m => `
-                <li>
-                    <button type="button" class="smh-pick-unit w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-left hover:border-emerald-500 hover:bg-slate-800"
-                        data-id="${m.id}" data-mesin="${escapeHtml(m.noMesin || '')}">
-                        <div class="font-mono text-sm font-bold text-slate-100">${escapeHtml(m.noMesin || '-')}</div>
-                        <div class="font-mono text-xs text-slate-400">${escapeHtml(m.noRangka || '-')} &nbsp;|&nbsp; ${escapeHtml(m.kodeModel || '')} ${escapeHtml(m.warna || '')} &nbsp;|&nbsp; ${escapeHtml(m.gudang || '')}</div>
-                    </button>
-                </li>`).join('')}
-            </ul>`;
-        res.classList.remove('hidden');
-        res.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        smhTampilkanKandidat(payload.matches, payload.message);
         return;
     }
 
@@ -867,11 +1031,42 @@ async function smhScanUnit(q, itemId = null) {
         return;
     }
 
+    smhTampilkanUnit(it, q, perlengkapan);
+}
+
+/** Pasang perhitungan progres & "Pilih Semua" pada checklist perlengkapan. */
+function smhPasangPerlengkapanCard(res) {
+    const selectAll = res.querySelector('#smhPlSelectAll');
+    const hitung = () => {
+        const total   = res.querySelectorAll('.smh-pl-cb').length;
+        const checked = res.querySelectorAll('.smh-pl-cb:checked').length;
+        const prog = res.querySelector('#smhPlProgress');
+        if (prog) prog.textContent = `${checked}/${total} lengkap`;
+        if (selectAll) {
+            selectAll.checked = total > 0 && checked === total;
+            selectAll.indeterminate = checked > 0 && checked < total;
+        }
+    };
+
+    res.querySelectorAll('.smh-pl-cb').forEach(cb => cb.addEventListener('change', hitung));
+    selectAll?.addEventListener('change', () => {
+        res.querySelectorAll('.smh-pl-cb').forEach(cb => { cb.checked = selectAll.checked; });
+        hitung();
+        selectAll.indeterminate = false;
+    });
+}
+
+/** Gambar kartu pemeriksaan untuk satu unit. perlengkapan null = ambil sendiri. */
+function smhTampilkanUnit(it, q, perlengkapan = null) {
+    const res = document.getElementById('smhScanResult');
+    if (!res || !it) return;
+    const perlengkapanSiap = perlengkapan ?? _smhPlCache.get(smhPrefixMotor(it.noMesin)) ?? null;
     const today = new Date().toISOString().slice(0, 10);
     const tglVal  = it.tglPeriksa || today;
     const kondisi = it.keteranganKondisi || 'ready_for_sale';
     const isAda   = it.statusFisik === 'ada';
 
+    res.dataset.unitId = String(it.id);
     res.className = 'rounded-xl border border-emerald-500/40 bg-slate-900 p-5 text-sm space-y-4';
     res.innerHTML = `
         <div class="flex items-center gap-2">
@@ -926,7 +1121,9 @@ async function smhScanUnit(q, itemId = null) {
         </div>
 
         <div id="smhPlCard" class="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-            ${smhPerlengkapanChecklist(perlengkapan, it.perlengkapanJson)}
+            ${perlengkapanSiap === null
+                ? '<p class="text-xs italic text-slate-400">Memuat daftar perlengkapan...</p>'
+                : smhPerlengkapanChecklist(perlengkapanSiap, it.perlengkapanJson)}
         </div>
 
         <div class="flex justify-between items-center gap-3 pt-1 border-t border-slate-700">
@@ -941,32 +1138,7 @@ async function smhScanUnit(q, itemId = null) {
         </div>`;
     res.classList.remove('hidden');
 
-    // Update progress saat checkbox berubah, dan sinkronkan status "Pilih Semua"
-    const smhPlSelectAll = res.querySelector('#smhPlSelectAll');
-    const smhPlSyncSelectAll = () => {
-        if (!smhPlSelectAll) return;
-        const boxes   = res.querySelectorAll('.smh-pl-cb');
-        const checked = res.querySelectorAll('.smh-pl-cb:checked').length;
-        smhPlSelectAll.checked = boxes.length > 0 && checked === boxes.length;
-        smhPlSelectAll.indeterminate = checked > 0 && checked < boxes.length;
-    };
-    res.querySelectorAll('.smh-pl-cb').forEach(cb => {
-        cb.addEventListener('change', () => {
-            const total2 = res.querySelectorAll('.smh-pl-cb').length;
-            const ada2   = res.querySelectorAll('.smh-pl-cb:checked').length;
-            const prog = res.querySelector('#smhPlProgress');
-            if (prog) prog.textContent = `${ada2}/${total2} lengkap`;
-            smhPlSyncSelectAll();
-        });
-    });
-    smhPlSelectAll?.addEventListener('change', () => {
-        res.querySelectorAll('.smh-pl-cb').forEach(cb => { cb.checked = smhPlSelectAll.checked; });
-        const total2 = res.querySelectorAll('.smh-pl-cb').length;
-        const ada2   = res.querySelectorAll('.smh-pl-cb:checked').length;
-        const prog = res.querySelector('#smhPlProgress');
-        if (prog) prog.textContent = `${ada2}/${total2} lengkap`;
-        smhPlSelectAll.indeterminate = false;
-    });
+    smhPasangPerlengkapanCard(res);
 
     // Scroll LANGSUNG ke checklist Perlengkapan (bukan cuma ke atas kartu hasil
     // scan) supaya auditor bisa langsung isi tanpa geser layar manual lagi — kalau
@@ -977,6 +1149,41 @@ async function smhScanUnit(q, itemId = null) {
     (res.querySelector('#smhPlCard') || res).scrollIntoView({ behavior: 'smooth', block: 'start' });
     const row = document.querySelector(`#smhTableBody tr[data-item-id="${it.id}"]`);
     if (row) { row.classList.add('ring-2', 'ring-blue-400'); setTimeout(() => row.classList.remove('ring-2', 'ring-blue-400'), 2000); }
+
+    // Perlengkapan satu-satunya bagian yang mungkin belum ada di browser.
+    // Kartunya sudah tampil; daftarnya menyusul tanpa menahan apa pun.
+    if (perlengkapanSiap === null) {
+        smhAmbilPerlengkapan(it.noMesin).then(items => {
+            const kartu = document.getElementById('smhPlCard');
+            if (!kartu || res.dataset.unitId !== String(it.id)) return;
+            kartu.innerHTML = smhPerlengkapanChecklist(items, it.perlengkapanJson);
+            smhPasangPerlengkapanCard(res);
+        });
+    }
+}
+
+/** Daftar kandidat saat satu nomor cocok ke beberapa unit. */
+function smhTampilkanKandidat(matches, pesan) {
+    const res = document.getElementById('smhScanResult');
+    if (!res) return;
+    res.dataset.unitId = '';
+    res.className = 'rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 text-sm space-y-3';
+    res.innerHTML = `
+        <div class="text-xs font-bold text-amber-300">
+            ${escapeHtml(pesan || 'Ada beberapa unit dengan nomor mirip.')}
+        </div>
+        <ul class="space-y-1.5">
+            ${matches.map(m => `
+            <li>
+                <button type="button" class="smh-pick-unit w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-left hover:border-emerald-500 hover:bg-slate-800"
+                    data-id="${m.id}" data-mesin="${escapeHtml(m.noMesin || '')}">
+                    <div class="font-mono text-sm font-bold text-slate-100">${escapeHtml(m.noMesin || '-')}</div>
+                    <div class="font-mono text-xs text-slate-400">${escapeHtml(m.noRangka || '-')} &nbsp;|&nbsp; ${escapeHtml(m.kodeModel || '')} ${escapeHtml(m.warna || '')} &nbsp;|&nbsp; ${escapeHtml(m.gudang || '')}</div>
+                </button>
+            </li>`).join('')}
+        </ul>`;
+    res.classList.remove('hidden');
+    res.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── Perlengkapan di Luar SMH ──────────────────────────────────────────────────
@@ -1890,6 +2097,7 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
             updateSmhSummary(res.data);
             renderSmhTable();
             populateSmhDropdown();
+            smhPrefetchPerlengkapan();
         } catch (e) { showAlert(e.message, 'error'); }
     });
 
@@ -2014,30 +2222,26 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
             if (!itemId) { showAlert('ID unit tidak ditemukan. Scan ulang unit.', 'error'); return; }
             const res    = document.getElementById('smhScanResult');
             const plItems = [...res.querySelectorAll('.smh-pl-cb')].map(cb => ({ nama: cb.dataset.nama, ada: cb.checked }));
-            simpanBtn.disabled = true;
-            simpanBtn.textContent = 'Menyimpan...';
-            try {
-                await smhCheckItem(itemId, {
-                    status_fisik:       'ada',
-                    keterangan_fisik:   res.querySelector('#smhFormKetFisik')?.value || 'Fisik Ada',
-                    tgl_periksa:        res.querySelector('#smhFormTgl')?.value || null,
-                    keterangan_kondisi: res.querySelector('#smhFormKondisi')?.value || null,
-                    perlengkapan_json:  plItems,
-                });
-                showAlert('Pemeriksaan SMH berhasil disimpan.');
-                renderSmhTable(document.getElementById('smhFilterStatus')?.value || '');
-                populateSmhDropdown();
-                // Reset scan form untuk siap scan unit berikutnya
-                const scanInput = document.getElementById('smhScanInput');
-                if (scanInput) { scanInput.value = ''; scanInput.focus(); }
-                document.getElementById('smhScanResult')?.classList.add('hidden');
-                hideSmhSuggestions();
-            } catch (err) {
-                showAlert('Gagal menyimpan: ' + err.message, 'error');
-            } finally {
-                simpanBtn.disabled = false;
-                simpanBtn.textContent = 'Simpan Pemeriksaan';
-            }
+            const body = {
+                status_fisik:       'ada',
+                keterangan_fisik:   res.querySelector('#smhFormKetFisik')?.value || 'Fisik Ada',
+                tgl_periksa:        res.querySelector('#smhFormTgl')?.value || null,
+                keterangan_kondisi: res.querySelector('#smhFormKondisi')?.value || null,
+                perlengkapan_json:  plItems,
+            };
+
+            // Simpan berjalan di latar belakang: kartu langsung ditutup dan kotak
+            // scan siap dipakai lagi. Dulu auditor menunggu balasan server (di
+            // hosting produksi ~2-3 detik) sebelum boleh menyentuh unit berikutnya
+            // — untuk ratusan unit itu menit-menit berdiri diam di gudang.
+            // Barisnya ditandai "menyimpan..." sampai server mengonfirmasi, dan
+            // dikembalikan ke keadaan semula kalau gagal, jadi tidak ada perubahan
+            // yang terlihat tersimpan padahal sebenarnya gagal.
+            const scanInput = document.getElementById('smhScanInput');
+            if (scanInput) { scanInput.value = ''; scanInput.focus(); }
+            res.classList.add('hidden');
+            hideSmhSuggestions();
+            smhSimpanLatarBelakang(itemId, body);
             return;
         }
         // Tombol Tidak Ditemukan
@@ -2047,8 +2251,7 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
         const val    = btn.dataset.val;
         try {
             await smhCheckItem(itemId, { status_fisik: val, keterangan_fisik: 'Fisik Tidak Ada' });
-            renderSmhTable(document.getElementById('smhFilterStatus')?.value || '');
-            populateSmhDropdown();
+            smhPerbaruiBaris(itemId);
             // Muat ulang unit yang SAMA (pakai id), bukan cari ulang dari teks
             // scan yang bisa cocok ke unit lain dengan ekor nomor mirip.
             const q = document.getElementById('smhScanInput').value.trim();
