@@ -221,6 +221,8 @@
                         <option value="Audit Verifikasi Lapangan">Audit Verifikasi Lapangan</option>
                         <option value="Audit Serah Terima Sales Office Head">Audit Serah Terima Sales Office Head</option>
                         <option value="Audit Serah Terima Warehouse">Audit Serah Terima Warehouse</option>
+                        <option value="Audit Warehouse PART">Audit Warehouse PART</option>
+                        <option value="Audit Warehouse UNIT">Audit Warehouse UNIT</option>
                         <option value="Audit Kas + HGP & AHM Oils">Audit Kas + HGP & AHM Oils</option>
                         <option value="Audit Kas + Unit SMH">Audit Kas + Unit SMH</option>
                         <option value="Audit Kas + BPKB">Audit Kas + BPKB</option>

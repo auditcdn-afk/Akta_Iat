@@ -31,6 +31,8 @@ class PlanAuditPdfController extends Controller
         'Audit Verifikasi Lapangan' => 'verifikasi kondisi dan data di lapangan',
         'Audit Serah Terima Sales Office Head' => 'pemeriksaan serah terima jabatan Sales Office Head',
         'Audit Serah Terima Warehouse' => 'pemeriksaan serah terima Warehouse',
+        'Audit Warehouse PART' => 'pemeriksaan stock dan administrasi gudang spare part (Warehouse Part)',
+        'Audit Warehouse UNIT' => 'pemeriksaan stock dan administrasi gudang unit sepeda motor (Warehouse Unit)',
         'Audit Kas + HGP & AHM Oils' => 'pemeriksaan kas dan HGP & AHM Oils',
         'Audit Kas + Unit SMH' => 'pemeriksaan kas dan unit Stock Motor Honda (SMH)',
         'Audit Kas + BPKB' => 'pemeriksaan kas dan BPKB',

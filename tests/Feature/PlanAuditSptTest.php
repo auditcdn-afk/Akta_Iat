@@ -63,6 +63,18 @@ class PlanAuditSptTest extends TestCase
         $this->assertStringNotContainsString('area operasional Sales Office', $htmlKasir);
     }
 
+    public function test_kalimat_tugas_membedakan_gudang_part_dan_unit(): void
+    {
+        $part = $this->buatPlan(['jenis_audit' => 'Audit Warehouse PART']);
+        $htmlPart = $this->get(route('akta.plan-audit.spt', $part))->assertOk()->getContent();
+        $this->assertStringContainsString('gudang spare part', $htmlPart);
+
+        $unit = $this->buatPlan(['jenis_audit' => 'Audit Warehouse UNIT', 'no_spt' => '0003/TEST/SPT-IAT']);
+        $htmlUnit = $this->get(route('akta.plan-audit.spt', $unit))->assertOk()->getContent();
+        $this->assertStringContainsString('gudang unit sepeda motor', $htmlUnit);
+        $this->assertStringNotContainsString('gudang spare part', $htmlUnit);
+    }
+
     public function test_jenis_audit_tidak_dikenal_tetap_tampil_bukan_error(): void
     {
         $plan = $this->buatPlan(['jenis_audit' => 'Audit Khusus Belum Terdaftar']);
