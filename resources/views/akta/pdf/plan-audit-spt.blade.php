@@ -137,6 +137,23 @@ window.addEventListener('load', function () {
     tersebut dinyatakan selesai.
   </p>
 
+  {{-- Tanggal terbit = saat COO menyetujui, bukan tanggal cetak: surat tugas
+       terbit sekali, sementara pencetakannya bisa berkali-kali. Selama COO
+       belum menyetujui, suratnya memang belum terbit. --}}
+  <div class="ttd-wrap">
+    <div class="ttd">
+      <div class="kota-tgl">
+        @if($tglTerbit)
+          Diterbitkan, {{ $tglTerbit->format('d/m/Y') }}
+        @else
+          Belum diterbitkan (menunggu persetujuan COO)
+        @endif
+      </div>
+      <div class="nama">&nbsp;</div>
+      <div class="jabatan">Chief Operating Officer</div>
+    </div>
+  </div>
+
   <div class="box">
     <div class="box-title">Realisasi Pelaksanaan Tugas (Real-time)</div>
     <table class="tahapan">
@@ -157,14 +174,6 @@ window.addEventListener('load', function () {
         @endforeach
       </tbody>
     </table>
-  </div>
-
-  <div class="ttd-wrap">
-    <div class="ttd">
-      <div class="kota-tgl">Diterbitkan, {{ now()->format('d/m/Y') }}</div>
-      <div class="nama">&nbsp;</div>
-      <div class="jabatan">Chief Operating Officer</div>
-    </div>
   </div>
 
   <div class="footer-note">
