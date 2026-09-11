@@ -67,6 +67,34 @@ class PlanAudit extends Model
         ];
     }
 
+    /**
+     * Bentuk ringkas plan untuk endpoint DAFTAR task.
+     *
+     * Di daftar task, tiap task dulu membawa salinan penuh data plan-nya.
+     * Satu plan dengan 3 petugas berarti data plan yang sama dikirim 3 kali —
+     * pada data seukuran produksi itu 453 KB dari 1,18 MB balasan hanya berisi
+     * pengulangan. Sekarang plannya dikirim SEKALI dalam peta tersendiri dan
+     * task cukup menyebut planAuditId.
+     */
+    public function toAktaRingkasArray(?array $unitUsahaWithBuPerformance = null): array
+    {
+        return [
+            'id' => $this->id,
+            'noSpt' => $this->no_spt,
+            'cabang' => $this->cabang,
+            'cabangArea' => $this->cabang_area,
+            'jenisAudit' => $this->jenis_audit,
+            'tglPlan' => optional($this->tgl_plan)->format('Y-m-d'),
+            'kepalaTim' => $this->kepala_tim,
+            'tim' => $this->tim ?: [],
+            'status' => $this->status,
+            'canMarkSelesai' => $this->canMarkSelesai($unitUsahaWithBuPerformance),
+            'logs' => $this->relationLoaded('logs')
+                ? $this->logs->map->toAktaArray()->all()
+                : [],
+        ];
+    }
+
     public function tasks(): HasMany
     {
         return $this->hasMany(AuditTask::class, 'plan_audit_id');

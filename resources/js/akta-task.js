@@ -82,7 +82,16 @@ async function loadTasks() {
     // bertanya ulang ke server: daftarnya sudah lengkap di browser, dan tiap
     // permintaan baru berarti menunggu lagi.
     const payload = await fetchJson("/api/tasks", { headers: authHeaders() });
-    tasks = payload.data || [];
+
+    // Server mengirim plan SEKALI dalam peta tersendiri (bukan disalin ke tiap
+    // task) supaya balasannya jauh lebih kecil. Disambung kembali di sini, jadi
+    // sisa halaman ini tetap memakai task.planAudit seperti biasa.
+    const plans = payload.plans || {};
+    tasks = (payload.data || []).map((t) => ({
+        ...t,
+        planAudit: t.planAuditId ? (plans[t.planAuditId] ?? null) : null,
+    }));
+
     renderTasks();
 }
 

@@ -54,45 +54,46 @@ class AuditTask extends Model
     public function toAktaArray(?array $unitUsahaWithBuPerformance = null): array
     {
         return [
+            ...$this->toAktaListArray(),
+            'priority' => $this->priority,
+            'completedAt' => optional($this->completed_at)->toDateTimeString(),
+            'createdBy' => $this->created_by,
+            'updatedBy' => $this->updated_by,
+            'createdAt' => optional($this->created_at)->toDateTimeString(),
+            'updatedAt' => optional($this->updated_at)->toDateTimeString(),
+            // Riwayat status hanya dipakai modal detail satu task (renderTimeline
+            // di akta-task.js), tidak pernah oleh tabel daftar — jadi hanya ikut
+            // kalau relasinya memang sudah di-eager-load oleh pemanggil
+            // (?with_logs=1); modal mengambilnya sendiri lewat GET /api/plans/{plan}.
+            'planAudit' => $this->planAudit
+                ? $this->planAudit->toAktaRingkasArray($unitUsahaWithBuPerformance)
+                : null,
+        ];
+    }
+
+    /**
+     * Bentuk task untuk endpoint DAFTAR: TANPA salinan data plan.
+     *
+     * Plan-nya dikirim sekali dalam peta tersendiri (lihat
+     * AuditTaskController::index) lalu disambung kembali di browser. Dulu tiap
+     * task membawa salinan penuh plan-nya, jadi plan dengan 3 petugas terkirim
+     * 3 kali — pengulangan yang memakan ratusan KB pada data seukuran produksi.
+     */
+    public function toAktaListArray(): array
+    {
+        return [
             'id' => $this->id,
             'planAuditId' => $this->plan_audit_id,
-            'planAudit' => $this->planAudit ? [
-                'id' => $this->planAudit->id,
-                'noSpt' => $this->planAudit->no_spt,
-                'cabang' => $this->planAudit->cabang,
-                'cabangArea' => $this->planAudit->cabang_area,
-                'jenisAudit' => $this->planAudit->jenis_audit,
-                'tglPlan' => optional($this->planAudit->tgl_plan)->format('Y-m-d'),
-                'kepalaTim' => $this->planAudit->kepala_tim,
-                'tim' => $this->planAudit->tim ?: [],
-                'status' => $this->planAudit->status,
-                'canMarkSelesai' => $this->planAudit->canMarkSelesai($unitUsahaWithBuPerformance),
-                // Riwayat status hanya dipakai modal detail satu task (renderTimeline
-                // di akta-task.js), tidak pernah oleh tabel daftar. Memuatnya untuk
-                // SETIAP task berarti satu query per task plus payload yang tumbuh
-                // terus seiring riwayat bertambah. Sekarang hanya ikut kalau relasinya
-                // memang sudah di-eager-load oleh pemanggil (?with_logs=1); modal
-                // mengambilnya sendiri lewat GET /api/plans/{plan}.
-                'logs' => $this->planAudit->relationLoaded('logs')
-                    ? $this->planAudit->logs->map->toAktaArray()->all()
-                    : [],
-            ] : null,
             'judul' => $this->judul,
             'kategori' => $this->kategori,
             'assignedTo' => $this->assigned_to,
-            'priority' => $this->priority,
             'status' => $this->status,
             'startedAt' => optional($this->started_at)->format('Y-m-d'),
             'finishedAt' => optional($this->finished_at)->format('Y-m-d'),
             'lampiranUrl' => $this->lampiran_url,
             'lampiranName' => $this->lampiran_path ? basename($this->lampiran_path) : null,
             'dueDate' => optional($this->due_date)->format('Y-m-d'),
-            'completedAt' => optional($this->completed_at)->toDateTimeString(),
             'catatan' => $this->catatan,
-            'createdBy' => $this->created_by,
-            'updatedBy' => $this->updated_by,
-            'createdAt' => optional($this->created_at)->toDateTimeString(),
-            'updatedAt' => optional($this->updated_at)->toDateTimeString(),
         ];
     }
 
