@@ -61,6 +61,13 @@ class TaskPelaksanaanSatuPlanTest extends TestCase
 
         $res->assertOk();
 
+        // Id task yang ikut tertutup dikirim balik supaya halaman Task bisa
+        // memperbarui barisnya sendiri tanpa mengunduh ulang seluruh daftar.
+        $this->assertEqualsCanonicalizing(
+            [$this->taskMilik('Heri Syahputra')->id, $this->taskMilik('Salim')->id],
+            $res->json('closedTaskIds')
+        );
+
         foreach (['Abdul Aziz', 'Heri Syahputra', 'Salim'] as $nama) {
             $task = $this->taskMilik($nama);
             $this->assertSame('done', $task->status, "Task {$nama} seharusnya ikut selesai");

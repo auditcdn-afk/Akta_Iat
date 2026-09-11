@@ -309,7 +309,8 @@ class AuditTaskController extends Controller
         // salah satu merekam pelaksanaan, seluruh task auditor pada plan itu
         // ikut tertutup dengan data yang sama, jadi tidak ada lagi yang harus
         // mengisi ulang.
-        $ikut = $this->tutupTaskTimSatuPlan($task, $user?->display_name ?: $user?->name ?: $user?->username);
+        $idIkut = $this->tutupTaskTimSatuPlan($task, $user?->display_name ?: $user?->name ?: $user?->username);
+        $ikut   = count($idIkut);
 
         // Catat di riwayat birokrasi plan
         if ($task->planAudit) {
@@ -336,21 +337,25 @@ class AuditTaskController extends Controller
                 ? 'Pelaksanaan audit berhasil disimpan dan berlaku untuk seluruh tim (' . ($ikut + 1) . ' petugas) — tidak perlu diisi ulang.'
                 : 'Pelaksanaan audit berhasil disimpan.',
             'data' => $task->toAktaArray(),
+            // Task tim lain yang ikut tertutup. Dikirim balik supaya halaman Task
+            // bisa memperbarui barisnya sendiri tanpa harus mengunduh ulang
+            // SELURUH daftar task — unduhan itu yang bikin terasa lama.
+            'closedTaskIds' => $idIkut,
         ]);
     }
 
     /**
      * Tutup task auditor lain pada plan yang sama dengan pelaksanaan yang baru
-     * direkam. Mengembalikan jumlah task yang ikut tertutup.
+     * direkam. Mengembalikan daftar id task yang ikut tertutup.
      *
      * Task cabang (assigned_to = nama cabang) sengaja TIDAK ikut: itu pekerjaan
      * lain (konfirmasi kedatangan auditor & menyatakan pemeriksaan selesai) yang
      * dijalankan pihak cabang lewat alurnya sendiri, bukan pelaksanaan audit.
      */
-    private function tutupTaskTimSatuPlan(AuditTask $task, ?string $perekam): int
+    private function tutupTaskTimSatuPlan(AuditTask $task, ?string $perekam): array
     {
         if (! $task->plan_audit_id) {
-            return 0;
+            return [];
         }
 
         $cabang = $task->planAudit?->cabang;
@@ -372,7 +377,7 @@ class AuditTaskController extends Controller
             $sibling->save();
         }
 
-        return $lain->count();
+        return $lain->pluck('id')->all();
     }
 
     /** Catatan task anggota tim: sebutkan siapa yang merekam pelaksanaannya. */

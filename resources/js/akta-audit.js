@@ -120,21 +120,33 @@ const ROLE_LABEL = {
 // ── Plan table ────────────────────────────────────────────────────────────────
 
 export async function loadPlans() {
-    const q      = document.getElementById("auditSearch")?.value || "";
-    const status = document.getElementById("auditStatusFilter")?.value || "";
-    const params = new URLSearchParams();
-    if (q)      params.set("q", q);
-    if (status) params.set("status", status);
-    const payload = await fetchJson(`/api/plans?${params}`, { headers: authHeaders() });
+    // Cari & filter dikerjakan di browser (lihat planTerlihat()): daftarnya
+    // sudah lengkap di sini, dan setiap permintaan baru ke server berarti
+    // menunggu satu perjalanan lagi.
+    const payload = await fetchJson('/api/plans', { headers: authHeaders() });
     plans = payload.data || [];
     renderTable();
+}
+
+/** Plan yang lolos kotak cari + filter status, dicocokkan di browser. */
+function planTerlihat() {
+    const q      = (document.getElementById("auditSearch")?.value || "").trim().toLowerCase();
+    const status = document.getElementById("auditStatusFilter")?.value || "";
+
+    return plans.filter((p) => {
+        if (status && p.status !== status) return false;
+        if (!q) return true;
+        // Kolom yang sama dengan pencarian di server (PlanAuditController::index).
+        return [p.noSpt, p.cabang, p.jenisAudit, p.kepalaTim]
+            .some((v) => String(v ?? "").toLowerCase().includes(q));
+    });
 }
 
 function renderTable() {
     const tbody = document.getElementById("auditTableBody");
     if (!tbody) return;
 
-    const relevant = plans.filter(p => !p.isMandiri && ["scheduled", "running", "cabang_active", "revisi"].includes(p.status));
+    const relevant = planTerlihat().filter(p => !p.isMandiri && ["scheduled", "running", "cabang_active", "revisi"].includes(p.status));
 
     if (!relevant.length) {
         tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">Belum ada plan audit yang siap dikerjakan.</td></tr>`;
@@ -272,18 +284,25 @@ function closeAuditModal() {
 async function startAudit(plan) {
     if (!confirm("Konfirmasi mulai pelaksanaan audit?")) return;
     try {
-        await fetchJson(`/api/plans/${plan.id}/advance`, {
+        const payload = await fetchJson(`/api/plans/${plan.id}/advance`, {
             method: "POST",
             headers: { ...authHeaders(), "Content-Type": "application/json" },
             body: JSON.stringify({ note: "Mulai pelaksanaan audit" }),
         });
         closeAuditModal();
         showAlert("Audit dimulai. Silakan isi data pemeriksaan di bawah.");
-        await loadPlans();
-        const updated = plans.find((p) => String(p.id) === String(plan.id));
-        if (updated) {
+
+        // Balasan advance sudah memuat plan versi terbaru — pakai itu, jangan
+        // unduh ulang seluruh daftar plan hanya untuk satu baris yang berubah.
+        const updated = payload.data;
+        if (updated?.id) {
+            const idx = plans.findIndex((p) => String(p.id) === String(updated.id));
+            if (idx >= 0) plans[idx] = updated; else plans.unshift(updated);
+            renderTable();
             const editor = await import("./audit-editor.js");
             editor.openPemeriksaan(updated);
+        } else {
+            await loadPlans();
         }
     } catch (err) {
         showAlert(err.message || "Gagal memulai audit.", "error");
@@ -296,11 +315,9 @@ function setupFilters() {
     let timer = null;
     document.getElementById("auditSearch")?.addEventListener("input", () => {
         clearTimeout(timer);
-        timer = setTimeout(() => loadPlans().catch((e) => showAlert(e.message, "error")), 300);
+        timer = setTimeout(renderTable, 120);
     });
-    document.getElementById("auditStatusFilter")?.addEventListener("change", () => {
-        loadPlans().catch((e) => showAlert(e.message, "error"));
-    });
+    document.getElementById("auditStatusFilter")?.addEventListener("change", renderTable);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

@@ -78,15 +78,28 @@ async function loadCurrentUser() {
 }
 
 async function loadTasks() {
-    const q = document.getElementById("taskSearch")?.value || "";
-    const status = document.getElementById("taskStatusFilter")?.value || "";
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (status) params.set("status", status);
-    const url = params.toString() ? `/api/tasks?${params}` : "/api/tasks";
-    const payload = await fetchJson(url, { headers: authHeaders() });
+    // Cari & filter dikerjakan di sini (lihat taskTerlihat()), bukan dengan
+    // bertanya ulang ke server: daftarnya sudah lengkap di browser, dan tiap
+    // permintaan baru berarti menunggu lagi.
+    const payload = await fetchJson("/api/tasks", { headers: authHeaders() });
     tasks = payload.data || [];
     renderTasks();
+}
+
+/** Task yang lolos kotak cari + filter status, dicocokkan di browser. */
+function taskTerlihat() {
+    const q = (document.getElementById("taskSearch")?.value || "").trim().toLowerCase();
+    const status = document.getElementById("taskStatusFilter")?.value || "";
+
+    return tasks.filter((t) => {
+        if (status && t.status !== status) return false;
+        if (!q) return true;
+        // Kolom yang sama dengan pencarian di server (AuditTaskController::index).
+        return [
+            t.judul, t.kategori, t.assignedTo, t.catatan,
+            t.planAudit?.noSpt, t.planAudit?.cabang,
+        ].some((v) => String(v ?? "").toLowerCase().includes(q));
+    });
 }
 
 function fmtDateTime(value) {
@@ -94,16 +107,82 @@ function fmtDateTime(value) {
     return String(value).slice(0, 10);
 }
 
+// ── Perbarui daftar dari balasan aksi, bukan unduh ulang semuanya ────────────
+// Tiap aksi (approve, tolak, rekam pelaksanaan) dulu diikuti loadTasks(): satu
+// perjalanan ke server lagi yang menarik SELURUH daftar task. Di hosting ini
+// satu perjalanan saja sudah terasa beberapa detik, jadi satu aksi = dua kali
+// menunggu, dan yang kedua justru yang paling berat (daftarnya bisa lebih dari
+// 1 MB untuk role kantor pusat). Balasan aksinya sendiri sudah memuat data
+// terbaru, jadi cukup dipakai untuk memperbarui baris yang bersangkutan.
+
+/** Role approval plan hanya melihat task yang plannya menunggu giliran mereka. */
+function tahapApprovalSaya() {
+    return APPROVAL_STAGE[currentUser?.role] || null;
+}
+
+/** Buang task yang tidak lagi menjadi urusan role ini setelah status plan berubah. */
+function saringTaskSetelahPerubahan() {
+    const tahap = tahapApprovalSaya();
+    if (tahap) {
+        tasks = tasks.filter((t) => t.planAudit?.status === tahap);
+        return;
+    }
+    // Role non-approval (auditor/cabang) tidak melihat task yang sudah selesai,
+    // kecuali admin yang memang butuh akses untuk koreksi.
+    if (currentUser?.role !== "admin") {
+        tasks = tasks.filter((t) => t.status !== "done");
+    }
+}
+
+/** Terapkan status plan terbaru ke seluruh task pada plan itu. */
+function terapkanPlanTerbaru(plan) {
+    if (!plan?.id) { loadTasks().catch(() => {}); return; }
+    tasks.forEach((t) => {
+        if (String(t.planAudit?.id) === String(plan.id)) Object.assign(t.planAudit, plan);
+    });
+    saringTaskSetelahPerubahan();
+    renderTasks();
+}
+
+/** Terapkan hasil rekam pelaksanaan: task ini + task tim lain yang ikut tertutup. */
+function terapkanPelaksanaan(taskTerbaru, closedTaskIds = []) {
+    if (!taskTerbaru?.id) { loadTasks().catch(() => {}); return; }
+
+    const idIkut = new Set((closedTaskIds || []).map(String));
+    tasks = tasks.map((t) => {
+        if (String(t.id) === String(taskTerbaru.id)) return taskTerbaru;
+        if (idIkut.has(String(t.id))) {
+            return {
+                ...t,
+                status: taskTerbaru.status,
+                startedAt: taskTerbaru.startedAt,
+                finishedAt: taskTerbaru.finishedAt,
+                lampiranUrl: taskTerbaru.lampiranUrl,
+                lampiranName: taskTerbaru.lampiranName,
+            };
+        }
+        return t;
+    });
+    saringTaskSetelahPerubahan();
+    renderTasks();
+}
+
 function renderTasks() {
     const tbody = document.getElementById("tasksTableBody");
     if (!tbody) return;
 
-    if (!tasks.length) {
-        tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">Belum ada tugas audit untuk Anda.</td></tr>`;
+    const terlihat = taskTerlihat();
+
+    if (!terlihat.length) {
+        const adaFilter = (document.getElementById("taskSearch")?.value || "").trim()
+            || document.getElementById("taskStatusFilter")?.value;
+        tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">${
+            adaFilter ? "Tidak ada tugas yang cocok dengan pencarian/filter." : "Belum ada tugas audit untuk Anda."
+        }</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = tasks.map((task) => {
+    tbody.innerHTML = terlihat.map((task) => {
         const plan = task.planAudit || {};
         const meta = STATUS_META[task.status] || STATUS_META.todo;
         const pelaksanaan = task.startedAt
@@ -460,7 +539,7 @@ async function approvePlan(planId) {
         });
         closeModal();
         showAlert(payload.message || "Plan audit disetujui.");
-        await loadTasks();
+        terapkanPlanTerbaru(payload.data);
     } catch (err) {
         showAlert(err.message || "Gagal menyetujui plan.", "error");
     }
@@ -476,7 +555,7 @@ async function mulaiCabang(planId) {
         });
         closeModal();
         showAlert(payload.message || "Cabang aktif. Audit sedang berjalan.");
-        await loadTasks();
+        terapkanPlanTerbaru(payload.data);
     } catch (err) {
         showAlert(err.message || "Gagal mengonfirmasi.", "error");
     }
@@ -498,7 +577,7 @@ async function selesaiRevisi(planId) {
         });
         closeModal();
         showAlert(payload.message || "Perbaikan dinyatakan selesai.");
-        await loadTasks();
+        terapkanPlanTerbaru(payload.data);
     } catch (err) {
         showAlert(err.message || "Gagal menyelesaikan perbaikan.", "error");
     }
@@ -514,7 +593,7 @@ async function selesaiCabang(planId) {
         });
         closeModal();
         showAlert(payload.message || "Pemeriksaan dinyatakan selesai.");
-        await loadTasks();
+        terapkanPlanTerbaru(payload.data);
     } catch (err) {
         showAlert(err.message || "Gagal menyelesaikan pemeriksaan.", "error");
     }
@@ -532,7 +611,7 @@ async function rejectPlan(planId) {
         });
         closeModal();
         showAlert(payload.message || "Plan audit ditolak.", "error");
-        await loadTasks();
+        terapkanPlanTerbaru(payload.data);
     } catch (err) {
         showAlert(err.message || "Gagal menolak plan.", "error");
     }
@@ -577,7 +656,7 @@ async function saveExecution(event) {
 
     closeModal();
     showAlert(payload.message || "Pelaksanaan audit tersimpan.");
-    await loadTasks();
+    terapkanPelaksanaan(payload.data, payload.closedTaskIds);
 }
 
 // ── Pinjaman Cabang ───────────────────────────────────────────────────────────
@@ -915,11 +994,9 @@ function setupFilters() {
     let timer = null;
     document.getElementById("taskSearch")?.addEventListener("input", () => {
         clearTimeout(timer);
-        timer = setTimeout(() => loadTasks().catch((e) => showAlert(e.message, "error")), 300);
+        timer = setTimeout(renderTasks, 120);
     });
-    document.getElementById("taskStatusFilter")?.addEventListener("change", () => {
-        loadTasks().catch((e) => showAlert(e.message, "error"));
-    });
+    document.getElementById("taskStatusFilter")?.addEventListener("change", renderTasks);
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
