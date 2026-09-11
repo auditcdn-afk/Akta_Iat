@@ -77,11 +77,18 @@ async function loadCurrentUser() {
     currentUser = payload.user;
 }
 
+// Task yang sudah selesai tidak ikut terunduh saat halaman dibuka (riwayat
+// selesai bertambah terus dan itu bagian terbesar dari daftar admin). Datanya
+// tetap ada dan tetap bisa dibuka: memilih "Selesai" di filter status membuat
+// halaman memuatnya, lalu daftarnya tetap lengkap sampai halaman ditutup.
+let taskSelesaiDimuat = false;
+
 async function loadTasks() {
     // Cari & filter dikerjakan di sini (lihat taskTerlihat()), bukan dengan
     // bertanya ulang ke server: daftarnya sudah lengkap di browser, dan tiap
     // permintaan baru berarti menunggu lagi.
-    const payload = await fetchJson("/api/tasks", { headers: authHeaders() });
+    const url = taskSelesaiDimuat ? "/api/tasks?include_done=1" : "/api/tasks";
+    const payload = await fetchJson(url, { headers: authHeaders() });
 
     // Server mengirim plan SEKALI dalam peta tersendiri (bukan disalin ke tiap
     // task) supaya balasannya jauh lebih kecil. Disambung kembali di sini, jadi
@@ -136,9 +143,11 @@ function saringTaskSetelahPerubahan() {
         tasks = tasks.filter((t) => t.planAudit?.status === tahap);
         return;
     }
-    // Role non-approval (auditor/cabang) tidak melihat task yang sudah selesai,
-    // kecuali admin yang memang butuh akses untuk koreksi.
-    if (currentUser?.role !== "admin") {
+    // Task selesai tidak ditampilkan: untuk role non-admin memang tidak pernah
+    // dikirim server, dan untuk admin baru ikut setelah dimuat lewat filter
+    // "Selesai". Disamakan di sini supaya daftar setelah sebuah aksi persis
+    // seperti kalau halaman dimuat ulang.
+    if (currentUser?.role !== "admin" || !taskSelesaiDimuat) {
         tasks = tasks.filter((t) => t.status !== "done");
     }
 }
@@ -185,8 +194,11 @@ function renderTasks() {
     if (!terlihat.length) {
         const adaFilter = (document.getElementById("taskSearch")?.value || "").trim()
             || document.getElementById("taskStatusFilter")?.value;
+        const petunjukSelesai = currentUser?.role === "admin" && !taskSelesaiDimuat
+            ? ' Tugas yang sudah selesai belum dimuat — pilih status "Selesai" untuk menampilkannya.'
+            : "";
         tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">${
-            adaFilter ? "Tidak ada tugas yang cocok dengan pencarian/filter." : "Belum ada tugas audit untuk Anda."
+            adaFilter ? "Tidak ada tugas yang cocok dengan pencarian/filter." + petunjukSelesai : "Belum ada tugas audit untuk Anda."
         }</td></tr>`;
         return;
     }
@@ -999,13 +1011,47 @@ async function adminResetPinjaman(id) {
 }
 window.adminResetPinjaman = adminResetPinjaman;
 
+/**
+ * Admin adalah satu-satunya role yang boleh melihat task selesai (untuk
+ * koreksi). Opsinya ditambahkan di sini supaya role lain tidak ditawari
+ * pilihan yang memang tidak berlaku untuk mereka.
+ */
+function siapkanFilterSelesai() {
+    if (currentUser?.role !== "admin") return;
+
+    const sel = document.getElementById("taskStatusFilter");
+    if (!sel || sel.querySelector('option[value="done"]')) return;
+
+    const semua = sel.querySelector('option[value=""]');
+    if (semua) semua.textContent = "Aktif (belum selesai)";
+
+    const opt = document.createElement("option");
+    opt.value = "done";
+    opt.textContent = "Selesai";
+    sel.appendChild(opt);
+}
+
 function setupFilters() {
     let timer = null;
     document.getElementById("taskSearch")?.addEventListener("input", () => {
         clearTimeout(timer);
         timer = setTimeout(renderTasks, 120);
     });
-    document.getElementById("taskStatusFilter")?.addEventListener("change", renderTasks);
+    document.getElementById("taskStatusFilter")?.addEventListener("change", async (e) => {
+        // Pilihan "Selesai" hanya ada untuk admin, dan task selesai belum ikut
+        // terunduh — ambil dulu sekali, setelah itu penyaringan kembali instan.
+        if (e.target.value === "done" && !taskSelesaiDimuat) {
+            taskSelesaiDimuat = true;
+            try {
+                await loadTasks();
+                return;
+            } catch (err) {
+                taskSelesaiDimuat = false;
+                showAlert(err.message || "Gagal memuat tugas yang sudah selesai.", "error");
+            }
+        }
+        renderTasks();
+    });
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -1079,6 +1125,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     try {
         await loadCurrentUser();
+        siapkanFilterSelesai();
         await loadTasks();
     } catch (err) {
         showAlert(err.message || "Gagal memuat tugas audit.", "error");
