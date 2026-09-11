@@ -72,7 +72,7 @@ class PinjamanPdfController extends Controller
     private function tujuan(PinjamanCabang $p): string
     {
         if ($p->jenis === 'BPK') {
-            $cabang = $p->cabang_realisasi ?? [];
+            $cabang = $p->daftarCabangRealisasi();
             return $cabang ? implode(', ', $cabang) : '-';
         }
 

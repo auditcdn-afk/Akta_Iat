@@ -710,30 +710,69 @@ async function pinjamanSubmit(formData) {
     }
 }
 
+/**
+ * Riwayat pengajuan BPK/BPB untuk PLAN task ini (server memperluas
+ * audit_task_id ke seluruh task pada plan yang sama), supaya auditor tahu
+ * pinjamannya sudah diajukan atau belum dan tidak mengajukan dua kali.
+ */
 async function pinjamanLoadList(taskId) {
     const listEl = document.getElementById('pinjamanList');
     if (!listEl || !taskId) return;
+
+    const kosong = `<p class="rounded-lg border border-dashed border-slate-700 px-3 py-2 text-xs text-slate-500">
+            Belum ada pengajuan BPK/BPB untuk plan ini.
+        </p>`;
+
     try {
         const res  = await fetchJson('/api/pinjaman-cabang?audit_task_id=' + taskId, { headers: authHeaders() });
         const rows = res.data ?? [];
-        if (!rows.length) { listEl.innerHTML = ''; return; }
-        listEl.innerHTML = `<p class="text-xs font-semibold text-slate-400 mb-1">Pinjaman yang sudah diajukan:</p>` +
+
+        if (!rows.length) { listEl.innerHTML = kosong; return; }
+
+        // Riwayat yang ada harus kelihatan walaupun tanggal pelaksanaan belum
+        // diisi — kalau tidak, seksinya tersembunyi dan pengajuan yang sudah
+        // ada seolah tidak pernah dibuat.
+        document.getElementById('pinjamanSection')?.classList.remove('hidden');
+
+        listEl.innerHTML = `<p class="text-xs font-semibold text-slate-400 mb-1">Pinjaman yang sudah diajukan pada plan ini:</p>` +
             rows.map(r => {
-                const statusColor = r.status === 'approved' ? 'text-emerald-400' : r.status === 'rejected' ? 'text-red-400' : 'text-amber-400';
-                return `<div class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-xs flex justify-between items-center">
-                    <div>
-                        <span class="font-bold ${r.jenis === 'BPK' ? 'text-blue-300' : 'text-purple-300'}">${r.jenis}</span>
-                        <span class="mx-2 text-slate-500">|</span>
-                        <span class="text-slate-300">Rp ${Number(r.nominal).toLocaleString('id-ID')}</span>
-                        ${r.jenis === 'BPK' ? `<span class="mx-2 text-slate-500">|</span><span class="text-slate-400">${(r.cabangRealisasi ?? []).join(', ')}</span>` : ''}
+                const status = String(r.status ?? '');
+                const statusColor = status === 'approved' ? 'text-emerald-400' : status === 'rejected' ? 'text-red-400' : 'text-amber-400';
+                // cabangRealisasi bisa datang sebagai daftar atau satu teks —
+                // jangan sampai satu baris aneh merontokkan seluruh daftar.
+                const cabang = Array.isArray(r.cabangRealisasi)
+                    ? r.cabangRealisasi.join(', ')
+                    : String(r.cabangRealisasi ?? '');
+                const rinci = [
+                    r.jenis === 'BPK' && cabang ? cabang : '',
+                    r.noSpd ? `No SPD ${r.noSpd}` : '',
+                    r.jenis === 'BPB' && r.departemen ? r.departemen : '',
+                ].filter(Boolean).join(' · ');
+                const pengaju = [r.createdBy, r.createdAt].filter(Boolean).join(' · ');
+
+                return `<div class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-xs flex justify-between items-start gap-3">
+                    <div class="min-w-0">
+                        <div>
+                            <span class="font-bold ${r.jenis === 'BPK' ? 'text-blue-300' : 'text-purple-300'}">${escapeHtml(r.jenis || '-')}</span>
+                            <span class="mx-2 text-slate-500">|</span>
+                            <span class="text-slate-300">Rp ${Number(r.nominal || 0).toLocaleString('id-ID')}</span>
+                        </div>
+                        ${rinci ? `<div class="mt-0.5 text-slate-400">${escapeHtml(rinci)}</div>` : ''}
+                        ${pengaju ? `<div class="mt-0.5 text-slate-500">Diajukan oleh ${escapeHtml(pengaju)}</div>` : ''}
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex shrink-0 items-center gap-2">
                         <a href="/akta/pinjaman/${r.id}/memo" target="_blank" rel="noopener" class="text-blue-400 hover:underline">🖨️ Memo</a>
-                        <span class="${statusColor} font-semibold">${r.status.replace(/_/g,' ')}</span>
+                        <span class="${statusColor} font-semibold">${escapeHtml(status.replace(/_/g, ' '))}</span>
                     </div>
                 </div>`;
             }).join('');
-    } catch (_) {}
+    } catch (_) {
+        // Jangan tinggalkan kotak kosong tanpa penjelasan: kosong tanpa kabar
+        // terbaca sebagai "belum pernah mengajukan".
+        listEl.innerHTML = `<p class="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+            Riwayat pengajuan pinjaman gagal dimuat. Muat ulang halaman untuk memastikan status pengajuan.
+        </p>`;
+    }
 }
 
 function terbilang(n) {
