@@ -36,6 +36,10 @@
                 <thead class="bg-slate-950/60">
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Plan / Cabang</th>
+                        {{-- Satu plan menghasilkan satu task per orang yang ditugaskan (Kepala Tim,
+                             tiap anggota Tim Audit, dan cabang saat plan berjalan). Tanpa kolom ini
+                             baris-baris itu terlihat persis sama dan dikira data dobel. --}}
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">PIC / Petugas</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis Audit</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Tgl Plan</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Pelaksanaan</th>
@@ -46,7 +50,7 @@
 
                 <tbody id="tasksTableBody" class="divide-y divide-slate-800">
                     <tr>
-                        <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">
+                        <td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">
                             Memuat tugas audit...
                         </td>
                     </tr>

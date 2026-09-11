@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AuditTask;
 use App\Models\PlanAudit;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Menjembatani Plan Audit → Task auditor.
@@ -21,6 +22,11 @@ class PlanTaskService
      * Mengembalikan jumlah task baru yang dibuat.
      */
     public function syncPlan(PlanAudit $plan, ?string $actor = null): int
+    {
+        return $this->terkunci(fn() => $this->syncPlanTanpaKunci($plan, $actor));
+    }
+
+    private function syncPlanTanpaKunci(PlanAudit $plan, ?string $actor = null): int
     {
         $assignees = $this->assignees($plan);
 
@@ -99,6 +105,11 @@ class PlanTaskService
      */
     public function syncAll(?string $actor = null): int
     {
+        return $this->terkunci(fn() => $this->syncAllTanpaKunci($actor));
+    }
+
+    private function syncAllTanpaKunci(?string $actor = null): int
+    {
         $existing = AuditTask::query()
             ->get(['plan_audit_id', 'assigned_to'])
             ->map(fn($row) => $row->plan_audit_id . '|' . $row->assigned_to)
@@ -167,14 +178,45 @@ class PlanTaskService
     }
 
     /**
+     * Jalankan satu sinkronisasi dalam kunci global.
+     *
+     * Kedua jalur pembuatan task (syncPlan saat plan dibuat/diubah, syncAll saat
+     * halaman Task dimuat) memeriksa dulu "apakah task-nya sudah ada", baru
+     * menulis. Kalau dua permintaan berjalan bersamaan — mis. plan baru disimpan
+     * tepat saat auditor lain membuka halaman Task — keduanya sama-sama melihat
+     * "belum ada" lalu sama-sama menulis, dan plan itu muncul dua kali di daftar
+     * Task padahal orangnya sama. Kunci ini membuat pemeriksaan dan penulisan
+     * berjalan bergantian.
+     *
+     * Kalau kunci tidak didapat dalam beberapa detik (proses lain sedang
+     * menyinkronkan hal yang sama), sinkronisasi ini dilewati saja — bukan
+     * kegagalan: pekerjaannya sedang dikerjakan proses lain, dan menyimpan plan
+     * tidak boleh ikut gagal hanya karena ini.
+     */
+    private function terkunci(callable $kerja): int
+    {
+        try {
+            return Cache::lock('plan-tasks-sync', 60)->block(5, $kerja);
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
+            return 0;
+        }
+    }
+
+    /**
      * Daftar auditor yang ditugaskan ke plan: Kepala Tim + anggota Tim Audit.
+     *
+     * Nama dirapikan dulu (spasi berlebih dibuang) dan dibandingkan tanpa
+     * membedakan huruf besar/kecil. Tanpa itu, "Budi", "budi" dan "Budi "
+     * dihitung tiga orang berbeda dan orang yang sama dapat tiga task pada
+     * plan yang sama — di daftar Task terlihat seperti plan yang dobel.
      */
     private function assignees(PlanAudit $plan): Collection
     {
         return collect([$plan->kepala_tim])
             ->merge($plan->tim ?: [])
-            ->filter()
-            ->unique()
+            ->map(fn($nama) => is_string($nama) ? trim(preg_replace('/\s+/', ' ', $nama)) : $nama)
+            ->filter(fn($nama) => is_string($nama) && $nama !== '')
+            ->unique(fn($nama) => mb_strtolower($nama))
             ->values();
     }
 }

@@ -99,7 +99,7 @@ function renderTasks() {
     if (!tbody) return;
 
     if (!tasks.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">Belum ada tugas audit untuk Anda.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">Belum ada tugas audit untuk Anda.</td></tr>`;
         return;
     }
 
@@ -119,6 +119,7 @@ function renderTasks() {
                 <div class="font-semibold text-slate-100">${escapeHtml(plan.cabang || task.judul || "-")}</div>
                 <div class="text-xs text-slate-500">${escapeHtml(plan.noSpt || "-")}</div>
             </td>
+            <td class="px-4 py-4 text-sm text-slate-300">${escapeHtml(task.assignedTo || "-")}</td>
             <td class="px-4 py-4 text-sm text-slate-300">${escapeHtml(plan.jenisAudit || task.kategori || "-")}</td>
             <td class="px-4 py-4 text-sm text-slate-300">${escapeHtml(plan.tglPlan || task.dueDate || "-")}</td>
             <td class="px-4 py-4 text-sm text-slate-300">${pelaksanaan}</td>
