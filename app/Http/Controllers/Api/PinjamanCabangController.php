@@ -12,6 +12,12 @@ use Illuminate\Support\Facades\Storage;
 
 class PinjamanCabangController extends Controller
 {
+    /** Role yang boleh membuka daftar pengajuan lintas plan sama sekali. */
+    private const ROLE_BOLEH_LIHAT = ['admin', 'manajer', 'auditor', 'coo', 'koordinator', 'unit', 'bpk'];
+
+    /** Dari daftar di atas, yang boleh melihat SELURUH pengajuan (bukan cuma miliknya). */
+    private const ROLE_LIHAT_SEMUA = ['admin', 'manajer', 'auditor', 'coo'];
+
     /**
      * Daftar pinjaman satu PLAN (bukan satu task).
      *
@@ -46,6 +52,100 @@ class PinjamanCabangController extends Controller
         $rows = $query->orderByDesc('created_at')->get()->map(fn($p) => $p->toAktaArray());
 
         return response()->json(['data' => $rows]);
+    }
+
+    /**
+     * Daftar pengajuan LINTAS plan — sumber halaman menu "Pinjaman BPK & BPB".
+     *
+     * index() di atas selalu terikat pada satu task/plan, jadi sampai sekarang
+     * tidak ada satu pun tempat untuk melihat pengajuan secara keseluruhan.
+     * Lebih dari itu: halaman Task menyaring tugas untuk Koordinator, Manajer,
+     * dan COO berdasarkan status PLAN-nya, bukan status pengajuannya — sehingga
+     * pengajuan yang menunggu Koordinator pada plan yang sudah berjalan tidak
+     * pernah muncul di layar Koordinator sama sekali.
+     *
+     * Kewenangan lihatnya dua tingkat:
+     *   - admin, manajer, auditor, coo  → seluruh pengajuan (pengawasan)
+     *   - koordinator, unit, bpk        → hanya yang menjadi birokrasinya:
+     *     yang sedang menunggu gilirannya, plus riwayat yang pernah ia setujui
+     *     atau tolak sendiri.
+     */
+    public function daftar(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $role = $user?->role;
+
+        if (! in_array($role, self::ROLE_BOLEH_LIHAT, true)) {
+            return response()->json(['data' => [], 'bolehLihatSemua' => false, 'tahapSaya' => null]);
+        }
+
+        $semua = in_array($role, self::ROLE_LIHAT_SEMUA, true);
+
+        $rows = PinjamanCabang::query()
+            ->when($request->filled('jenis'), fn ($q) => $q->where('jenis', $request->query('jenis')))
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->query('status')))
+            ->when($request->filled('dari'), fn ($q) => $q->whereDate('created_at', '>=', $request->query('dari')))
+            ->when($request->filled('sampai'), fn ($q) => $q->whereDate('created_at', '<=', $request->query('sampai')))
+            ->orderByDesc('created_at')
+            ->get();
+
+        // Penyaringan kewenangan dikerjakan di PHP, bukan SQL: jejak persetujuan
+        // tersimpan sebagai JSON dan pencocokannya berbeda-beda antara MySQL
+        // (produksi) dan SQLite (pengujian). Jumlah barisnya sudah dipersempit
+        // filter di atas, jadi ini murah.
+        if (! $semua) {
+            $tahapSaya = PinjamanCabang::tahapUntukRole($role);
+
+            $rows = $rows->filter(fn (PinjamanCabang $p) => $p->status === $tahapSaya
+                || $p->pernahDiprosesOleh($user?->username, $user?->email));
+        }
+
+        $plans = $this->planPerPinjaman($rows);
+
+        return response()->json([
+            'data' => $rows->values()->map(fn (PinjamanCabang $p) => [
+                ...$p->toAktaArray(),
+                'plan' => $plans[$p->id] ?? null,
+                'bisaDiproses' => $p->rolePemegangTahap() !== null
+                    && ($p->rolePemegangTahap() === $role || $user?->isAdmin()),
+            ]),
+            'bolehLihatSemua' => $semua,
+            'tahapSaya'       => PinjamanCabang::tahapUntukRole($role),
+        ]);
+    }
+
+    /**
+     * Cabang & No SPT plan tiap pengajuan, diambil sekali untuk seluruh daftar
+     * (bukan satu query per baris).
+     *
+     * @param  \Illuminate\Support\Collection<int,PinjamanCabang>  $rows
+     * @return array<int,array{cabang:?string,noSpt:?string,planAuditId:?int}>
+     */
+    private function planPerPinjaman($rows): array
+    {
+        $taskIds = $rows->pluck('audit_task_id')->filter()->unique()->values();
+
+        if ($taskIds->isEmpty()) {
+            return [];
+        }
+
+        $tasks = AuditTask::query()
+            ->whereIn('id', $taskIds)
+            ->with('planAudit:id,no_spt,cabang')
+            ->get()
+            ->keyBy('id');
+
+        $hasil = [];
+        foreach ($rows as $p) {
+            $plan = $tasks[$p->audit_task_id]?->planAudit ?? null;
+            $hasil[$p->id] = $plan ? [
+                'cabang'      => $plan->cabang,
+                'noSpt'       => $plan->no_spt,
+                'planAuditId' => $plan->id,
+            ] : null;
+        }
+
+        return $hasil;
     }
 
     // Buat pinjaman baru
@@ -118,6 +218,25 @@ class PinjamanCabangController extends Controller
         $note     = $request->input('note', '');
         $who      = $request->user()?->username ?? $request->user()?->email;
         $role     = $request->user()?->role ?? 'auditor';
+
+        // Giliran ditegakkan di SERVER, bukan cuma disembunyikan tombolnya.
+        // Sebelumnya siapa pun yang lolos middleware rute ini bisa menyetujui
+        // pengajuan pada tahap mana pun — mis. Koordinator memajukan pengajuan
+        // yang sedang menunggu role BPK langsung menjadi "approved", melompati
+        // Manajer, COO, dan Unit Usaha sekaligus.
+        $pemegang = $pinjaman->rolePemegangTahap();
+
+        if ($pemegang === null) {
+            return response()->json([
+                'message' => 'Pengajuan ini sudah selesai diproses (' . $pinjaman->status . '), tidak ada tahap yang bisa disetujui atau ditolak.',
+            ], 422);
+        }
+
+        if ($role !== $pemegang && ! $request->user()?->isAdmin()) {
+            return response()->json([
+                'message' => 'Sekarang bukan giliran Anda. Pengajuan ini menunggu ' . $pemegang . '.',
+            ], 403);
+        }
 
         $approvals   = $pinjaman->approvals ?? [];
         $approvals[] = [

@@ -29,6 +29,60 @@ class PinjamanCabang extends Model
         'pending_koordinator', 'pending_manajer', 'pending_bpk', 'approved',
     ];
 
+    /**
+     * Role pemegang tiap tahap persetujuan — sumber kebenaran tunggal untuk
+     * "giliran siapa sekarang".
+     *
+     * Sebelumnya peta ini hanya ada di browser (PINJAMAN_STAGE di
+     * akta-task.js), sehingga server tidak pernah memeriksa giliran sama
+     * sekali: siapa pun yang lolos middleware rute approve bisa menyetujui
+     * pengajuan pada tahap mana pun. Tombolnya memang disembunyikan, tapi
+     * itu hanya tampilan, bukan kewenangan.
+     */
+    public const TAHAP_ROLE = [
+        'pending_koordinator' => 'koordinator',
+        'pending_manajer'     => 'manajer',
+        'pending_coo'         => 'coo',
+        'pending_unit'        => 'unit',
+        'pending_bpk'         => 'bpk',
+    ];
+
+    /** Role yang berhak memproses pengajuan ini sekarang, atau null kalau tidak ada. */
+    public function rolePemegangTahap(): ?string
+    {
+        return self::TAHAP_ROLE[$this->status] ?? null;
+    }
+
+    /** Tahap yang menjadi giliran $role, atau null kalau role itu bukan pemegang tahap mana pun. */
+    public static function tahapUntukRole(?string $role): ?string
+    {
+        $peta = array_flip(self::TAHAP_ROLE);
+
+        return $peta[$role] ?? null;
+    }
+
+    /** Apakah $user pernah menyetujui/menolak pengajuan ini? */
+    public function pernahDiprosesOleh(?string $username, ?string $email = null): bool
+    {
+        $identitas = array_values(array_filter([$username, $email]));
+
+        if (! $identitas) {
+            return false;
+        }
+
+        foreach ($this->approvals ?? [] as $jejak) {
+            if (! in_array($jejak['action'] ?? '', ['approve', 'reject'], true)) {
+                continue;
+            }
+
+            if (in_array($jejak['user'] ?? null, $identitas, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function auditTask(): BelongsTo
     {
         return $this->belongsTo(AuditTask::class, 'audit_task_id');

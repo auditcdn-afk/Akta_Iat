@@ -24,6 +24,12 @@ Route::prefix('akta')->name('akta.')->group(function () {
     Route::get('/plan-audit/{plan}/spt', [\App\Http\Controllers\PlanAuditPdfController::class, 'spt'])->name('plan-audit.spt');
     Route::get('/pinjaman/{pinjaman}/memo', [\App\Http\Controllers\PinjamanPdfController::class, 'memo'])->name('pinjaman.memo');
 
+    // Menu utama Pinjaman BPK & BPB. Kewenangan lihatnya dijaga endpoint
+    // API-nya (lihat PinjamanCabangController::daftar) — halamannya sendiri
+    // boleh dirender untuk siapa saja yang login, dan akan tampil kosong
+    // untuk role yang tidak berkepentingan.
+    Route::view('/pinjaman', 'akta.pages.pinjaman')->name('pinjaman');
+
     Route::view('/task', 'akta.pages.task')->name('task');
 
     Route::view('/audit-mandiri', 'akta.pages.audit-mandiri')->name('audit-mandiri');
