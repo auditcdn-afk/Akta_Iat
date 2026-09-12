@@ -40,6 +40,44 @@ class PlanAudit extends Model
      *        banyak plan) agar canMarkSelesai() tidak query per-plan. Null = query langsung
      *        (dipakai saat toAktaArray() dipanggil untuk satu plan saja).
      */
+    /**
+     * Apakah $user termasuk tim plan ini (atau pembuatnya)?
+     *
+     * Tim audit disimpan sebagai NAMA (kepala_tim + tim[]), bukan id user,
+     * sementara satu orang bisa tercatat dengan ejaan berbeda di kolom
+     * display_name / name / username. Pencocokannya karena itu dilakukan atas
+     * ketiganya sekaligus, dengan spasi dirapikan dan huruf besar/kecil
+     * diabaikan — sama seperti filter "plan milik saya" di
+     * PlanAuditController::index dan penugasan task di PlanTaskService.
+     */
+    public function dimilikiOleh(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        $rapikan = fn ($nama) => mb_strtolower(trim(preg_replace('/\s+/', ' ', (string) $nama)));
+
+        $identitas = collect([$user->display_name, $user->name, $user->username])
+            ->map($rapikan)
+            ->filter(fn ($n) => $n !== '');
+
+        if ($identitas->isEmpty()) {
+            return false;
+        }
+
+        if ($identitas->contains($rapikan($this->created_by))) {
+            return true;
+        }
+
+        return collect([$this->kepala_tim])
+            ->merge($this->tim ?: [])
+            ->map($rapikan)
+            ->filter(fn ($n) => $n !== '')
+            ->intersect($identitas)
+            ->isNotEmpty();
+    }
+
     public function toAktaArray(?array $unitUsahaWithBuPerformance = null): array
     {
         return [

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\PlanAudit;
 use App\Models\User;
 use Illuminate\Support\Collection;
 
@@ -136,6 +137,69 @@ class BirokrasiResolver
         }
 
         return $recipients->unique('id')->values();
+    }
+
+    /**
+     * Tim plan itu sendiri — kepala tim, anggota tim, dan pembuatnya.
+     *
+     * Berbeda dari recipientsForPlanStatus(['auditor'], ...) yang menyapa
+     * SELURUH auditor: kabar penolakan hanya berguna bagi orang yang memang
+     * harus memperbaiki plan tersebut. Nama tim disimpan sebagai teks, jadi
+     * dicocokkan ke display_name / name / username dengan huruf besar-kecil
+     * dan spasi berlebih diabaikan (lihat PlanAudit::dimilikiOleh).
+     *
+     * Kalau tidak satu pun nama cocok dengan akun yang ada, jatuh kembali ke
+     * seluruh auditor — lebih baik terlalu banyak yang tahu daripada plan yang
+     * ditolak menggantung tanpa ada yang diberi tahu.
+     */
+    public static function recipientsForPlanTeam(PlanAudit $plan): Collection
+    {
+        $rapikan = fn ($nama) => mb_strtolower(trim(preg_replace('/\s+/', ' ', (string) $nama)));
+
+        $nama = collect([$plan->kepala_tim, $plan->created_by])
+            ->merge($plan->tim ?: [])
+            ->map($rapikan)
+            ->filter(fn ($n) => $n !== '')
+            ->unique();
+
+        if ($nama->isEmpty()) {
+            return self::recipientsForPlanStatus(['auditor'], $plan->cabang);
+        }
+
+        $recipients = User::query()
+            ->where('is_disabled', false)
+            ->get()
+            ->filter(fn (User $u) => collect([$u->display_name, $u->name, $u->username])
+                ->map($rapikan)
+                ->filter(fn ($n) => $n !== '')
+                ->intersect($nama)
+                ->isNotEmpty());
+
+        return $recipients->isEmpty()
+            ? self::recipientsForPlanStatus(['auditor'], $plan->cabang)
+            : $recipients->unique('id')->values();
+    }
+
+    /**
+     * Akun pengaju sebuah dokumen, dicari dari kolom created_by (username, dan
+     * pada data lama bisa berupa email). Kosong kalau akunnya sudah tidak ada.
+     */
+    public static function recipientsForPengaju(?string $createdBy): Collection
+    {
+        $nama = trim((string) $createdBy);
+
+        if ($nama === '') {
+            return collect();
+        }
+
+        return User::query()
+            ->where('is_disabled', false)
+            ->where(function ($q) use ($nama) {
+                $q->where('username', $nama)->orWhere('email', $nama);
+            })
+            ->get()
+            ->unique('id')
+            ->values();
     }
 
     /**

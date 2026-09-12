@@ -84,8 +84,42 @@ function canCreatePlan() {
     return ["admin", "manajer"].includes(currentUser?.role);
 }
 
-function canEditPlan() {
-    return currentUser?.role === "admin";
+/**
+ * Nama tim audit disimpan sebagai teks (kepalaTim + tim[]), dan satu orang bisa
+ * tercatat dengan ejaan berbeda di displayName / name / username. Dicocokkan
+ * atas ketiganya, dengan spasi dirapikan dan huruf besar/kecil diabaikan —
+ * cerminan PlanAudit::dimilikiOleh() di server, yang tetap jadi penentu akhir.
+ */
+function rapikanNama(nilai) {
+    return String(nilai ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function planMilikSaya(plan) {
+    const saya = [currentUser?.displayName, currentUser?.name, currentUser?.username]
+        .map(rapikanNama)
+        .filter(Boolean);
+    if (!saya.length) return false;
+
+    const timPlan = [plan?.kepalaTim, plan?.createdBy, ...(plan?.tim || [])]
+        .map(rapikanNama)
+        .filter(Boolean);
+
+    return timPlan.some((nama) => saya.includes(nama));
+}
+
+/**
+ * Admin boleh memperbaiki plan mana pun. Auditor & manajer hanya plan MILIKNYA
+ * yang masih Draft — termasuk plan yang baru saja DITOLAK, karena penolakan
+ * mengembalikan statusnya ke Draft. Tanpa ini, plan yang ditolak cuma bisa
+ * diajukan ulang apa adanya: tombol yang tersedia hanya "Ajukan", jadi catatan
+ * penolakan tidak pernah bisa ditindaklanjuti.
+ */
+function canEditPlan(plan) {
+    if (currentUser?.role === "admin") return true;
+    if (!plan) return false;
+    return plan.status === "draft"
+        && ["auditor", "manajer"].includes(currentUser?.role)
+        && planMilikSaya(plan);
 }
 
 function canAdvancePlan(plan) {
@@ -257,11 +291,16 @@ function actionButtons(plan) {
         );
     }
 
-    // Edit (admin only)
-    if (canEditPlan()) {
+    // Edit: admin, atau tim plan sendiri selama masih Draft
+    if (canEditPlan(plan)) {
         buttons.push(
             `<button type="button" class="edit-plan rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${plan.id}">Edit</button>`
         );
+    }
+
+    // Hapus tetap admin saja — menghapus plan ikut menghapus Report Audit,
+    // PICA, Rekomendasi, SK, dan Grading-nya (lihat PlanAuditController::destroy).
+    if (currentUser?.role === "admin") {
         buttons.push(
             `<button type="button" class="delete-plan rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${plan.id}">Hapus</button>`
         );
@@ -491,16 +530,22 @@ async function savePlan(event) {
     // Cegah klik ganda pada tombol Simpan membuat plan (dan No SPT) yang sama tersimpan berkali-kali.
     if (isSavingPlan) return;
 
-    if (!canCreatePlan() && !canEditPlan()) {
-        showAlert("Role kamu tidak bisa menyimpan plan.", "error");
-        return;
-    }
-
     const id = document.getElementById("planId").value;
     const isEdit = Boolean(id);
 
-    if (isEdit && !canEditPlan()) {
-        showAlert("Hanya admin yang bisa mengedit plan.", "error");
+    if (isEdit) {
+        const plan = plans.find((p) => String(p.id) === String(id));
+        if (!canEditPlan(plan)) {
+            showAlert(
+                plan && plan.status !== "draft"
+                    ? "Plan yang sudah diajukan tidak bisa diedit. Minta admin mengembalikannya ke Draft dulu."
+                    : "Hanya tim plan ini atau admin yang bisa mengedit plan ini.",
+                "error"
+            );
+            return;
+        }
+    } else if (!canCreatePlan()) {
+        showAlert("Role kamu tidak bisa menyimpan plan.", "error");
         return;
     }
 
@@ -559,10 +604,23 @@ async function rejectPlan(id) {
     const plan = plans.find((p) => String(p.id) === String(id));
     if (!plan) return;
 
-    const confirmed = confirm(`Tolak dan kembalikan plan ${plan.noSpt} ke Draft?`);
-    if (!confirmed) return;
+    // Alasannya WAJIB ditanyakan di sini. Sebelumnya halaman ini hanya meminta
+    // konfirmasi lalu menolak tanpa mengirim alasan apa pun (berbeda dengan
+    // tombol Tolak di halaman Task, yang sejak awal meminta alasan) — sehingga
+    // auditor menerima plannya kembali sebagai Draft tanpa tahu apa yang salah
+    // dan tidak punya apa pun untuk diperbaiki.
+    const alasan = prompt(`Tolak dan kembalikan plan ${plan.noSpt} ke Draft.\n\nApa yang harus diperbaiki auditor?`);
+    if (alasan === null) return;
 
-    const payload = await fetchJson(`/api/plans/${id}/reject`, { method: "POST" });
+    if (!alasan.trim()) {
+        showAlert("Alasan penolakan wajib diisi supaya auditor tahu apa yang harus diperbaiki.", "error");
+        return;
+    }
+
+    const payload = await fetchJson(`/api/plans/${id}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ alasan: alasan.trim() }),
+    });
     showAlert(payload.message || "Plan dikembalikan ke Draft.");
     notifyPlanChanged(id, "updated");
     terapkanPlan(payload.data);

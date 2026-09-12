@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Jobs\KirimPushNotification;
 use App\Models\AppNotification;
 use App\Models\AuditRecommendation;
+use App\Models\PinjamanCabang;
 use App\Models\PlanAudit;
 use App\Models\SuratKeputusan;
 use App\Services\WebPush\WebPushSender;
@@ -227,6 +228,100 @@ class NotificationDispatcher
         }
     }
 
+    /**
+     * Plan audit DITOLAK — kabari tim plan itu sendiri, bukan seluruh auditor.
+     *
+     * Penolakan mengembalikan status ke draft, dan notifikasi draft biasa cuma
+     * berbunyi "masih berstatus Draft — tekan Ajukan". Kalimat itu menghapus
+     * kabar terpentingnya: plannya ditolak, oleh siapa, dengan alasan apa, dan
+     * bahwa isinya harus DIPERBAIKI dulu — bukan diajukan ulang apa adanya.
+     */
+    public static function notifyPlanAuditRejected(PlanAudit $plan, string $dariStatus, ?string $alasan, ?string $olehRole = null): void
+    {
+        try {
+            $penolak = self::PLAN_STATUS_LABELS[$dariStatus] ?? $dariStatus;
+            $penolak = str_replace('Menunggu ', '', $penolak);
+
+            $message = sprintf(
+                '%s (%s) ditolak %s. %s Buka plannya, perbaiki isinya, lalu ajukan ulang.',
+                $plan->no_spt,
+                $plan->cabang ?: '-',
+                $olehRole ? ucfirst($olehRole) : $penolak,
+                $alasan ? 'Alasan: ' . $alasan . '.' : 'Tidak ada alasan yang dituliskan.'
+            );
+
+            foreach (BirokrasiResolver::recipientsForPlanTeam($plan) as $user) {
+                static::kirim(
+                    $user->id,
+                    'plan_audit_step',
+                    PlanAudit::class,
+                    $plan->id,
+                    'reject',
+                    'Plan audit ditolak — perlu diperbaiki',
+                    $message,
+                    '/akta/plan-audit?id=' . $plan->id
+                );
+            }
+        } catch (Throwable) {
+            // Notifikasi tidak boleh membuat request utama gagal.
+        }
+    }
+
+    /**
+     * Pengajuan pinjaman cabang (BPK/BPB) DITOLAK — kabari pengajunya.
+     *
+     * Sebelumnya alur pinjaman tidak mengirim notifikasi sama sekali: auditor
+     * baru tahu pengajuannya ditolak kalau kebetulan membuka lagi task-nya.
+     */
+    public static function notifyPinjamanRejected(PinjamanCabang $pinjaman, ?string $alasan, ?string $olehRole = null): void
+    {
+        try {
+            $recipients = BirokrasiResolver::recipientsForPengaju($pinjaman->created_by);
+
+            if ($recipients->isEmpty()) {
+                return;
+            }
+
+            $message = sprintf(
+                'Pengajuan %s Rp %s ditolak%s. %s Buka task-nya, perbaiki pengajuannya, lalu ajukan ulang.',
+                $pinjaman->jenis ?: 'pinjaman',
+                number_format((float) $pinjaman->nominal, 0, ',', '.'),
+                $olehRole ? ' oleh ' . ucfirst($olehRole) : '',
+                $alasan ? 'Alasan: ' . $alasan . '.' : 'Tidak ada alasan yang dituliskan.'
+            );
+
+            foreach ($recipients as $user) {
+                static::kirim(
+                    $user->id,
+                    'pinjaman_cabang_step',
+                    PinjamanCabang::class,
+                    $pinjaman->id,
+                    'reject',
+                    'Pengajuan ' . ($pinjaman->jenis ?: 'pinjaman') . ' ditolak — perlu diperbaiki',
+                    $message,
+                    '/akta/task?pinjaman=' . $pinjaman->id
+                );
+            }
+        } catch (Throwable) {
+            // Notifikasi tidak boleh membuat request utama gagal.
+        }
+    }
+
+    /** Tandai notifikasi penolakan sudah terbaca, karena dokumennya sudah diperbaiki/diajukan ulang. */
+    public static function resolveRejection(string $notifiableType, int $notifiableId): void
+    {
+        try {
+            AppNotification::query()
+                ->where('notifiable_type', $notifiableType)
+                ->where('notifiable_id', $notifiableId)
+                ->where('step_key', 'reject')
+                ->unread()
+                ->update(['read_at' => now()]);
+        } catch (Throwable) {
+            // Notifikasi tidak boleh membuat request utama gagal.
+        }
+    }
+
     /** Tandai notifikasi status Plan Audit tertentu sudah terbaca, karena statusnya sudah berubah. */
     public static function resolvePlanAuditStatus(PlanAudit $plan, string $status): void
     {
@@ -264,6 +359,27 @@ class NotificationDispatcher
             return;
         }
 
+        static::kirim($userId, $type, $notifiableType, $notifiableId, $stepKey, $title, $message, $url);
+    }
+
+    /**
+     * Buat notifikasi TANPA mengecek jeda pengingat.
+     *
+     * Dipakai untuk kejadian sekali-terjadi yang wajib sampai: penolakan.
+     * Kalau ini lewat notifyIfDue(), penolakan kedua atas plan/pinjaman yang
+     * sama dalam 20 jam akan hilang diam-diam — padahal justru itu kabar yang
+     * harus segera ditindaklanjuti pengajunya.
+     */
+    private static function kirim(
+        int $userId,
+        string $type,
+        string $notifiableType,
+        int $notifiableId,
+        string $stepKey,
+        string $title,
+        string $message,
+        ?string $url
+    ): void {
         $notifikasi = AppNotification::query()->create([
             'user_id' => $userId,
             'type' => $type,
