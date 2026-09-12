@@ -243,6 +243,19 @@ class PinjamanMenuUtamaTest extends TestCase
         $this->assertSame('CSC LANGSA', $baris['plan']['cabang']);
     }
 
+    public function test_daftar_membawa_alur_tiap_jenis_untuk_penunjuk_kemajuan(): void
+    {
+        $this->pinjaman('pending_koordinator');
+
+        $res = $this->daftar('admin');
+
+        // Penunjuk kemajuan di layar ("tahap 3 dari 5") memakai urutan ini.
+        // Dikirim server supaya tidak ada salinan terpisah di browser yang
+        // diam-diam melenceng ketika alurnya berubah.
+        $this->assertSame(PinjamanCabang::FLOW_BPK, $res['alur']['BPK']);
+        $this->assertSame(PinjamanCabang::FLOW_BPB, $res['alur']['BPB']);
+    }
+
     public function test_rute_daftar_tidak_tertangkap_sebagai_id(): void
     {
         // "daftar" akan cocok dengan /pinjaman-cabang/{id} kalau rutenya salah
@@ -251,6 +264,6 @@ class PinjamanMenuUtamaTest extends TestCase
 
         $this->getJson('/api/pinjaman-cabang/daftar')
             ->assertOk()
-            ->assertJsonStructure(['data', 'bolehLihatSemua', 'tahapSaya']);
+            ->assertJsonStructure(['data', 'bolehLihatSemua', 'tahapSaya', 'alur']);
     }
 }

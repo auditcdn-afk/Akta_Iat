@@ -7,6 +7,8 @@ let currentUser = null;
 let rows = [];
 let bolehLihatSemua = false;
 let tahapSaya = null;
+// Urutan tahap tiap jenis, dikirim server (lihat PinjamanCabangController::daftar).
+let alur = { BPK: [], BPB: [] };
 
 const STATUS_LABEL = {
     pending_koordinator: "Menunggu Koordinator",
@@ -132,10 +134,74 @@ function renderRingkasan(daftar) {
     ].join("");
 }
 
+/**
+ * Kemajuan sebuah pengajuan menyusuri alur persetujuannya.
+ *
+ * Badge status hanya menyebut tahap SEKARANG ("Menunggu COO"). Yang tidak
+ * terbaca dari situ: sudah lewat berapa tahap, dan tinggal berapa lagi. Itu
+ * yang membedakan pengajuan yang baru diajukan kemarin dengan yang sudah
+ * ditunggu berminggu-minggu dan tinggal satu langkah.
+ */
+function kemajuan(p) {
+    // "approved" bukan tahap yang perlu disetujui siapa-siapa — itu garis
+    // akhirnya, jadi tidak ikut dihitung.
+    const urutan = (alur[p.jenis] || []).filter((t) => t !== "approved");
+    const total = urutan.length;
+
+    if (!total || p.status === "rejected") return null;
+    if (p.status === "approved") return { urutan, lewat: total, total, selesai: true };
+
+    const idx = urutan.indexOf(p.status);
+    if (idx === -1) return null;
+
+    // Yang dihitung adalah tahap yang SUDAH disetujui, bukan nomor tahap yang
+    // sedang berjalan. Kalau yang dipakai nomor tahap, pengajuan BPB yang masih
+    // menunggu persetujuan terakhir tampil "3/3" — persis sama dengan yang
+    // sudah tuntas, padahal justru belum ada yang boleh mencairkannya.
+    return { urutan, lewat: idx, total, selesai: false };
+}
+
+function titikKemajuan(p) {
+    const k = kemajuan(p);
+    if (!k) return "";
+
+    const titik = k.urutan.map((tahap, i) => {
+        const warna = i < k.lewat ? "bg-emerald-500" : (!k.selesai && i === k.lewat ? "bg-amber-400" : "bg-slate-700");
+        return `<span class="inline-block h-1.5 w-1.5 rounded-full ${warna}" title="${escapeHtml(STATUS_LABEL[tahap] || tahap)}"></span>`;
+    }).join("");
+
+    const judul = k.selesai
+        ? `Seluruh ${k.total} tahap sudah disetujui`
+        : `${k.lewat} dari ${k.total} tahap sudah disetujui — sekarang ${STATUS_LABEL[p.status] || p.status}`;
+
+    return `<div class="mt-1 flex items-center gap-1" title="${escapeHtml(judul)}">
+        ${titik}<span class="ml-1 text-[11px] ${k.selesai ? "text-emerald-400" : "text-slate-500"}">${k.lewat}/${k.total}</span>
+    </div>`;
+}
+
+function kartuGiliran(p) {
+    return `
+        <div class="rounded-xl border border-slate-700 bg-slate-900 p-3" data-sorot-id="giliran-${p.id}">
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <span class="font-semibold text-slate-100">Rp ${rupiah(p.nominal)}</span>
+                    <div class="mt-0.5 truncate text-xs text-slate-400">${escapeHtml(cabangDari(p))}${p.noSpd ? " · No SPD " + escapeHtml(p.noSpd) : ""}</div>
+                    <div class="text-xs text-slate-500">Diajukan ${escapeHtml(p.createdBy || "-")} · ${escapeHtml(p.createdAt || "")}</div>
+                    ${titikKemajuan(p)}
+                </div>
+                <a href="/akta/pinjaman/${p.id}/memo" target="_blank" rel="noopener"
+                    class="shrink-0 text-xs text-blue-400 hover:underline">🖨️ Memo</a>
+            </div>
+            <div class="mt-3 flex gap-2">
+                <button type="button" class="pinjaman-tolak flex-1 rounded-lg border border-red-500/40 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${p.id}">Tolak</button>
+                <button type="button" class="pinjaman-setuju flex-1 rounded-lg bg-emerald-600 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500" data-id="${p.id}">Setujui</button>
+            </div>
+        </div>`;
+}
+
 function renderGiliran(daftar) {
     const box = document.getElementById("pinjamanGiliranBox");
-    const list = document.getElementById("pinjamanGiliranList");
-    if (!box || !list) return;
+    if (!box) return;
 
     const giliran = daftar.filter((p) => p.bisaDiproses);
 
@@ -149,42 +215,29 @@ function renderGiliran(daftar) {
     document.getElementById("pinjamanGiliranInfo").textContent =
         `${giliran.length} pengajuan menunggu tindakan Anda, senilai Rp ${rupiah(giliran.reduce((a, p) => a + Number(p.nominal || 0), 0))}.`;
 
-    list.innerHTML = giliran.map((p) => `
-        <div class="rounded-xl border border-slate-700 bg-slate-900 p-3" data-sorot-id="giliran-${p.id}">
-            <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                    <span class="font-bold ${p.jenis === "BPK" ? "text-blue-300" : "text-purple-300"}">${escapeHtml(p.jenis || "-")}</span>
-                    <span class="mx-2 text-slate-600">|</span>
-                    <span class="font-semibold text-slate-100">Rp ${rupiah(p.nominal)}</span>
-                    <div class="mt-0.5 truncate text-xs text-slate-400">${escapeHtml(cabangDari(p))}${p.noSpd ? " · No SPD " + escapeHtml(p.noSpd) : ""}</div>
-                    <div class="text-xs text-slate-500">Diajukan ${escapeHtml(p.createdBy || "-")} · ${escapeHtml(p.createdAt || "")}</div>
-                </div>
-                <a href="/akta/pinjaman/${p.id}/memo" target="_blank" rel="noopener"
-                    class="shrink-0 text-xs text-blue-400 hover:underline">🖨️ Memo</a>
-            </div>
-            <div class="mt-3 flex gap-2">
-                <button type="button" class="pinjaman-tolak flex-1 rounded-lg border border-red-500/40 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${p.id}">Tolak</button>
-                <button type="button" class="pinjaman-setuju flex-1 rounded-lg bg-emerald-600 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500" data-id="${p.id}">Setujui</button>
-            </div>
-        </div>`).join("");
+    for (const [jenis, sufiks] of [["BPB", "Bpb"], ["BPK", "Bpk"]]) {
+        const punya = giliran.filter((p) => p.jenis === jenis);
+        const kolom = document.getElementById("pinjamanKolom" + sufiks);
+        const list = document.getElementById("pinjamanGiliranList" + sufiks);
+        const jumlah = document.getElementById("pinjamanGiliranJumlah" + sufiks);
+
+        if (jumlah) jumlah.textContent = String(punya.length);
+        // Kolomnya tetap ada walau kosong, supaya BPB selalu di kiri dan BPK
+        // selalu di kanan — kalau salah satunya dihilangkan, yang tersisa
+        // melompat ke kiri dan letaknya jadi berubah-ubah.
+        if (kolom) kolom.classList.toggle("opacity-50", punya.length === 0);
+        if (list) {
+            list.innerHTML = punya.length
+                ? punya.map(kartuGiliran).join("")
+                : `<p class="rounded-xl border border-dashed border-slate-700 px-3 py-4 text-center text-xs text-slate-500">
+                       Tidak ada ${jenis} yang menunggu Anda.
+                   </p>`;
+        }
+    }
 }
 
-function renderTabel() {
-    const tbody = document.getElementById("pinjamanTableBody");
-    if (!tbody) return;
-
-    const daftar = terlihat();
-    renderRingkasan(daftar);
-    renderGiliran(daftar);
-
-    if (!daftar.length) {
-        tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">
-            ${rows.length ? "Tidak ada pengajuan yang cocok dengan pencarian/filter." : "Belum ada pengajuan pinjaman."}
-        </td></tr>`;
-        return;
-    }
-
-    tbody.innerHTML = daftar.map((p) => `
+function barisTabel(p) {
+    return `
         <tr class="hover:bg-slate-950/50" data-sorot-id="${p.id}">
             <td class="px-4 py-4">
                 <div class="font-bold ${p.jenis === "BPK" ? "text-blue-300" : "text-purple-300"}">${escapeHtml(p.jenis || "-")}</div>
@@ -197,7 +250,7 @@ function renderTabel() {
                 <div>${escapeHtml(p.createdBy || "-")}</div>
                 <div class="text-xs text-slate-500">${escapeHtml(p.createdAt || "")}</div>
             </td>
-            <td class="px-4 py-4">${badgeStatus(p.status)}</td>
+            <td class="px-4 py-4">${badgeStatus(p.status)}${titikKemajuan(p)}</td>
             <td class="px-4 py-4 text-right">
                 <div class="flex flex-wrap justify-end gap-1.5">
                     <button type="button" class="pinjaman-jejak rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${p.id}">Riwayat</button>
@@ -208,7 +261,71 @@ function renderTabel() {
                     <button type="button" class="pinjaman-setuju rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500" data-id="${p.id}">Setujui</button>` : ""}
                 </div>
             </td>
-        </tr>`).join("");
+        </tr>`;
+}
+
+function grupTabel(judul, keterangan, warna, daftar) {
+    const total = daftar.reduce((a, p) => a + Number(p.nominal || 0), 0);
+
+    return `
+        <div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
+                <div>
+                    <h3 class="font-bold ${warna}">${escapeHtml(judul)}</h3>
+                    <p class="text-xs text-slate-500">${escapeHtml(keterangan)}</p>
+                </div>
+                <div class="text-right">
+                    <div class="text-sm font-bold text-slate-100">${daftar.length} pengajuan</div>
+                    <div class="text-xs text-slate-500">Rp ${rupiah(total)}</div>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-800">
+                    <thead class="bg-slate-950/60">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis / Plan</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Cabang Realisasi</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">No SPD</th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Nominal</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Pengaju</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Status</th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800">${daftar.map(barisTabel).join("")}</tbody>
+                </table>
+            </div>
+        </div>`;
+}
+
+function renderTabel() {
+    const wadah = document.getElementById("pinjamanGrup");
+    if (!wadah) return;
+
+    const daftar = terlihat();
+    renderRingkasan(daftar);
+    renderGiliran(daftar);
+
+    if (!daftar.length) {
+        wadah.innerHTML = `<p class="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-6 text-center text-sm text-slate-400">
+            ${rows.length ? "Tidak ada pengajuan yang cocok dengan pencarian/filter." : "Belum ada pengajuan pinjaman."}
+        </p>`;
+        return;
+    }
+
+    // Tiga keadaan yang memerlukan perhatian berbeda: yang masih berjalan perlu
+    // didorong, yang tuntas tinggal arsip, yang ditolak menunggu pengajunya
+    // memperbaiki. Ditolak sengaja TIDAK digabung ke "selesai" — birokrasinya
+    // justru belum tuntas dan pengajuannya masih bisa diajukan ulang.
+    const proses  = daftar.filter((p) => String(p.status).startsWith("pending_"));
+    const selesai = daftar.filter((p) => p.status === "approved");
+    const ditolak = daftar.filter((p) => p.status === "rejected");
+
+    wadah.innerHTML = [
+        proses.length  ? grupTabel("Sedang Proses Approval", "Masih berjalan di alur birokrasi — titik hijau menandai tahap yang sudah dilewati.", "text-amber-300", proses) : "",
+        selesai.length ? grupTabel("Sudah Selesai Semua Birokrasi", "Disetujui sampai tahap terakhir; tidak ada lagi yang perlu dikerjakan.", "text-emerald-300", selesai) : "",
+        ditolak.length ? grupTabel("Ditolak", "Dikembalikan ke pengaju untuk diperbaiki lalu diajukan ulang dari tahap pertama.", "text-red-300", ditolak) : "",
+    ].join("");
 }
 
 function bukaJejak(id) {
@@ -289,6 +406,7 @@ async function muat() {
     rows = payload.data || [];
     bolehLihatSemua = !!payload.bolehLihatSemua;
     tahapSaya = payload.tahapSaya || null;
+    alur = payload.alur || { BPK: [], BPB: [] };
 
     const cakupan = document.getElementById("pinjamanCakupan");
     if (cakupan) {

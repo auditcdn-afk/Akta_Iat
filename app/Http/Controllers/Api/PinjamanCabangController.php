@@ -111,6 +111,14 @@ class PinjamanCabangController extends Controller
             ]),
             'bolehLihatSemua' => $semua,
             'tahapSaya'       => PinjamanCabang::tahapUntukRole($role),
+            // Alur tiap jenis dikirim dari sini supaya penunjuk kemajuan di
+            // layar memakai urutan yang sama persis dengan yang dipakai server
+            // untuk memajukan status — bukan salinan terpisah di browser yang
+            // diam-diam melenceng kalau alurnya berubah.
+            'alur' => [
+                'BPK' => PinjamanCabang::FLOW_BPK,
+                'BPB' => PinjamanCabang::FLOW_BPB,
+            ],
         ]);
     }
 
