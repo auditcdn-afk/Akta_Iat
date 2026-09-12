@@ -21,7 +21,29 @@
             <span id="pinjamanGiliranJumlah"
                 class="shrink-0 rounded-full bg-amber-500/20 px-3 py-1 text-sm font-bold text-amber-200">0</span>
         </div>
-        <div id="pinjamanGiliranList" class="mt-4 grid gap-3 lg:grid-cols-2"></div>
+        {{-- Dipisah per jenis, bukan dicampur: BPK dan BPB punya alur
+             persetujuan yang berbeda (BPK lewat COO dan Unit Usaha, BPB tidak),
+             jadi menumpuknya dalam satu tumpukan membuat penyetuju harus
+             membaca label tiap kartu untuk tahu sedang menangani yang mana. --}}
+        <div class="mt-4 grid gap-4 lg:grid-cols-2">
+            <div id="pinjamanKolomBpb" class="space-y-3">
+                <div class="flex items-center justify-between border-b border-purple-500/20 pb-2">
+                    <h3 class="text-sm font-bold text-purple-300">BPB — Pinjaman ke Finance</h3>
+                    <span id="pinjamanGiliranJumlahBpb"
+                        class="rounded-full bg-purple-500/15 px-2.5 py-0.5 text-xs font-bold text-purple-200">0</span>
+                </div>
+                <div id="pinjamanGiliranListBpb" class="space-y-3"></div>
+            </div>
+
+            <div id="pinjamanKolomBpk" class="space-y-3">
+                <div class="flex items-center justify-between border-b border-blue-500/20 pb-2">
+                    <h3 class="text-sm font-bold text-blue-300">BPK — Pinjaman Kendaraan / Operasional</h3>
+                    <span id="pinjamanGiliranJumlahBpk"
+                        class="rounded-full bg-blue-500/15 px-2.5 py-0.5 text-xs font-bold text-blue-200">0</span>
+                </div>
+                <div id="pinjamanGiliranListBpk" class="space-y-3"></div>
+            </div>
+        </div>
     </div>
 
     <div class="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900 p-5 xl:flex-row xl:items-center xl:justify-between">
@@ -67,28 +89,13 @@
 
     <div id="pinjamanRingkas" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"></div>
 
-    <div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-slate-800">
-                <thead class="bg-slate-950/60">
-                    <tr>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Jenis / Plan</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Cabang Realisasi</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">No SPD</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Nominal</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Pengaju</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Status</th>
-                        <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Aksi</th>
-                    </tr>
-                </thead>
-
-                <tbody id="pinjamanTableBody" class="divide-y divide-slate-800">
-                    <tr>
-                        <td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">Memuat pengajuan...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+    {{-- Daftar dipisah per tahap penyelesaian: yang masih berjalan perlu
+         ditindaklanjuti, yang sudah tuntas hanya arsip. Dicampur dalam satu
+         tabel, keduanya terbaca sama pentingnya. --}}
+    <div id="pinjamanGrup" class="space-y-5">
+        <p class="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-6 text-center text-sm text-slate-400">
+            Memuat pengajuan...
+        </p>
     </div>
 </section>
 
