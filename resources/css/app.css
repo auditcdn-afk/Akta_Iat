@@ -233,3 +233,18 @@ textarea {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
+
+/* Baris yang dituju dari sebuah notifikasi disoroti sebentar begitu halaman
+   terbuka, supaya langsung terlihat di antara ratusan baris lain. Sorotannya
+   hilang sendiri — penanda permanen akan menyesatkan kalau halaman yang sama
+   dibuka lagi tanpa lewat notifikasi. */
+@keyframes akta-sorot-kedip {
+    0%, 100% { background-color: transparent; }
+    12%, 62% { background-color: rgb(37 99 235 / 0.20); }
+}
+
+.akta-sorot {
+    animation: akta-sorot-kedip 3.4s ease-in-out 1;
+    outline: 2px solid rgb(59 130 246 / 0.65);
+    outline-offset: -2px;
+}

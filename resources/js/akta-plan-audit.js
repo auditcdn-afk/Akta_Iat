@@ -1,4 +1,5 @@
 import { cachedUser, readSession } from "./akta-session.js";
+import { sorotDariUrl, idDariUrl } from "./akta-sorot.js";
 
 // Notifikasi cross-tab: dipakai supaya menu Audit (akta-audit.js) langsung
 // menghilangkan/menyesuaikan baris plan begitu status atau keberadaannya
@@ -291,7 +292,7 @@ function renderPlans() {
         const label = STATUS_LABELS[plan.status] || plan.status;
 
         return `
-        <tr class="hover:bg-slate-950/50">
+        <tr class="hover:bg-slate-950/50" data-sorot-id="${plan.id}">
             <td class="px-4 py-4">
                 <div class="font-semibold text-slate-100">${escapeHtml(plan.noSpt || "-")}</div>
                 <div class="text-xs text-slate-500">${escapeHtml(plan.jenisAudit || "-")}</div>
@@ -651,7 +652,16 @@ document.addEventListener("DOMContentLoaded", async () => {
             document.getElementById("openCreatePlanButton")?.classList.add("hidden");
         }
 
+        // Datang dari notifikasi (/akta/plan-audit?id=123): filter status
+        // dikosongkan dulu supaya plan yang dituju pasti ikut tergambar —
+        // percuma menyorot baris yang sedang disembunyikan filter.
+        if (idDariUrl()) {
+            const filter = document.getElementById("planStatusFilter");
+            if (filter) filter.value = "";
+        }
+
         await loadPlans();
+        sorotDariUrl();
     } catch (err) {
         showAlert(err.message || "Gagal memuat plan audit.", "error");
     }
