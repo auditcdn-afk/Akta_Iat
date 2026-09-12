@@ -29,6 +29,9 @@ class MenuSeeder extends Seeder
         'akta.rekomendasi'   => ['admin', 'manajer', 'auditor'],
         'akta.pica'          => ['admin', 'manajer', 'auditor', 'viewer'],
         'akta.bu-performance'=> ['admin', 'manajer', 'auditor', 'viewer'],
+        // Koordinator, Unit, dan BPK hanya melihat pengajuan yang menjadi
+        // birokrasinya sendiri — penyaringannya di PinjamanCabangController.
+        'akta.pinjaman'      => ['admin', 'manajer', 'auditor', 'coo', 'koordinator', 'unit', 'bpk'],
         'akta.sk'            => ['admin', 'manajer', 'auditor'],
         'akta.pulsa'         => ['admin', 'manajer'],
         'akta.mobil-dinas'   => ['admin', 'manajer', 'auditor', 'mrr'],

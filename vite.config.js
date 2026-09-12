@@ -22,6 +22,7 @@ export default defineConfig({
                 'resources/js/akta-grafik-beban-sk.js',
                 'resources/js/akta-dashboard-realisasi-dinas.js',
                 'resources/js/akta-sk.js',
+                'resources/js/akta-pinjaman.js',
                 'resources/js/akta-pica.js',
                 'resources/js/akta-rekomendasi.js',
                 'resources/js/akta-audit-mandiri.js',

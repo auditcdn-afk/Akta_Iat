@@ -335,14 +335,21 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // ── Pinjaman Cabang (BPK / BPB) ──
     Route::get('/pinjaman-cabang',              [PinjamanCabangController::class, 'index']);
-    Route::get('/pinjaman-cabang/{id}',         [PinjamanCabangController::class, 'show']);
+    // Daftar lintas plan untuk menu "Pinjaman BPK & BPB". HARUS didaftarkan
+    // sebelum /{id} — tanpa itu "daftar" tertangkap sebagai id oleh rute di
+    // bawahnya. Kewenangan lihat per role dicek di dalam controller.
+    Route::get('/pinjaman-cabang/daftar',       [PinjamanCabangController::class, 'daftar']);
+    Route::get('/pinjaman-cabang/{id}',         [PinjamanCabangController::class, 'show'])
+        ->whereNumber('id');
     Route::post('/pinjaman-cabang',             [PinjamanCabangController::class, 'store'])
         ->middleware('akta.role:admin,manajer,auditor');
     // Perbaiki pengajuan yang DITOLAK lalu ajukan ulang. Kepemilikan & status
     // dicek di controller.
     Route::put('/pinjaman-cabang/{id}',         [PinjamanCabangController::class, 'update'])
+        ->whereNumber('id')
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/pinjaman-cabang/{id}/approve',[PinjamanCabangController::class, 'approve'])
+        ->whereNumber('id')
         ->middleware('akta.role:admin,manajer,auditor,koordinator,coo,bpk,unit');
     Route::post('/pinjaman-cabang/{id}/admin-reset', [PinjamanCabangController::class, 'adminResetStatus'])
         ->middleware('akta.role:admin');

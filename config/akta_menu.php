@@ -75,6 +75,14 @@ return [
             'admin_only' => false,
         ],
         [
+            'label' => 'Pinjaman BPK & BPB',
+            'route' => 'akta.pinjaman',
+            'path' => '/akta/pinjaman',
+            'code' => 'PB',
+            'admin_only' => false,
+            'roles' => ['admin', 'manajer', 'auditor', 'coo', 'koordinator', 'unit', 'bpk'],
+        ],
+        [
             'label' => 'BU Performance',
             'route' => 'akta.bu-performance',
             'path' => '/akta/bu-performance',
