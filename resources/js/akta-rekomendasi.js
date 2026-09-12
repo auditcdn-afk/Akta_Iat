@@ -1,4 +1,5 @@
 import { cachedUser } from "./akta-session.js";
+import { sorotDariUrl } from "./akta-sorot.js";
 
 const SESSION_KEY = 'akta_session';
 
@@ -263,6 +264,9 @@ function renderRecommendations() {
         return;
     }
 
+    // Dipanggil tiap kali daftar digambar ulang; aman walau tanpa ?id=.
+    setTimeout(sorotDariUrl, 0);
+
     tbody.innerHTML = recommendations.map((item) => {
         const plan = item.planAudit || {};
         const task = item.auditTask || {};
@@ -326,7 +330,7 @@ function renderRecommendations() {
             : `${approveButton} ${isiBtn} ${skBtn}`;
 
         return `
-            <tr class="hover:bg-slate-950/50">
+            <tr class="hover:bg-slate-950/50" data-sorot-id="${item.id}">
                 <td class="px-4 py-4">
                     <div class="font-semibold text-slate-100">${escapeHtml(item.judul || '-')}</div>
                     <div class="text-xs text-slate-500">${escapeHtml(item.kategori || '-')}</div>

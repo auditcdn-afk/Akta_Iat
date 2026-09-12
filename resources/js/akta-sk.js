@@ -1,4 +1,5 @@
 import { cachedUser } from "./akta-session.js";
+import { sorotDariUrl } from "./akta-sorot.js";
 
 const SESSION_KEY = "akta_session";
 
@@ -301,6 +302,9 @@ function renderSkItems() {
         return;
     }
 
+    // Dipanggil tiap kali daftar digambar ulang; aman walau tanpa ?id=.
+    setTimeout(sorotDariUrl, 0);
+
     tbody.innerHTML = skItems
         .map((item) => {
             const plan = item.plan_audit || item.planAudit || {};
@@ -416,7 +420,7 @@ function renderSkItems() {
                 '<span class="text-xs text-slate-500">Read only</span>';
 
             return `
-                <tr class="hover:bg-slate-950/50">
+                <tr class="hover:bg-slate-950/50" data-sorot-id="${item.id}">
                     <td class="px-4 py-4">
                         <div class="font-semibold text-slate-100">${escapeHtml(item.no_sk || item.noSk || "-")}</div>
                         <div class="text-xs text-slate-500">

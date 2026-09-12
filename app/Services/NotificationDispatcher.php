@@ -32,6 +32,31 @@ class NotificationDispatcher
         'revisi'              => ['auditor'],
     ];
 
+    /**
+     * Apa yang harus DILAKUKAN penerima pada tiap status — bukan sekadar apa
+     * statusnya.
+     *
+     * Sebelumnya notifikasi berbunyi: 'Plan audit "0501/..." (CSC LANGSA)
+     * berstatus "Menunggu Koordinator".' Kalimat itu menjelaskan keadaan, dan
+     * penerimanya harus menyimpulkan sendiri bahwa dirinyalah yang perlu
+     * menyetujui. Di layar kunci HP, yang terbaca cuma "ada sesuatu" tanpa
+     * petunjuk apa pun tentang tindakannya.
+     *
+     * Bentuknya [judul, kalimat tindakan]. Penerima notifikasi status
+     * pending_* memang orang yang harus bertindak (lihat PLAN_STATUS_ROLES),
+     * jadi kalimatnya boleh menyapa langsung dengan "Anda".
+     */
+    private const PLAN_TINDAKAN = [
+        'draft'               => ['Plan audit belum diajukan', 'masih berstatus Draft — tekan "Ajukan" agar diproses Koordinator.'],
+        'pending_koordinator' => ['Perlu persetujuan Anda', 'menunggu persetujuan Anda sebagai Koordinator.'],
+        'pending_manajer'     => ['Perlu persetujuan Anda', 'menunggu persetujuan Anda sebagai Manajer.'],
+        'pending_coo'         => ['Perlu persetujuan Anda', 'menunggu persetujuan Anda sebagai COO.'],
+        'scheduled'           => ['Plan siap dikerjakan', 'sudah disetujui COO — buka menu Audit lalu tekan "Mulai Audit".'],
+        'running'             => ['Konfirmasi kedatangan auditor', 'auditnya sedang berjalan — cabang perlu mengonfirmasi kedatangan auditor.'],
+        'cabang_active'       => ['Audit menunggu diselesaikan', 'cabang sudah aktif — lengkapi tindak lanjut, lalu nyatakan audit selesai.'],
+        'revisi'              => ['Plan perlu diperbaiki', 'dikembalikan dengan catatan — perbaiki isinya lalu ajukan ulang.'],
+    ];
+
     private const PLAN_STATUS_LABELS = [
         'draft'               => 'Draft',
         'pending_koordinator' => 'Menunggu Koordinator',
@@ -179,13 +204,10 @@ class NotificationDispatcher
 
             $recipients = BirokrasiResolver::recipientsForPlanStatus($roles, $plan->cabang);
 
-            $title = 'Giliran memproses plan audit';
-            $message = sprintf(
-                'Plan audit "%s" (%s) berstatus "%s".',
-                $plan->no_spt,
-                $plan->cabang ?: '-',
-                self::PLAN_STATUS_LABELS[$plan->status] ?? $plan->status
-            );
+            [$title, $tindakan] = self::PLAN_TINDAKAN[$plan->status]
+                ?? ['Giliran memproses plan audit', 'berstatus "'.(self::PLAN_STATUS_LABELS[$plan->status] ?? $plan->status).'".'];
+
+            $message = sprintf('%s (%s) %s', $plan->no_spt, $plan->cabang ?: '-', $tindakan);
             $url = '/akta/plan-audit?id=' . $plan->id;
 
             foreach ($recipients as $user) {
