@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AuditTask;
 use App\Models\PinjamanCabang;
+use App\Services\NotificationDispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -135,7 +136,101 @@ class PinjamanCabangController extends Controller
             'updated_by' => $who,
         ]);
 
+        if ($newStatus === 'rejected') {
+            // Pengajuan yang ditolak harus KEMBALI ke meja pengajunya, bukan
+            // berhenti diam-diam: task-nya dibuka lagi kalau sudah ditandai
+            // selesai (task selesai disembunyikan dari daftar auditor, jadi
+            // pengajuannya tidak akan pernah bisa dibuka untuk diperbaiki),
+            // lalu pengajunya diberi tahu.
+            $this->bukaKembaliTask($pinjaman, $who);
+            NotificationDispatcher::notifyPinjamanRejected($pinjaman->fresh(), trim((string) $note) ?: null, $role);
+        }
+
         return response()->json(['message' => 'Status pinjaman diperbarui ke: ' . $newStatus, 'data' => $pinjaman->fresh()->toAktaArray()]);
+    }
+
+    /**
+     * Perbaiki pengajuan yang DITOLAK lalu ajukan ulang dari tahap awal.
+     *
+     * Sebelum ini 'rejected' adalah jalan buntu: PinjamanCabang::nextStatus()
+     * mengembalikan null untuk status itu, tidak ada endpoint edit sama sekali,
+     * dan satu-satunya jalan keluar adalah reset manual oleh admin. Auditor yang
+     * pengajuannya ditolak hanya bisa mengajukan berkas baru yang isinya sama.
+     */
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $pinjaman = PinjamanCabang::findOrFail($id);
+        $user     = $request->user();
+        $who      = $user?->username ?? $user?->email;
+
+        if ($pinjaman->status !== 'rejected') {
+            return response()->json([
+                'message' => 'Hanya pengajuan yang ditolak yang bisa diperbaiki. Pengajuan yang sedang berjalan harus ditolak dulu oleh pemegang tahapnya.',
+            ], 422);
+        }
+
+        // Admin boleh memperbaiki pengajuan siapa pun (jalur koreksi). Selain
+        // admin, hanya pengajunya sendiri.
+        $milikSendiri = $who !== null && in_array($pinjaman->created_by, array_filter([$user?->username, $user?->email]), true);
+
+        if (! $user?->isAdmin() && ! $milikSendiri) {
+            return response()->json(['message' => 'Hanya pengaju pinjaman ini atau admin yang bisa memperbaikinya.'], 403);
+        }
+
+        $isi = [
+            'no_spd'     => $request->input('no_spd', $pinjaman->no_spd),
+            'catatan'    => $request->input('catatan', $pinjaman->catatan),
+            'nominal'    => $request->input('nominal', $pinjaman->nominal),
+            'terbilang'  => $request->input('terbilang', $pinjaman->terbilang),
+            'departemen' => $request->input('departemen', $pinjaman->departemen),
+        ];
+
+        // Jenis (BPK/BPB) menentukan alur persetujuannya, jadi tidak ikut
+        // berubah — kalau salah jenis, ajukan berkas baru.
+        if ($request->has('cabang_realisasi')) {
+            $isi['cabang_realisasi'] = $this->normalkanCabangRealisasi($request->input('cabang_realisasi', []));
+        }
+
+        if ($request->hasFile('bukti_file')) {
+            $isi['bukti_file'] = $request->file('bukti_file')->store('pinjaman/bukti', 'public');
+        }
+
+        $flow      = $pinjaman->jenis === 'BPK' ? PinjamanCabang::FLOW_BPK : PinjamanCabang::FLOW_BPB;
+        $approvals = $pinjaman->approvals ?? [];
+        $approvals[] = [
+            'role'   => $user?->role ?? 'auditor',
+            'user'   => $who,
+            'action' => 'resubmit',
+            'note'   => trim((string) $request->input('note', '')) ?: 'Diperbaiki lalu diajukan ulang',
+            'at'     => now()->toDateTimeString(),
+        ];
+
+        $pinjaman->update([
+            ...$isi,
+            'status'     => $flow[0],
+            'approvals'  => $approvals,
+            'updated_by' => $who,
+        ]);
+
+        NotificationDispatcher::resolveRejection(PinjamanCabang::class, $pinjaman->id);
+
+        return response()->json([
+            'message' => 'Pengajuan ' . $pinjaman->jenis . ' diperbaiki dan diajukan ulang.',
+            'data'    => $pinjaman->fresh()->toAktaArray(),
+        ]);
+    }
+
+    /**
+     * Task yang sudah ditandai selesai disembunyikan dari daftar auditor
+     * (lihat AuditTaskController::index). Kalau pengajuan pinjamannya ditolak
+     * setelah itu, tidak ada lagi pintu untuk membukanya — jadi task-nya
+     * dikembalikan ke "sedang berjalan".
+     */
+    private function bukaKembaliTask(PinjamanCabang $pinjaman, ?string $who): void
+    {
+        AuditTask::whereKey($pinjaman->audit_task_id)
+            ->where('status', 'done')
+            ->update(['status' => 'in_progress', 'updated_by' => $who ?: 'system']);
     }
 
     public function show(int $id): JsonResponse

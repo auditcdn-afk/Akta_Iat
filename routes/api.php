@@ -338,6 +338,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/pinjaman-cabang/{id}',         [PinjamanCabangController::class, 'show']);
     Route::post('/pinjaman-cabang',             [PinjamanCabangController::class, 'store'])
         ->middleware('akta.role:admin,manajer,auditor');
+    // Perbaiki pengajuan yang DITOLAK lalu ajukan ulang. Kepemilikan & status
+    // dicek di controller.
+    Route::put('/pinjaman-cabang/{id}',         [PinjamanCabangController::class, 'update'])
+        ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/pinjaman-cabang/{id}/approve',[PinjamanCabangController::class, 'approve'])
         ->middleware('akta.role:admin,manajer,auditor,koordinator,coo,bpk,unit');
     Route::post('/pinjaman-cabang/{id}/admin-reset', [PinjamanCabangController::class, 'adminResetStatus'])
@@ -544,9 +548,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/plans', [PlanAuditController::class, 'store'])
         ->middleware('akta.role:admin,manajer');
 
-    // Edit & hapus plan: admin saja (admin yang perbaiki kesalahan)
+    // Edit plan: admin kapan saja; auditor & manajer HANYA pada plan miliknya
+    // sendiri yang berstatus Draft — termasuk plan yang baru saja DITOLAK
+    // (reject mengembalikan status ke draft). Sebelumnya pintu ini tertutup
+    // untuk semua kecuali admin, sehingga plan yang ditolak cuma bisa diajukan
+    // ulang apa adanya tanpa bisa diperbaiki. Kepemilikan & statusnya dicek
+    // lagi di PlanAuditController::update.
     Route::put('/plans/{plan}', [PlanAuditController::class, 'update'])
-        ->middleware('akta.role:admin');
+        ->middleware('akta.role:admin,manajer,auditor');
     Route::delete('/plans/{plan}', [PlanAuditController::class, 'destroy'])
         ->middleware('akta.role:admin');
 

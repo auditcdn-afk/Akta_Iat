@@ -1,4 +1,5 @@
 import { cachedUser } from "./akta-session.js";
+import { idDariUrl } from "./akta-sorot.js";
 
 const SESSION_KEY = "akta_session";
 
@@ -300,6 +301,20 @@ function isPinjamanApprovalRole() {
     return Object.prototype.hasOwnProperty.call(PINJAMAN_STAGE, currentUser?.role);
 }
 
+/**
+ * Apakah dokumen dengan created_by ini milik user yang sedang login? Kolomnya
+ * diisi username, tapi pada data lama bisa berupa email (lihat
+ * PinjamanCabangController::store), jadi keduanya dicocokkan.
+ */
+function cocokPengaju(createdBy) {
+    const siapa = String(createdBy ?? '').trim().toLowerCase();
+    if (!siapa) return false;
+    return [currentUser?.username, currentUser?.email]
+        .map((v) => String(v ?? '').trim().toLowerCase())
+        .filter(Boolean)
+        .includes(siapa);
+}
+
 function isBranchUser() {
     return !HO_ROLES.includes(currentUser?.role);
 }
@@ -504,6 +519,7 @@ function openModal(task) {
 
     // Wire pinjaman section to this task (form untuk auditor)
     _pinjamanTaskId = task.id;
+    pinjamanBatalPerbaikan();
     const pinjamanSec = document.getElementById('pinjamanSection');
     if (pinjamanSec) {
         const hasS = !!toDateOnly(task.startedAt);
@@ -622,13 +638,17 @@ async function selesaiCabang(planId) {
 
 async function rejectPlan(planId) {
     if (!planId) return;
-    const alasan = prompt("Masukkan alasan penolakan:");
+    const alasan = prompt("Alasan penolakan — apa yang harus diperbaiki auditor?");
     if (alasan === null) return;
+    if (!alasan.trim()) {
+        showAlert("Alasan penolakan wajib diisi supaya auditor tahu apa yang harus diperbaiki.", "error");
+        return;
+    }
     try {
         const payload = await fetchJson(`/api/plans/${planId}/reject`, {
             method: "POST",
             headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({ alasan }),
+            body: JSON.stringify({ alasan: alasan.trim() }),
         });
         closeModal();
         showAlert(payload.message || "Plan audit ditolak.", "error");
@@ -682,6 +702,10 @@ async function saveExecution(event) {
 
 // ── Pinjaman Cabang ───────────────────────────────────────────────────────────
 let _pinjamanTaskId = null;
+// Id pengajuan yang sedang DIPERBAIKI (bukan pengajuan baru). Form BPK/BPB yang
+// sama dipakai untuk keduanya; yang membedakan hanya tujuan simpannya.
+let _pinjamanEditId = null;
+let _pinjamanRows = [];
 // Daftar unit usaha yang sah untuk Cabang Realisasi. Disimpan karena kolomnya
 // sekarang bisa diketik: yang diketik harus dicocokkan balik ke daftar ini
 // sebelum dikirim, supaya salah ketik tidak tersimpan sebagai cabang yang tidak
@@ -705,6 +729,19 @@ async function loadPinjamanCabangOptions() {
  * huruf besar/kecil diabaikan. Mengembalikan ejaan resmi dari daftar, atau null
  * kalau tidak ada yang cocok.
  */
+/**
+ * Cabang yang SUDAH tersimpan pada pengajuan yang sedang diperbaiki, kalau
+ * teks yang diketik memang masih cabang yang sama. Dipakai sebagai jaring
+ * pengaman ketika daftar unit usaha yang sah tidak lagi memuatnya.
+ */
+function cabangTersimpan(teks) {
+    if (!_pinjamanEditId) return null;
+    const p = _pinjamanRows.find((r) => String(r.id) === String(_pinjamanEditId));
+    const tersimpan = Array.isArray(p?.cabangRealisasi) ? p.cabangRealisasi[0] : p?.cabangRealisasi;
+    const rapikan = (v) => String(v ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+    return tersimpan && rapikan(tersimpan) === rapikan(teks) ? tersimpan : null;
+}
+
 function cocokkanCabangRealisasi(teks) {
     const rapikan = (v) => String(v ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
     const cari = rapikan(teks);
@@ -725,6 +762,7 @@ function initPinjaman() {
 
     // Toggle BPK / BPB form
     document.getElementById('pinjamanBpkBtn')?.addEventListener('click', () => {
+        pinjamanBatalPerbaikan();
         document.getElementById('pinjamanBpkForm')?.classList.remove('hidden');
         document.getElementById('pinjamanBpbForm')?.classList.add('hidden');
         document.getElementById('pinjamanBpkBtn').classList.add('border-blue-500', 'text-blue-300');
@@ -732,6 +770,7 @@ function initPinjaman() {
         loadPinjamanCabangOptions();
     });
     document.getElementById('pinjamanBpbBtn')?.addEventListener('click', () => {
+        pinjamanBatalPerbaikan();
         document.getElementById('pinjamanBpbForm')?.classList.remove('hidden');
         document.getElementById('pinjamanBpkForm')?.classList.add('hidden');
         document.getElementById('pinjamanBpbBtn').classList.add('border-purple-500', 'text-purple-300');
@@ -751,7 +790,12 @@ function initPinjaman() {
         if (!_pinjamanTaskId) return;
         const cabangKetikan = document.getElementById('pinjamanCabang')?.value;
         if (!cabangKetikan?.trim()) { alert('Pilih Cabang Realisasi.'); return; }
-        const cabang = cocokkanCabangRealisasi(cabangKetikan);
+        // Saat MEMPERBAIKI pengajuan, cabang yang sudah tersimpan selalu
+        // diterima apa adanya. Daftar sahnya berasal dari akun role H1 yang
+        // aktif; kalau akun cabang itu sejak pengajuan dibuat dinonaktifkan
+        // atau namanya berubah, validasi ini akan memblokir perbaikan atas
+        // pengajuan yang cabangnya sebenarnya tidak bermasalah.
+        const cabang = cocokkanCabangRealisasi(cabangKetikan) ?? cabangTersimpan(cabangKetikan);
         if (!cabang) {
             alert(`Cabang Realisasi "${cabangKetikan.trim()}" tidak ada dalam daftar. Ketik sebagian namanya lalu pilih dari saran yang muncul.`);
             return;
@@ -771,7 +815,7 @@ function initPinjaman() {
         const bukti = document.getElementById('pinjamanBukti')?.files?.[0];
         if (bukti) form.append('bukti_file', bukti);
 
-        await pinjamanSubmit(form);
+        await pinjamanSubmit(form, _pinjamanEditId);
     });
 
     // Submit BPB
@@ -787,18 +831,24 @@ function initPinjaman() {
         form.append('terbilang', document.getElementById('pinjamanBpbTerbilang')?.value || '');
         form.append('catatan', document.getElementById('pinjamanBpbCatatan')?.value || '');
 
-        await pinjamanSubmit(form);
+        await pinjamanSubmit(form, _pinjamanEditId);
     });
 }
 
-async function pinjamanSubmit(formData) {
+async function pinjamanSubmit(formData, editId = null) {
     try {
-        const res = await fetchJson('/api/pinjaman-cabang', {
+        // PUT dengan badan multipart tidak diurai PHP, jadi perbaikan dikirim
+        // sebagai POST + _method=PUT (method spoofing Laravel) supaya file
+        // bukti yang diganti tetap ikut terbaca.
+        if (editId) formData.append('_method', 'PUT');
+
+        const res = await fetchJson(editId ? `/api/pinjaman-cabang/${editId}` : '/api/pinjaman-cabang', {
             method: 'POST',
             headers: authHeaders(),
             body: formData,
         });
         showAlert(res.message || 'Pinjaman diajukan.');
+        pinjamanBatalPerbaikan();
         await pinjamanLoadList(_pinjamanTaskId);
         // Reset form
         document.getElementById('pinjamanBpkForm')?.classList.add('hidden');
@@ -809,6 +859,78 @@ async function pinjamanSubmit(formData) {
         showAlert(e.message, 'error');
     }
 }
+
+/** Alasan penolakan terakhir, diambil dari jejak approvals pengajuan. */
+function pinjamanAlasanTolak(pinjaman) {
+    const jejak = Array.isArray(pinjaman?.approvals) ? pinjaman.approvals : [];
+    for (let i = jejak.length - 1; i >= 0; i -= 1) {
+        if (jejak[i]?.action === 'reject') {
+            return String(jejak[i]?.note || '').trim();
+        }
+    }
+    return '';
+}
+
+/**
+ * Muat pengajuan yang DITOLAK kembali ke form BPK/BPB untuk diperbaiki.
+ *
+ * Sebelum ini 'rejected' adalah jalan buntu di layar auditor: daftarnya hanya
+ * menampilkan label merah "rejected" tanpa satu pun tombol, jadi satu-satunya
+ * jalan adalah mengajukan berkas baru dari nol atau minta admin mereset.
+ */
+function pinjamanPerbaiki(id) {
+    const p = _pinjamanRows.find((r) => String(r.id) === String(id));
+    if (!p) return;
+
+    _pinjamanEditId = p.id;
+
+    const bpk = p.jenis === 'BPK';
+    document.getElementById('pinjamanBpkForm')?.classList.toggle('hidden', !bpk);
+    document.getElementById('pinjamanBpbForm')?.classList.toggle('hidden', bpk);
+
+    if (bpk) {
+        loadPinjamanCabangOptions();
+        const cabang = Array.isArray(p.cabangRealisasi) ? p.cabangRealisasi[0] : p.cabangRealisasi;
+        setNilai('pinjamanCabang', cabang || '');
+        setNilai('pinjamanNoSpd', p.noSpd || '');
+        setNilai('pinjamanNominal', p.nominal ?? 0);
+        setNilai('pinjamanTerbilang', terbilang(Number(p.nominal || 0)));
+        setNilai('pinjamanCatatan', p.catatan || '');
+        // File bukti tidak bisa diisi ulang dari JavaScript; dibiarkan kosong,
+        // dan server mempertahankan bukti lama kalau tidak ada file baru.
+        const bukti = document.getElementById('pinjamanBukti');
+        if (bukti) bukti.value = '';
+    } else {
+        setNilai('pinjamanBpbNominal', p.nominal ?? 0);
+        setNilai('pinjamanBpbTerbilang', terbilang(Number(p.nominal || 0)));
+        setNilai('pinjamanBpbCatatan', p.catatan || '');
+    }
+
+    pinjamanTandaiModePerbaikan(p.jenis);
+    document.getElementById(bpk ? 'pinjamanBpkForm' : 'pinjamanBpbForm')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function setNilai(id, nilai) {
+    const el = document.getElementById(id);
+    if (el) el.value = nilai;
+}
+
+function pinjamanTandaiModePerbaikan(jenis) {
+    const tombol = document.getElementById(jenis === 'BPK' ? 'pinjamanBpkSubmit' : 'pinjamanBpbSubmit');
+    if (tombol) tombol.textContent = `Simpan Perbaikan & Ajukan Ulang ${jenis}`;
+}
+
+function pinjamanBatalPerbaikan() {
+    if (_pinjamanEditId === null) return;
+    _pinjamanEditId = null;
+    const bpk = document.getElementById('pinjamanBpkSubmit');
+    if (bpk) bpk.textContent = 'Ajukan BPK';
+    const bpb = document.getElementById('pinjamanBpbSubmit');
+    if (bpb) bpb.textContent = 'Ajukan BPB';
+}
+
+window.pinjamanPerbaiki = pinjamanPerbaiki;
 
 /**
  * Riwayat pengajuan BPK/BPB untuk PLAN task ini (server memperluas
@@ -826,6 +948,7 @@ async function pinjamanLoadList(taskId) {
     try {
         const res  = await fetchJson('/api/pinjaman-cabang?audit_task_id=' + taskId, { headers: authHeaders() });
         const rows = res.data ?? [];
+        _pinjamanRows = rows;
 
         if (!rows.length) { listEl.innerHTML = kosong; return; }
 
@@ -850,20 +973,36 @@ async function pinjamanLoadList(taskId) {
                 ].filter(Boolean).join(' · ');
                 const pengaju = [r.createdBy, r.createdAt].filter(Boolean).join(' · ');
 
-                return `<div class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-xs flex justify-between items-start gap-3">
-                    <div class="min-w-0">
-                        <div>
-                            <span class="font-bold ${r.jenis === 'BPK' ? 'text-blue-300' : 'text-purple-300'}">${escapeHtml(r.jenis || '-')}</span>
-                            <span class="mx-2 text-slate-500">|</span>
-                            <span class="text-slate-300">Rp ${Number(r.nominal || 0).toLocaleString('id-ID')}</span>
+                // Pengajuan yang ditolak harus bisa ditindaklanjuti di tempat:
+                // alasannya terbaca, dan ada tombol untuk memperbaikinya. Tanpa
+                // ini yang terlihat hanya label merah "rejected" tanpa jalan
+                // keluar selain mengajukan berkas baru dari nol.
+                const ditolak = status === 'rejected';
+                const alasan = ditolak ? pinjamanAlasanTolak(r) : '';
+                const bolehPerbaiki = ditolak && (currentUser?.role === 'admin' || cocokPengaju(r.createdBy));
+
+                return `<div class="rounded-lg border ${ditolak ? 'border-red-500/40 bg-red-500/5' : 'border-slate-700 bg-slate-800/60'} px-3 py-2 text-xs space-y-1.5">
+                    <div class="flex justify-between items-start gap-3">
+                        <div class="min-w-0">
+                            <div>
+                                <span class="font-bold ${r.jenis === 'BPK' ? 'text-blue-300' : 'text-purple-300'}">${escapeHtml(r.jenis || '-')}</span>
+                                <span class="mx-2 text-slate-500">|</span>
+                                <span class="text-slate-300">Rp ${Number(r.nominal || 0).toLocaleString('id-ID')}</span>
+                            </div>
+                            ${rinci ? `<div class="mt-0.5 text-slate-400">${escapeHtml(rinci)}</div>` : ''}
+                            ${pengaju ? `<div class="mt-0.5 text-slate-500">Diajukan oleh ${escapeHtml(pengaju)}</div>` : ''}
                         </div>
-                        ${rinci ? `<div class="mt-0.5 text-slate-400">${escapeHtml(rinci)}</div>` : ''}
-                        ${pengaju ? `<div class="mt-0.5 text-slate-500">Diajukan oleh ${escapeHtml(pengaju)}</div>` : ''}
+                        <div class="flex shrink-0 items-center gap-2">
+                            <a href="/akta/pinjaman/${r.id}/memo" target="_blank" rel="noopener" class="text-blue-400 hover:underline">🖨️ Memo</a>
+                            <span class="${statusColor} font-semibold">${escapeHtml(PINJAMAN_STATUS_LABEL[status] || status.replace(/_/g, ' '))}</span>
+                        </div>
                     </div>
-                    <div class="flex shrink-0 items-center gap-2">
-                        <a href="/akta/pinjaman/${r.id}/memo" target="_blank" rel="noopener" class="text-blue-400 hover:underline">🖨️ Memo</a>
-                        <span class="${statusColor} font-semibold">${escapeHtml(status.replace(/_/g, ' '))}</span>
-                    </div>
+                    ${ditolak ? `<div class="rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-200">
+                        <strong>Ditolak.</strong> ${alasan ? 'Alasan: ' + escapeHtml(alasan.replace(/[.\s]+$/, '')) + '.' : 'Tidak ada alasan yang dituliskan.'}
+                        ${bolehPerbaiki ? ' Perbaiki isinya lalu ajukan ulang.' : ''}
+                    </div>` : ''}
+                    ${bolehPerbaiki ? `<button type="button" onclick="pinjamanPerbaiki(${r.id})"
+                        class="w-full rounded-lg bg-amber-600 py-1.5 text-xs font-semibold text-white hover:bg-amber-500">Perbaiki & Ajukan Ulang</button>` : ''}
                 </div>`;
             }).join('');
     } catch (_) {
@@ -945,8 +1084,19 @@ async function pinjamanApprovalLoadList(taskId) {
 }
 
 async function pinjamanApprove(id, action) {
-    const note = action === 'reject' ? (prompt('Alasan penolakan:') ?? '') : '';
-    if (action === 'reject' && note === null) return;
+    let note = '';
+
+    if (action === 'reject') {
+        // `?? ''` sebelumnya membuat pengecekan null di bawahnya tidak pernah
+        // benar: menekan Batal tetap menolak pengajuan, dengan alasan kosong.
+        const jawab = prompt('Alasan penolakan — apa yang harus diperbaiki pengaju?');
+        if (jawab === null) return;
+        note = jawab.trim();
+        if (!note) {
+            showAlert('Alasan penolakan wajib diisi supaya pengaju tahu apa yang harus diperbaiki.', 'error');
+            return;
+        }
+    }
     try {
         const res = await fetchJson(`/api/pinjaman-cabang/${id}/approve`, {
             method: 'POST',
@@ -1127,7 +1277,36 @@ document.addEventListener("DOMContentLoaded", async () => {
         await loadCurrentUser();
         siapkanFilterSelesai();
         await loadTasks();
+        await bukaDariNotifikasiPinjaman();
     } catch (err) {
         showAlert(err.message || "Gagal memuat tugas audit.", "error");
     }
 });
+
+/**
+ * Datang dari notifikasi penolakan pinjaman (/akta/task?pinjaman=123): buka
+ * langsung modal task pemilik pengajuan itu. Tanpa ini pengguna mendarat di
+ * daftar tugas dan harus menebak sendiri task mana yang memuat pengajuannya —
+ * notifikasinya memberi tahu ada yang ditolak, tapi tidak menunjukkan di mana.
+ */
+async function bukaDariNotifikasiPinjaman() {
+    const id = idDariUrl("pinjaman");
+    if (!id) return;
+
+    try {
+        const res = await fetchJson(`/api/pinjaman-cabang/${id}`, { headers: authHeaders() });
+        const taskId = res.data?.auditTaskId;
+        if (!taskId) return;
+
+        const task = tasks.find((t) => String(t.id) === String(taskId));
+        if (task) {
+            openModal(task);
+            return;
+        }
+
+        showAlert("Pengajuan ini ada di tugas yang tidak tampil di daftar Anda. Hubungi admin bila perlu diperbaiki.", "error");
+    } catch (_) {
+        // Notifikasi lama yang pengajuannya sudah dihapus tidak perlu
+        // memunculkan pesan error di halaman yang sebenarnya baik-baik saja.
+    }
+}

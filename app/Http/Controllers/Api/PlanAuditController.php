@@ -177,6 +177,26 @@ class PlanAuditController extends Controller
 
     public function update(Request $request, PlanAudit $plan, ActivityLogger $logger): JsonResponse
     {
+        // Admin boleh memperbaiki plan mana pun kapan pun. Auditor & manajer
+        // hanya boleh menyentuh plan MILIKNYA yang masih Draft — termasuk plan
+        // yang baru saja ditolak, karena reject mengembalikan status ke draft.
+        // Begitu plan diajukan, isinya membeku lagi supaya approver tidak
+        // menyetujui dokumen yang berubah di belakangnya.
+        $user = $request->user();
+        $boleh = $user?->isAdmin()
+            || ($plan->status === 'draft'
+                && in_array($user?->role, ['auditor', 'manajer'], true)
+                && $plan->dimilikiOleh($user));
+
+        if (! $boleh) {
+            return response()->json([
+                'ok' => false,
+                'message' => $plan->status === 'draft'
+                    ? 'Hanya tim plan ini atau admin yang bisa mengedit plan ini.'
+                    : 'Plan yang sudah diajukan tidak bisa diedit. Minta penolakan/koreksi admin dulu agar kembali ke Draft.',
+            ], 403);
+        }
+
         $payload = $this->validatedPayload($request);
 
         $plan->fill([...$payload, 'updated_by' => $request->user()?->username]);
@@ -301,6 +321,11 @@ class PlanAuditController extends Controller
         $planTasks->tutupTaskPlanDibypassAdmin($plan, $request->user()?->username);
 
         NotificationDispatcher::resolvePlanAuditStatus($plan, $status);
+        if ($status === 'draft') {
+            // Plan sudah diajukan ulang; kabar penolakan sebelumnya tidak perlu
+            // lagi menempel di lonceng auditor.
+            NotificationDispatcher::resolveRejection(PlanAudit::class, $plan->id);
+        }
         NotificationDispatcher::notifyPlanAuditStep($plan);
 
         $logger->write($request, 'PLAN_ADVANCE', 'plan_audits',
@@ -339,7 +364,10 @@ class PlanAuditController extends Controller
         $plan->recordLog('reject', $status, 'draft', $request->user(), $alasan ? "Ditolak: {$alasan}" : 'Ditolak');
 
         NotificationDispatcher::resolvePlanAuditStatus($plan, $status);
-        NotificationDispatcher::notifyPlanAuditStep($plan);
+        // Sengaja BUKAN notifyPlanAuditStep(): notifikasi draft biasa hanya
+        // berbunyi "tekan Ajukan" dan menghilangkan kabar bahwa plannya ditolak
+        // serta alasannya. Yang dikirim di sini menyapa tim plan itu sendiri.
+        NotificationDispatcher::notifyPlanAuditRejected($plan, $status, $alasan, $role);
 
         $logger->write($request, 'PLAN_REJECT', 'plan_audits',
             "Plan {$plan->no_spt} ditolak dari {$status} → draft" . ($alasan ? " ({$alasan})" : ''), $request->user());
