@@ -80,6 +80,7 @@
   }
   .karyawan-card .nama { font-size: 8px; font-weight: 700; color: #1f2937; line-height: 1.2; word-break: break-word; }
   .karyawan-card .jabatan { font-size: 7px; color: #6b7280; line-height: 1.2; word-break: break-word; }
+  .karyawan-card .no-hp { font-size: 6.5px; color: #374151; line-height: 1.2; word-break: break-all; }
 
   /* ── Rekap Selisih (dipakai lewat partials/rekap-selisih-table di section
      HGP & RSA HGP) ── */
@@ -230,6 +231,9 @@ window.addEventListener('load', function() {
         @endif
         <div class="nama">{{ $kar->nama }}</div>
         <div class="jabatan">{{ $kar->jabatan }}</div>
+        @if($kar->no_hp)
+        <div class="no-hp">{{ $kar->no_hp }}</div>
+        @endif
       </div>
       @endforeach
     </div>

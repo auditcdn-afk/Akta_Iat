@@ -2,7 +2,7 @@
 
 @section('title', 'Data Karyawan - SIMPAS-IAT')
 @section('page_title', 'Data Karyawan')
-@section('page_description', 'Data karyawan per unit usaha: nama, jabatan, dan foto — bisa ditambah/dihapus kapan saja oleh unit usaha yang bersangkutan')
+@section('page_description', 'Data karyawan per unit usaha: nama, jabatan, nomor HP, dan foto — bisa ditambah/dihapus kapan saja oleh unit usaha yang bersangkutan')
 
 @push('scripts')
     @vite('resources/js/akta-karyawan.js')
@@ -36,6 +36,19 @@
                 <div>
                     <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Jabatan <span class="text-red-400">*</span></label>
                     <input id="kryJabatan" type="text" required placeholder="Jabatan"
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">No HP <span class="normal-case font-normal text-slate-500">(opsional)</span></label>
+                    {{-- inputmode="tel" memunculkan papan tombol angka di HP, tapi
+                         tetap <input type="text">: type="tel" pun tidak memvalidasi
+                         apa pun, sementara nomor sering ditulis dengan +62, spasi,
+                         atau tanda hubung. --}}
+                    <input id="kryNoHp" type="text" inputmode="tel" autocomplete="tel" maxlength="30"
+                        placeholder="mis. 0812-3456-7890"
                         class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
                 </div>
             </div>
