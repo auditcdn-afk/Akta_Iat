@@ -63,6 +63,27 @@ const REJECTABLE = {
     pending_coo:         ["coo", "admin"],
 };
 
+/**
+ * Tahap persetujuan birokrasi plan — persis tahap yang juga bisa ditolak,
+ * jadi diturunkan dari REJECTABLE supaya keduanya tidak bisa melenceng.
+ *
+ * Setujui/Tolak pada tahap-tahap ini SENGAJA hanya ditampilkan untuk admin di
+ * halaman ini. Koordinator, Manajer, dan COO tetap menyetujui dan menolak
+ * seperti biasa — tapi lewat halaman Task, supaya seluruh kegiatan mengikuti
+ * satu alur yang sama.
+ *
+ * Bukan cuma soal kerapian alur: tombol Setujui di halaman Task memeriksa dulu
+ * apakah masih ada pinjaman cabang (BPK/BPB) yang menunggu giliran role itu,
+ * dan menolak menyetujui plan selama masih ada. Tombol di halaman ini tidak
+ * punya pemeriksaan itu sama sekali, sehingga menyetujui dari sini melewati
+ * pengaman tersebut — plan bisa maju meninggalkan pinjaman yang belum diputus.
+ *
+ * Ini pembatasan TAMPILAN, bukan izin server: halaman Task memakai endpoint
+ * yang sama (/api/plans/{id}/advance dan /reject), jadi izin role di server
+ * memang harus tetap terbuka untuk mereka.
+ */
+const TAHAP_PERSETUJUAN = Object.keys(REJECTABLE);
+
 function getSession() {
     return readSession();
 }
@@ -126,11 +147,19 @@ function canAdvancePlan(plan) {
     const role = currentUser?.role;
     const t = TRANSITIONS[plan.status];
     if (!t) return false;
+
+    // Tahap persetujuan dikerjakan dari halaman Task — lihat TAHAP_PERSETUJUAN.
+    // Transisi lain (Ajukan, Mulai Audit, Mulai Cabang, Selesai) tidak ikut
+    // dibatasi: itu langkah pelaksanaan, bukan persetujuan birokrasi.
+    if (TAHAP_PERSETUJUAN.includes(plan.status) && role !== "admin") return false;
+
     return t.roles.includes(role) || (t.roles.includes("__branch__") && isBranchUser());
 }
 
 function canRejectPlan(plan) {
     const role = currentUser?.role;
+    if (role !== "admin") return false;
+
     return (REJECTABLE[plan.status] || []).includes(role);
 }
 
