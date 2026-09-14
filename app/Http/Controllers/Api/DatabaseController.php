@@ -16,9 +16,21 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class DatabaseController extends Controller
 {
+    // Baris ditulis ke database tiap kali tampungan sebanyak ini terkumpul,
+    // bukan ditumpuk semuanya sampai akhir. Pada berkas HET nyata (63.049
+    // baris) menumpuk semuanya menahan ~18 MB tambahan di memori tanpa guna —
+    // sementara hasilnya sama saja, karena seluruh penulisan tetap berada di
+    // dalam satu transaksi.
+    private const UKURAN_TAMPUNGAN = 2000;
+
+    /** Hasil pemeriksaan indeks unik, agar tidak ditanyakan ulang ke database
+     *  tiap potongan -- satu import berkas besar memanggilnya puluhan kali. */
+    private array $cacheIndeksUnik = [];
+
     private static array $typeMap = [
         'harga-smh'    => DbHargaSmh::class,
         'plafon'       => DbPlafon::class,
@@ -188,6 +200,15 @@ class DatabaseController extends Controller
             'file' => 'required|file|max:20480',
         ]);
 
+        // Membaca berkasnya saja sudah makan waktu sendiri di berkas besar
+        // (berkas HET nyata berisi 63.049 baris perlu ~2,6 detik hanya untuk
+        // diurai), sementara batas bawaan PHP di hosting cuma 30 detik. Import
+        // manual begini endpoint yang sesekali dipakai, bukan request biasa,
+        // jadi batasnya dilonggarkan. Dibungkus @ karena sebagian hosting
+        // mengunci fungsi ini -- kalau ditolak, prosesnya tetap jalan dengan
+        // batas bawaan, tidak sampai menggagalkan import.
+        @set_time_limit(300);
+
         $file      = $request->file('file');
         $ext       = strtolower($file->getClientOriginalExtension());
         $model     = $this->resolveModel($type);
@@ -244,7 +265,15 @@ class DatabaseController extends Controller
             $groups = intdiv($sampleLen, $colCount);
         }
 
-        foreach ($rows as $row) {
+        // Sengaja for + $rows[$i] = null, bukan foreach: tiap baris sumber
+        // dibebaskan begitu selesai disalin, sehingga $rows menyusut seiring
+        // $flatRows tumbuh alih-alih dua-duanya penuh berbarengan. (foreach
+        // tidak bisa dipakai untuk ini — menyentuh $rows di dalamnya justru
+        // membuat PHP menggandakan seluruh array.)
+        for ($i = 0, $n = count($rows); $i < $n; $i++) {
+            $row = $rows[$i];
+            $rows[$i] = null;
+
             if ($type === 'mt') {
                 // Lebar barisnya bisa lebih panjang dari $colCount (mis. ada
                 // kolom Gambar/Harga) — dibiarkan utuh, disaring di bawah.
@@ -267,10 +296,33 @@ class DatabaseController extends Controller
             }
         }
 
+        // Dibebaskan di sini, bukan nanti: mulai baris berikutnya $rows tidak
+        // dipakai lagi, sementara $flatRows dan kumpulan baris di bawah sama-sama
+        // memegang seluruh isi berkas. Tanpa ini ada tiga salinan data hidup
+        // berbarengan — cukup untuk melewati batas memori hosting pada berkas besar.
+        unset($rows);
+
+        // Baris tidak lagi ditulis satu per satu di dalam perulangan ini --
+        // disusun dulu jadi satu kumpulan, baru ditulis massal per potongan
+        // di simpanMassal(). Dulu tiap baris memanggil updateOrCreate sendiri
+        // (dua query: cek dulu, baru simpan), dan pada berkas HET nyata berisi
+        // 63.049 baris itu berarti ~126.000 query dan 2,5 menit. PHP keburu
+        // memutusnya di batas 30 detik, dan karena semuanya dibungkus satu
+        // transaksi, SELURUH import ikut dibatalkan: gagal total tanpa satu
+        // baris pun masuk. Berkas yang sama kini selesai di bawah satu detik.
         $imported  = 0;
         $mtJenis   = ($type === 'mt') ? trim((string) $request->input('mt_jenis', '')) : null;
 
         DB::transaction(function () use ($flatRows, $model, $cols, $type, $mtJenis, $mtKolom, &$imported) {
+            $baris   = [];
+            $tampung = function (array $data) use (&$baris, $model, $type) {
+                $baris[] = $data;
+                if (count($baris) >= self::UKURAN_TAMPUNGAN) {
+                    $this->simpanMassal($model, $type, $baris);
+                    $baris = [];
+                }
+            };
+
             foreach ($flatRows as $row) {
                 if (empty(array_filter(array_map('trim', $row)))) {
                     continue;
@@ -306,14 +358,7 @@ class DatabaseController extends Controller
                     if ($mtJenis !== null && $mtJenis !== '') {
                         $data['jenis'] = $mtJenis;
                     }
-                    $uniqueKeys = self::$uniqueKeys[$type] ?? [];
-                    $keyData    = array_intersect_key($data, array_flip($uniqueKeys));
-                    $valData    = array_diff_key($data, array_flip($uniqueKeys));
-                    if (!empty($keyData)) {
-                        $model::updateOrCreate($keyData, $valData);
-                    } else {
-                        $model::create($data);
-                    }
+                    $tampung($data);
                     $imported++;
                     continue;
                 }
@@ -337,26 +382,29 @@ class DatabaseController extends Controller
                     if ($hasRegions) {
                         foreach ($regionMap as $wilayah => $keterangan) {
                             if ($keterangan === '') continue;
-                            $model::updateOrCreate(
-                                ['kode' => $nosin, 'wilayah' => $wilayah],
-                                ['nama' => $tipe ?: null, 'keterangan' => $keterangan]
-                            );
+                            $tampung([
+                                'kode' => $nosin, 'wilayah' => $wilayah,
+                                'nama' => $tipe ?: null, 'keterangan' => $keterangan,
+                            ]);
                         }
                     } else {
                         // Fallback: no region columns, store all remaining cols as one
                         $allItems = array_filter(array_map('trim', array_slice($row, 2)), fn($v) => $v !== '');
-                        $model::updateOrCreate(
-                            ['kode' => $nosin, 'wilayah' => null],
-                            ['nama' => $tipe ?: null, 'keterangan' => implode(', ', $allItems) ?: null]
-                        );
+                        $tampung([
+                            'kode' => $nosin, 'wilayah' => null,
+                            'nama' => $tipe ?: null, 'keterangan' => implode(', ', $allItems) ?: null,
+                        ]);
                     }
+                    // Dihitung per baris SUMBER, bukan per baris tersimpan --
+                    // satu baris berkas perlengkapan bisa menghasilkan sampai
+                    // tiga baris (satu per wilayah), dan angka yang dilaporkan
+                    // ke pengguna tetap jumlah baris yang ia lihat di berkasnya.
                     $imported++;
                     continue;
                 }
 
                 $data = [];
-                $instance = new $model();
-                $casts = $instance->getCasts();
+                $casts = (new $model())->getCasts();
                 foreach ($cols as $i => $col) {
                     $val = isset($row[$i]) ? trim((string) $row[$i]) : null;
                     if ($val === '') {
@@ -373,16 +421,12 @@ class DatabaseController extends Controller
                 if ($mtJenis !== null && $mtJenis !== '') {
                     $data['jenis'] = $mtJenis;
                 }
-                $uniqueKeys = self::$uniqueKeys[$type] ?? [];
-                $keyData    = array_intersect_key($data, array_flip($uniqueKeys));
-                $valData    = array_diff_key($data, array_flip($uniqueKeys));
-                if (!empty($keyData)) {
-                    $model::updateOrCreate($keyData, $valData);
-                } else {
-                    $model::create($data);
-                }
+                $tampung($data);
                 $imported++;
             }
+
+            // Sisa tampungan terakhir yang belum mencapai satu potongan penuh.
+            $this->simpanMassal($model, $type, $baris);
         });
 
         $logger->write($request, 'DB_IMPORT', $type, "Import {$imported} data ke database: {$type}", $request->user());
@@ -392,6 +436,133 @@ class DatabaseController extends Controller
             'message'  => "{$imported} data berhasil diimport.",
             'imported' => $imported,
         ]);
+    }
+
+    /**
+     * Tulis kumpulan baris hasil import ke database.
+     *
+     * Jalur cepat (upsert per potongan) HANYA dipakai kalau tabelnya benar-benar
+     * punya indeks unik yang persis menutupi kunci import-nya. Tanpa indeks itu
+     * upsert tidak punya dasar untuk mengenali baris yang sudah ada, dan diam-diam
+     * berubah jadi insert biasa -- datanya berganda tiap kali berkas yang sama
+     * diunggah ulang. db_perlengkapan contohnya: kunci import-nya kode+wilayah
+     * tapi tabelnya belum punya indeks itu, jadi ia tetap lewat jalur lama yang
+     * aman (dan berkasnya memang kecil, jadi tidak rugi kecepatan).
+     *
+     * Pengecekannya dilakukan saat jalan, bukan dari daftar yang ditulis tangan
+     * di sini: begitu indeks yang kurang ditambahkan lewat migration, tabelnya
+     * ikut cepat sendiri tanpa perlu ada yang ingat menyunting berkas ini.
+     */
+    private function simpanMassal(string $model, string $type, array $baris): void
+    {
+        if (empty($baris)) {
+            return;
+        }
+
+        $uniqueKeys = self::$uniqueKeys[$type] ?? [];
+        $tabel      = (new $model())->getTable();
+
+        if (empty($uniqueKeys) || ! $this->punyaIndeksUnik($tabel, $uniqueKeys)) {
+            $this->simpanSatuSatu($model, $uniqueKeys, $baris);
+
+            return;
+        }
+
+        $siapBatch = [];
+        $sisa      = [];
+
+        foreach ($baris as $data) {
+            $nilaiKunci = array_map(fn ($k) => $data[$k] ?? null, $uniqueKeys);
+
+            // Baris yang salah satu nilai kuncinya null dikembalikan ke jalur
+            // lama: di MySQL NULL tidak pernah dianggap sama dengan NULL,
+            // sehingga indeks unik TIDAK mencegah duplikat untuk baris seperti
+            // ini -- sementara updateOrCreate mencocokkannya lewat "is null"
+            // dan tetap menimpa baris yang sama, persis seperti selama ini.
+            if (in_array(null, $nilaiKunci, true)) {
+                $sisa[] = $data;
+                continue;
+            }
+
+            // Baris ganda DI DALAM satu berkas digabung di sini, yang terakhir
+            // menang -- sama seperti updateOrCreate yang menimpa berulang kali.
+            // Ini bukan sekadar kerapian: satu perintah upsert tidak boleh
+            // menyentuh baris yang sama dua kali (MySQL menolaknya). Berkas HET
+            // nyata memang berisi 6 kodepart kembar.
+            $siapBatch[implode("\0", $nilaiKunci)] = $data;
+        }
+
+        if (! empty($siapBatch)) {
+            // Semua baris harus punya susunan kolom yang sama: satu perintah
+            // upsert menyimpulkan daftar kolomnya dari baris pertama saja, jadi
+            // baris yang kekurangan kolom akan menggeser nilai baris lain.
+            $kolom = [];
+            foreach ($siapBatch as $data) {
+                $kolom += array_flip(array_keys($data));
+            }
+            $kolom  = array_keys($kolom);
+            $kosong = array_fill_keys($kolom, null);
+
+            $isi = [];
+            foreach ($siapBatch as $data) {
+                $isi[] = array_replace($kosong, $data);
+            }
+
+            $kolomUpdate = array_values(array_diff($kolom, $uniqueKeys));
+
+            // Tiap baris menyumbang satu set placeholder ke query, dan MySQL
+            // membatasi 65.535 placeholder per perintah. Ditahan di sekitar
+            // 4.000 supaya tetap jauh dari batas berapa pun lebar tabelnya;
+            // +2 untuk created_at/updated_at yang ditambahkan Eloquent sendiri.
+            $potong = max(50, intdiv(4000, count($kolom) + 2));
+
+            foreach (array_chunk($isi, $potong) as $potongan) {
+                $model::upsert($potongan, $uniqueKeys, $kolomUpdate);
+            }
+        }
+
+        $this->simpanSatuSatu($model, $uniqueKeys, $sisa);
+    }
+
+    private function simpanSatuSatu(string $model, array $uniqueKeys, array $baris): void
+    {
+        foreach ($baris as $data) {
+            $keyData = array_intersect_key($data, array_flip($uniqueKeys));
+            $valData = array_diff_key($data, array_flip($uniqueKeys));
+
+            if (! empty($keyData)) {
+                $model::updateOrCreate($keyData, $valData);
+            } else {
+                $model::create($data);
+            }
+        }
+    }
+
+    /** Adakah indeks unik yang kolomnya PERSIS $keys (tidak kurang, tidak lebih)? */
+    private function punyaIndeksUnik(string $tabel, array $keys): bool
+    {
+        $dicari = array_map('strtolower', $keys);
+        sort($dicari);
+
+        $ingatan = $tabel . ':' . implode(',', $dicari);
+        if (isset($this->cacheIndeksUnik[$ingatan])) {
+            return $this->cacheIndeksUnik[$ingatan];
+        }
+
+        foreach (Schema::getIndexes($tabel) as $indeks) {
+            if (empty($indeks['unique'])) {
+                continue;
+            }
+
+            $kolom = array_map('strtolower', $indeks['columns']);
+            sort($kolom);
+
+            if ($kolom === $dicari) {
+                return $this->cacheIndeksUnik[$ingatan] = true;
+            }
+        }
+
+        return $this->cacheIndeksUnik[$ingatan] = false;
     }
 
     /**
@@ -550,7 +721,16 @@ class DatabaseController extends Controller
             throw new \RuntimeException('Sheet tidak ditemukan di dalam file Excel.');
         }
 
+        // Isi berkas mentah, indeks zip-nya, dan XML sharedStrings sudah tidak
+        // dipakai lagi setelah dua bagian di atas diambil. Dibebaskan sekarang,
+        // bukan dibiarkan sampai method selesai: pada berkas HET nyata (63.049
+        // baris) ketiganya menahan belasan MB percuma justru selama bagian yang
+        // paling haus memori — penguraian sheet dan penyusunan baris di bawah.
+        // $extract ikut dilepas karena closure-nya memegang $data.
+        unset($data, $files, $extract, $ssContent);
+
         $sheet = simplexml_load_string($sheetContent);
+        unset($sheetContent);
         $rows  = [];
 
         foreach ($sheet->sheetData->row as $row) {
