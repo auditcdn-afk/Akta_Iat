@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditTask;
+use App\Models\Karyawan;
 use App\Models\PlanAudit;
 use App\Models\SkPembebanan;
 use App\Models\SuratKeputusan;
@@ -339,7 +340,8 @@ class SkPembebananController extends Controller
         $subtotal = array_reduce($p['rincian'], fn($carry, $r) => $carry + (float) $r['nilai'], 0);
         $entry = [
             'nama' => $p['nama'],
-            'jabatan' => $p['jabatan'] ?? null,
+            'jabatan' => $this->jabatanKaryawan($data['unit_usaha'] ?? $sk->unit_usaha, $p['nama'])
+                ?? ($p['jabatan'] ?? null),
             'rincian' => array_map(fn($r) => [
                 'kategori' => $r['kategori'],
                 'nilai' => (float) $r['nilai'],
@@ -405,6 +407,31 @@ class SkPembebananController extends Controller
         $skPembebanan->delete();
 
         return response()->json(['ok' => true, 'message' => 'Pembebanan SK berhasil dihapus.']);
+    }
+
+    // Jabatan yang tersimpan selalu diambil ulang dari Data Karyawan unit usaha
+    // ini bila namanya cocok, bukan sekadar dipercaya dari form: rekap "per
+    // jabatan" pada Grafik Beban SK dikelompokkan dari string jabatan, jadi
+    // satu orang yang jabatannya ditulis berbeda-beda akan terhitung terpisah.
+    // Nama yang tidak ada di Data Karyawan (unit yang datanya belum dilengkapi)
+    // tetap memakai jabatan yang diketik.
+    private function jabatanKaryawan(?string $unitUsaha, string $nama): ?string
+    {
+        if (! $unitUsaha) {
+            return null;
+        }
+
+        $cocok = Karyawan::query()
+            ->where('unit_usaha', $unitUsaha)
+            ->whereRaw('LOWER(nama) = ?', [mb_strtolower(trim($nama))])
+            ->pluck('jabatan')
+            ->filter()
+            ->unique();
+
+        // Dua karyawan sename dengan jabatan berbeda di satu unit: tidak ada
+        // dasar untuk memilih salah satunya di sini, jadi jabatan yang dikirim
+        // form -- yang tahu persis karyawan mana yang dipilih -- dibiarkan.
+        return $cocok->count() === 1 ? $cocok->first() : null;
     }
 
     private function classifyUnit(string $unitUsaha): string
