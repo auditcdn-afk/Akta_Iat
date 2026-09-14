@@ -41,6 +41,79 @@ class KaryawanControllerTest extends TestCase
         Storage::disk('public')->assertExists(Karyawan::first()->photo_path);
     }
 
+    // ── Nomor HP ─────────────────────────────────────────────────────────
+
+    public function test_nomor_hp_tersimpan_dan_ikut_di_balasan_api(): void
+    {
+        $user = User::factory()->create(['role' => 'unit', 'unit_usaha' => 'SO ALB']);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/karyawan', [
+            'nama' => 'Budi Santoso', 'jabatan' => 'Sales', 'no_hp' => '0812-3456-7890',
+        ])->assertStatus(201)->assertJsonPath('data.noHp', '0812-3456-7890');
+
+        $this->assertDatabaseHas('karyawans', ['nama' => 'Budi Santoso', 'no_hp' => '0812-3456-7890']);
+
+        $this->getJson('/api/karyawan')->assertOk()->assertJsonPath('data.0.noHp', '0812-3456-7890');
+    }
+
+    public function test_nomor_hp_boleh_dikosongkan(): void
+    {
+        // Data karyawan lama tidak punya nomor — memaksanya terisi akan
+        // membuat seluruh baris lama tidak bisa disimpan lagi.
+        $user = User::factory()->create(['role' => 'unit', 'unit_usaha' => 'SO ALB']);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/karyawan', ['nama' => 'Tanpa Nomor', 'jabatan' => 'Mekanik'])
+            ->assertStatus(201)
+            ->assertJsonPath('data.noHp', null);
+
+        $this->assertDatabaseHas('karyawans', ['nama' => 'Tanpa Nomor', 'no_hp' => null]);
+    }
+
+    public function test_nomor_hp_berisi_spasi_saja_disimpan_sebagai_kosong(): void
+    {
+        $user = User::factory()->create(['role' => 'unit', 'unit_usaha' => 'SO ALB']);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/karyawan', ['nama' => 'Spasi', 'jabatan' => 'Sales', 'no_hp' => '   '])
+            ->assertStatus(201);
+
+        $this->assertDatabaseHas('karyawans', ['nama' => 'Spasi', 'no_hp' => null]);
+    }
+
+    /** @return array<string,array{0:string}> */
+    public static function ragamPenulisanNomor(): array
+    {
+        return [
+            'awalan nol'      => ['081234567890'],
+            'awalan +62'      => ['+62 812 3456 7890'],
+            'dengan hubung'   => ['0812-3456-7890'],
+            'nomor kantor'    => ['(061) 456789'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('ragamPenulisanNomor')]
+    public function test_nomor_diterima_apa_adanya_tanpa_dipaksa_satu_format(string $nomor): void
+    {
+        $user = User::factory()->create(['role' => 'unit', 'unit_usaha' => 'SO ALB']);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/karyawan', ['nama' => 'Uji', 'jabatan' => 'Sales', 'no_hp' => $nomor])
+            ->assertStatus(201)
+            ->assertJsonPath('data.noHp', $nomor);
+    }
+
+    public function test_nomor_lebih_dari_30_karakter_ditolak(): void
+    {
+        $user = User::factory()->create(['role' => 'unit', 'unit_usaha' => 'SO ALB']);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/karyawan', [
+            'nama' => 'Kepanjangan', 'jabatan' => 'Sales', 'no_hp' => str_repeat('9', 31),
+        ])->assertStatus(422)->assertJsonValidationErrors('no_hp');
+    }
+
     public function test_unit_usaha_tidak_bisa_menambah_atas_nama_cabang_lain(): void
     {
         $user = User::factory()->create(['role' => 'unit', 'unit_usaha' => 'SO ALB']);

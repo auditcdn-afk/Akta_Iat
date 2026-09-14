@@ -93,6 +93,7 @@ function renderGrid() {
                 ${foto}
                 <div class="mt-2 text-sm font-semibold text-slate-200 truncate" title="${escapeHtml(item.nama)}">${escapeHtml(item.nama)}</div>
                 <div class="text-xs text-slate-400 truncate" title="${escapeHtml(item.jabatan)}">${escapeHtml(item.jabatan)}</div>
+                ${item.noHp ? `<a href="tel:${escapeHtml(String(item.noHp).replace(/[^\d+]/g, ""))}" class="mt-0.5 block text-xs text-blue-400 hover:underline truncate" title="Hubungi ${escapeHtml(item.nama)}">${escapeHtml(item.noHp)}</a>` : ""}
                 ${HO_ROLES.includes(currentUser?.role) ? `<div class="mt-1 text-[10px] uppercase tracking-wide text-slate-500 truncate">${escapeHtml(item.unitUsaha)}</div>` : ""}
                 ${deleteBtn}
             </div>`;
@@ -263,6 +264,7 @@ async function handleSubmit(e) {
     if (isAdmin) formData.append("unit_usaha", unitUsaha);
     formData.append("nama", document.getElementById("kryNama")?.value || "");
     formData.append("jabatan", document.getElementById("kryJabatan")?.value || "");
+    formData.append("no_hp", document.getElementById("kryNoHp")?.value || "");
     if (foto) formData.append("foto", foto);
 
     if (saveBtn) {

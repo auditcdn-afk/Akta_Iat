@@ -45,6 +45,10 @@ class KaryawanController extends Controller
             'unit_usaha' => [$isAdmin ? 'required' : 'nullable', 'string', 'max:150'],
             'nama'       => ['required', 'string', 'max:150'],
             'jabatan'    => ['required', 'string', 'max:150'],
+            // Sengaja tidak dipaksa berformat tertentu: nomor Indonesia ditulis
+            // bermacam-macam (0812..., +62812..., dengan spasi atau tanda
+            // hubung). Yang penting tersimpan apa adanya supaya bisa dihubungi.
+            'no_hp'      => ['nullable', 'string', 'max:30'],
             'foto'       => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ]);
 
@@ -69,6 +73,7 @@ class KaryawanController extends Controller
             'unit_usaha' => $unitUsaha,
             'nama'       => $data['nama'],
             'jabatan'    => $data['jabatan'],
+            'no_hp'      => trim($data['no_hp'] ?? '') ?: null,
             'photo_path' => $photoPath,
             'created_by' => $user?->username,
         ]);

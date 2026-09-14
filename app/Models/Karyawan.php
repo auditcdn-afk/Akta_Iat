@@ -11,6 +11,7 @@ class Karyawan extends Model
         'unit_usaha',
         'nama',
         'jabatan',
+        'no_hp',
         'photo_path',
         'created_by',
     ];
@@ -27,6 +28,7 @@ class Karyawan extends Model
             'unitUsaha' => $this->unit_usaha,
             'nama' => $this->nama,
             'jabatan' => $this->jabatan,
+            'noHp' => $this->no_hp,
             'photoUrl' => $this->photo_url,
             'createdBy' => $this->created_by,
             'createdAt' => optional($this->created_at)->toDateTimeString(),
