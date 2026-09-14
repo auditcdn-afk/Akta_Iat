@@ -161,11 +161,23 @@ jobs:
         run: |
           if [ -z "$DEPLOY_SECRET" ]; then
             echo "::warning::Secret DEPLOY_SECRET belum diisi — cache di server TIDAK dibersihkan, jadi perubahan Blade/konfigurasi belum tentu terlihat. Isi secret itu, atau panggil /deploy/clear-cache secara manual."
-            echo "status=skip" >> "$GITHUB_OUTPUT"
+            echo "hasil=skip" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           HOST=$(echo "$APP_URL" | sed -E 's#^https?://##; s#/.*##')
+
+          # Penanda bahwa balasannya benar-benar datang dari DeployController,
+          # bukan dari perantara di jalan. Dipilih baris yang HANYA ditulis
+          # endpoint itu sendiri, tanpa syarat, dan tidak mungkin muncul di
+          # halaman HTML mana pun.
+          PENANDA_LARAVEL='--- Membangun ulang cache ---'
+
+          # Dicatat per percobaan, bukan dibaca dari berkas terakhir: kalau
+          # percobaan ke IP origin ditolak karena token lalu percobaan cadangan
+          # kena tantangan Cloudflare, berkasnya tinggal menyimpan halaman
+          # Cloudflare — dan bukti sesungguhnya (token yang berbeda) hilang.
+          DITOLAK_TOKEN=0
 
           coba_bersihkan() {
             deskripsi="$1"; shift
@@ -176,30 +188,81 @@ jobs:
               -o clear-cache.txt \
               -w "%{http_code}" || echo "000")
             echo "status HTTP: $STATUS"
-            head -c 500 clear-cache.txt 2>/dev/null || true
+            head -c 800 clear-cache.txt 2>/dev/null || true
             echo ""
+
+            # Status 200 sendirian TIDAK membuktikan apa pun: halaman tantangan
+            # bot Cloudflare ("One moment, please...") juga dikirim dengan status
+            # 200. Deploy #110 lolos begitu — status 200 berisi halaman itu,
+            # dilaporkan sukses, padahal permintaannya tidak pernah sampai ke
+            # Laravel dan cache tidak pernah dibersihkan. Satu-satunya yang
+            # membedakan adalah ISI balasannya, jadi isinya yang diperiksa.
+            # -e wajib: penandanya diawali tanda hubung, dan tanpa -e grep
+            # akan menganggapnya sebagai opsi baris perintah, bukan teks yang
+            # dicari — pencariannya selalu gagal walau teksnya ada.
+            if [ "$STATUS" = "200" ] && grep -qF -e "$PENANDA_LARAVEL" clear-cache.txt 2>/dev/null; then
+              SAMPAI=1
+            else
+              SAMPAI=0
+            fi
+
+            if grep -q 'Token salah' clear-cache.txt 2>/dev/null; then
+              DITOLAK_TOKEN=1
+            fi
           }
 
           coba_bersihkan "langsung ke IP origin ($ORIGIN_IP), lewati Cloudflare" --resolve "$HOST:443:$ORIGIN_IP"
 
-          if [ "$STATUS" != "200" ]; then
+          if [ "$SAMPAI" != "1" ]; then
             coba_bersihkan "lewat domain biasa (via Cloudflare, cadangan)"
           fi
 
-          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
-
-          if [ "$STATUS" != "200" ]; then
-            # Sengaja TIDAK exit 1: berkas sudah terkirim lewat FTP di langkah
-            # sebelumnya, jadi deploy-nya sendiri sukses. Menggagalkan seluruh
-            # job hanya karena langkah pembersihan cache (kenyamanan tambahan)
-            # gagal akan menyesatkan — seolah kode gagal terkirim padahal tidak.
-            echo "::warning::clear-cache tidak berhasil otomatis (HTTP $STATUS). Kode SUDAH terkirim lewat FTP dan aplikasi tetap berjalan — lihat ringkasan job untuk cara membersihkan cache manual sekali klik."
+          if [ "$SAMPAI" != "1" ] && [ "$DITOLAK_TOKEN" = "1" ]; then
+            # Balasan penolakan dari Laravel sendiri — permintaannya SAMPAI, cuma
+            # ditolak. Dibedakan dari "gagal" karena obatnya lain sama sekali:
+            # menyamakan DEPLOY_SECRET, bukan membuka link di browser. Inilah dua
+            # hal yang dulu tertukar dan sempat membuat token dikira salah
+            # padahal yang memblokir Cloudflare.
+            HASIL=token
+          elif [ "$SAMPAI" != "1" ]; then
+            HASIL=gagal
+          elif grep -q 'config:cache: OK' clear-cache.txt && grep -q 'route:cache: OK' clear-cache.txt; then
+            HASIL=ok
+          else
+            # Laravel jalan dan cache lamanya terhapus, tapi cache barunya tidak
+            # terbentuk (biasanya bootstrap/cache tidak bisa ditulis). Aplikasinya
+            # TETAP BENAR — tapi berjalan tanpa cache: seluruh berkas config dan
+            # routes/api.php di-parse ulang pada SETIAP request. Ini keadaan yang
+            # paling mudah luput, karena halamannya tampil normal; yang berubah
+            # hanya kecepatannya.
+            HASIL=lambat
           fi
+
+          echo "hasil=$HASIL" >> "$GITHUB_OUTPUT"
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "kesimpulan: $HASIL (HTTP $STATUS)"
+
+          # Sengaja TIDAK exit 1 apa pun hasilnya: berkas sudah terkirim lewat FTP
+          # di langkah sebelumnya, jadi deploy-nya sendiri sukses. Menggagalkan
+          # seluruh job hanya karena langkah pembersihan cache akan menyesatkan —
+          # seolah kode gagal terkirim padahal tidak.
+          case "$HASIL" in
+            gagal)
+              echo "::warning::clear-cache TIDAK sampai ke aplikasi (HTTP $STATUS, isi balasan bukan dari Laravel — kemungkinan tantangan bot Cloudflare, BUKAN token yang salah). Kode sudah terkirim lewat FTP, tapi perubahan Blade/konfigurasi belum tentu terlihat sampai cache dibersihkan. Lihat ringkasan job."
+              ;;
+            lambat)
+              echo "::warning::Cache lama terhapus tapi cache baru GAGAL dibangun ulang. Aplikasi tetap berjalan dan datanya benar, tapi LEBIH LAMBAT karena config dan route di-parse ulang tiap request. Lihat ringkasan job."
+              ;;
+            token)
+              echo "::warning::clear-cache ditolak aplikasi: DEPLOY_SECRET di GitHub Secrets tidak sama dengan yang ada di .env server. Samakan keduanya — kali ini memang benar soal token, bukan Cloudflare."
+              ;;
+          esac
 
       - name: Ringkasan
         if: always()
         env:
           APP_URL: ${{ vars.APP_URL || 'https://simpas-iat.exprosalab.com' }}
+          CLEAR_HASIL: ${{ steps.clear_cache.outputs.hasil }}
           CLEAR_STATUS: ${{ steps.clear_cache.outputs.status }}
         run: |
           {
@@ -208,13 +271,31 @@ jobs:
             echo "Commit: \`${{ github.sha }}\`"
             echo ""
 
-            if [ -n "$CLEAR_STATUS" ] && [ "$CLEAR_STATUS" != "200" ] && [ "$CLEAR_STATUS" != "skip" ]; then
-              echo "> [!WARNING]"
-              echo "> **Cache belum dibersihkan otomatis** (server terakhir membalas HTTP $CLEAR_STATUS — kemungkinan tantangan bot Cloudflare, BUKAN token yang salah)."
-              echo "> Kode sudah terkirim dan aplikasi tetap berjalan. Untuk membersihkan cache, buka link ini sekali dari **browser biasa** (bukan otomatis — browser bisa lewati tantangan Cloudflare, curl tidak):"
-              echo "> \`$APP_URL/deploy/clear-cache?token=...\` (ganti \`...\` dengan isi DEPLOY_SECRET Anda)"
-              echo ""
-            fi
+            # Kosong (langkahnya tidak jalan) dan "skip"/"ok" tidak cocok ke
+            # cabang mana pun, jadi diam — peringatan hanya muncul saat memang
+            # ada yang perlu Anda kerjakan.
+            case "$CLEAR_HASIL" in
+              gagal)
+                echo "> [!WARNING]"
+                echo "> **Cache belum dibersihkan otomatis.** Server membalas HTTP $CLEAR_STATUS tapi isinya bukan dari Laravel — kemungkinan tantangan bot Cloudflare, BUKAN token yang salah."
+                echo "> Kode sudah terkirim dan aplikasi tetap berjalan, tapi perubahan tampilan/konfigurasi belum tentu terlihat. Untuk membersihkannya, buka link ini sekali dari **browser biasa** (bukan otomatis — browser bisa lewati tantangan Cloudflare, curl tidak):"
+                echo "> \`$APP_URL/deploy/clear-cache?token=...\` (ganti \`...\` dengan isi DEPLOY_SECRET Anda)"
+                echo ""
+                ;;
+              token)
+                echo "> [!WARNING]"
+                echo "> **Cache belum dibersihkan: token ditolak aplikasi.** \`DEPLOY_SECRET\` di GitHub Secrets tidak sama dengan yang ada di berkas \`.env\` server."
+                echo "> Samakan keduanya, lalu jalankan ulang deploy ini. Berbeda dari kasus Cloudflare, membuka link di browser TIDAK akan menolong selama tokennya masih berbeda."
+                echo ""
+                ;;
+              lambat)
+                echo "> [!WARNING]"
+                echo "> **Cache lama terhapus, cache baru gagal dibangun ulang.** Aplikasi tetap berjalan dan datanya benar, tapi LEBIH LAMBAT: seluruh berkas config dan daftar route di-parse ulang pada setiap request, bukan dibaca dari satu berkas siap pakai."
+                echo "> Penyebab tersering: folder \`bootstrap/cache\` di server tidak bisa ditulis. Periksa izinnya, lalu buka link ini sekali dari **browser biasa**:"
+                echo "> \`$APP_URL/deploy/clear-cache?token=...\` (ganti \`...\` dengan isi DEPLOY_SECRET Anda)"
+                echo ""
+                ;;
+            esac
 
             # Migrasi tidak dijalankan otomatis; kalau ada yang baru, beri tahu.
             BARU=$(git diff --name-only --diff-filter=A HEAD~1 HEAD -- database/migrations || true)
