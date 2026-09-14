@@ -1022,6 +1022,7 @@ async function saveTanggapiSk(event) {
 }
 
 let pembebananKategoriList = [];
+let pembebananKaryawanList = [];
 let pembebananCurrentSkId = null;
 let pembebananRecordId = null;
 let pembebananIsFinal = false;
@@ -1115,6 +1116,54 @@ function recalcPersonilSubtotal() {
     if (subtotalEl) subtotalEl.textContent = formatRupiah(subtotal);
 }
 
+// Nama personil diambil dari Data Karyawan unit usaha SK ini, bukan diketik
+// bebas. Selain rawan salah ketik pada dokumen resmi, rekap "per personil" di
+// Grafik Beban SK dikelompokkan dari string namanya -- satu huruf berbeda
+// membuat orang yang sama terhitung sebagai dua orang, dan bebannya terpecah.
+async function loadKaryawanUnit(unitUsaha) {
+    if (!unitUsaha) return [];
+    try {
+        const res = await fetchJson(`/api/karyawan?unit_usaha=${encodeURIComponent(unitUsaha)}`);
+        return (res.data || [])
+            .filter((k) => k.nama)
+            .sort((a, b) => String(a.nama).localeCompare(String(b.nama), "id"));
+    } catch {
+        // Daftar karyawan gagal dimuat -- form tetap bisa dipakai lewat isian
+        // manual, jangan sampai pembebanan ikut terhenti karenanya.
+        return [];
+    }
+}
+
+const KELAS_INPUT_PERSONIL =
+    "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500";
+
+function buildPilihPersonilHtml() {
+    const opsi = pembebananKaryawanList
+        .map((k) => `<option value="${escapeAttr(String(k.id))}" data-nama="${escapeAttr(k.nama)}" data-jabatan="${escapeAttr(k.jabatan || "")}">${escapeHtml(k.nama)}${k.jabatan ? ` — ${escapeHtml(k.jabatan)}` : ""}</option>`)
+        .join("");
+
+    return `
+        <select class="personil-pilih ${KELAS_INPUT_PERSONIL}">
+            <option value="">Pilih personil dari Data Karyawan...</option>
+            ${opsi}
+            <option value="__manual__">➕ Nama lain (ketik manual)</option>
+        </select>
+    `;
+}
+
+// Ditampilkan hanya saat unit usaha ini belum punya Data Karyawan sama sekali:
+// isian manual tetap dibuka supaya pembebanan tidak terkunci, tapi jalan yang
+// benar (melengkapi Data Karyawan) disebutkan lebih dulu.
+function buildKaryawanKosongHtml() {
+    return `
+        <div class="sm:col-span-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            Belum ada Data Karyawan untuk unit usaha ini, jadi nama dan jabatannya harus diketik manual.
+            Lengkapi dulu lewat menu <a href="/akta/karyawan" class="font-semibold underline">Data Karyawan</a>
+            supaya penulisan namanya seragam.
+        </div>
+    `;
+}
+
 function buildRincianRowsHtml() {
     return pembebananKategoriList.map((kategori) => `
         <div class="rincian-row flex items-center gap-2">
@@ -1133,10 +1182,15 @@ function renderPersonilEntryBlock() {
 
     const block = document.createElement("div");
     block.className = "personil-block rounded-xl border border-slate-800 bg-slate-950/60 p-3 space-y-3";
+    const adaKaryawan = pembebananKaryawanList.length > 0;
     block.innerHTML = `
         <div class="grid gap-2 sm:grid-cols-2">
-            <input type="text" placeholder="Nama Personil" class="personil-nama rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
-            <input type="text" placeholder="Jabatan" class="personil-jabatan rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
+            ${adaKaryawan ? "" : buildKaryawanKosongHtml()}
+            <div class="space-y-1.5">
+                ${adaKaryawan ? buildPilihPersonilHtml() : ""}
+                <input type="text" placeholder="Nama Personil" class="personil-nama ${adaKaryawan ? "hidden " : ""}${KELAS_INPUT_PERSONIL}">
+            </div>
+            <input type="text" placeholder="${adaKaryawan ? "Jabatan (otomatis)" : "Jabatan"}" ${adaKaryawan ? "readonly" : ""} class="personil-jabatan self-start ${KELAS_INPUT_PERSONIL}">
         </div>
         <div class="rincian-rows grid gap-1.5 sm:grid-cols-2">${buildRincianRowsHtml()}</div>
         <div class="flex items-center justify-between">
@@ -1154,6 +1208,36 @@ function renderPersonilEntryBlock() {
         el.addEventListener("change", recalcPersonilSubtotal);
     });
     block.querySelector("#simpanPersonilBtn")?.addEventListener("click", saveOnePersonil);
+    block.querySelector(".personil-pilih")?.addEventListener("change", () => terapkanPilihanPersonil(block));
+}
+
+// Isi nama + jabatan dari karyawan yang dipilih. Jabatan dikunci selama nama
+// berasal dari Data Karyawan supaya keduanya tidak bisa berbeda dari sumbernya;
+// baru bisa diketik lagi kalau penggunanya memang memilih "Nama lain".
+function terapkanPilihanPersonil(block) {
+    const pilih = block.querySelector(".personil-pilih");
+    const namaInput = block.querySelector(".personil-nama");
+    const jabatanInput = block.querySelector(".personil-jabatan");
+    if (!pilih || !namaInput || !jabatanInput) return;
+
+    const manual = pilih.value === "__manual__";
+    const opsi = pilih.selectedOptions[0];
+
+    namaInput.classList.toggle("hidden", !manual);
+    jabatanInput.readOnly = !manual;
+    jabatanInput.classList.toggle("text-slate-400", !manual);
+
+    if (manual) {
+        namaInput.value = "";
+        jabatanInput.value = "";
+        jabatanInput.placeholder = "Jabatan";
+        namaInput.focus();
+        return;
+    }
+
+    jabatanInput.placeholder = "Jabatan (otomatis)";
+    namaInput.value = opsi?.dataset.nama || "";
+    jabatanInput.value = opsi?.dataset.jabatan || "";
 }
 
 async function openPembebananModal(id) {
@@ -1176,6 +1260,8 @@ async function openPembebananModal(id) {
     document.getElementById("personilEntrySection")?.classList.remove("hidden");
     pembebananRecordId = null;
     pembebananIsFinal = false;
+
+    pembebananKaryawanList = await loadKaryawanUnit(unitUsaha);
 
     try {
         const qs = new URLSearchParams({ unit_usaha: unitUsaha });
@@ -1235,8 +1321,17 @@ async function saveOnePersonil() {
             nilai: Number(row.querySelector(".rincian-nilai").value) || 0,
         }));
 
-    if (!nama || !rincian.length) {
-        showAlert("Nama personil dan minimal satu rincian pembebanan wajib diisi.", "error");
+    if (!nama) {
+        showAlert(
+            pembebananKaryawanList.length
+                ? "Pilih dulu personil dari Data Karyawan."
+                : "Nama personil wajib diisi.",
+            "error",
+        );
+        return;
+    }
+    if (!rincian.length) {
+        showAlert("Minimal satu rincian pembebanan wajib dicentang dan diisi nilainya.", "error");
         return;
     }
 
