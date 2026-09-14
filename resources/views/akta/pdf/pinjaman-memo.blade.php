@@ -56,7 +56,7 @@
   .sudah-aktor { color: #475569; }
   .ditolak-label { color: #b91c1c; font-weight: 700; }
 
-  .ttd-wrap { display: flex; justify-content: flex-end; margin-top: 26px; }
+  .ttd-wrap { display: flex; justify-content: flex-end; margin-top: 26px; margin-bottom: 22px; }
   .ttd { width: 220px; text-align: center; font-size: 10.5px; }
   .ttd .kota-tgl { margin-bottom: 46px; }
   .ttd .nama { font-weight: 700; text-decoration: underline; }
@@ -129,6 +129,15 @@ window.addEventListener('load', function () {
     <div class="val">{{ $plan->no_spt ?: '-' }} — {{ $plan->cabang ?: '-' }}</div>
   </div>
   @endif
+  @if($cabangPinjaman)
+  {{-- Unit usaha tempat pinjaman direalisasikan, dipilih pengaju saat mengajukan
+       BPK. Berbeda dari cabang plan audit di atas: yang diaudit belum tentu
+       cabang yang mencairkan uangnya. --}}
+  <div class="field-row">
+    <div class="lbl">Cabang Peminjaman</div><div class="colon">:</div>
+    <div class="val">{{ $cabangPinjaman }}</div>
+  </div>
+  @endif
 
   <div class="nilai-box">
     <div class="card">
@@ -158,6 +167,28 @@ window.addEventListener('load', function () {
   </p>
   @endif
 
+  @if($pinjaman->catatan)
+  <div class="field-row" style="margin-top:-6px;margin-bottom:16px;">
+    <div class="lbl">Catatan</div><div class="colon">:</div>
+    <div class="val" style="font-weight:400;">{{ $pinjaman->catatan }}</div>
+  </div>
+  @endif
+
+  <div class="ttd-wrap">
+    <div class="ttd">
+      @if($diterbitkan['terbit'])
+        <div class="kota-tgl">Diterbitkan, {{ \Illuminate\Support\Carbon::parse($diterbitkan['tanggal'])->format('d/m/Y') }}</div>
+        <div class="nama">{{ $diterbitkan['oleh'] && $diterbitkan['oleh'] !== $diterbitkan['jabatan'] ? $diterbitkan['oleh'] : '' }}&nbsp;</div>
+      @else
+        {{-- Persetujuan penerbitnya belum terjadi: memo ini memang belum terbit,
+             jadi tanggalnya dikosongkan alih-alih diisi tanggal cetak. --}}
+        <div class="kota-tgl">Belum diterbitkan</div>
+        <div class="nama">&nbsp;</div>
+      @endif
+      <div class="jabatan">{{ $diterbitkan['jabatan'] }}</div>
+    </div>
+  </div>
+
   <div class="box">
     <div class="box-title">Tahapan Approval (Real-time)</div>
     <table class="tahapan">
@@ -178,21 +209,6 @@ window.addEventListener('load', function () {
         @endforeach
       </tbody>
     </table>
-  </div>
-
-  @if($pinjaman->catatan)
-  <div class="field-row" style="margin-top:-6px;margin-bottom:16px;">
-    <div class="lbl">Catatan</div><div class="colon">:</div>
-    <div class="val" style="font-weight:400;">{{ $pinjaman->catatan }}</div>
-  </div>
-  @endif
-
-  <div class="ttd-wrap">
-    <div class="ttd">
-      <div class="kota-tgl">Diterbitkan, {{ now()->format('d/m/Y') }}</div>
-      <div class="nama">&nbsp;</div>
-      <div class="jabatan">Chief Operating Officer</div>
-    </div>
   </div>
 
   <div class="footer-note">
