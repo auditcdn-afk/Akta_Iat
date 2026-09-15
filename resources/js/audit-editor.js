@@ -4780,11 +4780,32 @@ async function mtAutoLoadTools() {
     const mekanik = mtActiveMekanik();
     const jenis   = mtActiveJenis();
     if (!mekanik) return;
-    const entry = mtGetEntry(mekanik, jenis);
-    const isEmpty = MT_KATEGORI.every(k => (entry[k] || []).length === 0);
-    if (!isEmpty) return;
+
+    // Katalog db_mt SELALU dimuat, bukan hanya saat entry-nya masih kosong.
+    // Dulu fungsi ini keluar lebih dulu begitu mekaniknya sudah punya isi,
+    // sehingga _mtToolsCache tidak pernah terisi lagi pada kunjungan berikutnya
+    // -- dan dua hal ikut rusak karenanya:
+    //   1. Dropdown Bagus tampil KOSONG (allTools dibaca dari cache itu), jadi
+    //      tool yang terlanjur dihapus tidak bisa ditambahkan kembali sama
+    //      sekali.
+    //   2. Menghapus chip di kategori lain tidak mengembalikan tool-nya ke
+    //      Bagus, karena syaratnya bersandar pada katalog yang kosong itu.
+    const sudahAdaCache = Array.isArray(_mtToolsCache[jenis]);
     const tools = await mtLoadTools(jenis);
     if (!tools.length) return;
+
+    const entry = mtGetEntry(mekanik, jenis);
+    const isEmpty = MT_KATEGORI.every(k => (entry[k] || []).length === 0);
+
+    if (!isEmpty) {
+        // Katalognya baru saja terisi: gambar ulang SEKALI supaya dropdown Bagus
+        // ikut berisi. Penjaga sudahAdaCache wajib -- mtRenderKategori memanggil
+        // fungsi ini lagi di akhirnya, jadi tanpa penjaga itu keduanya saling
+        // memanggil tanpa henti.
+        if (!sudahAdaCache) mtRenderKategori();
+        return;
+    }
+
     entry.bagus = [...tools];
     mtRenderKategori();
     _doSaveMt().catch(err => showAlert(err.message || 'Gagal menyimpan perubahan MT.', 'error'));
@@ -4881,8 +4902,26 @@ function mtRenderKategori() {
                 const e2  = mtGetEntry(mekanik, jenis);
                 const val = (e2[kat] || [])[idx];
                 e2[kat].splice(idx, 1);
-                // Move back to bagus if it's from the DB tools list
-                if (val && kat !== 'bagus' && (_mtToolsCache[jenis] || []).includes(val) && !(e2.bagus || []).includes(val)) {
+
+                // Menghapus chip di kategori SELAIN Bagus berarti "ternyata
+                // kondisinya tidak begitu", bukan "alat ini tidak ada". Jadi
+                // alatnya kembali ke Bagus, tidak lenyap.
+                //
+                // Dulu pengembalian ini disyaratkan namanya ada di katalog db_mt
+                // yang ter-cache. Syarat itu nyaris tidak pernah terpenuhi --
+                // katalognya memang tidak pernah dimuat lagi pada kunjungan
+                // berikutnya (lihat mtAutoLoadTools) -- sehingga chip yang
+                // dihapus dari Rusak/SK Audit/Hilang lenyap begitu saja: Rusak
+                // 1 -> 0 sementara Bagus tetap, bukan bertambah satu. Hasil
+                // pemeriksaannya hilang tanpa jejak, dan karena dropdown Bagus
+                // pun kosong, tool itu tidak bisa dikembalikan dengan cara apa
+                // pun selain mengulang dari awal.
+                //
+                // Syaratnya dihapus sama sekali. Mengembalikan tool yang
+                // kebetulan tidak ada di katalog pun tidak merugikan: ia cuma
+                // muncul di Bagus dan masih bisa dihapus dari sana kalau memang
+                // tidak dimiliki. Menghilangkannya diam-diam jauh lebih mahal.
+                if (val && kat !== 'bagus' && !(e2.bagus || []).includes(val)) {
                     e2.bagus = [...(e2.bagus || []), val];
                 }
                 mtRenderKategori();
