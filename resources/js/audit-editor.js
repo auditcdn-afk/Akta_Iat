@@ -1403,14 +1403,23 @@ function plSetJenis(nama) {
  * "Buku service Beat" lebih dulu, bukan "Kaca Spion BeAT".
  */
 function plFilterJenis(keyword) {
-    const q = keyword.trim().toLowerCase();
-    if (!q) return plJenisAll.slice();
+    return saringAwalanDulu(plJenisAll, keyword);
+}
+
+/**
+ * Saring daftar nama: yang DIAWALI kata kunci didahulukan sebelum yang sekadar
+ * mengandungnya. Dipakai bersama oleh combobox jenis perlengkapan dan combobox
+ * tool MT -- aturan urutannya harus sama supaya keduanya terasa serupa.
+ */
+function saringAwalanDulu(daftar, keyword) {
+    const q = String(keyword || '').trim().toLowerCase();
+    if (!q) return (daftar || []).slice();
 
     const awalan = [];
     const sisipan = [];
 
-    plJenisAll.forEach((nama) => {
-        const pos = nama.toLowerCase().indexOf(q);
+    (daftar || []).forEach((nama) => {
+        const pos = String(nama).toLowerCase().indexOf(q);
         if (pos === 0) awalan.push(nama);
         else if (pos > 0) sisipan.push(nama);
     });
@@ -1419,7 +1428,7 @@ function plFilterJenis(keyword) {
 }
 
 /** Tandai bagian nama yang cocok dengan yang diketik. */
-function plTandaiCocok(nama, keyword) {
+function tandaiCocok(nama, keyword) {
     const q = keyword.trim();
     if (!q) return escapeHtml(nama);
 
@@ -1467,7 +1476,7 @@ function plRenderJenisOptions(keyword = '') {
             <button type="button" role="option" id="plJenisOpt-${i}" data-index="${i}"
                 data-value="${escapeHtml(nama)}" aria-selected="false"
                 class="pl-jenis-option flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-200 transition-colors hover:bg-slate-800/70">
-                <span class="min-w-0 flex-1 truncate">${plTandaiCocok(nama, keyword)}</span>
+                <span class="min-w-0 flex-1 truncate">${tandaiCocok(nama, keyword)}</span>
                 ${sisa ? `<span class="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-300">sisa ${sisa}</span>` : ''}
                 ${sudah ? `<span class="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300">tercatat</span>` : ''}
             </button>`;
@@ -4811,6 +4820,121 @@ async function mtAutoLoadTools() {
     _doSaveMt().catch(err => showAlert(err.message || 'Gagal menyimpan perubahan MT.', 'error'));
 }
 
+// ── Combobox tool MT ─────────────────────────────────────────────────────────
+//
+// Katalog MT bisa puluhan baris, dan <select> biasa memaksa auditor menggulir
+// mencarinya satu per satu. Diganti combobox dengan aturan yang sama seperti
+// combobox jenis perlengkapan: ketik beberapa huruf untuk menyaring, panah
+// atas/bawah untuk berpindah, Enter untuk memakai -- tapi daftar lengkapnya
+// tetap bisa dibuka lewat panah di kanan, jadi tidak ada pilihan yang hilang.
+//
+// Hanya nama yang BENAR-BENAR ada di daftar yang bisa dipakai; teks yang
+// terlanjur diketik tapi tidak dipilih dibuang saat kolomnya kehilangan fokus,
+// supaya ketikan setengah jadi tidak pernah tersimpan sebagai nama tool.
+
+let _mtComboKat       = null;  // kategori yang panelnya sedang terbuka
+let _mtComboMatches   = [];    // hasil saring yang sedang ditampilkan
+let _mtComboHighlight = -1;    // indeks opsi yang sedang disorot keyboard
+let _mtFokusKat       = null;  // kategori yang inputnya difokus ulang setelah render
+
+/** Tool yang boleh dipilih di satu kategori. */
+function mtOpsiTersedia(kat, entry, allTools) {
+    // Bagus boleh mengambil tool mana pun yang belum terpakai di kategori lain;
+    // Rusak/SK Audit/Hilang hanya memindahkan yang sekarang ada di Bagus.
+    if (kat !== 'bagus') return (entry.bagus || []).slice();
+    const used = mtUsedTools(entry);
+    return (allTools || []).filter(t => !used.has(t));
+}
+
+function mtOpsiKategoriAktif(kat) {
+    const jenis = mtActiveJenis();
+    const entry = mtGetEntry(mtActiveMekanik(), jenis);
+    return mtOpsiTersedia(kat, entry, _mtToolsCache[jenis] || []);
+}
+
+function mtTutupCombo(kat) {
+    document.getElementById(`mtOpt-${kat}`)?.classList.add('hidden');
+    document.getElementById(`mtSel-${kat}`)?.setAttribute('aria-expanded', 'false');
+    document.querySelector(`[data-mt-chevron="${kat}"]`)?.classList.remove('rotate-180');
+    if (_mtComboKat === kat) {
+        _mtComboKat = null;
+        _mtComboHighlight = -1;
+    }
+}
+
+function mtSyncSorot(kat) {
+    const box = document.getElementById(`mtOpt-${kat}`);
+    if (!box) return;
+    box.querySelectorAll('.mt-tool-option').forEach((el, i) => {
+        const aktif = i === _mtComboHighlight;
+        el.classList.toggle('bg-slate-800', aktif);
+        el.classList.toggle('text-white', aktif);
+        el.setAttribute('aria-selected', aktif ? 'true' : 'false');
+        if (aktif) el.scrollIntoView({ block: 'nearest' });
+    });
+    document.getElementById(`mtSel-${kat}`)
+        ?.setAttribute('aria-activedescendant', _mtComboHighlight >= 0 ? `mtOpt-${kat}-${_mtComboHighlight}` : '');
+}
+
+function mtRenderOpsi(kat, keyword = '') {
+    const box = document.getElementById(`mtOpt-${kat}`);
+    if (!box) return;
+
+    const semua = mtOpsiKategoriAktif(kat);
+    _mtComboKat       = kat;
+    _mtComboMatches   = saringAwalanDulu(semua, keyword);
+    _mtComboHighlight = _mtComboMatches.length ? 0 : -1;
+
+    if (!semua.length) {
+        // Kosongnya bukan karena kata kuncinya. Untuk Bagus berarti katalog db_mt
+        // memang belum ada isinya; untuk kategori lain berarti Bagus sudah habis
+        // -- dan hanya dari Bagus tool bisa dipindahkan ke sini.
+        box.innerHTML = kat === 'bagus'
+            ? `<p class="px-3 py-3 text-sm text-slate-400">Semua tool sudah terpakai di kategori lain.<br>
+                <span class="text-slate-500">Kalau katalognya memang kosong, isi dulu di Database &rarr; MT.</span></p>`
+            : `<p class="px-3 py-3 text-sm text-slate-400">Tidak ada tool di Bagus untuk dipindahkan ke sini.</p>`;
+    } else if (!_mtComboMatches.length) {
+        box.innerHTML = `<p class="px-3 py-3 text-sm text-slate-500">Tidak ada tool yang cocok dengan &ldquo;${escapeHtml(String(keyword).trim())}&rdquo;.</p>`;
+    } else {
+        box.innerHTML = _mtComboMatches.map((nama, i) => `
+            <button type="button" role="option" id="mtOpt-${kat}-${i}" data-index="${i}"
+                data-value="${escapeHtml(nama)}" aria-selected="false"
+                class="mt-tool-option flex w-full items-center px-3 py-2 text-left text-sm text-slate-200 transition-colors hover:bg-slate-800/70">
+                <span class="min-w-0 flex-1 truncate">${tandaiCocok(nama, keyword)}</span>
+            </button>`).join('');
+    }
+
+    box.classList.remove('hidden');
+    document.getElementById(`mtSel-${kat}`)?.setAttribute('aria-expanded', 'true');
+    document.querySelector(`[data-mt-chevron="${kat}"]`)?.classList.add('rotate-180');
+    mtSyncSorot(kat);
+}
+
+/** Pindahkan satu tool ke kategori ini, lalu gambar ulang. */
+function mtPakaiTool(kat, nama) {
+    if (!nama) return;
+
+    // Hanya nama dari daftar yang boleh masuk — melindungi dari teks yang
+    // diketik bebas lalu terkirim lewat Enter.
+    const opsi = mtOpsiKategoriAktif(kat);
+    const cocok = opsi.find(t => t.toLowerCase() === String(nama).trim().toLowerCase());
+    if (!cocok) return;
+
+    const e2 = mtGetEntry(mtActiveMekanik(), mtActiveJenis());
+    MT_KATEGORI.forEach(k => {
+        if (k !== kat) e2[k] = (e2[k] || []).filter(t => t !== cocok);
+    });
+    if (!(e2[kat] || []).includes(cocok)) {
+        e2[kat] = [...(e2[kat] || []), cocok];
+    }
+
+    // Kolom yang sama difokus ulang setelah render supaya beberapa tool
+    // berturut-turut bisa dimasukkan tanpa menyentuh tetikus lagi.
+    _mtFokusKat = kat;
+    mtRenderKategori();
+    _doSaveMt().catch(err => showAlert(err.message || 'Gagal menyimpan perubahan MT.', 'error'));
+}
+
 function mtRenderKategori() {
     const wrap = document.getElementById('mtKategoriWrap');
     if (!wrap) return;
@@ -4840,9 +4964,7 @@ function mtRenderKategori() {
         // Dropdown: tools NOT used anywhere (for bagus = all unused, for others = tools in bagus)
         // For Rusak/SK Audit/Hilang: can only pick from Bagus list
         // For Bagus: can pick from all unused tools
-        const available = kat === 'bagus'
-            ? allTools.filter(t => !used.has(t))
-            : (entry.bagus || []);   // move from bagus only
+        const available = mtOpsiTersedia(kat, entry, allTools);
 
         const chips = items.map((nama, i) => `
             <span class="inline-flex items-center gap-1 rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs text-slate-200">
@@ -4851,19 +4973,26 @@ function mtRenderKategori() {
                     class="ml-1 text-slate-400 hover:text-red-400 leading-none text-sm font-bold">×</button>
             </span>`).join('');
 
-        const opts = available.map(t =>
-            `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
 
         return `
         <div class="rounded-2xl border border-slate-700 bg-slate-900 p-4 space-y-3">
             <span class="text-sm font-semibold text-${color}-400">${MT_LABEL[kat]}
                 <span class="text-slate-400 font-normal text-xs">: ${items.length}</span>
             </span>
-            <select id="mtSel-${kat}"
-                class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-${color}-500 focus:outline-none">
-                <option value="">-- Pilih tool --</option>
-                ${opts}
-            </select>
+            <div class="relative">
+                <input type="text" id="mtSel-${kat}" autocomplete="off" role="combobox"
+                    aria-expanded="false" aria-controls="mtOpt-${kat}" aria-autocomplete="list"
+                    placeholder="Ketik untuk mencari tool, atau klik panah untuk semua"
+                    class="w-full rounded-lg border border-slate-600 bg-slate-800 py-2 pl-3 pr-9 text-sm text-slate-100 placeholder-slate-500 focus:border-${color}-500 focus:outline-none">
+                <button type="button" data-mt-toggle="${kat}" tabindex="-1" aria-label="Tampilkan semua tool"
+                    class="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-slate-400 transition hover:text-slate-100">
+                    <svg data-mt-chevron="${kat}" class="h-4 w-4 transition-transform" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+                <div id="mtOpt-${kat}" role="listbox" aria-label="${MT_LABEL[kat]}"
+                    class="absolute z-30 mt-1 hidden max-h-72 w-full overflow-y-auto rounded-xl border border-slate-700 bg-slate-950 shadow-2xl"></div>
+            </div>
             <div class="flex flex-wrap gap-2 min-h-6">
                 ${chips || `<span class="text-xs text-slate-500 italic">Belum ada item.</span>`}
             </div>
@@ -4881,18 +5010,71 @@ function mtRenderKategori() {
     });
 
     MT_KATEGORI.forEach(kat => {
-        document.getElementById(`mtSel-${kat}`)?.addEventListener('change', function() {
-            const val = this.value;
-            if (!val) return;
-            const e2 = mtGetEntry(mekanik, jenis);
-            MT_KATEGORI.forEach(k => {
-                if (k !== kat) e2[k] = (e2[k] || []).filter(t => t !== val);
-            });
-            if (!(e2[kat] || []).includes(val)) {
-                e2[kat] = [...(e2[kat] || []), val];
+        const input = document.getElementById(`mtSel-${kat}`);
+        const box   = document.getElementById(`mtOpt-${kat}`);
+
+        input?.addEventListener('input', (e) => mtRenderOpsi(kat, e.target.value));
+        input?.addEventListener('focus', () => mtRenderOpsi(kat, ''));
+
+        wrap.querySelector(`[data-mt-toggle="${kat}"]`)?.addEventListener('click', () => {
+            if (box?.classList.contains('hidden')) {
+                mtRenderOpsi(kat, '');
+                input?.focus();
+            } else {
+                mtTutupCombo(kat);
             }
-            mtRenderKategori();
-            _doSaveMt().catch(err => showAlert(err.message || 'Gagal menyimpan perubahan MT.', 'error'));
+        });
+
+        input?.addEventListener('keydown', (e) => {
+            const terbuka = box && !box.classList.contains('hidden');
+
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!terbuka) { mtRenderOpsi(kat, input.value); return; }
+                if (!_mtComboMatches.length) return;
+                const arah = e.key === 'ArrowDown' ? 1 : -1;
+                _mtComboHighlight = (_mtComboHighlight + arah + _mtComboMatches.length) % _mtComboMatches.length;
+                mtSyncSorot(kat);
+                return;
+            }
+
+            if (e.key === 'Home' || e.key === 'End') {
+                if (!terbuka || !_mtComboMatches.length) return;
+                e.preventDefault();
+                _mtComboHighlight = e.key === 'Home' ? 0 : _mtComboMatches.length - 1;
+                mtSyncSorot(kat);
+                return;
+            }
+
+            if (e.key === 'Enter') {
+                if (terbuka && _mtComboHighlight >= 0) {
+                    e.preventDefault();
+                    mtPakaiTool(kat, _mtComboMatches[_mtComboHighlight]);
+                }
+                return;
+            }
+
+            if (e.key === 'Escape' && terbuka) {
+                e.preventDefault();
+                mtTutupCombo(kat);
+                input.value = '';
+            }
+        });
+
+        // mousedown, bukan click: ia berjalan sebelum input kehilangan fokus,
+        // jadi pilihannya sempat terproses sebelum handler blur menutup daftar.
+        box?.addEventListener('mousedown', (e) => {
+            const opt = e.target.closest('.mt-tool-option');
+            if (!opt) return;
+            e.preventDefault();
+            mtPakaiTool(kat, opt.dataset.value);
+        });
+
+        // Ketikan yang tidak jadi dipilih dibuang, supaya kolomnya tidak pernah
+        // menyisakan nama tool yang sebenarnya tidak dipakai.
+        input?.addEventListener('blur', () => {
+            mtTutupCombo(kat);
+            if (input.value) input.value = '';
         });
 
         // Remove chip → move back to Bagus
@@ -4929,6 +5111,14 @@ function mtRenderKategori() {
             });
         });
     });
+
+    // Kembalikan fokus ke kolom yang barusan dipakai (lihat mtPakaiTool), supaya
+    // beberapa tool berturut-turut bisa dimasukkan tanpa menyentuh tetikus lagi.
+    if (_mtFokusKat) {
+        const kat = _mtFokusKat;
+        _mtFokusKat = null;
+        document.getElementById(`mtSel-${kat}`)?.focus();
+    }
 
     mtAutoLoadTools().catch(() => {});
 }
