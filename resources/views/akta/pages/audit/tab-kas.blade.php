@@ -2,6 +2,10 @@
             <input type="hidden" id="kasId">
             <input type="hidden" id="kasPlanAuditId">
 
+            {{-- Jejak kalau isinya hasil salinan dari unit usaha sejenis; diisi
+                 oleh tampilkanJejakSalinan() di audit-editor.js. --}}
+            <p id="kasJejakSalin" class="hidden rounded-xl border border-amber-600/40 bg-amber-900/20 px-4 py-2.5 text-xs font-semibold text-amber-300"></p>
+
             {{-- ── KAS BESAR ── --}}
             <div class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 text-slate-100 shadow">
                 <div class="bg-[#1e3a5f] px-5 py-3 text-sm font-bold uppercase tracking-wide text-white">💰 Kas Besar</div>
@@ -171,10 +175,30 @@
             </div>
 
             {{-- Aksi simpan --}}
-            <div class="flex justify-end gap-3">
+            <div class="flex flex-wrap justify-end gap-3">
+                <button type="button" id="kasSalinBtn"
+                    title="Ambil hasil pemeriksaan kas dari unit usaha yang sama (SO UJT ↔ CSC UJT)"
+                    class="rounded-xl border border-slate-600 px-5 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800">
+                    📋 Salin dari Unit Usaha Sejenis
+                </button>
                 <button type="button" id="saveKasFormBtn"
                     class="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-500/100">
                     Simpan Pemeriksaan Kas
                 </button>
+            </div>
+
+            {{-- Dialog pilih sumber salinan; diisi oleh bukaKasSalin() di audit-editor.js --}}
+            <div id="kasSalinModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4">
+                <div class="max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-xl">
+                    <div class="flex items-center justify-between border-b border-slate-700 bg-slate-800/60 px-5 py-3">
+                        <div>
+                            <p class="text-sm font-bold text-slate-100">📋 Salin Hasil Pemeriksaan Kas</p>
+                            <p id="kasSalinSub" class="text-xs text-slate-400"></p>
+                        </div>
+                        <button type="button" id="kasSalinTutup"
+                            class="rounded-lg border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800">Tutup</button>
+                    </div>
+                    <div id="kasSalinIsi" class="max-h-[60vh] overflow-y-auto px-5 py-4 text-sm text-slate-200"></div>
+                </div>
             </div>
         </div>
