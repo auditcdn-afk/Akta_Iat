@@ -2200,13 +2200,22 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
     initPlafonForm();
 
     // ── SMH panel ──
-    document.getElementById('smhUploadBtn')?.addEventListener('click', async () => {
+    const smhUploadBtn = document.getElementById('smhUploadBtn');
+    smhUploadBtn?.addEventListener('click', async () => {
+        // File onhand ratusan baris perlu beberapa detik. Tanpa tanda apa pun,
+        // auditor mengira kliknya tidak masuk lalu mengklik lagi — dan dulu
+        // unggahan kedua itu yang membuat daftar unitnya dobel.
+        if (smhUploadBtn.disabled) return;
         const fileInput = document.getElementById('smhFileInput');
         if (!fileInput?.files[0]) { showAlert('Pilih file onhand terlebih dahulu.', 'error'); return; }
         if (!activePlanId) { showAlert('Plan audit tidak aktif.', 'error'); return; }
         const form = new FormData();
         form.append('file', fileInput.files[0]);
         form.append('plan_audit_id', activePlanId);
+        const labelAsli = smhUploadBtn.textContent;
+        smhUploadBtn.disabled = true;
+        smhUploadBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        smhUploadBtn.textContent = 'Memproses…';
         try {
             const res = await fetchJson('/api/audit-detail/smh/upload', {
                 method: 'POST',
@@ -2221,7 +2230,13 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
             renderSmhTable();
             populateSmhDropdown();
             smhPrefetchPerlengkapan();
-        } catch (e) { showAlert(e.message, 'error'); }
+        } catch (e) {
+            showAlert(e.message, 'error');
+        } finally {
+            smhUploadBtn.disabled = false;
+            smhUploadBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            smhUploadBtn.textContent = labelAsli;
+        }
     });
 
     // Autocomplete suggestions
