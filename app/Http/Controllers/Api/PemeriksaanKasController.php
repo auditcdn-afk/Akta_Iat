@@ -176,6 +176,15 @@ class PemeriksaanKasController extends Controller
             return response()->json(['data' => [], 'kunci' => null, 'cabang' => $plan->cabang]);
         }
 
+        // Dibatasi ke BULAN plan yang sedang dikerjakan: setelah bertahun-tahun
+        // audit, satu unit usaha punya puluhan pemeriksaan kas dan daftarnya jadi
+        // tidak bisa dibaca. Yang relevan cuma pemeriksaan di periode yang sama.
+        // Acuannya tanggal plan TUJUAN, bukan tanggal hari ini — berkas sering
+        // baru dirapikan awal bulan berikutnya, dan itu tidak boleh mengosongkan
+        // daftarnya.
+        $periode = $plan->tgl_plan ? \Illuminate\Support\Carbon::parse($plan->tgl_plan) : null;
+        $semuaPeriode = $request->query('periode') === 'semua' || ! $periode;
+
         // Disaring di database dulu, bukan menarik seluruh tabel lalu memilah di
         // PHP: tiap baris kas membawa detail_json yang bisa puluhan KB, dan
         // setelah bertahun-tahun audit jumlahnya ribuan. Yang diambil hanya yang
@@ -185,9 +194,14 @@ class PemeriksaanKasController extends Controller
         $kandidat = PemeriksaanKas::query()
             ->with('planAudit:id,no_spt,cabang,jenis_audit,tgl_plan')
             ->where('plan_audit_id', '!=', $planId)
-            ->whereHas('planAudit', fn ($q) => $q
-                ->where('cabang', $kunci)
-                ->orWhere('cabang', 'like', '% ' . $kunci))
+            ->whereHas('planAudit', function ($q) use ($kunci, $periode, $semuaPeriode) {
+                $q->where(fn ($c) => $c
+                    ->where('cabang', $kunci)
+                    ->orWhere('cabang', 'like', '% ' . $kunci));
+                if (! $semuaPeriode) {
+                    $q->whereYear('tgl_plan', $periode->year)->whereMonth('tgl_plan', $periode->month);
+                }
+            })
             ->latest('updated_at')
             ->limit(30)
             ->get()
@@ -207,7 +221,27 @@ class PemeriksaanKasController extends Controller
             ])
             ->values();
 
-        return response()->json(['data' => $kandidat, 'kunci' => $kunci, 'cabang' => $plan->cabang]);
+        // Dua plan dari kunjungan yang sama bisa jatuh di bulan berbeda (audit
+        // tanggal 31 dan 1). Kalau periodenya kosong, sebutkan ada berapa di
+        // periode lain supaya auditor tidak buntu — tapi daftarnya sendiri tetap
+        // bersih, tidak dicampur.
+        $diPeriodeLain = 0;
+        if ($kandidat->isEmpty() && ! $semuaPeriode) {
+            $diPeriodeLain = PemeriksaanKas::query()
+                ->where('plan_audit_id', '!=', $planId)
+                ->whereHas('planAudit', fn ($q) => $q
+                    ->where('cabang', $kunci)
+                    ->orWhere('cabang', 'like', '% ' . $kunci))
+                ->count();
+        }
+
+        return response()->json([
+            'data'          => $kandidat,
+            'kunci'         => $kunci,
+            'cabang'        => $plan->cabang,
+            'periode'       => $semuaPeriode ? null : $this->namaPeriode($periode),
+            'diPeriodeLain' => $diPeriodeLain,
+        ]);
     }
 
     /** POST /api/audit-detail/kas/salin */
@@ -328,6 +362,15 @@ class PemeriksaanKasController extends Controller
                 'data'     => $kas->fresh()->load('planAudit'),
             ]);
         });
+    }
+
+    /** "September 2026" — untuk memberi tahu periode mana yang sedang ditampilkan. */
+    private function namaPeriode(\Illuminate\Support\Carbon $tgl): string
+    {
+        $bulan = [1 => 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+        return $bulan[$tgl->month] . ' ' . $tgl->year;
     }
 
     /** Tanggal apa adanya untuk ditampilkan — tanpa jam, apa pun bentuk simpanannya. */

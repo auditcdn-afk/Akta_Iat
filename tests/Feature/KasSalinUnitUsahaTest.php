@@ -122,6 +122,48 @@ class KasSalinUnitUsahaTest extends TestCase
         $this->assertLessThan(3, $terbaca, 'Daftar sumber harus disaring di database, bukan menarik seluruh tabel kas.');
     }
 
+    public function test_hanya_pemeriksaan_di_bulan_yang_sama_yang_muncul(): void
+    {
+        // Unit usaha yang sama, tapi audit bulan lain dan tahun lain.
+        foreach (['2026-08-28', '2026-10-02', '2025-09-04'] as $tgl) {
+            $lama = $this->plan("04-{$tgl}/SPT-IAT", 'SO UJT', 'Audit Full SO', $tgl);
+            PemeriksaanKas::query()->create([
+                'plan_audit_id' => $lama->id, 'cabang' => $lama->cabang,
+                'nama_pos' => 'Pemeriksaan Kas', 'detail_json' => $this->isiKas(),
+            ]);
+        }
+
+        $res = $this->getJson("/api/audit-detail/kas/sumber-salin?plan_audit_id={$this->csc->id}")->assertOk();
+
+        $this->assertSame('September 2026', $res->json('periode'));
+        $this->assertCount(1, $res->json('data'), 'Bulan di luar September 2026 tidak boleh ikut muncul.');
+        $this->assertSame($this->so->no_spt, $res->json('data.0.noSpt'));
+    }
+
+    public function test_periode_lain_bisa_ditampilkan_kalau_periodenya_kosong(): void
+    {
+        // Kunjungan yang sama tapi jatuh beda bulan: audit tanggal 31 dan 1.
+        $this->so->update(['tgl_plan' => '2026-08-31']);
+
+        $res = $this->getJson("/api/audit-detail/kas/sumber-salin?plan_audit_id={$this->csc->id}")->assertOk();
+        $this->assertSame([], $res->json('data'), 'Bulan lain tidak dicampur begitu saja.');
+        $this->assertSame(1, $res->json('diPeriodeLain'), 'Tapi auditor diberi tahu ada di periode lain.');
+
+        $res = $this->getJson("/api/audit-detail/kas/sumber-salin?plan_audit_id={$this->csc->id}&periode=semua")->assertOk();
+        $this->assertCount(1, $res->json('data'));
+        $this->assertNull($res->json('periode'));
+    }
+
+    public function test_plan_tanpa_tanggal_menampilkan_semua_periode(): void
+    {
+        $this->csc->update(['tgl_plan' => null]);
+
+        $res = $this->getJson("/api/audit-detail/kas/sumber-salin?plan_audit_id={$this->csc->id}")->assertOk();
+
+        $this->assertNull($res->json('periode'));
+        $this->assertCount(1, $res->json('data'), 'Tanpa tanggal plan, jangan sampai daftarnya jadi kosong.');
+    }
+
     public function test_plan_sendiri_tidak_ikut_jadi_pilihan(): void
     {
         $res = $this->getJson("/api/audit-detail/kas/sumber-salin?plan_audit_id={$this->so->id}")->assertOk();
@@ -289,10 +331,11 @@ class KasSalinUnitUsahaTest extends TestCase
 
     // ── Bantuan ──────────────────────────────────────────────────────────────
 
-    private function plan(string $noSpt, string $cabang, string $jenis): PlanAudit
+    private function plan(string $noSpt, string $cabang, string $jenis, ?string $tglPlan = '2026-09-04'): PlanAudit
     {
         return PlanAudit::query()->create([
-            'no_spt' => $noSpt, 'cabang' => $cabang, 'jenis_audit' => $jenis, 'status' => 'running',
+            'no_spt' => $noSpt, 'cabang' => $cabang, 'jenis_audit' => $jenis,
+            'status' => 'running', 'tgl_plan' => $tglPlan,
         ]);
     }
 
