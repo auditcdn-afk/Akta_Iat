@@ -2495,6 +2495,7 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
     initHgpForm();
     initRsaHgpForm();
     initHgaForm();
+    initPenyegarPemeriksaan();
     initSmhTarikanForm();
     initLampiranForm();
     initMpForm();
@@ -5760,6 +5761,154 @@ function hgpSetTableFilter(term) {
     if (next === _hgpTableTerm) return;
     _hgpTableTerm = next;
     hgpRenderItems();
+}
+
+// Ketiga tab scan memakai mesin penyegaran yang sama; yang berbeda cuma
+// nama data & fungsi penggambarnya.
+function initPenyegarPemeriksaan() {
+    buatPenyegarPemeriksaan({
+        panelId: 'tabPanel-hgp', tombolId: 'hgpSegarBtn', infoId: 'hgpSegarInfo',
+        url: '/api/audit-detail/hgp',
+        data: () => _hgpData, antrean: () => _hgpScanQueue,
+        hitung: hgpCalcItem, updateBaris: hgpUpdateSingleRow, muatUlang: loadHgpTab,
+    });
+    buatPenyegarPemeriksaan({
+        panelId: 'tabPanel-rsa-hgp', tombolId: 'rsaHgpSegarBtn', infoId: 'rsaHgpSegarInfo',
+        url: '/api/audit-detail/rsa-hgp',
+        data: () => _rsaHgpData, antrean: () => _rsaHgpScanQueue,
+        hitung: rsaHgpCalcItem, updateBaris: rsaHgpUpdateSingleRow, muatUlang: loadRsaHgpTab,
+    });
+    buatPenyegarPemeriksaan({
+        panelId: 'tabPanel-hga', tombolId: 'hgaSegarBtn', infoId: 'hgaSegarInfo',
+        url: '/api/audit-detail/hga',
+        data: () => _hgaData, antrean: () => _hgaScanQueue,
+        hitung: hgaCalcItem, updateBaris: hgaUpdateSingleRow, muatUlang: loadHgaTab,
+    });
+}
+
+// ── Penyegaran tab pemeriksaan bersama ───────────────────────────────────────
+// Satu SPT dikerjakan dua auditor sekaligus dan datanya memang satu di server —
+// tapi layar ini hanya dimuat SEKALI waktu tabnya dibuka. Hasil scan rekan tidak
+// pernah muncul sampai tabnya dibuka ulang, jadi auditor melihat item yang
+// sebenarnya sudah dihitung tetap tertulis "belum discan" lalu menghitungnya
+// lagi — fisiknya jadi dobel dan muncul sebagai selisih palsu.
+//
+// Di sini layarnya menarik keadaan terbaru dari server secara berkala. Yang
+// diperbarui HANYA baris yang isinya memang berubah (hgpPaintRow dkk), bukan
+// menggambar ulang seluruh tabel: auditor yang sedang menggulir tidak kehilangan
+// tempatnya, dan <input> WO/Keterangan tidak dicabut dari bawah tangannya.
+// Nilainya sengaja di dalam fungsi, bukan const tingkat modul: initPenyegar-
+// Pemeriksaan() dipanggil saat modul ini dievaluasi, jadi const yang letaknya
+// di bawah titik panggil itu masih dalam temporal dead zone.
+function penyegarKunciPart(v) {
+    return (v ?? '').toString().trim().toUpperCase();
+}
+
+// Kolom yang menandakan "ada pekerjaan rekan yang belum terlihat di sini".
+// logScan dibandingkan lewat jumlah entrinya.
+function penyegarBerbeda(lokal, server) {
+    if ((lokal.logScan?.length || 0) !== (server.logScan?.length || 0)) return true;
+    const bidang = ['fisik', 'wo', 'fisikTtp', 'keterangan', 'keteranganTtp', 'tgl', 'saldoAkhir', 'saldoPts', 'saldoAwal'];
+    return bidang.some(f => String(lokal[f] ?? '') !== String(server[f] ?? ''));
+}
+
+/**
+ * opsi: { panelId, url, data(), antrean(), hitung(item), updateBaris(idx), muatUlang() }
+ */
+function buatPenyegarPemeriksaan(opsi) {
+    let sedang = false;
+
+    const panel = () => document.getElementById(opsi.panelId);
+
+    function boleh() {
+        if (sedang || !activePlanId) return false;
+        // Tab browser di belakang / layar terkunci: tidak ada yang melihat.
+        if (document.visibilityState !== 'visible') return false;
+        const p = panel();
+        if (!p || p.classList.contains('hidden')) return false;
+        if (!opsi.data()?.items?.length) return false;
+        // Masih ada scan yang belum sampai ke server: layar ini justru LEBIH
+        // baru dari server, jangan ditimpa.
+        if (opsi.antrean().hasPending()) return false;
+        // Auditor sedang mengetik DI DALAM TABEL (kolom WO / Keterangan): nilai
+        // yang belum sempat dikirim tidak boleh ditimpa isi server. Kotak cari,
+        // kotak scan, dan kolom tanggal di luar tabel tidak menghalangi —
+        // fokus di situ tidak ada hubungannya dengan isi baris, dan dulu itu
+        // membuat penyegaran tidak pernah jalan selama auditor menyaring tabel.
+        const f = document.activeElement;
+        if (f && p.contains(f) && f.closest('tbody')) return false;
+        return true;
+    }
+
+    function serap(dariServer) {
+        const items = opsi.data()?.items || [];
+        const peta  = new Map();
+        items.forEach((it, i) => peta.set(penyegarKunciPart(it.noPart), i));
+
+        let diperbarui = 0;
+        let asing = 0;
+        dariServer.forEach((srv) => {
+            const i = peta.get(penyegarKunciPart(srv.noPart));
+            if (i === undefined) { asing++; return; }     // part baru dari rekan
+            const it = items[i];
+            if (!penyegarBerbeda(it, srv)) return;
+            // Harga HET hasil pengayaan lokal tidak ikut dikirim server — jangan
+            // sampai hilang dan membuat kolom Jumlah jadi kosong.
+            const het = it.hargaHet;
+            Object.assign(it, srv);
+            if (it.hargaHet === undefined || it.hargaHet === null) it.hargaHet = het;
+            opsi.hitung(it);
+            opsi.updateBaris(i);
+            diperbarui++;
+        });
+        return { diperbarui, asing };
+    }
+
+    function tandaiWaktu(pesan) {
+        const el = document.getElementById(opsi.infoId);
+        if (!el) return;
+        const jam = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        el.textContent = pesan ? `${pesan} · ${jam}` : `Diperbarui ${jam}`;
+    }
+
+    async function jalankan({ paksa = false } = {}) {
+        if (!paksa && !boleh()) return null;
+        if (sedang || !activePlanId) return null;
+        sedang = true;
+        try {
+            const res = await fetchJson(`${opsi.url}?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const hasil = serap(res.data?.items || []);
+            // Rekan menambah No. Part baru (Tambah Part Manual / impor ulang):
+            // barisnya belum ada di tabel ini, jadi muat penuh sekali.
+            if (hasil.asing) await opsi.muatUlang();
+            tandaiWaktu(hasil.diperbarui || hasil.asing
+                ? `${hasil.diperbarui + hasil.asing} item dari rekan`
+                : null);
+            return hasil;
+        } finally {
+            sedang = false;
+        }
+    }
+
+    setInterval(() => { jalankan().catch(() => {}); }, 20000);
+
+    // Tombol manual: selalu jalan (kecuali antreannya sendiri belum terkirim),
+    // dan hasilnya dikatakan ke auditor supaya jelas sudah sinkron atau belum.
+    document.getElementById(opsi.tombolId)?.addEventListener('click', async () => {
+        if (opsi.antrean().hasPending()) {
+            showAlert('Masih ada hasil scan dari perangkat ini yang belum terkirim — tunggu sebentar lalu coba lagi.', 'error');
+            return;
+        }
+        try {
+            const hasil = await jalankan({ paksa: true });
+            if (!hasil) return;
+            showAlert(hasil.diperbarui + hasil.asing
+                ? `${hasil.diperbarui + hasil.asing} item diperbarui dari hasil scan rekan.`
+                : 'Sudah sama dengan data di server.');
+        } catch (e) { showAlert(e.message, 'error'); }
+    });
+
+    return { jalankan };
 }
 
 // Update 1 baris saja di tabel (dipakai setelah scan / simpan pemeriksaan).

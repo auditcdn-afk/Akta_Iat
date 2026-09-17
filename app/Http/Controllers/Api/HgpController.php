@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\MengunciDataPemeriksaan;
 use App\Http\Controllers\Concerns\MenjagaHasilPemeriksaan;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
@@ -26,6 +27,7 @@ class HgpController extends Controller
 {
     use RequiresAuditorAuditee;
     use MenjagaHasilPemeriksaan;
+    use MengunciDataPemeriksaan;
 
     // Khusus jenis audit ini, tool "HGP & AHM Oils" (bukan tool terpisah
     // "RSA HGP & AHM Oils") ikut disampling acak 30 item saat import — item
@@ -58,31 +60,33 @@ class HgpController extends Controller
         $mode   = (string) $request->input('mode', 'merge');
         $items  = (array) $request->input('items', []);
 
-        $rec       = PemeriksaanHgp::where('plan_audit_id', $planId)->first();
-        $tersimpan = $rec?->items_json ?? [];
+        return $this->denganKunciPemeriksaan(PemeriksaanHgp::class, $planId,
+            function (?PemeriksaanHgp $rec) use ($planId, $who, $mode, $items) {
+                $tersimpan = $rec?->items_json ?? [];
 
-        if ($mode === 'import') {
-            $items = $this->bawaHasilPemeriksaan($items, $tersimpan);
-        } elseif ($mode !== 'replace') {
-            $hilang = $this->pemeriksaanYangHilang($items, $tersimpan);
-            if ($hilang !== []) {
-                return response()->json([
-                    'message' => 'Data di server sudah lebih baru dari yang ada di layar ini — '
-                        . count($hilang) . ' item yang sudah diperiksa akan hilang kalau ditimpa. '
-                        . 'Muat ulang tab HGP dulu, hasil scan Anda yang belum terkirim tetap aman.',
-                    'stale'   => true,
-                    'noPart'  => array_slice($hilang, 0, 20),
-                ], 409);
-            }
-        }
+                if ($mode === 'import') {
+                    $items = $this->bawaHasilPemeriksaan($items, $tersimpan);
+                } elseif ($mode !== 'replace') {
+                    $hilang = $this->pemeriksaanYangHilang($items, $tersimpan);
+                    if ($hilang !== []) {
+                        return response()->json([
+                            'message' => 'Data di server sudah lebih baru dari yang ada di layar ini — '
+                                . count($hilang) . ' item yang sudah diperiksa akan hilang kalau ditimpa. '
+                                . 'Muat ulang tab HGP dulu, hasil scan Anda yang belum terkirim tetap aman.',
+                            'stale'   => true,
+                            'noPart'  => array_slice($hilang, 0, 20),
+                        ], 409);
+                    }
+                }
 
-        $rec = PemeriksaanHgp::updateOrCreate(
-            ['plan_audit_id' => $planId],
-            ['items_json' => $items, 'updated_by' => $who]
-        );
-        if (!$rec->created_by) $rec->update(['created_by' => $who]);
+                $rec = PemeriksaanHgp::updateOrCreate(
+                    ['plan_audit_id' => $planId],
+                    ['items_json' => $items, 'updated_by' => $who]
+                );
+                if (!$rec->created_by) $rec->update(['created_by' => $who]);
 
-        return response()->json(['message' => 'Data HGP tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+                return response()->json(['message' => 'Data HGP tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+            });
     }
 
     // Simpan HANYA 1 item (delta) yang bertambah fisiknya dari 1 kali scan, alih-alih
@@ -103,67 +107,69 @@ class HgpController extends Controller
             return response()->json(['message' => 'No. Part wajib diisi.'], 422);
         }
 
-        $rec = PemeriksaanHgp::where('plan_audit_id', $planId)->first();
-        if (!$rec) {
-            return response()->json(['message' => 'Data HGP belum ada untuk plan audit ini.'], 422);
-        }
+        return $this->denganKunciPemeriksaan(PemeriksaanHgp::class, $planId,
+            function (?PemeriksaanHgp $rec) use ($request, $planId, $noPart, $qty, $who) {
+                if (!$rec) {
+                    return response()->json(['message' => 'Data HGP belum ada untuk plan audit ini.'], 422);
+                }
 
-        $items = $rec->items_json ?? [];
-        $idx = null;
-        foreach ($items as $i => $row) {
-            if (strcasecmp(trim((string)($row['noPart'] ?? '')), $noPart) === 0) {
-                $idx = $i;
-                break;
-            }
-        }
-        if ($idx === null) {
-            return response()->json(['message' => "No. Part \"{$noPart}\" tidak ditemukan."], 404);
-        }
+                $items = $rec->items_json ?? [];
+                $idx = null;
+                foreach ($items as $i => $row) {
+                    if (strcasecmp(trim((string)($row['noPart'] ?? '')), $noPart) === 0) {
+                        $idx = $i;
+                        break;
+                    }
+                }
+                if ($idx === null) {
+                    return response()->json(['message' => "No. Part \"{$noPart}\" tidak ditemukan."], 404);
+                }
 
-        $it = $items[$idx];
-        // Browser menggabung scan beruntun untuk No. Part yang sama menjadi 1
-        // request (lihat createScanIncrementQueue di audit-editor.js) dan mengirim
-        // rincian tiap scan lewat "entries". Riwayatnya tetap dicatat satu per satu
-        // supaya hitungan "Fisik Terscan" (= jumlah entri logScan) tidak menyusut
-        // gara-gara penggabungan itu.
-        $entries = array_values(array_filter((array) $request->input('entries', []), 'is_array'));
-        // qty=0 tanpa entries dipakai saat auditor cuma mengedit WO/Keterangan inline
-        // di tabel (bukan scan baru) — tidak menambah fisik & tidak mencatat logScan palsu.
-        if ($entries !== []) {
-            // Tiap entri bawa id dari browser: kalau request-nya diulang karena
-            // jaringan gudang putus, entri yang sudah tercatat dilewati sehingga
-            // fisiknya tidak bertambah dua kali (lihat terapkanEntriScan).
-            $it = $this->terapkanEntriScan($it, $entries);
-        } elseif ($qty !== 0.0) {
-            $it['fisik'] = $this->n($it['fisik'] ?? 0) + $qty;
-            $it['logScan'] = is_array($it['logScan'] ?? null) ? $it['logScan'] : [];
-            $it['logScan'][] = ['at' => now()->toIso8601String(), 'qty' => $qty];
-        }
-        // keterangan/tgl/wo opsional — dikirim dari form input manual & edit inline
-        // tabel, tidak dikirim dari jalur scan barcode cepat. Cuma ditimpa kalau
-        // memang dikirim, supaya scan barcode (yang tidak membawa field ini) tidak
-        // ikut mengosongkan keterangan/wo yang sudah ada.
-        if ($request->has('keterangan')) {
-            $it['keterangan'] = (string) $request->input('keterangan');
-        }
-        if ($request->has('tgl')) {
-            $it['tgl'] = (string) $request->input('tgl');
-        }
-        if ($request->has('wo')) {
-            $it['wo'] = $this->n($request->input('wo'));
-        }
-        // Rumus sama dengan hgpCalcItem() di frontend: WO ikut menambah fisik.
-        $saldo = $this->n($it['saldoAkhir'] ?? 0);
-        $total = $this->n($it['fisik'] ?? 0) + $this->n($it['wo'] ?? 0);
-        $it['akhir']   = $saldo - $total;
-        $it['selisih'] = $total - $saldo;
-        $items[$idx] = $it;
+                $it = $items[$idx];
+                // Browser menggabung scan beruntun untuk No. Part yang sama menjadi 1
+                // request (lihat createScanIncrementQueue di audit-editor.js) dan mengirim
+                // rincian tiap scan lewat "entries". Riwayatnya tetap dicatat satu per satu
+                // supaya hitungan "Fisik Terscan" (= jumlah entri logScan) tidak menyusut
+                // gara-gara penggabungan itu.
+                $entries = array_values(array_filter((array) $request->input('entries', []), 'is_array'));
+                // qty=0 tanpa entries dipakai saat auditor cuma mengedit WO/Keterangan inline
+                // di tabel (bukan scan baru) — tidak menambah fisik & tidak mencatat logScan palsu.
+                if ($entries !== []) {
+                    // Tiap entri bawa id dari browser: kalau request-nya diulang karena
+                    // jaringan gudang putus, entri yang sudah tercatat dilewati sehingga
+                    // fisiknya tidak bertambah dua kali (lihat terapkanEntriScan).
+                    $it = $this->terapkanEntriScan($it, $entries);
+                } elseif ($qty !== 0.0) {
+                    $it['fisik'] = $this->n($it['fisik'] ?? 0) + $qty;
+                    $it['logScan'] = is_array($it['logScan'] ?? null) ? $it['logScan'] : [];
+                    $it['logScan'][] = ['at' => now()->toIso8601String(), 'qty' => $qty];
+                }
+                // keterangan/tgl/wo opsional — dikirim dari form input manual & edit inline
+                // tabel, tidak dikirim dari jalur scan barcode cepat. Cuma ditimpa kalau
+                // memang dikirim, supaya scan barcode (yang tidak membawa field ini) tidak
+                // ikut mengosongkan keterangan/wo yang sudah ada.
+                if ($request->has('keterangan')) {
+                    $it['keterangan'] = (string) $request->input('keterangan');
+                }
+                if ($request->has('tgl')) {
+                    $it['tgl'] = (string) $request->input('tgl');
+                }
+                if ($request->has('wo')) {
+                    $it['wo'] = $this->n($request->input('wo'));
+                }
+                // Rumus sama dengan hgpCalcItem() di frontend: WO ikut menambah fisik.
+                $saldo = $this->n($it['saldoAkhir'] ?? 0);
+                $total = $this->n($it['fisik'] ?? 0) + $this->n($it['wo'] ?? 0);
+                $it['akhir']   = $saldo - $total;
+                $it['selisih'] = $total - $saldo;
+                $items[$idx] = $it;
 
-        $rec->items_json  = $items;
-        $rec->updated_by  = $who;
-        $rec->save();
+                $rec->items_json  = $items;
+                $rec->updated_by  = $who;
+                $rec->save();
 
-        return response()->json(['message' => 'OK', 'item' => $it, 'idx' => $idx]);
+                return response()->json(['message' => 'OK', 'item' => $it, 'idx' => $idx]);
+            });
     }
 
     // Tambah 1 No. Part manual (tombol "+ Tambah Part Manual") lewat baca-ubah-simpan
@@ -181,31 +187,33 @@ class HgpController extends Controller
             return response()->json(['message' => 'No. Part wajib diisi.'], 422);
         }
 
-        $rec = PemeriksaanHgp::where('plan_audit_id', $planId)->first();
-        if (!$rec) {
-            return response()->json(['message' => 'Data HGP belum ada untuk plan audit ini.'], 422);
-        }
+        return $this->denganKunciPemeriksaan(PemeriksaanHgp::class, $planId,
+            function (?PemeriksaanHgp $rec) use ($planId, $noPart, $nama, $who) {
+                if (!$rec) {
+                    return response()->json(['message' => 'Data HGP belum ada untuk plan audit ini.'], 422);
+                }
 
-        $items = $rec->items_json ?? [];
-        foreach ($items as $row) {
-            if (strcasecmp(trim((string)($row['noPart'] ?? '')), $noPart) === 0) {
-                return response()->json(['message' => "No. Part \"{$noPart}\" sudah ada dalam daftar."], 422);
-            }
-        }
+                $items = $rec->items_json ?? [];
+                foreach ($items as $row) {
+                    if (strcasecmp(trim((string)($row['noPart'] ?? '')), $noPart) === 0) {
+                        return response()->json(['message' => "No. Part \"{$noPart}\" sudah ada dalam daftar."], 422);
+                    }
+                }
 
-        $newItem = [
-            'noPart' => $noPart, 'sparepart' => $nama !== '' ? $nama : $noPart,
-            'saldoAkhir' => 0, 'fisik' => 0, 'wo' => 0, 'akhir' => 0, 'selisih' => 0,
-            'keterangan' => '', 'tgl' => now()->toDateString(), 'logScan' => [],
-            '_manual' => true,
-        ];
-        $items[] = $newItem;
+                $newItem = [
+                    'noPart' => $noPart, 'sparepart' => $nama !== '' ? $nama : $noPart,
+                    'saldoAkhir' => 0, 'fisik' => 0, 'wo' => 0, 'akhir' => 0, 'selisih' => 0,
+                    'keterangan' => '', 'tgl' => now()->toDateString(), 'logScan' => [],
+                    '_manual' => true,
+                ];
+                $items[] = $newItem;
 
-        $rec->items_json = $items;
-        $rec->updated_by = $who;
-        $rec->save();
+                $rec->items_json = $items;
+                $rec->updated_by = $who;
+                $rec->save();
 
-        return response()->json(['message' => 'OK', 'item' => $newItem, 'idx' => count($items) - 1]);
+                return response()->json(['message' => 'OK', 'item' => $newItem, 'idx' => count($items) - 1]);
+            });
     }
 
     public function parseExcel(Request $request): JsonResponse

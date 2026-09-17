@@ -159,6 +159,9 @@
                             <input type="checkbox" id="hgaFilterSelisihOnly" class="h-4 w-4 rounded border-slate-600 bg-slate-800 text-red-500 focus:ring-red-500">
                             Tampilkan hanya yang selisih
                         </label>
+                        <button type="button" id="hgaSegarBtn" title="Ambil hasil scan terbaru dari rekan seaudit"
+                            class="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800">⟳ Segarkan</button>
+                        <span id="hgaSegarInfo" class="text-[11px] text-slate-500"></span>
                         <span id="hgaTableCount" class="rounded-full bg-blue-600/20 px-3 py-1 text-xs font-bold text-blue-300">0 Item</span>
                     </div>
                 </div>
