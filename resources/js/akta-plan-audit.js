@@ -603,7 +603,49 @@ async function savePlan(event) {
     }
 }
 
-async function advancePlan(id) {
+// Plan yang permintaannya sedang berjalan. Tombolnya memang sudah dinonaktifkan,
+// tapi penjaga ini menutup celah yang tidak lewat klik -- Enter beruntun di tombol
+// yang sedang fokus, atau klik kedua yang keburu masuk sebelum baris digambar ulang.
+const sedangDiproses = new Set();
+
+/**
+ * Tandai satu baris sedang menunggu jawaban server, kembalikan fungsi untuk
+ * memulihkannya.
+ *
+ * Sebelumnya tidak ada tanda apa pun selama menunggu: tombolnya tetap terlihat
+ * biasa dan masih bisa diklik, jadi jeda perjalanan ke server terasa seperti
+ * aplikasi yang tidak merespons -- dan auditor mengklik lagi, yang justru
+ * mengirim permintaan kedua dan membuatnya makin lambat.
+ */
+function mulaiProses(id, tombol) {
+    sedangDiproses.add(String(id));
+
+    const baris = tombol?.closest("tr");
+    const semua = baris ? [...baris.querySelectorAll("button")] : [];
+    semua.forEach((b) => {
+        b.disabled = true;
+        b.classList.add("opacity-50", "cursor-not-allowed");
+    });
+
+    const labelAsli = tombol?.textContent;
+    if (tombol) tombol.textContent = "Memproses…";
+
+    return () => {
+        sedangDiproses.delete(String(id));
+
+        // Kalau permintaannya berhasil, barisnya sudah digambar ulang dan tombol
+        // lama tidak lagi ada di halaman -- tidak ada yang perlu dipulihkan.
+        if (!tombol || !tombol.isConnected) return;
+
+        semua.forEach((b) => {
+            b.disabled = false;
+            b.classList.remove("opacity-50", "cursor-not-allowed");
+        });
+        tombol.textContent = labelAsli;
+    };
+}
+
+async function advancePlan(id, tombol) {
     const plan = plans.find((p) => String(p.id) === String(id));
     if (!plan) return;
 
@@ -619,17 +661,22 @@ async function advancePlan(id) {
         if (!confirmed) return;
     }
 
-    const payload = await fetchJson(`/api/plans/${id}/advance`, {
-        method: "POST",
-        headers: body ? { "Content-Type": "application/json" } : {},
-        body,
-    });
-    showAlert(payload.message || "Status berhasil diperbarui.");
-    notifyPlanChanged(id, "updated");
-    terapkanPlan(payload.data);
+    const selesai = mulaiProses(id, tombol);
+    try {
+        const payload = await fetchJson(`/api/plans/${id}/advance`, {
+            method: "POST",
+            headers: body ? { "Content-Type": "application/json" } : {},
+            body,
+        });
+        showAlert(payload.message || "Status berhasil diperbarui.");
+        notifyPlanChanged(id, "updated");
+        terapkanPlan(payload.data);
+    } finally {
+        selesai();
+    }
 }
 
-async function rejectPlan(id) {
+async function rejectPlan(id, tombol) {
     const plan = plans.find((p) => String(p.id) === String(id));
     if (!plan) return;
 
@@ -646,13 +693,18 @@ async function rejectPlan(id) {
         return;
     }
 
-    const payload = await fetchJson(`/api/plans/${id}/reject`, {
-        method: "POST",
-        body: JSON.stringify({ alasan: alasan.trim() }),
-    });
-    showAlert(payload.message || "Plan dikembalikan ke Draft.");
-    notifyPlanChanged(id, "updated");
-    terapkanPlan(payload.data);
+    const selesai = mulaiProses(id, tombol);
+    try {
+        const payload = await fetchJson(`/api/plans/${id}/reject`, {
+            method: "POST",
+            body: JSON.stringify({ alasan: alasan.trim() }),
+        });
+        showAlert(payload.message || "Plan dikembalikan ke Draft.");
+        notifyPlanChanged(id, "updated");
+        terapkanPlan(payload.data);
+    } finally {
+        selesai();
+    }
 }
 
 async function deletePlan(id) {
@@ -716,9 +768,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         const edit    = e.target.closest(".edit-plan");
         const del     = e.target.closest(".delete-plan");
 
+        const sibuk = advance || reject;
+        if (sibuk && sedangDiproses.has(String(sibuk.dataset.id))) return;
+
         try {
-            if (advance) { await advancePlan(advance.dataset.id); return; }
-            if (reject)  { await rejectPlan(reject.dataset.id);  return; }
+            if (advance) { await advancePlan(advance.dataset.id, advance); return; }
+            if (reject)  { await rejectPlan(reject.dataset.id, reject);   return; }
             if (edit) {
                 const plan = plans.find((p) => String(p.id) === String(edit.dataset.id));
                 await openModal(plan);
