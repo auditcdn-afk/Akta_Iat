@@ -646,7 +646,8 @@ async function bukaKasSalin() {
             return;
         }
         isi.innerHTML = `<p class="mb-3 text-xs text-slate-400">Pilih pemeriksaan yang mau disalin ke sini.
-            Seluruh isi tab Kas ikut tersalin, termasuk Register Blanko.</p>` + daftar.map(kasSalinKartu).join('');
+            Seluruh isi tab Kas ikut tersalin — termasuk Register Blanko, Nama Auditor, dan Nama Auditee.</p>`
+            + daftar.map(kasSalinKartu).join('');
     } catch (e) {
         isi.innerHTML = `<p class="py-6 text-center text-red-400">${escapeHtml(e.message || 'Gagal memuat daftar.')}</p>`;
     }
@@ -660,6 +661,9 @@ async function jalankanKasSalin(sumberId, timpa = false) {
     });
     tutupKasSalin();
     await loadKasForm();
+    // Nama Auditor & Auditee ikut tersalin — widget di atas tab harus ikut
+    // menyusul, kalau tidak layarnya masih menampilkan kolom kosong.
+    await loadAuditorWidget('kas').catch(() => {});
     showAlert(res.message || 'Hasil pemeriksaan kas berhasil disalin.');
 }
 

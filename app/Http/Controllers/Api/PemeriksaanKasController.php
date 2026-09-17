@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
+use App\Models\PemeriksaanAuditor;
 use App\Models\PemeriksaanKas;
 use App\Models\PlanAudit;
 use Illuminate\Http\JsonResponse;
@@ -222,7 +223,11 @@ class PemeriksaanKasController extends Controller
         $sumberId = (int) $data['sumber_plan_audit_id'];
 
         $this->ensureCanWrite($request, $planId);
-        $this->ensureAuditorFilled($planId, 'kas');
+        // Nama Auditor & Auditee ikut tersalin, jadi yang wajib sudah terisi
+        // adalah SUMBERnya — bukan tujuannya. Kalau tujuannya yang dituntut,
+        // auditor harus mengetik nama dulu sebelum boleh menyalin, padahal
+        // nama itu justru bagian dari yang mau disalin.
+        $this->ensureAuditorFilled($sumberId, 'kas');
 
         $tujuan = PlanAudit::query()->findOrFail($planId);
         $sumber = PlanAudit::query()->findOrFail($sumberId);
@@ -249,9 +254,19 @@ class PemeriksaanKasController extends Controller
             $adaSekarang = PemeriksaanKas::query()->where('plan_audit_id', $planId)->lockForUpdate()->first();
             $isiSekarang = $this->ringkasIsi($adaSekarang?->detail_json ?? []);
 
+            $namaAsal    = PemeriksaanAuditor::query()->where('plan_audit_id', $sumberId)->where('tool', 'kas')->first();
+            $namaSekarang = PemeriksaanAuditor::query()->where('plan_audit_id', $planId)->where('tool', 'kas')->first();
+            // Nama yang sudah diketik di sini juga akan tertimpa — sebut juga.
+            if ($namaSekarang && $namaAsal && (
+                trim((string) $namaSekarang->nama_auditor) !== trim((string) $namaAsal->nama_auditor)
+                || trim((string) $namaSekarang->nama_auditee) !== trim((string) $namaAsal->nama_auditee)
+            )) {
+                $isiSekarang[] = "Nama Auditor/Auditee yang sekarang ({$namaSekarang->nama_auditor} / {$namaSekarang->nama_auditee})";
+            }
+
             // Isi yang sudah ada tidak pernah ditimpa diam-diam: auditor harus
             // menyetujui dulu, dan yang akan hilang disebut satu per satu.
-            if ($adaSekarang && $isiSekarang !== [] && ! ($data['timpa'] ?? false)) {
+            if ($isiSekarang !== [] && ! ($data['timpa'] ?? false)) {
                 return response()->json([
                     'message'     => 'Pemeriksaan kas di plan ini sudah ada isinya dan akan tertimpa.',
                     'perluTimpa'  => true,
@@ -290,9 +305,26 @@ class PemeriksaanKasController extends Controller
                 $kas->update(['created_by' => $this->userIdentifier($request)]);
             }
 
+            // Pemeriksaan kas yang sama dikerjakan auditor yang sama terhadap
+            // auditee yang sama, jadi namanya ikut pindah — tanpa itu salinannya
+            // tidak lengkap dan auditor harus mengetik ulang.
+            $nama = null;
+            if ($namaAsal) {
+                $nama = PemeriksaanAuditor::query()->updateOrCreate(
+                    ['plan_audit_id' => $planId, 'tool' => 'kas'],
+                    [
+                        'nama_auditor' => $namaAsal->nama_auditor,
+                        'nama_auditee' => $namaAsal->nama_auditee,
+                        'updated_by'   => $this->userIdentifier($request),
+                    ]
+                );
+            }
+
             return response()->json([
-                'message'  => "Hasil pemeriksaan kas {$sumber->no_spt} • {$sumber->cabang} berhasil disalin ke sini.",
+                'message'  => "Hasil pemeriksaan kas {$sumber->no_spt} • {$sumber->cabang} berhasil disalin ke sini"
+                    . ($nama ? ", termasuk Nama Auditor & Auditee." : '.'),
                 'disalin'  => $this->ringkasIsi($detail),
+                'auditor'  => $nama?->toAktaArray(),
                 'data'     => $kas->fresh()->load('planAudit'),
             ]);
         });
