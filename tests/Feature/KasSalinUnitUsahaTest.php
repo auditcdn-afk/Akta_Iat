@@ -31,6 +31,8 @@ class KasSalinUnitUsahaTest extends TestCase
         $this->so  = $this->plan('0459/01/09/2026/SPT-IAT', 'SO UJT', 'Audit Full SO');
         $this->csc = $this->plan('0460/01/09/2026/SPT-IAT', 'CSC UJT', 'Audit Full CSC');
 
+        $this->auditorTerisi($this->so);
+
         PemeriksaanKas::query()->create([
             'plan_audit_id' => $this->so->id,
             'no_spt'        => $this->so->no_spt,
@@ -170,6 +172,52 @@ class KasSalinUnitUsahaTest extends TestCase
         $this->assertNotEmpty($jejak['pada']);
     }
 
+    public function test_nama_auditor_dan_auditee_ikut_tersalin(): void
+    {
+        // Tujuannya belum mengisi nama sama sekali — justru itu yang mau disalin.
+        $this->postJson('/api/audit-detail/kas/salin', [
+            'plan_audit_id'        => $this->csc->id,
+            'sumber_plan_audit_id' => $this->so->id,
+        ])->assertOk();
+
+        $this->assertDatabaseHas('pemeriksaan_auditors', [
+            'plan_audit_id' => $this->csc->id,
+            'tool'          => 'kas',
+            'nama_auditor'  => 'Auditor Uji',
+            'nama_auditee'  => 'Auditee Uji',
+        ]);
+    }
+
+    public function test_nama_yang_sudah_diketik_di_tujuan_ikut_dikonfirmasi_sebelum_tertimpa(): void
+    {
+        PemeriksaanAuditor::query()->create([
+            'plan_audit_id' => $this->csc->id, 'tool' => 'kas',
+            'nama_auditor'  => 'Heri Syahputra', 'nama_auditee' => 'SARI I',
+        ]);
+
+        $res = $this->postJson('/api/audit-detail/kas/salin', [
+            'plan_audit_id'        => $this->csc->id,
+            'sumber_plan_audit_id' => $this->so->id,
+        ])->assertStatus(409);
+
+        $this->assertStringContainsString('Heri Syahputra', implode(' ', $res->json('akanHilang')));
+
+        // Namanya masih utuh sebelum disetujui.
+        $this->assertDatabaseHas('pemeriksaan_auditors', [
+            'plan_audit_id' => $this->csc->id, 'nama_auditor' => 'Heri Syahputra',
+        ]);
+    }
+
+    public function test_sumber_yang_belum_mengisi_nama_auditee_ditolak(): void
+    {
+        PemeriksaanAuditor::query()->where('plan_audit_id', $this->so->id)->delete();
+
+        $this->postJson('/api/audit-detail/kas/salin', [
+            'plan_audit_id'        => $this->csc->id,
+            'sumber_plan_audit_id' => $this->so->id,
+        ])->assertStatus(422);
+    }
+
     public function test_unit_usaha_berbeda_ditolak_server_walau_dipaksa(): void
     {
         $lain = $this->plan('0461/01/09/2026/SPT-IAT', 'SO PRW', 'Audit Full SO');
@@ -237,14 +285,6 @@ class KasSalinUnitUsahaTest extends TestCase
             'plan_audit_id'        => $this->csc->id,
             'sumber_plan_audit_id' => $this->so->id,
         ])->assertStatus(403);
-    }
-
-    public function test_salin_ditolak_sebelum_nama_auditee_diisi(): void
-    {
-        $this->postJson('/api/audit-detail/kas/salin', [
-            'plan_audit_id'        => $this->csc->id,
-            'sumber_plan_audit_id' => $this->so->id,
-        ])->assertStatus(422);
     }
 
     // ── Bantuan ──────────────────────────────────────────────────────────────
