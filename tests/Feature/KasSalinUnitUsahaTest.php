@@ -122,31 +122,51 @@ class KasSalinUnitUsahaTest extends TestCase
         $this->assertLessThan(3, $terbaca, 'Daftar sumber harus disaring di database, bukan menarik seluruh tabel kas.');
     }
 
-    public function test_hanya_pemeriksaan_di_bulan_yang_sama_yang_muncul(): void
+    public function test_periode_mencakup_bulan_plan_dan_dua_bulan_ke_belakang(): void
     {
-        // Unit usaha yang sama, tapi audit bulan lain dan tahun lain.
-        foreach (['2026-08-28', '2026-10-02', '2025-09-04'] as $tgl) {
-            $lama = $this->plan("04-{$tgl}/SPT-IAT", 'SO UJT', 'Audit Full SO', $tgl);
+        // Yang di dalam jendela: bulan plan sendiri, 1 bulan lalu, 2 bulan lalu.
+        // Yang di luar: 3 bulan lalu, bulan depan, dan tahun lalu.
+        foreach ([
+            '2026-08-28' => true,   // 1 bulan sebelum
+            '2026-07-01' => true,   // 2 bulan sebelum
+            '2026-06-30' => false,  // 3 bulan sebelum
+            '2026-10-02' => false,  // bulan berikutnya
+            '2025-09-04' => false,  // tahun lalu
+        ] as $tgl => $masuk) {
+            $lain = $this->plan("SPT-{$tgl}", 'SO UJT', 'Audit Full SO', $tgl);
             PemeriksaanKas::query()->create([
-                'plan_audit_id' => $lama->id, 'cabang' => $lama->cabang,
+                'plan_audit_id' => $lain->id, 'cabang' => $lain->cabang,
                 'nama_pos' => 'Pemeriksaan Kas', 'detail_json' => $this->isiKas(),
             ]);
         }
 
         $res = $this->getJson("/api/audit-detail/kas/sumber-salin?plan_audit_id={$this->csc->id}")->assertOk();
 
-        $this->assertSame('September 2026', $res->json('periode'));
-        $this->assertCount(1, $res->json('data'), 'Bulan di luar September 2026 tidak boleh ikut muncul.');
+        $this->assertSame('Juli–September 2026', $res->json('periode'));
+        $noSpt = array_column($res->json('data'), 'noSpt');
+        sort($noSpt);
+        $this->assertSame(['0459/01/09/2026/SPT-IAT', 'SPT-2026-07-01', 'SPT-2026-08-28'], $noSpt);
+    }
+
+    public function test_pemeriksaan_bulan_lalu_tetap_muncul_untuk_plan_bulan_ini(): void
+    {
+        // Yang dikhawatirkan: SO diperiksa bulan 9, plan CSC-nya bulan 10.
+        $this->csc->update(['tgl_plan' => '2026-10-05']);
+
+        $res = $this->getJson("/api/audit-detail/kas/sumber-salin?plan_audit_id={$this->csc->id}")->assertOk();
+
+        $this->assertSame('Agustus–Oktober 2026', $res->json('periode'));
+        $this->assertCount(1, $res->json('data'), 'Pemeriksaan bulan 9 harus tetap bisa disalin ke plan bulan 10.');
         $this->assertSame($this->so->no_spt, $res->json('data.0.noSpt'));
     }
 
     public function test_periode_lain_bisa_ditampilkan_kalau_periodenya_kosong(): void
     {
-        // Kunjungan yang sama tapi jatuh beda bulan: audit tanggal 31 dan 1.
-        $this->so->update(['tgl_plan' => '2026-08-31']);
+        // Arahnya cuma mundur: sumber yang plannya JAUH lebih baru tidak ikut.
+        $this->so->update(['tgl_plan' => '2027-01-04']);
 
         $res = $this->getJson("/api/audit-detail/kas/sumber-salin?plan_audit_id={$this->csc->id}")->assertOk();
-        $this->assertSame([], $res->json('data'), 'Bulan lain tidak dicampur begitu saja.');
+        $this->assertSame([], $res->json('data'), 'Periode lain tidak dicampur begitu saja.');
         $this->assertSame(1, $res->json('diPeriodeLain'), 'Tapi auditor diberi tahu ada di periode lain.');
 
         $res = $this->getJson("/api/audit-detail/kas/sumber-salin?plan_audit_id={$this->csc->id}&periode=semua")->assertOk();

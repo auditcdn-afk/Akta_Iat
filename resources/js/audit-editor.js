@@ -616,6 +616,12 @@ function kasSalinKartu(k) {
     </button>`;
 }
 
+function pasangTombolSemuaPeriode() {
+    document.getElementById('kasSalinSemuaPeriode')?.addEventListener('click', () => {
+        bukaKasSalin(true).catch((e) => showAlert(e.message, 'error'));
+    });
+}
+
 async function bukaKasSalin(semuaPeriode = false) {
     if (!canManageKas()) { showAlert('Role kamu hanya boleh melihat data.', 'error'); return; }
     if (!activePlanId) { showAlert('Plan audit tidak valid.', 'error'); return; }
@@ -653,14 +659,20 @@ async function bukaKasSalin(semuaPeriode = false) {
                     Ada ${adaLain} pemeriksaan di periode lain — tampilkan juga
                 </button>` : ''}
             </div>`;
-            document.getElementById('kasSalinSemuaPeriode')?.addEventListener('click', () => {
-                bukaKasSalin(true).catch((e) => showAlert(e.message, 'error'));
-            });
+            pasangTombolSemuaPeriode();
             return;
         }
         isi.innerHTML = `<p class="mb-3 text-xs text-slate-400">Pilih pemeriksaan yang mau disalin ke sini.
             Seluruh isi tab Kas ikut tersalin — termasuk Register Blanko, Nama Auditor, dan Nama Auditee.</p>`
-            + daftar.map(kasSalinKartu).join('');
+            + daftar.map(kasSalinKartu).join('')
+            // Jalan keluar kalau yang dicari ternyata di luar jendela periode —
+            // mis. plan sumbernya justru dibuat belakangan. Ditaruh di bawah
+            // sebagai teks kecil supaya daftarnya tetap ringkas.
+            + (semuaPeriode ? '' : `<button type="button" id="kasSalinSemuaPeriode"
+                class="mt-1 w-full rounded-lg px-3 py-2 text-center text-xs text-slate-500 hover:bg-slate-800 hover:text-slate-300">
+                Tidak ada yang cocok? Tampilkan semua periode
+            </button>`);
+        pasangTombolSemuaPeriode();
     } catch (e) {
         isi.innerHTML = `<p class="py-6 text-center text-red-400">${escapeHtml(e.message || 'Gagal memuat daftar.')}</p>`;
     }
