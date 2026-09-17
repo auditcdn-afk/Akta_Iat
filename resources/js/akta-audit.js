@@ -93,7 +93,7 @@ async function loadCurrentUser() {
 const STATUS_META = {
     scheduled:     { label: "Terjadwal",      badge: "bg-blue-500/10 text-blue-300 border-blue-500/20" },
     running:       { label: "Sedang Berjalan", badge: "bg-amber-500/10 text-amber-300 border-amber-500/20" },
-    cabang_active: { label: "Cabang Aktif",    badge: "bg-purple-500/10 text-purple-300 border-purple-500/20" },
+    cabang_active: { label: "Mulai Cabang",    badge: "bg-purple-500/10 text-purple-300 border-purple-500/20" },
     revisi:        { label: "Perlu Perbaikan", badge: "bg-red-500/10 text-red-300 border-red-500/20" },
     done:          { label: "Selesai",         badge: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" },
 };
@@ -102,7 +102,7 @@ const PLAN_STATUS_LABEL = {
     draft: "Draft", pending_koordinator: "Menunggu Koordinator",
     pending_manajer: "Menunggu Manajer Audit", pending_coo: "Menunggu COO",
     scheduled: "Terjadwal", running: "Audit Berjalan",
-    cabang_active: "Cabang Aktif", revisi: "Perlu Perbaikan", done: "Selesai", cancelled: "Dibatalkan",
+    cabang_active: "Mulai Cabang", revisi: "Perlu Perbaikan", done: "Selesai", cancelled: "Dibatalkan",
 };
 
 const ACTION_META = {

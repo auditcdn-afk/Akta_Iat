@@ -15,7 +15,7 @@
                 <option value="">Semua</option>
                 <option value="scheduled">Terjadwal</option>
                 <option value="running">Sedang Berjalan</option>
-                <option value="cabang_active">Cabang Aktif</option>
+                <option value="cabang_active">Mulai Cabang</option>
             </select>
         </div>
     </div>

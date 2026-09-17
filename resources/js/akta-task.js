@@ -332,7 +332,7 @@ const PLAN_STATUS_LABEL = {
     pending_coo: "Menunggu COO",
     scheduled: "Terjadwal",
     running: "Audit Berjalan",
-    cabang_active: "Cabang Aktif",
+    cabang_active: "Mulai Cabang",
     revisi: "Perlu Perbaikan",
     done: "Selesai",
     cancelled: "Dibatalkan",
