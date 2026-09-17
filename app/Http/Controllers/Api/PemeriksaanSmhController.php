@@ -12,6 +12,7 @@ use App\Models\SmhOnhandItem;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class PemeriksaanSmhController extends Controller
@@ -131,44 +132,182 @@ class PemeriksaanSmhController extends Controller
                     'kode_warna_intern'  => $currentKodeWarnaIntern,
                     'gudang'             => trim((string)($row[11] ?? '')),
                     'book'               => trim((string)($row[12] ?? '')),
-                    'status_fisik'       => null,
-                    'keterangan_fisik'   => null,
                 ];
             }
         }
 
-        // ── Upsert PemeriksaanSmh ──
+        // ── Simpan ──
         $planAuditId = (int) $request->input('plan_audit_id');
         $plan = PlanAudit::find($planAuditId);
 
-        $pmx = PemeriksaanSmh::firstOrNew(['plan_audit_id' => $planAuditId]);
-        $pmx->fill([
-            'no_spt'      => $plan?->no_spt,
-            'cabang'      => $plan?->cabang,
-            'tgl_onhand'  => $tglOnhand,
-            'total_unit'  => count($units),
-            'total_ditemukan'       => 0,
-            'total_tidak_ditemukan' => 0,
-            'created_by'  => $this->who($request),
-            'updated_by'  => $this->who($request),
-        ]);
-        $pmx->save();
-
-        // Clear old items and re-insert
-        $pmx->items()->delete();
-        foreach (array_chunk($units, 200) as $chunk) {
-            $rows2 = array_map(fn($u) => array_merge($u, [
-                'pemeriksaan_smh_id' => $pmx->id,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]), $chunk);
-            SmhOnhandItem::insert($rows2);
-        }
+        $hasil = $this->simpanOnhand($planAuditId, $plan, $units, $tglOnhand, $this->who($request));
 
         return response()->json([
-            'message' => 'File onhand berhasil diproses. ' . count($units) . ' unit ditemukan.',
-            'data'    => $this->format($pmx->load('items')),
+            'message' => $this->pesanHasilUnggah($hasil),
+            'data'    => $this->format($hasil['pmx']->load('items')),
         ], 201);
+    }
+
+    /**
+     * Tulis daftar onhand ke database SATU KALI saja, walau filenya diunggah
+     * dua kali beriringan.
+     *
+     * Dulu langkahnya: ambil/buat header, HAPUS semua item lama, lalu masukkan
+     * seluruh isi file. Dua unggahan yang datang hampir bersamaan (auditor
+     * mengklik "Upload & Proses" dua kali karena filenya lama diproses)
+     * sama-sama menghapus isi lama yang belum sempat ditulis siapa pun, lalu
+     * sama-sama memasukkan seluruh isi file — daftar unitnya jadi dobel,
+     * sementara angka Total Unit di header tetap sejumlah baris file. Itu
+     * bukan cuma salah di layar: Plafon dan Report Audit menghitung nilai stok
+     * dari baris-baris ini, jadi nilainya ikut jadi dua kali lipat.
+     *
+     * Sekarang penulisannya dikunci per plan, dan isinya DICOCOKKAN, bukan
+     * dihapus lalu ditulis ulang: unit yang sudah ada diperbarui data
+     * masternya, unit baru ditambahkan, unit yang tidak ada lagi di file
+     * dibuang HANYA kalau belum pernah disentuh auditor.
+     *
+     * @param  array<int,array<string,mixed>>  $units
+     * @return array{pmx:PemeriksaanSmh,total:int,baru:int,diperbarui:int,dipertahankan:int,dibuang:int,kembarDiFile:int}
+     */
+    private function simpanOnhand(int $planAuditId, ?PlanAudit $plan, array $units, ?string $tglOnhand, ?string $oleh): array
+    {
+        return DB::transaction(function () use ($planAuditId, $plan, $units, $tglOnhand, $oleh) {
+            $pmx = PemeriksaanSmh::firstOrCreate(
+                ['plan_audit_id' => $planAuditId],
+                ['no_spt' => $plan?->no_spt, 'cabang' => $plan?->cabang, 'created_by' => $oleh],
+            );
+
+            // Gerbangnya: unggahan kedua yang datang berbarengan menunggu di
+            // baris ini sampai yang pertama selesai, jadi ia melihat isi yang
+            // sudah lengkap dan tidak menuliskannya lagi.
+            PemeriksaanSmh::query()->whereKey($pmx->id)->lockForUpdate()->first();
+
+            // File onhand sendiri kadang memuat baris kembar; satu unit tetap
+            // cuma boleh sekali.
+            $dariFile = [];
+            $kembarDiFile = 0;
+            foreach ($units as $u) {
+                $k = $this->kunciUnit($u['no_mesin'] ?? null, $u['no_rangka'] ?? null);
+                if (isset($dariFile[$k])) { $kembarDiFile++; continue; }
+                $dariFile[$k] = $u;
+            }
+
+            $tersimpan = [];
+            $buang     = [];
+            foreach ($pmx->items()->get() as $it) {
+                $k = $this->kunciUnit($it->no_mesin, $it->no_rangka);
+                // Sisa penggandaan lama — sebelum penguncian ini ada.
+                if (isset($tersimpan[$k])) { $buang[] = $it->id; continue; }
+                $tersimpan[$k] = $it;
+            }
+
+            $masuk = [];
+            $diperbarui = 0;
+            $now = now();
+            foreach ($dariFile as $k => $u) {
+                $it = $tersimpan[$k] ?? null;
+                if (! $it) {
+                    $masuk[] = array_merge($u, [
+                        'pemeriksaan_smh_id' => $pmx->id,
+                        'created_at'         => $now,
+                        'updated_at'         => $now,
+                    ]);
+                    continue;
+                }
+
+                // Hasil pemeriksaan fisiknya tidak disentuh sama sekali; yang
+                // disegarkan cuma data master dari file.
+                $it->fill($u);
+                if ($it->isDirty()) { $it->save(); $diperbarui++; }
+                unset($tersimpan[$k]);
+            }
+
+            // Sisanya sudah tidak ada di file onhand. Yang belum pernah
+            // disentuh auditor dibuang; yang sudah diperiksa atau ditambahkan
+            // manual tetap disimpan — pekerjaan auditor tidak boleh hilang
+            // gara-gara file onhand diunggah ulang.
+            $dipertahankan = 0;
+            foreach ($tersimpan as $it) {
+                if ($this->belumDisentuh($it)) { $buang[] = $it->id; continue; }
+                $dipertahankan++;
+            }
+
+            if ($buang) {
+                foreach (array_chunk($buang, 500) as $sebagian) {
+                    SmhOnhandItem::query()->whereIn('id', $sebagian)->delete();
+                }
+            }
+            foreach (array_chunk($masuk, 200) as $sebagian) {
+                SmhOnhandItem::insert($sebagian);
+            }
+
+            $pmx->fill([
+                'no_spt'     => $plan?->no_spt ?? $pmx->no_spt,
+                'cabang'     => $plan?->cabang ?? $pmx->cabang,
+                'tgl_onhand' => $tglOnhand ?? $pmx->tgl_onhand,
+                'updated_by' => $oleh,
+            ]);
+            $this->hitungUlangTotal($pmx);
+
+            return [
+                'pmx'           => $pmx,
+                'total'         => count($dariFile),
+                'baru'          => count($masuk),
+                'diperbarui'    => $diperbarui,
+                'dipertahankan' => $dipertahankan,
+                'dibuang'       => count($buang),
+                'kembarDiFile'  => $kembarDiFile,
+            ];
+        });
+    }
+
+    /**
+     * Kunci identitas satu unit: no mesin + no rangka, tanpa spasi dan huruf
+     * besar semua. File onhand menulisnya "KC03E 1009289" sementara input
+     * manual menyimpannya tanpa spasi — dua-duanya unit yang sama.
+     */
+    private function kunciUnit(?string $noMesin, ?string $noRangka): string
+    {
+        $rapikan = fn(?string $v) => strtoupper(preg_replace('/\s+/', '', (string) $v));
+
+        return $rapikan($noMesin) . '|' . $rapikan($noRangka);
+    }
+
+    /** Unit yang belum pernah dipegang auditor — aman dibuang saat onhand diperbarui. */
+    private function belumDisentuh(SmhOnhandItem $it): bool
+    {
+        return $it->status_fisik === null
+            && $it->checked_at === null
+            && ($it->keterangan_fisik === null || $it->keterangan_fisik === '')
+            && empty($it->perlengkapan_json);
+    }
+
+    /** Hitung ulang angka ringkasan dari isi tabelnya, bukan dari asumsi. */
+    private function hitungUlangTotal(PemeriksaanSmh $pmx): void
+    {
+        $hitung = $pmx->items()->selectRaw(
+            'COUNT(*) as total, ' .
+            "SUM(CASE WHEN status_fisik = 'ada' THEN 1 ELSE 0 END) as ditemukan, " .
+            "SUM(CASE WHEN status_fisik = 'tidak_ada' THEN 1 ELSE 0 END) as tidak_ditemukan"
+        )->first();
+
+        $pmx->total_unit            = (int) $hitung->total;
+        $pmx->total_ditemukan       = (int) $hitung->ditemukan;
+        $pmx->total_tidak_ditemukan = (int) $hitung->tidak_ditemukan;
+        $pmx->save();
+    }
+
+    /** @param array<string,mixed> $h */
+    private function pesanHasilUnggah(array $h): string
+    {
+        $bagian = ["{$h['total']} unit di file"];
+        $bagian[] = "{$h['baru']} baru";
+        if ($h['diperbarui'])    $bagian[] = "{$h['diperbarui']} diperbarui";
+        if ($h['dipertahankan']) $bagian[] = "{$h['dipertahankan']} unit di luar file tetap disimpan karena sudah diperiksa";
+        if ($h['dibuang'])       $bagian[] = "{$h['dibuang']} baris lama dibuang";
+        if ($h['kembarDiFile'])  $bagian[] = "{$h['kembarDiFile']} baris kembar di file diabaikan";
+
+        return 'File onhand berhasil diproses: ' . implode(', ', $bagian) . '.';
     }
 
     // ── PUT /api/audit-detail/smh/items/{item} ───────────────────────────────
@@ -188,14 +327,8 @@ class PemeriksaanSmhController extends Controller
         $item->update(array_merge($data, ['checked_at' => now()]));
 
         $pmx = $item->pemeriksaan;
-        $counts = $pmx->items()->selectRaw(
-            "SUM(CASE WHEN status_fisik = 'ada' THEN 1 ELSE 0 END) as ditemukan, " .
-            "SUM(CASE WHEN status_fisik = 'tidak_ada' THEN 1 ELSE 0 END) as tidak_ditemukan"
-        )->first();
-        $pmx->total_ditemukan       = (int) $counts->ditemukan;
-        $pmx->total_tidak_ditemukan = (int) $counts->tidak_ditemukan;
         $pmx->updated_by = $this->who($request);
-        $pmx->save();
+        $this->hitungUlangTotal($pmx);
 
         return response()->json(['message' => 'Status fisik diperbarui.', 'data' => $this->formatItem($item->fresh())]);
     }
@@ -516,20 +649,37 @@ class PemeriksaanSmhController extends Controller
             ]
         );
 
-        $item = SmhOnhandItem::create([
-            'pemeriksaan_smh_id' => $smh->id,
-            'no_mesin'           => strtoupper(trim($data['no_mesin'])),
-            'no_rangka'          => strtoupper(trim($data['no_rangka'])),
-            'gudang'             => $data['gudang'] ?? null,
-            'status_fisik'       => 'ada',
-            'keterangan_fisik'   => 'Input Manual',
-        ]);
+        // Unit yang diketik manual bisa saja sebenarnya ADA di daftar onhand —
+        // cuma nomornya ditulis beda spasi/huruf sehingga tidak ketemu saat
+        // discan. Kalau begitu barisnya ditandai ada, bukan ditambah baris
+        // kedua untuk unit yang sama.
+        $sudahAda = SmhOnhandItem::query()
+            ->where('pemeriksaan_smh_id', $smh->id)
+            ->whereRaw("UPPER(REPLACE(no_mesin, ' ', '')) = ?", [strtoupper(preg_replace('/\s+/', '', $data['no_mesin']))])
+            ->whereRaw("UPPER(REPLACE(no_rangka, ' ', '')) = ?", [strtoupper(preg_replace('/\s+/', '', $data['no_rangka']))])
+            ->first();
 
-        // Update total_unit di SMH header
-        $smh->total_unit      = $smh->items()->count();
-        $smh->total_ditemukan = $smh->items()->whereNotNull('status_fisik')->where('status_fisik', 'ada')->count();
-        $smh->updated_by      = $this->who($request);
-        $smh->save();
+        if ($sudahAda) {
+            $item = $sudahAda;
+            $item->status_fisik     = 'ada';
+            $item->keterangan_fisik = $item->keterangan_fisik ?: 'Input Manual';
+            $item->checked_at       = now();
+            if (($data['gudang'] ?? null) !== null) $item->gudang = $data['gudang'];
+            $item->save();
+        } else {
+            $item = SmhOnhandItem::create([
+                'pemeriksaan_smh_id' => $smh->id,
+                'no_mesin'           => strtoupper(trim($data['no_mesin'])),
+                'no_rangka'          => strtoupper(trim($data['no_rangka'])),
+                'gudang'             => $data['gudang'] ?? null,
+                'status_fisik'       => 'ada',
+                'keterangan_fisik'   => 'Input Manual',
+            ]);
+        }
+
+        // Update angka ringkasan di SMH header
+        $smh->updated_by = $this->who($request);
+        $this->hitungUlangTotal($smh);
 
         // Auto-sync perlengkapan untuk item ini
         $prefix  = strtoupper(substr(str_replace(' ', '', $item->no_mesin), 0, 5));
@@ -538,7 +688,9 @@ class PemeriksaanSmhController extends Controller
         $perlengkapan = $plRow ? $plRow->itemList() : [];
 
         return response()->json([
-            'message'      => 'Unit berhasil ditambahkan secara manual.',
+            'message'      => $sudahAda
+                ? 'Unit sudah ada di daftar onhand — ditandai ditemukan.'
+                : 'Unit berhasil ditambahkan secara manual.',
             'item'         => $this->formatItem($item),
             'perlengkapan' => $perlengkapan,
             'smh'          => $this->format($smh->load('items')),
