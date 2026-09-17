@@ -511,9 +511,23 @@ function resetKasForm() {
     document.getElementById("blankoH1Body").innerHTML = "";
     document.getElementById("blankoH2Body").innerHTML = "";
     renderPecahan([]);
+    tampilkanJejakSalinan({});
+}
+
+// Hasil salinan diberi tanda supaya tidak pernah disangka hitungan fisik yang
+// berdiri sendiri waktu direview.
+function tampilkanJejakSalinan(d = {}) {
+    const el = document.getElementById("kasJejakSalin");
+    if (!el) return;
+    const j = d.disalin_dari;
+    if (!j) { el.classList.add("hidden"); el.textContent = ""; return; }
+    el.classList.remove("hidden");
+    el.textContent = `📋 Isi tab ini disalin dari ${j.no_spt || "-"} • ${j.cabang || "-"}`
+        + `${j.oleh ? ` oleh ${j.oleh}` : ""}${j.pada ? ` pada ${j.pada}` : ""}.`;
 }
 
 function populateKasForm(d = {}) {
+    tampilkanJejakSalinan(d);
     const kb = d.kas_besar || {};
     const kk = d.kas_kecil || {};
     document.getElementById("kbSaldoAwalTgl").value = kb.saldo_awal_tgl || activePlan?.tglPlan || activePlan?.tglMulai || "";
@@ -556,6 +570,114 @@ async function loadKasForm() {
     document.querySelectorAll("#tabPanel-kas .add-row-btn, #tabPanel-kas .remove-row").forEach((b) => { b.style.display = editable ? "" : "none"; });
     const saveBtn = document.getElementById("saveKasFormBtn");
     if (saveBtn) saveBtn.style.display = editable ? "" : "none";
+    const salinBtn = document.getElementById("kasSalinBtn");
+    if (salinBtn) salinBtn.style.display = editable ? "" : "none";
+}
+
+// ── Salin pemeriksaan kas dari unit usaha sejenis ────────────────────────────
+// SO dan CSC di lokasi yang sama memakai kas yang sama dan dihitung sekali;
+// tanpa ini auditor mengetik ulang seluruh isinya di plan yang kedua. Pencocokan
+// unit usahanya dikerjakan server (kata terakhir nama unit usaha), begitu juga
+// penolakan kalau unit usahanya ternyata berbeda.
+const kasSalinModal = () => document.getElementById('kasSalinModal');
+
+function tutupKasSalin() {
+    const m = kasSalinModal();
+    if (!m) return;
+    m.classList.add('hidden');
+    m.classList.remove('flex');
+}
+
+function rupiah(v) {
+    return 'Rp ' + Math.round(Number(v) || 0).toLocaleString('id-ID');
+}
+
+function kasSalinKartu(k) {
+    const isi = (k.ringkas || []).length
+        ? k.ringkas.join(' · ')
+        : '<span class="text-slate-500">belum ada rincian</span>';
+    const selisih = Number(k.selisih) || 0;
+    const warnaSelisih = selisih === 0 ? 'text-slate-300' : (selisih < 0 ? 'text-red-400' : 'text-yellow-400');
+    return `<button type="button" data-salin-dari="${k.planAuditId}"
+        class="mb-2 block w-full rounded-xl border border-slate-700 bg-slate-800/40 px-4 py-3 text-left hover:border-blue-500 hover:bg-slate-800">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <span class="font-semibold text-slate-100">${escapeHtml(k.noSpt || '(tanpa no SPT)')}</span>
+            <span class="rounded-full bg-blue-600/20 px-2 py-0.5 text-xs font-bold text-blue-300">${escapeHtml(k.cabang || '-')}</span>
+        </div>
+        <div class="mt-1 text-xs text-slate-400">
+            ${escapeHtml(k.jenisAudit || '-')} · ${escapeHtml(k.tglPlan || 'tanpa tanggal')}
+            ${k.olehSiapa ? ' · diisi ' + escapeHtml(k.olehSiapa) : ''}
+        </div>
+        <div class="mt-1.5 text-xs">${isi}</div>
+        <div class="mt-1 text-xs text-slate-400">
+            Fisik ${rupiah(k.saldoFisik)} · Buku ${rupiah(k.saldoBuku)} ·
+            <span class="${warnaSelisih} font-semibold">Selisih ${rupiah(selisih)}</span>
+        </div>
+    </button>`;
+}
+
+async function bukaKasSalin() {
+    if (!canManageKas()) { showAlert('Role kamu hanya boleh melihat data.', 'error'); return; }
+    if (!activePlanId) { showAlert('Plan audit tidak valid.', 'error'); return; }
+
+    const m = kasSalinModal();
+    const isi = document.getElementById('kasSalinIsi');
+    const sub = document.getElementById('kasSalinSub');
+    if (!m || !isi) return;
+
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+    isi.innerHTML = '<p class="py-6 text-center text-slate-400">Mencari pemeriksaan kas unit usaha sejenis…</p>';
+
+    try {
+        const res = await fetchJson(`/api/audit-detail/kas/sumber-salin?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+        const daftar = res.data || [];
+        if (sub) {
+            sub.textContent = res.kunci
+                ? `Unit usaha ${res.cabang} — dicocokkan dengan yang berakhiran "${res.kunci}"`
+                : `Unit usaha ${res.cabang || '-'}`;
+        }
+        if (!daftar.length) {
+            isi.innerHTML = `<div class="rounded-xl border border-slate-700 bg-slate-800/40 px-4 py-5 text-center text-slate-300">
+                <p class="font-semibold">Belum ada yang bisa disalin.</p>
+                <p class="mt-1 text-xs text-slate-400">Belum ada plan audit lain di unit usaha
+                ${res.kunci ? '<b>' + escapeHtml(res.kunci) + '</b>' : 'yang sama'} yang pemeriksaan kasnya sudah terisi.</p>
+            </div>`;
+            return;
+        }
+        isi.innerHTML = `<p class="mb-3 text-xs text-slate-400">Pilih pemeriksaan yang mau disalin ke sini.
+            Seluruh isi tab Kas ikut tersalin, termasuk Register Blanko.</p>` + daftar.map(kasSalinKartu).join('');
+    } catch (e) {
+        isi.innerHTML = `<p class="py-6 text-center text-red-400">${escapeHtml(e.message || 'Gagal memuat daftar.')}</p>`;
+    }
+}
+
+async function jalankanKasSalin(sumberId, timpa = false) {
+    const res = await fetchJson('/api/audit-detail/kas/salin', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ plan_audit_id: Number(activePlanId), sumber_plan_audit_id: Number(sumberId), timpa }),
+    });
+    tutupKasSalin();
+    await loadKasForm();
+    showAlert(res.message || 'Hasil pemeriksaan kas berhasil disalin.');
+}
+
+async function mintaKasSalin(sumberId) {
+    try {
+        await jalankanKasSalin(sumberId, false);
+    } catch (e) {
+        // 409: di sini sudah ada isinya. Yang akan hilang disebut satu per satu
+        // dulu — menimpa hasil pemeriksaan tidak boleh terjadi diam-diam.
+        const akanHilang = e?.payload?.akanHilang;
+        if (e?.status === 409 && Array.isArray(akanHilang)) {
+            const daftar = akanHilang.length ? '\n\n• ' + akanHilang.join('\n• ') : '';
+            if (!confirm(`Pemeriksaan kas di plan ini sudah ada isinya dan akan TERTIMPA.${daftar}\n\nLanjutkan menyalin?`)) return;
+            await jalankanKasSalin(sumberId, true);
+            return;
+        }
+        throw e;
+    }
 }
 
 function buildDetailJson() {
@@ -2191,6 +2313,19 @@ function initPlafonForm() { /* event delegation sudah tidak diperlukan */ }
 
     document.getElementById("saveKasFormBtn")?.addEventListener("click", () => {
         saveKasForm().catch((err) => showAlert(err.message || "Gagal menyimpan.", "error"));
+    });
+
+    document.getElementById("kasSalinBtn")?.addEventListener("click", () => {
+        bukaKasSalin().catch((err) => showAlert(err.message || "Gagal membuka daftar.", "error"));
+    });
+    document.getElementById("kasSalinTutup")?.addEventListener("click", tutupKasSalin);
+    document.getElementById("kasSalinModal")?.addEventListener("click", (e) => {
+        if (e.target === e.currentTarget) tutupKasSalin();   // klik di luar kotak
+    });
+    document.getElementById("kasSalinIsi")?.addEventListener("click", (e) => {
+        const kartu = e.target.closest("[data-salin-dari]");
+        if (!kartu) return;
+        mintaKasSalin(kartu.dataset.salinDari).catch((err) => showAlert(err.message || "Gagal menyalin.", "error"));
     });
 
     // ── Perlengkapan di luar SMH panel ──

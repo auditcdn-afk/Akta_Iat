@@ -8,6 +8,7 @@ use App\Models\PemeriksaanKas;
 use App\Models\PlanAudit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class PemeriksaanKasController extends Controller
@@ -135,6 +136,218 @@ class PemeriksaanKasController extends Controller
             'ok' => true,
             'message' => 'Pemeriksaan kas berhasil dihapus.',
         ]);
+    }
+
+    // ── Salin hasil pemeriksaan kas dari unit usaha sejenis ──────────────────
+    //
+    // SO dan CSC di lokasi yang sama (SO UJT / CSC UJT, SO PRW / CSC PRW)
+    // memakai kas yang sama dan dihitung sekali. Sebelumnya auditor mengetik
+    // ulang seluruh isinya di plan yang kedua — pekerjaan dobel yang juga jadi
+    // sumber salah ketik.
+    //
+    // Kunci kecocokannya kata TERAKHIR nama unit usaha ("SO UJT" & "CSC UJT"
+    // sama-sama UJT). Nama tiga kata ikut terlayani: "WHS Part KIM" -> KIM.
+
+    /** Kata terakhir nama unit usaha, huruf besar semua. Kosong kalau namanya kosong. */
+    private function kunciUnitUsaha(?string $cabang): string
+    {
+        $bersih = trim(preg_replace('/\s+/', ' ', (string) $cabang));
+        if ($bersih === '') {
+            return '';
+        }
+        $potong = explode(' ', $bersih);
+
+        return mb_strtoupper(end($potong));
+    }
+
+    /** GET /api/audit-detail/kas/sumber-salin?plan_audit_id= */
+    public function sumberSalin(Request $request): JsonResponse
+    {
+        $planId = (int) ($request->query('plan_audit_id') ?? $request->query('planAuditId') ?? 0);
+        $plan   = PlanAudit::query()->find($planId);
+
+        if (! $plan) {
+            return response()->json(['message' => 'Plan audit tidak ditemukan.'], 404);
+        }
+
+        $kunci = $this->kunciUnitUsaha($plan->cabang);
+        if ($kunci === '') {
+            return response()->json(['data' => [], 'kunci' => null, 'cabang' => $plan->cabang]);
+        }
+
+        // Disaring di database dulu, bukan menarik seluruh tabel lalu memilah di
+        // PHP: tiap baris kas membawa detail_json yang bisa puluhan KB, dan
+        // setelah bertahun-tahun audit jumlahnya ribuan. Yang diambil hanya yang
+        // nama unit usahanya BERAKHIR dengan kata kunci — persis aturannya —
+        // lalu dicocokkan ulang di PHP supaya "SO SUJT" tidak ikut lolos gara-
+        // gara LIKE.
+        $kandidat = PemeriksaanKas::query()
+            ->with('planAudit:id,no_spt,cabang,jenis_audit,tgl_plan')
+            ->where('plan_audit_id', '!=', $planId)
+            ->whereHas('planAudit', fn ($q) => $q
+                ->where('cabang', $kunci)
+                ->orWhere('cabang', 'like', '% ' . $kunci))
+            ->latest('updated_at')
+            ->limit(30)
+            ->get()
+            ->filter(fn (PemeriksaanKas $kas) => $this->kunciUnitUsaha($kas->planAudit?->cabang ?? $kas->cabang) === $kunci)
+            ->map(fn (PemeriksaanKas $kas) => [
+                'planAuditId' => $kas->plan_audit_id,
+                'noSpt'       => $kas->planAudit?->no_spt ?? $kas->no_spt,
+                'cabang'      => $kas->planAudit?->cabang ?? $kas->cabang,
+                'jenisAudit'  => $kas->planAudit?->jenis_audit ?? $kas->jenis_audit,
+                'tglPlan'     => $this->tanggalRingkas($kas->planAudit?->tgl_plan),
+                'saldoFisik'  => (float) $kas->saldo_fisik,
+                'saldoBuku'   => (float) $kas->saldo_buku,
+                'selisih'     => (float) $kas->selisih,
+                'ringkas'     => $this->ringkasIsi($kas->detail_json ?? []),
+                'diperbarui'  => $kas->updated_at?->toDateTimeString(),
+                'olehSiapa'   => $kas->updated_by ?? $kas->created_by,
+            ])
+            ->values();
+
+        return response()->json(['data' => $kandidat, 'kunci' => $kunci, 'cabang' => $plan->cabang]);
+    }
+
+    /** POST /api/audit-detail/kas/salin */
+    public function salin(Request $request): JsonResponse
+    {
+        $data = Validator::make($this->normalizePayload($request), [
+            'plan_audit_id'        => ['required', 'integer', 'exists:plan_audits,id'],
+            'sumber_plan_audit_id' => ['required', 'integer', 'exists:plan_audits,id', 'different:plan_audit_id'],
+            'timpa'                => ['nullable', 'boolean'],
+        ])->validate();
+
+        $planId   = (int) $data['plan_audit_id'];
+        $sumberId = (int) $data['sumber_plan_audit_id'];
+
+        $this->ensureCanWrite($request, $planId);
+        $this->ensureAuditorFilled($planId, 'kas');
+
+        $tujuan = PlanAudit::query()->findOrFail($planId);
+        $sumber = PlanAudit::query()->findOrFail($sumberId);
+
+        // Dijaga di server, bukan cuma di tampilan: menyalin lintas unit usaha
+        // yang berbeda tetap ditolak walau permintaannya dibuat di luar layar.
+        $kunciTujuan = $this->kunciUnitUsaha($tujuan->cabang);
+        $kunciSumber = $this->kunciUnitUsaha($sumber->cabang);
+        if ($kunciTujuan === '' || $kunciTujuan !== $kunciSumber) {
+            return response()->json([
+                'message' => "Tidak bisa menyalin: \"{$sumber->cabang}\" dan \"{$tujuan->cabang}\" bukan unit usaha yang sama. "
+                    . 'Hanya unit usaha dengan kata terakhir yang sama yang boleh saling menyalin.',
+            ], 422);
+        }
+
+        return DB::transaction(function () use ($request, $planId, $sumberId, $tujuan, $sumber, $data) {
+            $asal = PemeriksaanKas::query()->where('plan_audit_id', $sumberId)->lockForUpdate()->first();
+            if (! $asal) {
+                return response()->json([
+                    'message' => "Pemeriksaan kas {$sumber->no_spt} belum ada isinya, tidak ada yang bisa disalin.",
+                ], 422);
+            }
+
+            $adaSekarang = PemeriksaanKas::query()->where('plan_audit_id', $planId)->lockForUpdate()->first();
+            $isiSekarang = $this->ringkasIsi($adaSekarang?->detail_json ?? []);
+
+            // Isi yang sudah ada tidak pernah ditimpa diam-diam: auditor harus
+            // menyetujui dulu, dan yang akan hilang disebut satu per satu.
+            if ($adaSekarang && $isiSekarang !== [] && ! ($data['timpa'] ?? false)) {
+                return response()->json([
+                    'message'     => 'Pemeriksaan kas di plan ini sudah ada isinya dan akan tertimpa.',
+                    'perluTimpa'  => true,
+                    'akanHilang'  => $isiSekarang,
+                ], 409);
+            }
+
+            $detail = $asal->detail_json ?? [];
+            // Jejak asal-usul: hasil salinan tidak boleh disangka hitungan fisik
+            // yang berdiri sendiri waktu direview.
+            $detail['disalin_dari'] = [
+                'plan_audit_id' => $sumberId,
+                'no_spt'        => $sumber->no_spt,
+                'cabang'        => $sumber->cabang,
+                'oleh'          => $this->userIdentifier($request),
+                'pada'          => now()->toDateTimeString(),
+            ];
+
+            $kas = PemeriksaanKas::query()->updateOrCreate(
+                ['plan_audit_id' => $planId],
+                [
+                    // Identitas tetap milik plan tujuan; yang disalin isinya saja.
+                    'no_spt'      => $tujuan->no_spt,
+                    'cabang'      => $tujuan->cabang,
+                    'jenis_audit' => $tujuan->jenis_audit,
+                    'nama_pos'    => $asal->nama_pos ?: 'Pemeriksaan Kas',
+                    'saldo_fisik' => $asal->saldo_fisik,
+                    'saldo_buku'  => $asal->saldo_buku,
+                    'selisih'     => $asal->selisih,
+                    'keterangan'  => $asal->keterangan,
+                    'detail_json' => $detail,
+                    'updated_by'  => $this->userIdentifier($request),
+                ]
+            );
+            if (! $kas->created_by) {
+                $kas->update(['created_by' => $this->userIdentifier($request)]);
+            }
+
+            return response()->json([
+                'message'  => "Hasil pemeriksaan kas {$sumber->no_spt} • {$sumber->cabang} berhasil disalin ke sini.",
+                'disalin'  => $this->ringkasIsi($detail),
+                'data'     => $kas->fresh()->load('planAudit'),
+            ]);
+        });
+    }
+
+    /** Tanggal apa adanya untuk ditampilkan — tanpa jam, apa pun bentuk simpanannya. */
+    private function tanggalRingkas(mixed $tgl): ?string
+    {
+        if (! $tgl) {
+            return null;
+        }
+
+        try {
+            return \Illuminate\Support\Carbon::parse($tgl)->toDateString();
+        } catch (\Throwable) {
+            return (string) $tgl;
+        }
+    }
+
+    /**
+     * Ringkasan isi detail_json dalam kalimat pendek — dipakai untuk memilih
+     * sumber salinan dan untuk menyebut apa yang akan hilang saat menimpa.
+     *
+     * @return array<int,string>
+     */
+    private function ringkasIsi(array $detail): array
+    {
+        $hitung = [
+            'penerimaan'     => count($detail['kas_besar']['penerimaan'] ?? []),
+            'pengeluaran'    => count($detail['kas_besar']['pengeluaran'] ?? []),
+            'bon kas kecil'  => count($detail['kas_kecil']['bon'] ?? []),
+            'baris pecahan'  => count(array_filter(
+                $detail['pecahan'] ?? [],
+                fn ($p) => ((int) ($p['lembar_besar'] ?? 0)) > 0 || ((int) ($p['lembar_kecil'] ?? 0)) > 0
+            )),
+            'register blanko H1' => count($detail['blanko_h1'] ?? []),
+            'register blanko H2' => count($detail['blanko_h2'] ?? []),
+        ];
+
+        $ringkas = [];
+        foreach ($hitung as $nama => $n) {
+            if ($n > 0) {
+                $ringkas[] = "{$n} {$nama}";
+            }
+        }
+
+        // Saldo yang terisi tanpa baris apa pun tetap "ada isinya".
+        if ($ringkas === []) {
+            $saldo = (float) ($detail['kas_besar']['saldo_awal'] ?? 0) + (float) ($detail['kas_kecil']['cadangan'] ?? 0);
+            if ($saldo != 0.0) {
+                $ringkas[] = 'saldo awal / cadangan yang sudah diisi';
+            }
+        }
+
+        return $ringkas;
     }
 
     public function summary(Request $request): JsonResponse

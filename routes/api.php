@@ -194,9 +194,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/audit-detail/kas', [PemeriksaanKasController::class, 'index']);
     Route::get('/audit-detail/kas/summary', [PemeriksaanKasController::class, 'summary']);
+    // Harus di ATAS rute {pemeriksaanKas}, kalau tidak "sumber-salin" ikut
+    // ditangkap sebagai id pemeriksaan kas.
+    Route::get('/audit-detail/kas/sumber-salin', [PemeriksaanKasController::class, 'sumberSalin']);
     Route::get('/audit-detail/kas/{pemeriksaanKas}', [PemeriksaanKasController::class, 'show']);
 
     Route::post('/audit-detail/kas', [PemeriksaanKasController::class, 'store']);
+    Route::post('/audit-detail/kas/salin', [PemeriksaanKasController::class, 'salin']);
 
     Route::put('/audit-detail/kas/{pemeriksaanKas}', [PemeriksaanKasController::class, 'update']);
 
