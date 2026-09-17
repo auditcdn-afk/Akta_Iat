@@ -54,7 +54,7 @@ class NotificationDispatcher
         'pending_coo'         => ['Perlu persetujuan Anda', 'menunggu persetujuan Anda sebagai COO.'],
         'scheduled'           => ['Plan siap dikerjakan', 'sudah disetujui COO — buka menu Audit lalu tekan "Mulai Audit".'],
         'running'             => ['Konfirmasi kedatangan auditor', 'auditnya sedang berjalan — cabang perlu mengonfirmasi kedatangan auditor.'],
-        'cabang_active'       => ['Audit menunggu diselesaikan', 'cabang sudah aktif — lengkapi tindak lanjut, lalu nyatakan audit selesai.'],
+        'cabang_active'       => ['Audit menunggu diselesaikan', 'cabang sudah memulai — lengkapi tindak lanjut, lalu nyatakan audit selesai.'],
         'revisi'              => ['Plan perlu diperbaiki', 'dikembalikan dengan catatan — perbaiki isinya lalu ajukan ulang.'],
     ];
 
@@ -65,7 +65,7 @@ class NotificationDispatcher
         'pending_coo'         => 'Menunggu COO',
         'scheduled'           => 'Disetujui',
         'running'             => 'Audit Berjalan',
-        'cabang_active'       => 'Cabang Aktif',
+        'cabang_active'       => 'Mulai Cabang',
         'revisi'              => 'Perlu Perbaikan',
     ];
 

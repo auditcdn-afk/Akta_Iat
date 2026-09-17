@@ -28,7 +28,7 @@
                 <option value="pending_coo">Menunggu COO</option>
                 <option value="scheduled">Disetujui</option>
                 <option value="running">Audit Berjalan</option>
-                <option value="cabang_active">Cabang Aktif</option>
+                <option value="cabang_active">Mulai Cabang</option>
                 <option value="done">Selesai</option>
                 <option value="cancelled">Dibatalkan</option>
             </select>

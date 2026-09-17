@@ -55,7 +55,7 @@ class PlanAuditPdfController extends Controller
         'pending_coo'         => 'Menunggu COO',
         'scheduled'           => 'Disetujui',
         'running'             => 'Audit Berjalan',
-        'cabang_active'       => 'Cabang Aktif',
+        'cabang_active'       => 'Mulai Cabang',
         'revisi'              => 'Perlu Perbaikan',
         'done'                => 'Selesai',
         'cancelled'           => 'Dibatalkan',

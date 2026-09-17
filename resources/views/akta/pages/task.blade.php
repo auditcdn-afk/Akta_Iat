@@ -346,7 +346,7 @@
                                 <option value="pending_coo">Menunggu COO</option>
                                 <option value="scheduled">Terjadwal</option>
                                 <option value="running">Audit Berjalan</option>
-                                <option value="cabang_active">Cabang Aktif</option>
+                                <option value="cabang_active">Mulai Cabang</option>
                                 <option value="done">Selesai</option>
                             </select>
                             <button type="button" id="adminPlanResetBtn"
