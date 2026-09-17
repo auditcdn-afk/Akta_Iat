@@ -616,7 +616,13 @@ function kasSalinKartu(k) {
     </button>`;
 }
 
-async function bukaKasSalin() {
+function pasangTombolSemuaPeriode() {
+    document.getElementById('kasSalinSemuaPeriode')?.addEventListener('click', () => {
+        bukaKasSalin(true).catch((e) => showAlert(e.message, 'error'));
+    });
+}
+
+async function bukaKasSalin(semuaPeriode = false) {
     if (!canManageKas()) { showAlert('Role kamu hanya boleh melihat data.', 'error'); return; }
     if (!activePlanId) { showAlert('Plan audit tidak valid.', 'error'); return; }
 
@@ -630,24 +636,43 @@ async function bukaKasSalin() {
     isi.innerHTML = '<p class="py-6 text-center text-slate-400">Mencari pemeriksaan kas unit usaha sejenis…</p>';
 
     try {
-        const res = await fetchJson(`/api/audit-detail/kas/sumber-salin?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+        const res = await fetchJson(
+            `/api/audit-detail/kas/sumber-salin?plan_audit_id=${activePlanId}${semuaPeriode ? '&periode=semua' : ''}`,
+            { headers: authHeaders() });
         const daftar = res.data || [];
         if (sub) {
-            sub.textContent = res.kunci
-                ? `Unit usaha ${res.cabang} — dicocokkan dengan yang berakhiran "${res.kunci}"`
-                : `Unit usaha ${res.cabang || '-'}`;
+            const cocok = res.kunci ? ` — dicocokkan dengan yang berakhiran "${res.kunci}"` : '';
+            const periode = res.periode ? ` · periode ${res.periode}` : ' · semua periode';
+            sub.textContent = `Unit usaha ${res.cabang || '-'}${cocok}${periode}`;
         }
         if (!daftar.length) {
+            // Dua plan dari kunjungan yang sama bisa jatuh di bulan berbeda
+            // (audit tanggal 31 dan 1) — jangan biarkan auditor buntu.
+            const adaLain = Number(res.diPeriodeLain) || 0;
             isi.innerHTML = `<div class="rounded-xl border border-slate-700 bg-slate-800/40 px-4 py-5 text-center text-slate-300">
-                <p class="font-semibold">Belum ada yang bisa disalin.</p>
+                <p class="font-semibold">Belum ada yang bisa disalin${res.periode ? ' di ' + escapeHtml(res.periode) : ''}.</p>
                 <p class="mt-1 text-xs text-slate-400">Belum ada plan audit lain di unit usaha
-                ${res.kunci ? '<b>' + escapeHtml(res.kunci) + '</b>' : 'yang sama'} yang pemeriksaan kasnya sudah terisi.</p>
+                ${res.kunci ? '<b>' + escapeHtml(res.kunci) + '</b>' : 'yang sama'} yang pemeriksaan kasnya sudah terisi
+                ${res.periode ? 'pada periode itu' : ''}.</p>
+                ${adaLain ? `<button type="button" id="kasSalinSemuaPeriode"
+                    class="mt-3 rounded-lg border border-slate-600 px-4 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-800">
+                    Ada ${adaLain} pemeriksaan di periode lain — tampilkan juga
+                </button>` : ''}
             </div>`;
+            pasangTombolSemuaPeriode();
             return;
         }
         isi.innerHTML = `<p class="mb-3 text-xs text-slate-400">Pilih pemeriksaan yang mau disalin ke sini.
             Seluruh isi tab Kas ikut tersalin — termasuk Register Blanko, Nama Auditor, dan Nama Auditee.</p>`
-            + daftar.map(kasSalinKartu).join('');
+            + daftar.map(kasSalinKartu).join('')
+            // Jalan keluar kalau yang dicari ternyata di luar jendela periode —
+            // mis. plan sumbernya justru dibuat belakangan. Ditaruh di bawah
+            // sebagai teks kecil supaya daftarnya tetap ringkas.
+            + (semuaPeriode ? '' : `<button type="button" id="kasSalinSemuaPeriode"
+                class="mt-1 w-full rounded-lg px-3 py-2 text-center text-xs text-slate-500 hover:bg-slate-800 hover:text-slate-300">
+                Tidak ada yang cocok? Tampilkan semua periode
+            </button>`);
+        pasangTombolSemuaPeriode();
     } catch (e) {
         isi.innerHTML = `<p class="py-6 text-center text-red-400">${escapeHtml(e.message || 'Gagal memuat daftar.')}</p>`;
     }

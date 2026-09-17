@@ -122,6 +122,68 @@ class KasSalinUnitUsahaTest extends TestCase
         $this->assertLessThan(3, $terbaca, 'Daftar sumber harus disaring di database, bukan menarik seluruh tabel kas.');
     }
 
+    public function test_periode_mencakup_bulan_plan_dan_dua_bulan_ke_belakang(): void
+    {
+        // Yang di dalam jendela: bulan plan sendiri, 1 bulan lalu, 2 bulan lalu.
+        // Yang di luar: 3 bulan lalu, bulan depan, dan tahun lalu.
+        foreach ([
+            '2026-08-28' => true,   // 1 bulan sebelum
+            '2026-07-01' => true,   // 2 bulan sebelum
+            '2026-06-30' => false,  // 3 bulan sebelum
+            '2026-10-02' => false,  // bulan berikutnya
+            '2025-09-04' => false,  // tahun lalu
+        ] as $tgl => $masuk) {
+            $lain = $this->plan("SPT-{$tgl}", 'SO UJT', 'Audit Full SO', $tgl);
+            PemeriksaanKas::query()->create([
+                'plan_audit_id' => $lain->id, 'cabang' => $lain->cabang,
+                'nama_pos' => 'Pemeriksaan Kas', 'detail_json' => $this->isiKas(),
+            ]);
+        }
+
+        $res = $this->getJson("/api/audit-detail/kas/sumber-salin?plan_audit_id={$this->csc->id}")->assertOk();
+
+        $this->assertSame('Juli–September 2026', $res->json('periode'));
+        $noSpt = array_column($res->json('data'), 'noSpt');
+        sort($noSpt);
+        $this->assertSame(['0459/01/09/2026/SPT-IAT', 'SPT-2026-07-01', 'SPT-2026-08-28'], $noSpt);
+    }
+
+    public function test_pemeriksaan_bulan_lalu_tetap_muncul_untuk_plan_bulan_ini(): void
+    {
+        // Yang dikhawatirkan: SO diperiksa bulan 9, plan CSC-nya bulan 10.
+        $this->csc->update(['tgl_plan' => '2026-10-05']);
+
+        $res = $this->getJson("/api/audit-detail/kas/sumber-salin?plan_audit_id={$this->csc->id}")->assertOk();
+
+        $this->assertSame('Agustus–Oktober 2026', $res->json('periode'));
+        $this->assertCount(1, $res->json('data'), 'Pemeriksaan bulan 9 harus tetap bisa disalin ke plan bulan 10.');
+        $this->assertSame($this->so->no_spt, $res->json('data.0.noSpt'));
+    }
+
+    public function test_periode_lain_bisa_ditampilkan_kalau_periodenya_kosong(): void
+    {
+        // Arahnya cuma mundur: sumber yang plannya JAUH lebih baru tidak ikut.
+        $this->so->update(['tgl_plan' => '2027-01-04']);
+
+        $res = $this->getJson("/api/audit-detail/kas/sumber-salin?plan_audit_id={$this->csc->id}")->assertOk();
+        $this->assertSame([], $res->json('data'), 'Periode lain tidak dicampur begitu saja.');
+        $this->assertSame(1, $res->json('diPeriodeLain'), 'Tapi auditor diberi tahu ada di periode lain.');
+
+        $res = $this->getJson("/api/audit-detail/kas/sumber-salin?plan_audit_id={$this->csc->id}&periode=semua")->assertOk();
+        $this->assertCount(1, $res->json('data'));
+        $this->assertNull($res->json('periode'));
+    }
+
+    public function test_plan_tanpa_tanggal_menampilkan_semua_periode(): void
+    {
+        $this->csc->update(['tgl_plan' => null]);
+
+        $res = $this->getJson("/api/audit-detail/kas/sumber-salin?plan_audit_id={$this->csc->id}")->assertOk();
+
+        $this->assertNull($res->json('periode'));
+        $this->assertCount(1, $res->json('data'), 'Tanpa tanggal plan, jangan sampai daftarnya jadi kosong.');
+    }
+
     public function test_plan_sendiri_tidak_ikut_jadi_pilihan(): void
     {
         $res = $this->getJson("/api/audit-detail/kas/sumber-salin?plan_audit_id={$this->so->id}")->assertOk();
@@ -289,10 +351,11 @@ class KasSalinUnitUsahaTest extends TestCase
 
     // ── Bantuan ──────────────────────────────────────────────────────────────
 
-    private function plan(string $noSpt, string $cabang, string $jenis): PlanAudit
+    private function plan(string $noSpt, string $cabang, string $jenis, ?string $tglPlan = '2026-09-04'): PlanAudit
     {
         return PlanAudit::query()->create([
-            'no_spt' => $noSpt, 'cabang' => $cabang, 'jenis_audit' => $jenis, 'status' => 'running',
+            'no_spt' => $noSpt, 'cabang' => $cabang, 'jenis_audit' => $jenis,
+            'status' => 'running', 'tgl_plan' => $tglPlan,
         ]);
     }
 
