@@ -168,7 +168,12 @@
             <div id="rsaHgpTableSection" class="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
                 <div class="flex items-center justify-between border-b border-slate-700 bg-slate-800/60 px-5 py-3">
                     <span class="text-xs font-bold uppercase tracking-wide text-slate-200">📦 Data RSA HGP &amp; AHM Oils</span>
-                    <span id="rsaHgpTableCount" class="rounded-full bg-blue-600/20 px-3 py-1 text-xs font-bold text-blue-300">0 Item</span>
+                    <div class="flex items-center gap-2">
+                        <button type="button" id="rsaHgpSegarBtn" title="Ambil hasil scan terbaru dari rekan seaudit"
+                        class="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800">⟳ Segarkan</button>
+                        <span id="rsaHgpSegarInfo" class="text-[11px] text-slate-500"></span>
+                        <span id="rsaHgpTableCount" class="rounded-full bg-blue-600/20 px-3 py-1 text-xs font-bold text-blue-300">0 Item</span>
+                    </div>
                 </div>
                 {{-- Baris tabel dimuat bertahap saat digulir (lihat TABLE_ROWS_PER_BATCH di
                      audit-editor.js). Kotak cari ini jalan pintas untuk menemukan 1 part
