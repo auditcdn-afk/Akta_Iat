@@ -549,27 +549,68 @@ function openModal(task) {
     modal.classList.add("flex");
 }
 
+/**
+ * Tandai tombol persetujuan sedang menunggu jawaban server, kembalikan fungsi
+ * untuk memulihkannya.
+ *
+ * Sebelumnya tidak ada tanda apa pun selama menunggu, dan di halaman ini
+ * jedanya paling terasa: menyetujui plan menempuh DUA perjalanan ke server
+ * berurutan -- memeriksa pinjaman yang belum diputus, baru kemudian menyetujui
+ * -- dan pemeriksaan itu terjadi SEBELUM dialog konfirmasi muncul. Jadi dari
+ * sisi auditor, tombolnya diklik lalu tidak terjadi apa-apa untuk beberapa
+ * saat, seolah kliknya tidak masuk.
+ *
+ * Kedua tombol dimatikan sekaligus, bukan hanya yang diklik: menyetujui dan
+ * menolak plan yang sama secara bersamaan tidak pernah benar.
+ */
+function mulaiProsesPlan(idTombol) {
+    const tombol = document.getElementById(idTombol);
+    const pasangan = ['approveBtn', 'rejectBtn']
+        .map((id) => document.getElementById(id))
+        .filter(Boolean);
+
+    pasangan.forEach((b) => {
+        b.disabled = true;
+        b.classList.add('opacity-50', 'cursor-not-allowed');
+    });
+
+    const labelAsli = tombol?.textContent;
+    if (tombol) tombol.textContent = 'Memproses…';
+
+    return () => {
+        pasangan.forEach((b) => {
+            b.disabled = false;
+            b.classList.remove('opacity-50', 'cursor-not-allowed');
+        });
+        if (tombol) tombol.textContent = labelAsli;
+    };
+}
+
 async function approvePlan(planId) {
     if (!planId) return;
 
-    // Cek apakah masih ada pinjaman yang menunggu giliran role ini
-    if (_pinjamanTaskId && isPinjamanApprovalRole()) {
-        try {
-            const res = await fetchJson('/api/pinjaman-cabang?audit_task_id=' + _pinjamanTaskId, { headers: authHeaders() });
-            const myStage = PINJAMAN_STAGE[currentUser?.role];
-            const pending = (res.data ?? []).filter(p => p.status === myStage);
-            if (pending.length > 0) {
-                showAlert(
-                    `Harap setujui atau tolak ${pending.length} pinjaman cabang (${pending.map(p=>p.jenis).join(', ')}) terlebih dahulu sebelum menyetujui plan audit.`,
-                    'error'
-                );
-                return;
-            }
-        } catch (_) {}
-    }
-
-    if (!confirm("Setujui plan audit ini?")) return;
+    // Ditandai sejak baris pertama, bukan setelah konfirmasi: pemeriksaan
+    // pinjaman di bawah sudah satu perjalanan ke server tersendiri.
+    const selesai = mulaiProsesPlan('approveBtn');
     try {
+        // Cek apakah masih ada pinjaman yang menunggu giliran role ini
+        if (_pinjamanTaskId && isPinjamanApprovalRole()) {
+            try {
+                const res = await fetchJson('/api/pinjaman-cabang?audit_task_id=' + _pinjamanTaskId, { headers: authHeaders() });
+                const myStage = PINJAMAN_STAGE[currentUser?.role];
+                const pending = (res.data ?? []).filter(p => p.status === myStage);
+                if (pending.length > 0) {
+                    showAlert(
+                        `Harap setujui atau tolak ${pending.length} pinjaman cabang (${pending.map(p=>p.jenis).join(', ')}) terlebih dahulu sebelum menyetujui plan audit.`,
+                        'error'
+                    );
+                    return;
+                }
+            } catch (_) {}
+        }
+
+        if (!confirm("Setujui plan audit ini?")) return;
+
         const payload = await fetchJson(`/api/plans/${planId}/advance`, {
             method: "POST",
             headers: authHeaders(),
@@ -579,6 +620,8 @@ async function approvePlan(planId) {
         terapkanPlanTerbaru(payload.data);
     } catch (err) {
         showAlert(err.message || "Gagal menyetujui plan.", "error");
+    } finally {
+        selesai();
     }
 }
 
@@ -644,6 +687,7 @@ async function rejectPlan(planId) {
         showAlert("Alasan penolakan wajib diisi supaya auditor tahu apa yang harus diperbaiki.", "error");
         return;
     }
+    const selesai = mulaiProsesPlan('rejectBtn');
     try {
         const payload = await fetchJson(`/api/plans/${planId}/reject`, {
             method: "POST",
@@ -655,6 +699,8 @@ async function rejectPlan(planId) {
         terapkanPlanTerbaru(payload.data);
     } catch (err) {
         showAlert(err.message || "Gagal menolak plan.", "error");
+    } finally {
+        selesai();
     }
 }
 
