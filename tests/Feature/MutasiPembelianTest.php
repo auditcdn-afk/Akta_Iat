@@ -311,4 +311,142 @@ class MutasiPembelianTest extends TestCase
         // Berkas yang sama di kedua sisi → semuanya harus cocok.
         $this->assertCount(6, array_filter($data, fn($it) => $it['matched']));
     }
+
+    /**
+     * Berkas gudang berisi BEBERAPA lembar, satu lembar per cabang.
+     * $lembar: ['Nama Lembar' => [[kodePart, qty, nomorFaktur], ...]].
+     * Bentuk barisnya memakai susunan "tanpa header" seperti ekspor asli.
+     */
+    private function buildGudangBanyakLembar(array $lembar, string $aktif): UploadedFile
+    {
+        $sheet = new Spreadsheet();
+        $sheet->removeSheetByIndex(0);
+
+        foreach ($lembar as $nama => $baris) {
+            $ws = $sheet->createSheet()->setTitle($nama);
+            foreach (array_values($baris) as $i => [$kodePart, $qty, $faktur]) {
+                $ws->fromArray(
+                    ['6', $faktur, 46176, 'ALGUPP00', 'PT. SUPPLIER', $kodePart, 'NAMA BARANG ' . $kodePart, $qty],
+                    null, 'A' . ($i + 1)
+                );
+            }
+        }
+        $sheet->setActiveSheetIndexByName($aktif);
+
+        return $this->saveTemp($sheet, 'gudang_banyak_lembar.xlsx');
+    }
+
+    /** Berkas unit usaha berheader rapi dari daftar [kodePart, qty, nomorFaktur]. */
+    private function buildUnitUsahaDari(array $baris): UploadedFile
+    {
+        $sheet = new Spreadsheet();
+        $ws = $sheet->getActiveSheet();
+        $ws->fromArray(['Kode Part', 'Nama Part', 'Qty', 'Nomor Faktur', 'Tanggal Faktur', 'Lokasi', 'Kode', 'Unit Usaha'], null, 'A1');
+        foreach (array_values($baris) as $i => [$kodePart, $qty, $faktur]) {
+            $ws->fromArray(
+                [$kodePart, 'NAMA BARANG ' . $kodePart, $qty, $faktur, '2026-09-01', 'A1.01.1.1', 'MMDHH000', 'PT. TEST UNIT USAHA'],
+                null, 'A' . ($i + 2)
+            );
+        }
+
+        return $this->saveTemp($sheet, 'unit_usaha_daftar.xlsx');
+    }
+
+    /**
+     * Berkas mutasi dari sistem sering memuat beberapa cabang di lembar
+     * terpisah, dan lembar yang "aktif" (yang terbuka terakhir kali berkas
+     * disimpan) belum tentu cabang yang sedang diperiksa. Dulu hanya lembar
+     * aktif yang dibaca, sehingga perbandingan berjalan di cabang lain dan
+     * hasilnya 0 cocok padahal nomor fakturnya jelas-jelas ada — persis yang
+     * terjadi pada berkas CSC UJT (Sheet2 = cabang lain & aktif, Sheet4 =
+     * cabang yang diperiksa).
+     */
+    public function test_lembar_cabang_yang_diperiksa_dipakai_walau_bukan_lembar_aktif(): void
+    {
+        $gudang = $this->buildGudangBanyakLembar([
+            'Sheet2' => [['PART-XXA', 1, 'INV-901'], ['PART-XXB', 2, 'INV-902'], ['PART-XXC', 3, 'INV-903']],
+            'Sheet4' => [['PART-AAA', 10, 'INV-001'], ['PART-BBB', 5, 'INV-002'], ['PART-CCC', 3, 'INV-003']],
+        ], 'Sheet2');
+
+        $res = $this->postJson('/api/audit-detail/mutasi-pembelian/compare', [
+            'fileGudang'    => $gudang,
+            'fileUnitUsaha' => $this->buildUnitUsahaDari([['PART-AAA', 10, 'INV-001'], ['PART-BBB', 15, 'INV-002']]),
+        ])->assertOk();
+
+        $data = $res->json('data');
+        $this->assertCount(3, $data, 'Yang dibandingkan harus lembar cabang yang diperiksa (Sheet4), bukan lembar aktif.');
+        $this->assertSame(['PART-AAA', 'PART-BBB', 'PART-CCC'], array_column($data, 'kodePart'));
+        $this->assertSame(1, $res->json('totalMatch'));
+
+        // Lembar yang dilewati wajib dilaporkan — auditor harus tahu sebagian
+        // berkasnya tidak ikut dibandingkan, bukan diam-diam dibuang.
+        $catatan = $res->json('catatan');
+        $this->assertCount(1, $catatan);
+        $this->assertStringContainsString('Sheet4', $catatan[0]);
+        $this->assertStringContainsString('Sheet2', $catatan[0]);
+    }
+
+    /** Beberapa lembar untuk cabang yang sama (mis. dipecah per periode) harus digabung, bukan dipilih salah satu. */
+    public function test_semua_lembar_yang_cocok_ikut_dibandingkan(): void
+    {
+        $gudang = $this->buildGudangBanyakLembar([
+            'Awal'  => [['PART-AAA', 10, 'INV-001'], ['PART-BBB', 5, 'INV-002'], ['PART-CCC', 3, 'INV-003']],
+            'Akhir' => [['PART-DDD', 4, 'INV-004'], ['PART-EEE', 6, 'INV-005'], ['PART-FFF', 7, 'INV-006']],
+        ], 'Awal');
+
+        $res = $this->postJson('/api/audit-detail/mutasi-pembelian/compare', [
+            'fileGudang'    => $gudang,
+            'fileUnitUsaha' => $this->buildUnitUsahaDari([
+                ['PART-AAA', 10, 'INV-001'], ['PART-CCC', 3, 'INV-003'],
+                ['PART-DDD', 4, 'INV-004'], ['PART-FFF', 7, 'INV-006'],
+            ]),
+        ])->assertOk();
+
+        $this->assertCount(6, $res->json('data'));
+        $this->assertSame(4, $res->json('totalMatch'));
+        $this->assertSame([], $res->json('catatan'), 'Tidak ada lembar yang dilewati → tidak ada catatan.');
+    }
+
+    /**
+     * Berkas yang benar-benar salah pasangan tidak boleh "diselamatkan" dengan
+     * membuang lembar: kalau tidak ada satu lembar pun yang cocok, semuanya
+     * tetap dibandingkan sehingga hasilnya apa adanya (0 cocok) dan auditor
+     * langsung tahu berkasnya keliru.
+     */
+    public function test_kalau_tidak_ada_lembar_yang_cocok_semuanya_tetap_dibandingkan(): void
+    {
+        $gudang = $this->buildGudangBanyakLembar([
+            'Sheet2' => [['PART-XXA', 1, 'INV-901'], ['PART-XXB', 2, 'INV-902'], ['PART-XXC', 3, 'INV-903']],
+            'Sheet4' => [['PART-YYA', 1, 'INV-801'], ['PART-YYB', 2, 'INV-802'], ['PART-YYC', 3, 'INV-803']],
+        ], 'Sheet2');
+
+        $res = $this->postJson('/api/audit-detail/mutasi-pembelian/compare', [
+            'fileGudang'    => $gudang,
+            'fileUnitUsaha' => $this->buildUnitUsahaDari([['PART-AAA', 10, 'INV-001'], ['PART-BBB', 15, 'INV-002']]),
+        ])->assertOk();
+
+        $this->assertCount(6, $res->json('data'));
+        $this->assertSame(0, $res->json('totalMatch'));
+        $this->assertSame([], $res->json('catatan'));
+    }
+
+    /** Lembar kosong (sisa template) tidak boleh menggagalkan pembacaan berkas. */
+    public function test_lembar_kosong_diabaikan(): void
+    {
+        $sheet = new Spreadsheet();
+        $sheet->getActiveSheet()->setTitle('Kosong');
+        $ws = $sheet->createSheet()->setTitle('Data');
+        $ws->fromArray(['6', 'INV-001', 46176, 'ALGUPP00', 'PT. SUPPLIER', 'PART-AAA', 'NAMA BARANG AAA', 10], null, 'A1');
+        $ws->fromArray(['6', 'INV-002', 46176, 'ALGUPP00', 'PT. SUPPLIER', 'PART-BBB', 'NAMA BARANG BBB', 5], null, 'A2');
+        $ws->fromArray(['6', 'INV-003', 46176, 'ALGUPP00', 'PT. SUPPLIER', 'PART-CCC', 'NAMA BARANG CCC', 3], null, 'A3');
+        $sheet->setActiveSheetIndexByName('Kosong');
+
+        $res = $this->postJson('/api/audit-detail/mutasi-pembelian/compare', [
+            'fileGudang'    => $this->saveTemp($sheet, 'gudang_lembar_kosong.xlsx'),
+            'fileUnitUsaha' => $this->buildUnitUsahaDari([['PART-AAA', 10, 'INV-001']]),
+        ])->assertOk();
+
+        $this->assertCount(3, $res->json('data'));
+        $this->assertSame(1, $res->json('totalMatch'));
+    }
 }

@@ -13,6 +13,7 @@ use Illuminate\Http\UploadedFile;
 use PhpOffice\PhpSpreadsheet\Reader\Csv;
 use PhpOffice\PhpSpreadsheet\Reader\Xls;
 use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class MutasiPembelianController extends Controller
 {
@@ -125,8 +126,23 @@ class MutasiPembelianController extends Controller
             'fileUnitUsaha' => 'required|file',
         ]);
 
-        $gudang    = $this->parseGudang($request->file('fileGudang'));
-        $unitUsaha = $this->parseUnitUsaha($request->file('fileUnitUsaha'));
+        $lembarGudang = $this->parseGudang($request->file('fileGudang'));
+        $lembarUu     = $this->parseUnitUsaha($request->file('fileUnitUsaha'));
+
+        // Sisi Gudang disaring dulu memakai SELURUH baris Unit Usaha sebagai
+        // pembanding, baru sisi Unit Usaha disaring memakai lembar Gudang yang
+        // sudah terpilih — urutan ini penting supaya penyaringan kedua tidak
+        // ikut menimbang lembar cabang lain yang barusan dibuang.
+        [$pakaiGudang, $lewatGudang] = $this->pilihLembar($lembarGudang, array_merge(...array_values($lembarUu)));
+        $gudang = array_merge(...array_values($pakaiGudang));
+
+        [$pakaiUu, $lewatUu] = $this->pilihLembar($lembarUu, $gudang);
+        $unitUsaha = array_merge(...array_values($pakaiUu));
+
+        $catatan = array_values(array_filter([
+            $this->catatanLembar('Gudang', $pakaiGudang, $lewatGudang),
+            $this->catatanLembar('Unit Usaha', $pakaiUu, $lewatUu),
+        ]));
 
         if (empty($gudang)) {
             return response()->json(['message' => 'Tidak ada baris pembelian yang terbaca dari file Gudang.'], 422);
@@ -145,16 +161,7 @@ class MutasiPembelianController extends Controller
             if ($planKode !== '' && $planUnitUsaha !== '') break;
         }
 
-        // Antrian per kunci (Kode Part|Qty|Nomor Faktur) — bukan peta 1 nilai,
-        // supaya kombinasi yang sama persis muncul berkali-kali di file Unit
-        // Usaha (mis. part sama, qty sama, no faktur sama tapi lokasi beda)
-        // tetap dicocokkan satu-satu satu lokasi per baris Gudang, bukan
-        // semuanya menempel ke lokasi baris pertama yang ditemukan.
-        $queue = [];
-        foreach ($unitUsaha as $uu) {
-            $key = $this->matchKey($uu['kodePart'], $uu['qty'], $uu['nomorFaktur']);
-            $queue[$key][] = $uu;
-        }
+        $queue = $this->antrianCocok($unitUsaha);
 
         $items = [];
         foreach ($gudang as $g) {
@@ -182,7 +189,68 @@ class MutasiPembelianController extends Controller
             'data'        => $items,
             'total'       => count($items),
             'totalMatch'  => count(array_filter($items, fn($it) => $it['matched'])),
+            'catatan'     => $catatan,
         ]);
+    }
+
+    // Antrian per kunci (Kode Part|Qty|Nomor Faktur) — bukan peta 1 nilai,
+    // supaya kombinasi yang sama persis muncul berkali-kali di file Unit Usaha
+    // (mis. part sama, qty sama, no faktur sama tapi lokasi beda) tetap
+    // dicocokkan satu-satu satu lokasi per baris Gudang, bukan semuanya
+    // menempel ke lokasi baris pertama yang ditemukan.
+    private function antrianCocok(array $unitUsaha): array
+    {
+        $queue = [];
+        foreach ($unitUsaha as $uu) {
+            $queue[$this->matchKey($uu['kodePart'], $uu['qty'], $uu['nomorFaktur'])][] = $uu;
+        }
+        return $queue;
+    }
+
+    private function hitungCocok(array $kiri, array $kanan): int
+    {
+        $queue = $this->antrianCocok($kanan);
+        $n = 0;
+        foreach ($kiri as $baris) {
+            $key = $this->matchKey($baris['kodePart'], $baris['qty'], $baris['nomorFaktur']);
+            if (!empty($queue[$key])) { array_shift($queue[$key]); $n++; }
+        }
+        return $n;
+    }
+
+    // Berkas berisi beberapa lembar harus disaring, karena satu berkas mutasi
+    // kerap memuat beberapa cabang sekaligus dan hanya satu yang sedang
+    // diperiksa. Penyaringnya bukan tebak-tebakan nama cabang, melainkan berkas
+    // pasangannya: lembar yang tidak punya SATU pun baris cocok dengan sisi
+    // sebelah jelas milik cabang lain, jadi dilewati. Dua syarat menjaga supaya
+    // ini tidak pernah membuang temuan asli:
+    //   - berkas berlembar tunggal tidak pernah disaring, dan
+    //   - kalau tidak ada satu lembar pun yang cocok (berkas salah pasangan),
+    //     semuanya tetap dipakai sehingga hasilnya apa adanya: 0 cocok.
+    // Lembar yang dilewati selalu dilaporkan ke auditor lewat catatanLembar().
+    private function pilihLembar(array $lembar, array $pembanding): array
+    {
+        if (count($lembar) < 2) return [$lembar, []];
+
+        $dipakai = $dilewati = [];
+        foreach ($lembar as $nama => $items) {
+            if ($this->hitungCocok($items, $pembanding) > 0) $dipakai[$nama] = $items;
+            else $dilewati[$nama] = $items;
+        }
+
+        return empty($dipakai) ? [$lembar, []] : [$dipakai, $dilewati];
+    }
+
+    private function catatanLembar(string $label, array $dipakai, array $dilewati): string
+    {
+        if (empty($dilewati)) return '';
+
+        $sebut = fn(array $l) => implode(', ', array_map(
+            fn($nama) => '"' . $nama . '" (' . count($l[$nama]) . ' baris)', array_keys($l)));
+
+        return "File {$label} berisi beberapa lembar: " . $sebut($dipakai) . ' dipakai, '
+            . $sebut($dilewati) . ' dilewati karena tidak ada satu pun barisnya cocok '
+            . 'dengan file pasangannya (kemungkinan besar milik cabang lain).';
     }
 
     private function matchKey(string $kodePart, float $qty, string $nomorFaktur): string
@@ -192,7 +260,13 @@ class MutasiPembelianController extends Controller
         return $kode . '|' . number_format($qty, 4, '.', '') . '|' . $no;
     }
 
-    private function loadSpreadsheet(UploadedFile $file): array
+    // SEMUA lembar (sheet) dibaca, bukan cuma lembar yang kebetulan aktif waktu
+    // file disimpan. File mutasi dari sistem sering berisi beberapa cabang di
+    // lembar terpisah (mis. Sheet2 = CSC TEMBILAHAN, Sheet4 = CSC UJUNG
+    // TANJUNG); dulu hanya lembar aktif yang terbaca sehingga perbandingan bisa
+    // jalan di cabang yang salah dan hasilnya 0 cocok padahal datanya ada.
+    // Lembar mana yang akhirnya dipakai ditentukan di pilihLembar().
+    private function loadSheets(UploadedFile $file): array
     {
         $ext = strtolower($file->getClientOriginalExtension());
         if (!in_array($ext, ['xls', 'xlsx', 'csv'], true)) {
@@ -207,7 +281,47 @@ class MutasiPembelianController extends Controller
         $reader->setReadDataOnly(true);
         $spreadsheet = $reader->load($file->getRealPath());
 
-        return $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
+        $lembar = [];
+        foreach ($spreadsheet->getWorksheetIterator() as $sheet) {
+            if ($sheet->getHighestDataRow() < 1) continue;
+            $rows = $sheet->toArray(null, true, true, false);
+            foreach ($rows as $row) {
+                foreach ($row as $cell) {
+                    if (trim((string) $cell) !== '') {
+                        $lembar[$sheet->getTitle()] = $rows;
+                        continue 3;
+                    }
+                }
+            }
+        }
+
+        return $lembar;
+    }
+
+    // Tiap lembar dibaca sendiri-sendiri. Lembar yang bentuknya tidak dikenali
+    // (mis. lembar catatan/rekap) dilewati, bukan menggagalkan seluruh berkas —
+    // tapi kalau TIDAK ADA satu lembar pun yang terbaca, pesan galat dari
+    // pembaca tetap dimunculkan apa adanya supaya penyebabnya tetap jelas.
+    private function bacaSemuaLembar(UploadedFile $file, string $label): array
+    {
+        $hasil = [];
+        $galat = null;
+
+        foreach ($this->loadSheets($file) as $nama => $rows) {
+            try {
+                $items = $this->bacaBerkasPembelian($rows, $label);
+            } catch (HttpException $e) {
+                $galat ??= $e;
+                continue;
+            }
+            if (!empty($items)) $hasil[$nama] = $items;
+        }
+
+        if (empty($hasil)) {
+            throw $galat ?? new HttpException(422, "File {$label} kosong — tidak ada baris data yang bisa dibaca.");
+        }
+
+        return $hasil;
     }
 
     // Berkas laporan pembelian datang dalam tiga bentuk, dan bentuknya BERBEDA
@@ -219,18 +333,18 @@ class MutasiPembelianController extends Controller
     //   3. tanpa header   : dikenali dari isi kolomnya
     private function parseGudang(UploadedFile $file): array
     {
-        return array_map(fn(array $it) => [
+        return array_map(fn(array $items) => array_map(fn(array $it) => [
             'tanggal'    => $it['tanggal'],
             'kodePart'   => $it['kodePart'],
             'namaBarang' => $it['namaPart'] !== '' ? $it['namaPart'] : $it['kodePart'],
             'qty'        => $it['qty'],
             'nomorFaktur'=> $it['nomorFaktur'],
-        ], $this->bacaBerkasPembelian($this->loadSpreadsheet($file), 'Gudang'));
+        ], $items), $this->bacaSemuaLembar($file, 'Gudang'));
     }
 
     private function parseUnitUsaha(UploadedFile $file): array
     {
-        return array_map(fn(array $it) => [
+        return array_map(fn(array $items) => array_map(fn(array $it) => [
             'kodePart'    => $it['kodePart'],
             'namaPart'    => $it['namaPart'],
             'qty'         => $it['qty'],
@@ -238,7 +352,7 @@ class MutasiPembelianController extends Controller
             'lokasi'      => $it['lokasi'],
             'kode'        => $it['kode'],
             'unitUsaha'   => $it['unitUsaha'],
-        ], $this->bacaBerkasPembelian($this->loadSpreadsheet($file), 'Unit Usaha'));
+        ], $items), $this->bacaSemuaLembar($file, 'Unit Usaha'));
     }
 
     // Dicoba dari bentuk yang paling pasti (judul kolom eksplisit) ke yang paling
