@@ -9469,14 +9469,20 @@ function gradingRenderDetails() {
         gradingUpdateStats();
         return;
     }
-    const isSaved = !!_gradingData?.id; // sudah tersimpan ke server jika punya id
+    // Grading TIDAK dikunci setelah tersimpan. Sebelumnya tombol Tambah Item,
+    // Simpan, dan ✏️/🗑️ per baris disembunyikan begitu grading punya id — jadi
+    // sekali disimpan, auditor tidak bisa menambah jenis penilaian berikutnya
+    // sama sekali. Padahal satu grading diisi bertahap: item demi item, kadang
+    // lintas hari dan lintas auditor. Efek lanjutannya lebih parah: karena
+    // tombol Simpan ikut hilang, PICA yang diisi sesudah itu tidak pernah
+    // sampai ke server dan lenyap begitu tab dimuat ulang.
     tbody.innerHTML = details.map((d, i) => {
         const isPica = picaIsLowGrade(d.hasilPemeriksaan);
         const hasPica = isPica && (d.currentCondition || '').trim() !== '';
         const picaBtn = isPica
             ? `<button onclick="gradingOpenPicaModal(${i})" title="Isi PICA" class="ml-1 text-xs px-1.5 py-0.5 rounded font-semibold ${hasPica ? 'bg-emerald-700 text-emerald-200' : 'bg-amber-700 text-amber-200'} hover:opacity-80">PICA</button>`
             : '';
-        const editDeleteBtns = isSaved ? '' : `
+        const editDeleteBtns = `
                 <button onclick="gradingOpenDetailModal(${i})" class="text-blue-400 hover:text-blue-200 mr-1 text-xs">✏️</button>
                 <button onclick="gradingDeleteDetail(${i})" class="text-red-400 hover:text-red-200 text-xs">🗑️</button>`;
         return `
@@ -9489,12 +9495,8 @@ function gradingRenderDetails() {
         </tr>`;
     }).join('');
     gradingUpdateStats();
-    // Sembunyikan tombol Tambah Item & Simpan jika sudah tersimpan ke server
-    const gradingSaved = !!_gradingData?.id;
-    const addBtn  = document.getElementById('gradingAddDetailBtn');
-    const saveBtn = document.getElementById('gradingSaveBtn');
-    if (addBtn)  addBtn.classList.toggle('hidden', gradingSaved);
-    if (saveBtn) saveBtn.classList.toggle('hidden', gradingSaved);
+    document.getElementById('gradingAddDetailBtn')?.classList.remove('hidden');
+    document.getElementById('gradingSaveBtn')?.classList.remove('hidden');
 }
 
 function gradingOpenPicaModal(idx) {
@@ -9526,6 +9528,11 @@ function gradingSavePicaModal() {
     _gradingData.details[idx] = { ..._gradingData.details[idx], currentCondition: condition };
     gradingClosePicaModal();
     gradingRenderDetails();
+
+    // Langsung disimpan: PICA yang cuma tersimpan di memori peramban hilang
+    // begitu tab dimuat ulang, dan auditor tidak punya tanda apa pun bahwa
+    // yang barusan diketiknya belum sampai ke server.
+    _doSaveGrading().catch(() => {});
 }
 
 async function gradingLoadMaster() {

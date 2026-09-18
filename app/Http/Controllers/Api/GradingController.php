@@ -365,40 +365,69 @@ class GradingController extends Controller
         return response()->json(['message' => 'PICA berhasil disinkronisasi dari data grading.']);
     }
 
+    /**
+     * Terbitkan / segarkan baris PICA dari item grading yang sudah diisi
+     * Current Condition-nya.
+     *
+     * Dicocokkan lewat NAMA PEMERIKSAAN, bukan nomor barisnya. Nomor baris
+     * bergeser begitu auditor menghapus atau menyisipkan item di tengah, dan
+     * baris PICA yang ikut bergeser akan menempel pada temuan yang salah --
+     * lengkap dengan akar masalah dan rencana perbaikan milik temuan lain.
+     * Nama pemeriksaan tidak pernah kembar dalam satu grading (daftar pilihan
+     * memang membuang yang sudah terpakai), jadi ia kunci yang aman.
+     */
     private function syncPicaFromGrading(AuditGrading $grading, mixed $planId, ?string $who): void
     {
         try {
             $plan    = PlanAudit::find($planId);
             $details = $grading->details ?? [];
+            $dipakai = [];
 
             foreach ($details as $idx => $item) {
                 $condition = trim((string) ($item['currentCondition'] ?? ''));
-
-                // Item dianggap PICA jika isPica=true ATAU currentCondition sudah diisi
                 if ($condition === '') {
                     continue;
                 }
 
-                $namaPemeriksaan = $item['namaPemeriksaan'] ?? ('Item ' . ($idx + 1));
+                $nama = $item['namaPemeriksaan'] ?? ('Item ' . ($idx + 1));
 
-                Pica::updateOrCreate(
-                    [
-                        'source_type'     => 'grading',
-                        'source_id'       => $grading->id,
-                        'source_item_idx' => $idx,
-                    ],
-                    [
-                        'plan_audit_id'     => $planId,
-                        'title'             => $namaPemeriksaan,
-                        'current_condition' => $condition,
-                        'unit_usaha'        => $plan?->cabang,
-                        'status'            => 'open',
-                        'priority'          => 'sedang',
-                        'created_by'        => $grading->created_by ?? $who,
-                        'updated_by'        => $who,
-                    ]
-                );
+                $pica = Pica::firstOrNew([
+                    'source_type' => 'grading',
+                    'source_id'   => $grading->id,
+                    'title'       => $nama,
+                ]);
+
+                // Status & prioritas HANYA diisi saat baris PICA baru dibuat.
+                // Grading yang disimpan ulang tidak boleh menarik kembali PICA
+                // yang sudah ditutup auditor menjadi "open".
+                if (!$pica->exists) {
+                    $pica->plan_audit_id = $planId;
+                    $pica->status        = 'open';
+                    $pica->priority      = 'sedang';
+                    $pica->created_by    = $grading->created_by ?? $who;
+                }
+
+                $pica->current_condition = $condition;
+                $pica->unit_usaha        = $plan?->cabang;
+                $pica->source_item_idx   = $idx;
+                $pica->updated_by        = $who;
+                $pica->save();
+
+                $dipakai[] = $pica->id;
             }
+
+            // Item yang dicabut auditor dari grading tidak boleh meninggalkan
+            // temuan gantung di daftar PICA. Tapi yang tindak lanjutnya sudah
+            // dikerjakan TIDAK dihapus -- itu pekerjaan orang, bukan sisa data;
+            // dibiarkan berdiri sendiri supaya bisa ditutup sebagaimana mestinya.
+            Pica::query()
+                ->where('source_type', 'grading')
+                ->where('source_id', $grading->id)
+                ->when($dipakai, fn($q) => $q->whereNotIn('id', $dipakai))
+                ->get()
+                ->each(function (Pica $p) {
+                    if (self::picaBelumDikerjakan($p)) $p->delete();
+                });
 
             // Auto-generate pica_no jika belum ada
             Pica::where('source_type', 'grading')
@@ -411,5 +440,17 @@ class GradingController extends Controller
         } catch (\Throwable) {
             // Jangan gagalkan save grading hanya karena PICA sync error
         }
+    }
+
+    /** Baris PICA yang belum disentuh siapa pun selain grading yang menerbitkannya. */
+    private static function picaBelumDikerjakan(Pica $p): bool
+    {
+        foreach (['problem', 'problem_identification', 'root_cause', 'corrective_action',
+                  'preventive_action', 'pic', 'evidence', 'notes', 'close_note',
+                  'target_date', 'actual_date', 'closed_at', 'audit_task_id'] as $kolom) {
+            if (trim((string) ($p->$kolom ?? '')) !== '') return false;
+        }
+
+        return in_array((string) $p->status, ['', 'open'], true);
     }
 }
