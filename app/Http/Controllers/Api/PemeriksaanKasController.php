@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\MengunciDataPemeriksaan;
+use App\Http\Controllers\Concerns\MenolakTimpaanBasi;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\PemeriksaanAuditor;
@@ -15,6 +17,8 @@ use Illuminate\Support\Facades\Validator;
 class PemeriksaanKasController extends Controller
 {
     use RequiresAuditorAuditee;
+    use MengunciDataPemeriksaan;
+    use MenolakTimpaanBasi;
 
     private array $writeRoles = ['admin', 'manajer', 'auditor'];
 
@@ -84,17 +88,26 @@ class PemeriksaanKasController extends Controller
         // terpicu dua kali sebelum sisi klien tahu record-nya sudah ada
         // (mis. klik ganda), yang sebelumnya membuat laporan PDF mencetak
         // section "Pemeriksaan Kas" berulang.
-        $kas = PemeriksaanKas::query()->updateOrCreate(
-            ['plan_audit_id' => $data['plan_audit_id']],
-            $data
-        );
+        //
+        // Dikunci per plan, dan kiriman dari salinan yang sudah basi ditolak:
+        // seluruh isi tab Kas ditulis sekaligus di sini, jadi kiriman basi akan
+        // membuang pekerjaan auditor lain tanpa jejak.
+        return $this->denganKunciPemeriksaan(PemeriksaanKas::class, $data['plan_audit_id'],
+            function (?PemeriksaanKas $rec) use ($request, $data) {
+                $this->tolakKalauBasi($rec, $request, 'Pemeriksaan Kas');
 
-        return response()->json([
-            'message' => $kas->wasRecentlyCreated
-                ? 'Pemeriksaan kas berhasil dibuat.'
-                : 'Pemeriksaan kas berhasil diperbarui.',
-            'data' => $kas->load('planAudit'),
-        ], $kas->wasRecentlyCreated ? 201 : 200);
+                $kas = PemeriksaanKas::query()->updateOrCreate(
+                    ['plan_audit_id' => $data['plan_audit_id']],
+                    $data
+                );
+
+                return response()->json([
+                    'message' => $kas->wasRecentlyCreated
+                        ? 'Pemeriksaan kas berhasil dibuat.'
+                        : 'Pemeriksaan kas berhasil diperbarui.',
+                    'data' => $kas->load('planAudit'),
+                ], $kas->wasRecentlyCreated ? 201 : 200);
+            });
     }
 
     public function update(Request $request, PemeriksaanKas $pemeriksaanKas): JsonResponse
@@ -118,13 +131,17 @@ class PemeriksaanKasController extends Controller
 
         $data['updated_by'] = $this->userIdentifier($request);
 
-        $pemeriksaanKas->fill($data);
-        $pemeriksaanKas->save();
+        return $this->denganKunciBaris($pemeriksaanKas, function (PemeriksaanKas $kas) use ($request, $data) {
+            $this->tolakKalauBasi($kas, $request, 'Pemeriksaan Kas');
 
-        return response()->json([
-            'message' => 'Pemeriksaan kas berhasil diperbarui.',
-            'data' => $pemeriksaanKas->load('planAudit'),
-        ]);
+            $kas->fill($data);
+            $kas->save();
+
+            return response()->json([
+                'message' => 'Pemeriksaan kas berhasil diperbarui.',
+                'data' => $kas->load('planAudit'),
+            ]);
+        });
     }
 
     public function destroy(Request $request, PemeriksaanKas $pemeriksaanKas): JsonResponse

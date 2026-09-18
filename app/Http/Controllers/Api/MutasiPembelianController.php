@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\MengunciDataPemeriksaan;
+use App\Http\Controllers\Concerns\MenolakTimpaanBasi;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\PemeriksaanMutasiPembelian;
@@ -15,6 +17,8 @@ use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
 class MutasiPembelianController extends Controller
 {
     use RequiresAuditorAuditee;
+    use MengunciDataPemeriksaan;
+    use MenolakTimpaanBasi;
 
     public function show(Request $request): JsonResponse
     {
@@ -29,13 +33,18 @@ class MutasiPembelianController extends Controller
         $this->ensureAuditorFilled((int) $planId, 'mutasi-pembelian');
         $who    = $request->user()?->username ?? $request->user()?->email;
 
-        $rec = PemeriksaanMutasiPembelian::updateOrCreate(
-            ['plan_audit_id' => $planId],
-            ['items_json' => $request->input('items', []), 'updated_by' => $who]
-        );
-        if (!$rec->created_by) $rec->update(['created_by' => $who]);
+        return $this->denganKunciPemeriksaan(PemeriksaanMutasiPembelian::class, $planId,
+            function (?PemeriksaanMutasiPembelian $rec) use ($request, $planId, $who) {
+                $this->tolakKalauBasi($rec, $request, 'Mutasi Pembelian');
 
-        return response()->json(['message' => 'Data Mutasi Pembelian tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+                    $rec = PemeriksaanMutasiPembelian::updateOrCreate(
+                        ['plan_audit_id' => $planId],
+                        ['items_json' => $request->input('items', []), 'updated_by' => $who]
+                    );
+                    if (!$rec->created_by) $rec->update(['created_by' => $who]);
+
+                    return response()->json(['message' => 'Data Mutasi Pembelian tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+            });
     }
 
     // Update HANYA kolom "keterangan" 1 baris (by index) — sama seperti
@@ -51,20 +60,22 @@ class MutasiPembelianController extends Controller
         ]);
         $who = $request->user()?->username ?? $request->user()?->email;
 
-        $rec = PemeriksaanMutasiPembelian::where('plan_audit_id', $data['planAuditId'])->first();
-        if (!$rec) {
-            return response()->json(['message' => 'Data Mutasi Pembelian belum ada untuk plan audit ini.'], 422);
-        }
+        return $this->denganKunciPemeriksaan(PemeriksaanMutasiPembelian::class, $data['planAuditId'],
+            function (?PemeriksaanMutasiPembelian $rec) use ($request, $data, $who) {
+                if (!$rec) {
+                    return response()->json(['message' => 'Data Mutasi Pembelian belum ada untuk plan audit ini.'], 422);
+                }
 
-        $items = $rec->items_json ?? [];
-        if (!array_key_exists($data['index'], $items)) {
-            return response()->json(['message' => 'Baris tidak ditemukan.'], 404);
-        }
+                $items = $rec->items_json ?? [];
+                if (!array_key_exists($data['index'], $items)) {
+                    return response()->json(['message' => 'Baris tidak ditemukan.'], 404);
+                }
 
-        $items[$data['index']]['keterangan'] = $data['keterangan'] ?? '';
-        $rec->update(['items_json' => $items, 'updated_by' => $who]);
+                $items[$data['index']]['keterangan'] = $data['keterangan'] ?? '';
+                $rec->update(['items_json' => $items, 'updated_by' => $who]);
 
-        return response()->json(['message' => 'Keterangan tersimpan.']);
+                return response()->json(['message' => 'Keterangan tersimpan.']);
+            });
     }
 
     // Hapus HANYA 1 baris (by index) — baca-ubah-simpan langsung di server,
@@ -81,21 +92,23 @@ class MutasiPembelianController extends Controller
         ]);
         $who = $request->user()?->username ?? $request->user()?->email;
 
-        $rec = PemeriksaanMutasiPembelian::where('plan_audit_id', $data['planAuditId'])->first();
-        if (!$rec) {
-            return response()->json(['message' => 'Data Mutasi Pembelian belum ada untuk plan audit ini.'], 422);
-        }
+        return $this->denganKunciPemeriksaan(PemeriksaanMutasiPembelian::class, $data['planAuditId'],
+            function (?PemeriksaanMutasiPembelian $rec) use ($request, $data, $who) {
+                if (!$rec) {
+                    return response()->json(['message' => 'Data Mutasi Pembelian belum ada untuk plan audit ini.'], 422);
+                }
 
-        $items = $rec->items_json ?? [];
-        if (!array_key_exists($data['index'], $items)) {
-            return response()->json(['message' => 'Baris tidak ditemukan.'], 404);
-        }
+                $items = $rec->items_json ?? [];
+                if (!array_key_exists($data['index'], $items)) {
+                    return response()->json(['message' => 'Baris tidak ditemukan.'], 404);
+                }
 
-        array_splice($items, $data['index'], 1);
-        $items = array_values($items);
-        $rec->update(['items_json' => $items, 'updated_by' => $who]);
+                array_splice($items, $data['index'], 1);
+                $items = array_values($items);
+                $rec->update(['items_json' => $items, 'updated_by' => $who]);
 
-        return response()->json(['message' => 'Baris dihapus.', 'data' => $items]);
+                return response()->json(['message' => 'Baris dihapus.', 'data' => $items]);
+            });
     }
 
     // Bandingkan 2 file: "Gudang" (patokan — laporan pembelian dari sistem

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\MengunciDataPemeriksaan;
+use App\Http\Controllers\Concerns\MenolakTimpaanBasi;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\PemeriksaanTtpGantung;
@@ -11,6 +13,8 @@ use Illuminate\Http\Request;
 class TtpGantungController extends Controller
 {
     use RequiresAuditorAuditee;
+    use MengunciDataPemeriksaan;
+    use MenolakTimpaanBasi;
 
     public function show(Request $request): JsonResponse
     {
@@ -25,17 +29,22 @@ class TtpGantungController extends Controller
         $this->ensureAuditorFilled((int) $planId, 'ttp-gantung');
         $who    = $request->user()?->username ?? $request->user()?->email;
 
-        $rec = PemeriksaanTtpGantung::updateOrCreate(
-            ['plan_audit_id' => $planId],
-            [
-                'tgl_audit' => $request->input('tglAudit') ?: null,
-                'ttp_json'  => $request->input('ttp', []),
-                'updated_by' => $who,
-            ]
-        );
-        if (!$rec->created_by) $rec->update(['created_by' => $who]);
+        return $this->denganKunciPemeriksaan(PemeriksaanTtpGantung::class, $planId,
+            function (?PemeriksaanTtpGantung $rec) use ($request, $planId, $who) {
+                $this->tolakKalauBasi($rec, $request, 'TTP Gantung');
 
-        return response()->json(['message' => 'Data tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+                $rec = PemeriksaanTtpGantung::updateOrCreate(
+                    ['plan_audit_id' => $planId],
+                    [
+                        'tgl_audit' => $request->input('tglAudit') ?: null,
+                        'ttp_json'  => $request->input('ttp', []),
+                        'updated_by' => $who,
+                    ]
+                );
+                if (!$rec->created_by) $rec->update(['created_by' => $who]);
+
+                return response()->json(['message' => 'Data tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+            });
     }
 
     public function parseHtml(Request $request): JsonResponse

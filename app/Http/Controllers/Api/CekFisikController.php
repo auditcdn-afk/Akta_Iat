@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\MengunciDataPemeriksaan;
+use App\Http\Controllers\Concerns\MenolakTimpaanBasi;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\PemeriksaanCekFisik;
@@ -14,6 +16,8 @@ use PhpOffice\PhpSpreadsheet\Reader\Csv;
 class CekFisikController extends Controller
 {
     use RequiresAuditorAuditee;
+    use MengunciDataPemeriksaan;
+    use MenolakTimpaanBasi;
 
     public function show(Request $request): JsonResponse
     {
@@ -28,13 +32,18 @@ class CekFisikController extends Controller
         $this->ensureAuditorFilled((int) $planId, 'cek-fisik');
         $who    = $request->user()?->username ?? $request->user()?->email;
 
-        $rec = PemeriksaanCekFisik::updateOrCreate(
-            ['plan_audit_id' => $planId],
-            ['data_json' => $request->input('data', []), 'updated_by' => $who]
-        );
-        if (!$rec->created_by) $rec->update(['created_by' => $who]);
+        return $this->denganKunciPemeriksaan(PemeriksaanCekFisik::class, $planId,
+            function (?PemeriksaanCekFisik $rec) use ($request, $planId, $who) {
+                $this->tolakKalauBasi($rec, $request, 'Cek Fisik');
 
-        return response()->json(['message' => 'Data tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+                $rec = PemeriksaanCekFisik::updateOrCreate(
+                    ['plan_audit_id' => $planId],
+                    ['data_json' => $request->input('data', []), 'updated_by' => $who]
+                );
+                if (!$rec->created_by) $rec->update(['created_by' => $who]);
+
+                return response()->json(['message' => 'Data tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+            });
     }
 
     public function parseExcel(Request $request): JsonResponse

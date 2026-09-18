@@ -556,6 +556,7 @@ async function loadKasForm() {
     const payload = await fetchJson(`/api/audit-detail/kas?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
     const items = Array.isArray(payload) ? payload : (payload.data || []);
     const record = items[0];
+    catatVersiTab('kas', record);
     if (record) {
         currentKasId = record.id;
         document.getElementById("kasId").value = record.id;
@@ -572,6 +573,41 @@ async function loadKasForm() {
     if (saveBtn) saveBtn.style.display = editable ? "" : "none";
     const salinBtn = document.getElementById("kasSalinBtn");
     if (salinBtn) salinBtn.style.display = editable ? "" : "none";
+}
+
+// ── Versi dokumen tiap tab pemeriksaan ───────────────────────────────────────
+// Tab-tab ini menyimpan SELURUH isi layarnya sekaligus. Satu SPT dikerjakan
+// beberapa auditor, jadi kiriman dari salinan yang sudah basi bisa membuang
+// pekerjaan rekan tanpa jejak. Layar karena itu mengingat "versi" yang ia
+// terima saat memuat dan mengirimkannya lagi saat menyimpan; server menolak
+// (409) kalau versinya sudah bukan yang terbaru.
+const _versiTab = {};
+
+function catatVersiTab(tab, data) {
+    _versiTab[tab] = data?.updatedAt ?? data?.updated_at ?? '';
+}
+
+function versiTab(tab) {
+    return _versiTab[tab] ?? '';
+}
+
+async function simpanDokumenTab(tab, url, isi) {
+    try {
+        const res = await fetchJson(url, {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ ...isi, versi: versiTab(tab) }),
+        });
+        catatVersiTab(tab, res.data);
+        return res;
+    } catch (e) {
+        // Ditolak karena basi: sampaikan apa adanya, jangan dicoba ulang diam-diam
+        // — mengirim ulang isi yang sama persis akan menimpa pekerjaan rekan.
+        if (e?.status === 409 && e?.payload?.stale) {
+            showAlert(e.message, 'error');
+        }
+        throw e;
+    }
 }
 
 // ── Salin pemeriksaan kas dari unit usaha sejenis ────────────────────────────
@@ -754,11 +790,18 @@ async function saveKasForm() {
     };
 
     const isEdit = Boolean(currentKasId);
-    const payload = await fetchJson(isEdit ? `/api/audit-detail/kas/${currentKasId}` : "/api/audit-detail/kas", {
-        method: isEdit ? "PUT" : "POST",
-        headers: { ...authHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-    });
+    let payload;
+    try {
+        payload = await fetchJson(isEdit ? `/api/audit-detail/kas/${currentKasId}` : "/api/audit-detail/kas", {
+            method: isEdit ? "PUT" : "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ ...body, versi: versiTab('kas') }),
+        });
+    } catch (e) {
+        if (e?.status === 409 && e?.payload?.stale) showAlert(e.message, 'error');
+        throw e;
+    }
+    catatVersiTab('kas', payload.data);
 
     if (payload.data?.id) {
         currentKasId = payload.data.id;
@@ -3287,6 +3330,7 @@ async function loadBpkiTab() {
     const planId = activePlanId;
     if (!planId) return;
     const res = await fetchJson(`/api/audit-detail/bpkb-inproses?plan_audit_id=${planId}`, { headers: authHeaders() });
+    catatVersiTab('bpkb-inproses', res.data);
     bpkiPopulate(res.data);
 }
 
@@ -3638,11 +3682,7 @@ async function saveBpki() {
     const showMsg = (text, cls) => { if (msg) { msg.textContent = text; msg.className = `text-xs ${cls}`; msg.classList.remove("hidden"); } };
     showMsg("Menyimpan…", "text-blue-400");
     try {
-        await fetchJson("/api/audit-detail/bpkb-inproses", {
-            method: "POST",
-            headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-        });
+        await simpanDokumenTab("bpkb-inproses", "/api/audit-detail/bpkb-inproses", payload);
         showMsg("Tersimpan.", "text-emerald-400");
         setTimeout(() => msg?.classList.add("hidden"), 2000);
     } catch (err) {
@@ -3685,6 +3725,7 @@ async function loadKwTab() {
     const planId = activePlanId;
     if (!planId) { kwRender(); return; }
     const res = await fetchJson(`/api/audit-detail/kwitansi?plan_audit_id=${planId}`, { headers: authHeaders() });
+    catatVersiTab('kwitansi', res.data);
     if (res.data && (res.data.kwitansi ?? []).length > 0) {
         const el = document.getElementById("kwTglAudit");
         if (el) el.value = res.data.tglAudit ?? "";
@@ -3854,11 +3895,7 @@ async function saveKw() {
     const showMsg = (text, cls) => { if (msg) { msg.textContent = text; msg.className = `text-xs ${cls}`; msg.classList.remove("hidden"); } };
     showMsg("Menyimpan…", "text-blue-400");
     try {
-        await fetchJson("/api/audit-detail/kwitansi", {
-            method: "POST",
-            headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({ planAuditId: planId, tglAudit, kwitansi: _kwItems }),
-        });
+        await simpanDokumenTab("kwitansi", "/api/audit-detail/kwitansi", { planAuditId: planId, tglAudit, kwitansi: _kwItems });
         showMsg("Tersimpan.", "text-emerald-400");
         setTimeout(() => msg?.classList.add("hidden"), 2000);
     } catch (err) {
@@ -3955,6 +3992,7 @@ async function loadPrTab() {
     const planId = activePlanId;
     if (!planId) { prRender(); return; }
     const res = await fetchJson(`/api/audit-detail/piutang-reguler?plan_audit_id=${planId}`, { headers: authHeaders() });
+    catatVersiTab('piutang-reguler', res.data);
     if (res.data && (res.data.piutang ?? []).length > 0) {
         _prItems = res.data.piutang;
     }
@@ -4072,11 +4110,7 @@ async function savePrKeterangan(index, keterangan) {
 async function savePr() {
     const planId = activePlanId;
     if (!planId) throw new Error('Pilih plan audit terlebih dahulu.');
-    const res = await fetchJson('/api/audit-detail/piutang-reguler', {
-        method:  'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body:    JSON.stringify({ planAuditId: planId, piutang: _prItems }),
-    });
+    const res = await simpanDokumenTab('piutang-reguler', '/api/audit-detail/piutang-reguler', { planAuditId: planId, piutang: _prItems });
     if (!res.message) throw new Error('Gagal menyimpan.');
     showAlert(res.message, 'success');
 }
@@ -4156,6 +4190,7 @@ let _pcdnItems = [];
 async function loadPcdnTab() {
     if (!activePlanId) { pcdnRender(); return; }
     const res = await fetchJson(`/api/audit-detail/piutang-cdn?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    catatVersiTab('piutang-cdn', res.data);
     if (res.data && (res.data.piutang ?? []).length > 0) {
         _pcdnItems = res.data.piutang;
     }
@@ -4269,11 +4304,7 @@ async function savePcdnKeterangan(index, keterangan) {
 
 async function savePcdn() {
     if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
-    const res = await fetchJson('/api/audit-detail/piutang-cdn', {
-        method:  'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body:    JSON.stringify({ planAuditId: activePlanId, piutang: _pcdnItems }),
-    });
+    const res = await simpanDokumenTab('piutang-cdn', '/api/audit-detail/piutang-cdn', { planAuditId: activePlanId, piutang: _pcdnItems });
     if (!res.message) throw new Error('Gagal menyimpan.');
     showAlert(res.message, 'success');
 }
@@ -4347,6 +4378,7 @@ let _ttpItems = [];
 async function loadTtpTab() {
     if (!activePlanId) { ttpRender(); return; }
     const res = await fetchJson(`/api/audit-detail/ttp-gantung?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    catatVersiTab('ttp-gantung', res.data);
     if (res.data && (res.data.ttp ?? []).length > 0) {
         _ttpItems = res.data.ttp;
         const el = document.getElementById('ttpTglAudit');
@@ -4464,11 +4496,7 @@ function ttpRender() {
 async function saveTtp() {
     if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'error'); return; }
     const tglAudit = document.getElementById('ttpTglAudit')?.value || null;
-    const res = await fetchJson('/api/audit-detail/ttp-gantung', {
-        method:  'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body:    JSON.stringify({ planAuditId: activePlanId, tglAudit, ttp: _ttpItems }),
-    });
+    const res = await simpanDokumenTab('ttp-gantung', '/api/audit-detail/ttp-gantung', { planAuditId: activePlanId, tglAudit, ttp: _ttpItems });
     if (!res.message) throw new Error('Gagal menyimpan.');
     showAlert(res.message, 'success');
 }
@@ -4562,6 +4590,7 @@ async function loadCfTab() {
     if (!activePlanId) { cfInitForm(); return; }
     const res = await fetchJson(`/api/audit-detail/cek-fisik?plan_audit_id=${activePlanId}`,
         { headers: authHeaders() });
+    catatVersiTab('cek-fisik', res.data);
     // res.data = toAktaArray() = { id, planAuditId, data: {...}, updatedAt }
     // res.data.data = the stored _cfData object
     if (res.data && res.data.data && !Array.isArray(res.data.data)) {
@@ -4779,11 +4808,7 @@ async function _doSaveCf() {
     if (!activePlanId) throw new Error('Pilih plan audit terlebih dahulu.');
     if (!_cfData) _cfData = cfEmptyData();
     cfSyncSaldoAwal();
-    return await fetchJson('/api/audit-detail/cek-fisik', {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ planAuditId: activePlanId, data: _cfData }),
-    });
+    return await simpanDokumenTab('cek-fisik', '/api/audit-detail/cek-fisik', { planAuditId: activePlanId, data: _cfData });
 }
 
 async function saveCf() {
@@ -4828,6 +4853,39 @@ const MT_LABEL    = { bagus: 'Bagus', rusak: 'Rusak', skAudit: 'SK Audit', hilan
 const MT_COLOR    = { bagus: 'emerald', rusak: 'red', skAudit: 'blue', hilang: 'orange' };
 
 function mtEmptyData() { return { entries: [], mekanikSelectedJenis: {} }; }
+
+// ── Satu SPT, dua auditor yang membagi mekanik ───────────────────────────────
+// Tiap perubahan kecil di tab MT mengirim SELURUH isi layar ini ke server.
+// Supaya kiriman itu tidak menimpa pekerjaan rekan yang belum terlihat di sini,
+// server menggabungkan per (mekanik, jenis) — dan supaya MENGHAPUS tetap bisa,
+// layar ini ikut mengirim entri apa saja yang memang ada padanya waktu memuat.
+// Entri yang dikenal tapi tidak ikut terkirim = memang dihapus auditor ini.
+const mtKunciEntri = (e) => `${(e?.mekanik || '').trim().toUpperCase()}|${(e?.jenis || '').trim().toLowerCase()}`;
+let _mtDikenal = new Set();
+
+function mtCatatDikenal(data) {
+    _mtDikenal = new Set((data?.entries || []).map(mtKunciEntri));
+}
+
+// Entri dari server yang belum ada di layar ini (punya rekan) ditambahkan;
+// yang sudah ada TIDAK disentuh supaya isian yang sedang dikerjakan tidak
+// berubah sendiri di bawah tangan auditor.
+function mtSerapDariServer(dataServer) {
+    if (!_mtData) _mtData = mtEmptyData();
+    const punya = new Set((_mtData.entries || []).map(mtKunciEntri));
+    let tambah = 0;
+    (dataServer?.entries || []).forEach((e) => {
+        if (punya.has(mtKunciEntri(e))) return;
+        (_mtData.entries = _mtData.entries || []).push(e);
+        tambah++;
+    });
+    _mtData.mekanikSelectedJenis = {
+        ...(dataServer?.mekanikSelectedJenis || {}),
+        ...(_mtData.mekanikSelectedJenis || {}),
+    };
+    mtCatatDikenal(dataServer);
+    return tambah;
+}
 function mtActiveJenis()   { return document.querySelector('.mt-jenis-btn.active')?.dataset.mtJenis || 'baru'; }
 function mtActiveMekanik() { return _mtActiveMekanik; }
 
@@ -4942,6 +5000,7 @@ async function loadMtTab() {
     if (res.data && res.data.data && !Array.isArray(res.data.data)) {
         _mtData = { ...mtEmptyData(), ...res.data.data };
     }
+    mtCatatDikenal(_mtData);
     mtInitForm();
 }
 
@@ -5306,11 +5365,19 @@ function mtRenderKategori() {
 async function _doSaveMt() {
     if (!activePlanId) throw new Error('Pilih plan audit terlebih dahulu.');
     if (!_mtData) _mtData = mtEmptyData();
-    return await fetchJson('/api/audit-detail/mt', {
+    const res = await fetchJson('/api/audit-detail/mt', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ planAuditId: activePlanId, data: _mtData }),
+        body: JSON.stringify({ planAuditId: activePlanId, data: _mtData, dikenal: [..._mtDikenal] }),
     });
+    // Balasannya isi gabungan: pekerjaan rekan yang belum terlihat di sini ikut
+    // masuk sekarang juga, jadi auditor tahu daftar mekaniknya sudah lengkap.
+    const tambah = mtSerapDariServer(res.data?.data);
+    if (tambah) {
+        mtRenderMekanikList();
+        showAlert(`${tambah} data mekanik dari rekan auditor ikut dimuat.`, 'success');
+    }
+    return res;
 }
 
 async function saveMt() {
@@ -7813,16 +7880,13 @@ function smhTarikanFormSave() {
 async function _doSaveSmhTarikan() {
     if (!activePlanId) throw new Error('Pilih plan audit terlebih dahulu.');
     if (!_smhTarikanData) _smhTarikanData = smhTarikanEmpty();
-    return await fetchJson('/api/audit-detail/smh-tarikan', {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ planAuditId: activePlanId, items: _smhTarikanData.items }),
-    });
+    return await simpanDokumenTab('smh-tarikan', '/api/audit-detail/smh-tarikan', { planAuditId: activePlanId, items: _smhTarikanData.items });
 }
 
 async function loadSmhTarikanTab() {
     if (!activePlanId) { smhTarikanRender(); return; }
     const res = await fetchJson(`/api/audit-detail/smh-tarikan?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    catatVersiTab('smh-tarikan', res.data);
     if (res.data && Array.isArray(res.data.items)) {
         _smhTarikanData = { items: res.data.items };
     }
@@ -8734,6 +8798,7 @@ let _mpFileUu = null;
 async function loadMpTab() {
     if (!activePlanId) { mpRender(); return; }
     const res = await fetchJson(`/api/audit-detail/mutasi-pembelian?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    catatVersiTab('mutasi-pembelian', res.data);
     if (res.data && (res.data.items ?? []).length > 0) {
         _mpItems = res.data.items;
     }
@@ -8920,11 +8985,7 @@ async function saveMpKeterangan(index, keterangan) {
 async function saveMp() {
     const planId = activePlanId;
     if (!planId) throw new Error('Pilih plan audit terlebih dahulu.');
-    const res = await fetchJson('/api/audit-detail/mutasi-pembelian', {
-        method:  'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body:    JSON.stringify({ planAuditId: planId, items: _mpItems }),
-    });
+    const res = await simpanDokumenTab('mutasi-pembelian', '/api/audit-detail/mutasi-pembelian', { planAuditId: planId, items: _mpItems });
     if (!res.message) throw new Error('Gagal menyimpan.');
     showAlert(res.message, 'success');
 }
@@ -8972,6 +9033,7 @@ let _tcItems = [];
 async function loadTcTab() {
     if (!activePlanId) { tcRender(); return; }
     const res = await fetchJson(`/api/audit-detail/ttp-csc?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+    catatVersiTab('ttp-csc', res.data);
     if (res.data && (res.data.items ?? []).length > 0) {
         _tcItems = res.data.items;
     }
@@ -9078,11 +9140,7 @@ async function saveTcKeterangan(index, keterangan) {
 async function saveTc() {
     const planId = activePlanId;
     if (!planId) throw new Error('Pilih plan audit terlebih dahulu.');
-    const res = await fetchJson('/api/audit-detail/ttp-csc', {
-        method:  'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body:    JSON.stringify({ planAuditId: planId, items: _tcItems }),
-    });
+    const res = await simpanDokumenTab('ttp-csc', '/api/audit-detail/ttp-csc', { planAuditId: planId, items: _tcItems });
     if (!res.message) throw new Error('Gagal menyimpan.');
     showAlert(res.message, 'success');
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
+use App\Http\Controllers\Concerns\MengunciDataPemeriksaan;
 use App\Http\Controllers\Controller;
 use App\Models\PemeriksaanMaterai;
 use Illuminate\Http\JsonResponse;
@@ -10,6 +11,8 @@ use Illuminate\Http\Request;
 
 class PemeriksaanMateraiController extends Controller
 {
+    use MengunciDataPemeriksaan;
+
     use RequiresAuditorAuditee;
 
     // ── GET /api/audit-detail/materai ────────────────────────────────────────
@@ -109,16 +112,21 @@ class PemeriksaanMateraiController extends Controller
         ]);
         $index = (int) $data['index'];
 
-        $transaksi = $pemeriksaanMaterai->transaksi_json ?? [];
-        abort_unless(array_key_exists($index, $transaksi), 404, 'Baris transaksi tidak ditemukan.');
+        // Dibaca ULANG di dalam transaksi sambil barisnya dikunci: seluruh daftar
+        // transaksi ditulis balik di sini, jadi salinan yang basi akan membuang
+        // keterangan yang baru saja diisi auditor lain.
+        return $this->denganKunciBaris($pemeriksaanMaterai, function (PemeriksaanMaterai $rec) use ($request, $data, $index) {
+            $transaksi = $rec->transaksi_json ?? [];
+            abort_unless(array_key_exists($index, $transaksi), 404, 'Baris transaksi tidak ditemukan.');
 
-        $transaksi[$index]['keterangan'] = $data['keterangan'] ?? '';
-        $pemeriksaanMaterai->update([
-            'transaksi_json' => $transaksi,
-            'updated_by'     => $request->user()?->username ?? $request->user()?->email,
-        ]);
+            $transaksi[$index]['keterangan'] = $data['keterangan'] ?? '';
+            $rec->update([
+                'transaksi_json' => $transaksi,
+                'updated_by'     => $request->user()?->username ?? $request->user()?->email,
+            ]);
 
-        return response()->json(['data' => $pemeriksaanMaterai->fresh()->toAktaArray()]);
+            return response()->json(['data' => $rec->fresh()->toAktaArray()]);
+        });
     }
 
     // Cocokkan transaksi lama vs baru lewat (tanggal, nomor) — pasangan itu

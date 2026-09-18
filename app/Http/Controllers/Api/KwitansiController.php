@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\MengunciDataPemeriksaan;
+use App\Http\Controllers\Concerns\MenolakTimpaanBasi;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\PemeriksaanKwitansi;
@@ -12,6 +14,8 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 class KwitansiController extends Controller
 {
     use RequiresAuditorAuditee;
+    use MengunciDataPemeriksaan;
+    use MenolakTimpaanBasi;
 
     public function show(Request $request): JsonResponse
     {
@@ -32,13 +36,18 @@ class KwitansiController extends Controller
             'updated_by'    => $who,
         ];
 
-        $rec = PemeriksaanKwitansi::updateOrCreate(
-            ['plan_audit_id' => $planId],
-            $payload
-        );
-        if (!$rec->created_by) $rec->update(['created_by' => $who]);
+        return $this->denganKunciPemeriksaan(PemeriksaanKwitansi::class, $planId,
+            function (?PemeriksaanKwitansi $rec) use ($request, $payload, $planId, $who) {
+                $this->tolakKalauBasi($rec, $request, 'Kwitansi Gantung');
 
-        return response()->json(['message' => 'Data tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+                $rec = PemeriksaanKwitansi::updateOrCreate(
+                    ['plan_audit_id' => $planId],
+                    $payload
+                );
+                if (!$rec->created_by) $rec->update(['created_by' => $who]);
+
+                return response()->json(['message' => 'Data tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+            });
     }
 
     public function parseExcel(Request $request): JsonResponse
