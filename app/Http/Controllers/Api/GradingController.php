@@ -36,45 +36,73 @@ class GradingController extends Controller
     // Urutannya penting: gudang diperiksa lebih dulu (paling khas), lalu
     // bengkel, baru kantor cabang. Yang tidak jelas sengaja dibiarkan kosong
     // supaya auditor memilih sendiri, bukan ditebak-tebak.
-    private const KATA_KUNCI_JENIS = [
-        'WHS PART' => ['WAREHOUSE PART', 'WHS PART', 'GUDANG PART', 'PARTKEEPER'],
-        'WHS UNIT' => ['WAREHOUSE UNIT', 'WHS UNIT', 'GUDANG UNIT'],
-        'Bengkel'  => ['CSC', 'BENGKEL', 'WORKSHOP'],
-        'Cabang'   => ['SALES OFFICE', 'CABANG', 'SO'],
+    // Satu "keluarga" jenis unit usaha, dengan semua sebutan yang mungkin
+    // dipakai untuknya. Ini perlu karena SEBUTANNYA BERBEDA-BEDA antar tempat:
+    // master grading memakai "CSC" dan "SO", tombol di layar dulu bertuliskan
+    // "Bengkel" dan "Cabang", dan pemetaan lama bahkan memakai "H1"/"H2".
+    // Ketiganya menunjuk hal yang sama, jadi yang dicocokkan keluarganya —
+    // bukan tulisannya.
+    //
+    // Urutannya penting: gudang diperiksa lebih dulu karena paling khas, lalu
+    // bengkel, baru kantor cabang.
+    private const KELUARGA_JENIS = [
+        'WHS PART' => ['WHS PART', 'WAREHOUSE PART', 'GUDANG PART', 'PARTKEEPER'],
+        'WHS UNIT' => ['WHS UNIT', 'WAREHOUSE UNIT', 'GUDANG UNIT'],
+        'CSC'      => ['CSC', 'BENGKEL', 'WORKSHOP', 'H2'],
+        'SO'       => ['SO', 'SALES OFFICE', 'CABANG', 'H1'],
     ];
 
+    /** Keluarga jenis dari sepotong teks bebas (jenis audit, nama unit usaha, label jenis). */
+    private static function keluargaJenis(?string $teks): ?string
+    {
+        $t = strtoupper(trim(preg_replace('/\s+/', ' ', (string) $teks)));
+        if ($t === '') return null;
+
+        foreach (self::KELUARGA_JENIS as $keluarga => $sebutan) {
+            foreach ($sebutan as $k) {
+                // Dicocokkan sebagai KATA UTUH: "SO" boleh menandai SO UJT dan
+                // Audit PJS SO HEAD, tapi tidak boleh ikut tertarik oleh kata
+                // lain yang kebetulan memuat huruf itu.
+                if (preg_match('/\b' . preg_quote($k, '/') . '\b/', $t)) return $keluarga;
+            }
+        }
+        return null;
+    }
+
     /**
-     * Jenis grading untuk sebuah plan. Jenis audit didahulukan karena di situlah
-     * SO dan CSC benar-benar dibedakan; nama unit usaha dipakai sebagai cadangan
-     * (mis. "Audit Kas + BPKB" di CSC UJT tetap ketahuan bengkel). Master unit
-     * usaha dipakai paling akhir dan HANYA kalau isinya salah satu jenis yang
-     * dikenal -- di sana CSC dan SO sama-sama tercatat "Cabang", jadi kalau
-     * dipakai lebih dulu justru mengembalikan kekeliruan yang sedang diperbaiki.
+     * Jenis grading untuk sebuah plan, DALAM SEBUTAN YANG DIPAKAI MASTER.
+     *
+     * Jenis audit didahulukan karena di situlah SO dan CSC benar-benar
+     * dibedakan; nama unit usaha jadi cadangan (mis. "Audit Kas + BPKB" di
+     * CSC UJT tetap ketahuan bengkel). Master unit usaha dipakai paling akhir,
+     * sebab di sana CSC dan SO sama-sama tercatat "Cabang" — kalau dipakai
+     * lebih dulu justru mengembalikan kekeliruan yang sedang diperbaiki.
+     *
+     * Hasilnya lalu diterjemahkan ke sebutan yang benar-benar ada di master
+     * grading, supaya penyaringan pasti ketemu: keluarga CSC mengembalikan
+     * "CSC" kalau master menulisnya begitu, atau "Bengkel" kalau master
+     * memakai sebutan itu.
      */
     private static function tebakJenisGrading(?string $jenisAudit, ?string $cabang, ?string $jenisUnitUsaha): ?string
     {
-        foreach ([$jenisAudit, $cabang] as $sumber) {
-            $teks = strtoupper(trim(preg_replace('/\s+/', ' ', (string) $sumber)));
-            if ($teks === '') continue;
+        $keluarga = self::keluargaJenis($jenisAudit)
+            ?? self::keluargaJenis($cabang)
+            ?? self::keluargaJenis($jenisUnitUsaha);
+        if (!$keluarga) return null;
 
-            foreach (self::KATA_KUNCI_JENIS as $jenis => $kunci) {
-                foreach ($kunci as $k) {
-                    // Dicocokkan sebagai KATA UTUH: "SO" boleh menandai SO UJT
-                    // dan Audit PJS SO HEAD, tapi tidak boleh ikut tertarik
-                    // oleh kata lain yang kebetulan memuat huruf itu.
-                    if (preg_match('/\b' . preg_quote($k, '/') . '\b/', $teks)) {
-                        return $jenis;
-                    }
-                }
-            }
+        foreach (self::jenisDiMaster() as $jenisMaster) {
+            if (self::keluargaJenis($jenisMaster) === $keluarga) return $jenisMaster;
         }
 
-        $dariMaster = trim((string) $jenisUnitUsaha);
-        foreach (array_keys(self::KATA_KUNCI_JENIS) as $jenis) {
-            if (strcasecmp($dariMaster, $jenis) === 0) return $jenis;
-        }
+        // Master belum punya jenis itu sama sekali — kembalikan sebutan bakunya
+        // supaya tombolnya tetap terpilih dan layar bisa menerangkan keadaannya.
+        return $keluarga;
+    }
 
-        return null;
+    private static function jenisDiMaster(): array
+    {
+        return DbGrading::query()->whereNotNull('jenis')->where('jenis', '!=', '')
+            ->distinct()->orderBy('jenis')->pluck('jenis')->all();
     }
 
     public function show(Request $request): JsonResponse
@@ -133,9 +161,11 @@ class GradingController extends Controller
         $jenis   = $request->query('jenis');   // Cabang, Bengkel, WHS PART, WHS UNIT
         $wilayah = $request->query('wilayah'); // RRI, dll
 
+        // Dicocokkan tanpa memandang besar-kecil huruf: master menulis wilayah
+        // "Aceh"/"Riau", sementara master unit usaha menulisnya "ACEH"/"RIAU".
         $query = DbGrading::query();
-        if ($jenis)   $query->where('jenis', $jenis);
-        if ($wilayah) $query->where('wilayah', $wilayah);
+        if ($jenis)   $query->whereRaw('UPPER(jenis) = ?',   [mb_strtoupper(trim($jenis))]);
+        if ($wilayah) $query->whereRaw('UPPER(wilayah) = ?', [mb_strtoupper(trim($wilayah))]);
 
         $rows = $query->orderBy('nama_pemeriksaan')->get();
 
@@ -196,7 +226,7 @@ class GradingController extends Controller
                 'jenis'   => DbGrading::query()->whereNotNull('jenis')
                     ->distinct()->orderBy('jenis')->pluck('jenis')->values(),
                 'wilayah' => DbGrading::query()->whereNotNull('wilayah')
-                    ->when($jenis, fn($q) => $q->where('jenis', $jenis))
+                    ->when($jenis, fn($q) => $q->whereRaw('UPPER(jenis) = ?', [mb_strtoupper(trim($jenis))]))
                     ->distinct()->orderBy('wilayah')->pluck('wilayah')->values(),
                 'total'   => DbGrading::query()->count(),
             ];

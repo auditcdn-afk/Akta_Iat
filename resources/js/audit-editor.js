@@ -9515,7 +9515,7 @@ async function gradingLoadMaster() {
 
     if (!jenis) {
         _gradingMaster = [];
-        gradingSetMasterInfo('Pilih Jenis dulu (Cabang / Bengkel / WHS PART / WHS UNIT) — daftar item pemeriksaan mengikuti Jenis yang dipilih.', 'ingat');
+        gradingSetMasterInfo('Pilih Jenis unit usaha dulu — daftar item pemeriksaan mengikuti Jenis yang dipilih.', 'ingat');
         return;
     }
 
@@ -9690,9 +9690,50 @@ function gradingDeleteDetail(idx) {
     gradingRenderDetails();
 }
 
-function gradingSetJenis(jenis) {
-    if (!_gradingData) _gradingData = {};
-    _gradingData.jenis = jenis;
+// Tombol Jenis digambar dari master grading, bukan daftar tetap di Blade.
+// Sebutan jenis di master ternyata "CSC"/"SO", sementara tombol dulu
+// bertuliskan "Cabang"/"Bengkel" — dua daftar yang tidak pernah bertemu,
+// sehingga penyaringan selalu tidak ketemu dan daftar itemnya kosong.
+// Dengan digambar dari master, tombolnya selalu memakai sebutan yang sama
+// dengan datanya, sebutan apa pun yang dipakai cabang.
+let _gradingJenisOpsi = null;
+
+async function gradingRenderJenisBtns() {
+    const wrap = document.getElementById('gradingJenisBtns');
+    if (!wrap) return;
+
+    if (_gradingJenisOpsi === null) {
+        try {
+            const res = await fetchJson('/api/audit-detail/grading/jenis', { headers: authHeaders() });
+            _gradingJenisOpsi = res.data || [];
+        } catch (e) {
+            _gradingJenisOpsi = [];
+        }
+    }
+
+    // Master masih kosong → pakai sebutan baku supaya layarnya tidak kosong
+    // melompong; begitu master diisi, tombolnya ikut isinya.
+    let daftar = _gradingJenisOpsi.length ? [..._gradingJenisOpsi] : ['CSC', 'SO', 'WHS PART', 'WHS UNIT'];
+
+    // Jenis yang sudah tersimpan di grading ini tetap ditampilkan walau tidak
+    // ada di master (mis. tersimpan dengan sebutan lama) — supaya auditor
+    // melihat pilihannya yang sekarang, bukan tombol yang seolah belum dipilih.
+    const terpilih = _gradingData?.jenis;
+    if (terpilih && !daftar.some(j => j === terpilih)) daftar.unshift(terpilih);
+
+    wrap.innerHTML = daftar.map(j =>
+        `<button type="button" data-grading-jenis="${escapeHtml(j)}"
+            class="grading-jenis-btn rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-300 hover:border-blue-400 hover:text-blue-300 transition">${escapeHtml(j)}</button>`
+    ).join('');
+
+    wrap.querySelectorAll('.grading-jenis-btn').forEach(btn => {
+        btn.addEventListener('click', () => gradingSetJenis(btn.dataset.gradingJenis));
+    });
+
+    if (terpilih) gradingSorotJenis(terpilih);
+}
+
+function gradingSorotJenis(jenis) {
     document.querySelectorAll('.grading-jenis-btn').forEach(btn => {
         const active = btn.dataset.gradingJenis === jenis;
         btn.className = btn.className
@@ -9704,6 +9745,12 @@ function gradingSetJenis(jenis) {
             btn.classList.add('text-slate-300', 'border-slate-600');
         }
     });
+}
+
+function gradingSetJenis(jenis) {
+    if (!_gradingData) _gradingData = {};
+    _gradingData.jenis = jenis;
+    gradingSorotJenis(jenis);
     gradingLoadMaster().then(() => gradingRenderDetails());
 }
 
@@ -9816,6 +9863,7 @@ async function loadGradingTab(forceReload = false) {
     if (elAreaInfo && autoCabang) elAreaInfo.textContent = `Unit Usaha: ${autoCabang}`;
     if (elKetFraud)  elKetFraud.value  = _gradingData.keteranganFraud || '';
 
+    await gradingRenderJenisBtns();
     if (_gradingData.jenis) gradingSetJenis(_gradingData.jenis);
     gradingSetFlag('bbnkb', _gradingData.bbnkb || 'N');
     gradingSetFlag('fraud', _gradingData.fraud  || 'N');
@@ -9885,10 +9933,8 @@ async function _doSaveGrading() {
 }
 
 function initGradingForm() {
-    // Jenis toggle
-    document.querySelectorAll('.grading-jenis-btn').forEach(btn => {
-        btn.addEventListener('click', () => gradingSetJenis(btn.dataset.gradingJenis));
-    });
+    // Tombol Jenis dipasang di gradingRenderJenisBtns() — digambar dari master
+    // setiap tab dimuat, jadi tidak bisa dipasangi listener sekali di sini.
 
     // BBNKB toggle — data-grading-bbnkb attribute
     document.querySelectorAll('.grading-bbnkb-btn').forEach(btn => {
