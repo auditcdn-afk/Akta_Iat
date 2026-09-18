@@ -9012,7 +9012,15 @@ async function mpHandleCompare() {
         if (!res.ok) throw new Error(json.message ?? 'Gagal membandingkan file di server.');
 
         _mpItems = json.data ?? [];
-        if (msgEl) { msgEl.textContent = `✅ ${json.total} baris dibandingkan, ${json.totalMatch} sudah diterima.`; msgEl.className = 'text-sm font-medium text-green-400'; msgEl.classList.remove('hidden'); }
+        if (msgEl) {
+            // Catatan lembar (file berisi beberapa cabang) ditampilkan apa adanya
+            // di bawah ringkasan — auditor harus tahu lembar mana yang dipakai.
+            const catatan = Array.isArray(json.catatan) ? json.catatan : [];
+            msgEl.textContent = `✅ ${json.total} baris dibandingkan, ${json.totalMatch} sudah diterima.`
+                + (catatan.length ? '\n\u2139\ufe0f ' + catatan.join('\n\u2139\ufe0f ') : '');
+            msgEl.className = 'text-sm font-medium text-green-400 whitespace-pre-line';
+            msgEl.classList.remove('hidden');
+        }
         mpRender();
         saveMp().catch(() => {});
     } catch (err) {
