@@ -23,13 +23,59 @@ class GradingController extends Controller
         return (float)$clean;
     }
 
-    // Map jenis audit → jenis grading
-    private const JENIS_MAP = [
-        'H1' => 'Cabang',
-        'H2' => 'Bengkel',
-        'WHS PART' => 'WHS PART',
-        'WHS UNIT' => 'WHS UNIT',
+    // Jenis audit → jenis grading.
+    //
+    // Versi sebelumnya memetakan kunci 'H1'/'H2', padahal jenis_audit di plan
+    // tidak pernah berisi itu: isinya "Audit Full SO", "Audit Full CSC",
+    // "Audit Warehouse PART", dan seterusnya. Akibatnya pemetaannya TIDAK
+    // PERNAH cocok, tombol Jenis tidak pernah terpilih otomatis, dan daftar
+    // item grading jatuh ke pilihan yang salah.
+    //
+    // Dicocokkan lewat kata kunci, bukan daftar tetap, karena jenis audit ada
+    // dua puluh lebih dan masih bertambah — sementara jenis grading cuma empat.
+    // Urutannya penting: gudang diperiksa lebih dulu (paling khas), lalu
+    // bengkel, baru kantor cabang. Yang tidak jelas sengaja dibiarkan kosong
+    // supaya auditor memilih sendiri, bukan ditebak-tebak.
+    private const KATA_KUNCI_JENIS = [
+        'WHS PART' => ['WAREHOUSE PART', 'WHS PART', 'GUDANG PART', 'PARTKEEPER'],
+        'WHS UNIT' => ['WAREHOUSE UNIT', 'WHS UNIT', 'GUDANG UNIT'],
+        'Bengkel'  => ['CSC', 'BENGKEL', 'WORKSHOP'],
+        'Cabang'   => ['SALES OFFICE', 'CABANG', 'SO'],
     ];
+
+    /**
+     * Jenis grading untuk sebuah plan. Jenis audit didahulukan karena di situlah
+     * SO dan CSC benar-benar dibedakan; nama unit usaha dipakai sebagai cadangan
+     * (mis. "Audit Kas + BPKB" di CSC UJT tetap ketahuan bengkel). Master unit
+     * usaha dipakai paling akhir dan HANYA kalau isinya salah satu jenis yang
+     * dikenal -- di sana CSC dan SO sama-sama tercatat "Cabang", jadi kalau
+     * dipakai lebih dulu justru mengembalikan kekeliruan yang sedang diperbaiki.
+     */
+    private static function tebakJenisGrading(?string $jenisAudit, ?string $cabang, ?string $jenisUnitUsaha): ?string
+    {
+        foreach ([$jenisAudit, $cabang] as $sumber) {
+            $teks = strtoupper(trim(preg_replace('/\s+/', ' ', (string) $sumber)));
+            if ($teks === '') continue;
+
+            foreach (self::KATA_KUNCI_JENIS as $jenis => $kunci) {
+                foreach ($kunci as $k) {
+                    // Dicocokkan sebagai KATA UTUH: "SO" boleh menandai SO UJT
+                    // dan Audit PJS SO HEAD, tapi tidak boleh ikut tertarik
+                    // oleh kata lain yang kebetulan memuat huruf itu.
+                    if (preg_match('/\b' . preg_quote($k, '/') . '\b/', $teks)) {
+                        return $jenis;
+                    }
+                }
+            }
+        }
+
+        $dariMaster = trim((string) $jenisUnitUsaha);
+        foreach (array_keys(self::KATA_KUNCI_JENIS) as $jenis) {
+            if (strcasecmp($dariMaster, $jenis) === 0) return $jenis;
+        }
+
+        return null;
+    }
 
     public function show(Request $request): JsonResponse
     {
@@ -139,9 +185,28 @@ class GradingController extends Controller
         // Hapus field tracking sebelum di-return
         foreach ($grouped as &$g) unset($g['_hasilLabels']);
 
+        // Daftar kosong bukan jawaban yang cukup: layar harus bisa menjelaskan
+        // KENAPA kosong, supaya auditor tahu ini soal data master yang belum
+        // ada untuk jenis/wilayah itu -- bukan aplikasi yang rusak. Dulu layar
+        // menutupi keadaan ini dengan menampilkan SELURUH master, sehingga
+        // audit CSC ikut menampilkan item milik SO.
+        $tersedia = [];
+        if (!$grouped) {
+            $tersedia = [
+                'jenis'   => DbGrading::query()->whereNotNull('jenis')
+                    ->distinct()->orderBy('jenis')->pluck('jenis')->values(),
+                'wilayah' => DbGrading::query()->whereNotNull('wilayah')
+                    ->when($jenis, fn($q) => $q->where('jenis', $jenis))
+                    ->distinct()->orderBy('wilayah')->pluck('wilayah')->values(),
+                'total'   => DbGrading::query()->count(),
+            ];
+        }
+
         return response()->json([
-            'data'  => array_values($grouped),
-            'total' => count($grouped),
+            'data'     => array_values($grouped),
+            'total'    => count($grouped),
+            'diminta'  => ['jenis' => $jenis ?: '', 'wilayah' => $wilayah ?: ''],
+            'tersedia' => $tersedia,
         ]);
     }
 
@@ -168,13 +233,11 @@ class GradingController extends Controller
         $plan   = PlanAudit::find($planId);
         if (!$plan) return response()->json(['data' => null]);
 
-        // Map jenis audit ke jenis grading
-        $jenisAudit   = strtoupper(trim($plan->jenis_audit ?? ''));
-        $jenisGrading = self::JENIS_MAP[$jenisAudit] ?? null;
-
         // Ambil wilayah dari db_unit_usaha berdasarkan cabang
         $unitUsaha = DbUnitUsaha::where('unit_usaha', $plan->cabang)->first();
         $wilayah   = $unitUsaha?->wilayah ?? $plan->cabang_area ?? '';
+
+        $jenisGrading = self::tebakJenisGrading($plan->jenis_audit, $plan->cabang, $unitUsaha?->jenis);
 
         return response()->json(['data' => [
             'cabang'       => $plan->cabang,

@@ -42,6 +42,7 @@
                         </button>
                         @endforeach
                     </div>
+                    <p id="gradingMasterInfo" class="hidden rounded-lg px-3 py-2 text-xs"></p>
                 </div>
 
                 {{-- BBNKB & Fraud --}}
@@ -134,6 +135,7 @@
                             class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-400 focus:outline-none">
                             <option value="">-- Pilih Pemeriksaan --</option>
                         </select>
+                        <p id="gradingMasterInfoModal" class="hidden rounded-lg px-3 py-2 text-xs"></p>
                     </div>
                     <div class="flex flex-col gap-1">
                         <label class="text-xs font-semibold text-slate-300">Hasil <span class="text-red-400">*</span></label>
