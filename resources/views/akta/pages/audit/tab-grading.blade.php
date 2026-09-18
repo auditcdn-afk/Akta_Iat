@@ -34,14 +34,11 @@
                 {{-- Jenis --}}
                 <div class="flex flex-col gap-2">
                     <label class="text-xs font-semibold text-slate-300">Jenis</label>
-                    <div id="gradingJenisBtns" class="flex flex-wrap gap-2">
-                        @foreach(['Cabang','Bengkel','WHS PART','WHS UNIT','Lain-Lain'] as $j)
-                        <button type="button" data-grading-jenis="{{ $j }}"
-                            class="grading-jenis-btn rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-300 hover:border-blue-400 hover:text-blue-300 transition">
-                            {{ $j }}
-                        </button>
-                        @endforeach
-                    </div>
+                    {{-- Tombolnya digambar dari master grading (lihat gradingRenderJenisBtns),
+                         bukan daftar tetap: sebutan jenis di master ternyata "CSC"/"SO",
+                         sementara daftar tetap di sini dulu bertuliskan "Cabang"/"Bengkel"
+                         sehingga tidak pernah cocok dan daftar itemnya selalu kosong. --}}
+                    <div id="gradingJenisBtns" class="flex flex-wrap gap-2"></div>
                     <p id="gradingMasterInfo" class="hidden rounded-lg px-3 py-2 text-xs"></p>
                 </div>
 
