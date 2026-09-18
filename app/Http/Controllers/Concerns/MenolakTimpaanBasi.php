@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 
@@ -44,8 +45,8 @@ trait MenolakTimpaanBasi
             return;
         }
 
-        $diLayar  = trim((string) $request->input('versi'));
-        $diServer = (string) ($rec->updated_at?->toDateTimeString() ?? '');
+        $diLayar  = $this->saatPerubahan($request->input('versi'));
+        $diServer = $this->saatPerubahan($rec->updated_at);
 
         if ($diLayar === $diServer) {
             return;
@@ -56,7 +57,39 @@ trait MenolakTimpaanBasi
                 . 'Kalau ditimpa, hasil kerja rekan auditor bisa hilang — muat ulang tab ini dulu, '
                 . 'lalu ulangi perubahan Anda.',
             'stale'       => true,
-            'versiServer' => $diServer,
+            'versiServer' => (string) ($rec->updated_at?->toDateTimeString() ?? ''),
         ], 409));
+    }
+
+    /**
+     * Dua sisi perbandingan disamakan dulu ke satu bentuk, bukan diadu sebagai
+     * teks mentah: tab yang berbeda menerima waktu perubahan dalam bentuk yang
+     * berbeda pula. Sebagian besar tab memakai toAktaArray() yang menuliskannya
+     * sebagai "2026-09-18 03:12:45", sementara Pemeriksaan Kas mengembalikan
+     * model apa adanya sehingga peramban menerima "2026-09-18T03:12:45.000000Z".
+     * Diadu sebagai teks, keduanya selalu berbeda — dan tab Kas menolak SETIAP
+     * simpanan kedua dengan peringatan "server sudah lebih baru", padahal
+     * layarnya baru saja memuat data itu sendiri dan tidak ada rekan auditor
+     * mana pun yang menyimpan di sela-selanya.
+     */
+    private function saatPerubahan(mixed $nilai): ?string
+    {
+        if ($nilai === null || $nilai === '') {
+            return null;
+        }
+        if ($nilai instanceof \DateTimeInterface) {
+            return Carbon::instance($nilai)->utc()->format('Y-m-d H:i:s');
+        }
+
+        $teks = trim((string) $nilai);
+        if ($teks === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($teks)->utc()->format('Y-m-d H:i:s');
+        } catch (\Throwable) {
+            return $teks;   // bentuk yang tidak dikenali dibandingkan apa adanya
+        }
     }
 }
