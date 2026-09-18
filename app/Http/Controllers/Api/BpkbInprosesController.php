@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\MengunciDataPemeriksaan;
+use App\Http\Controllers\Concerns\MenolakTimpaanBasi;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\PemeriksaanBpkbInproses;
@@ -11,6 +13,8 @@ use Illuminate\Http\Request;
 class BpkbInprosesController extends Controller
 {
     use RequiresAuditorAuditee;
+    use MengunciDataPemeriksaan;
+    use MenolakTimpaanBasi;
 
     // ── GET /api/audit-detail/bpkb-inproses?plan_audit_id= ───────────────────
 
@@ -49,12 +53,17 @@ class BpkbInprosesController extends Controller
             'updated_by'                 => $who,
         ];
 
-        $rec = PemeriksaanBpkbInproses::updateOrCreate(
-            ['plan_audit_id' => $planId],
-            $payload
-        );
-        if (!$rec->created_by) $rec->update(['created_by' => $who]);
+        return $this->denganKunciPemeriksaan(PemeriksaanBpkbInproses::class, $planId,
+            function (?PemeriksaanBpkbInproses $rec) use ($request, $payload, $planId, $who) {
+                $this->tolakKalauBasi($rec, $request, 'BPKB Inproses');
 
-        return response()->json(['message' => 'Data tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+                $rec = PemeriksaanBpkbInproses::updateOrCreate(
+                    ['plan_audit_id' => $planId],
+                    $payload
+                );
+                if (!$rec->created_by) $rec->update(['created_by' => $who]);
+
+                return response()->json(['message' => 'Data tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+            });
     }
 }

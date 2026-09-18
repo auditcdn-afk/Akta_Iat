@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\MengunciDataPemeriksaan;
+use App\Http\Controllers\Concerns\MenolakTimpaanBasi;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\PemeriksaanPiutangReguler;
@@ -14,6 +16,8 @@ use PhpOffice\PhpSpreadsheet\Reader\Csv;
 class PiutangRegulerController extends Controller
 {
     use RequiresAuditorAuditee;
+    use MengunciDataPemeriksaan;
+    use MenolakTimpaanBasi;
 
     public function show(Request $request): JsonResponse
     {
@@ -28,16 +32,21 @@ class PiutangRegulerController extends Controller
         $this->ensureAuditorFilled((int) $planId, 'piutang-reguler');
         $who    = $request->user()?->username ?? $request->user()?->email;
 
-        $rec = PemeriksaanPiutangReguler::updateOrCreate(
-            ['plan_audit_id' => $planId],
-            [
-                'piutang_json' => $request->input('piutang', []),
-                'updated_by'   => $who,
-            ]
-        );
-        if (!$rec->created_by) $rec->update(['created_by' => $who]);
+        return $this->denganKunciPemeriksaan(PemeriksaanPiutangReguler::class, $planId,
+            function (?PemeriksaanPiutangReguler $rec) use ($request, $planId, $who) {
+                $this->tolakKalauBasi($rec, $request, 'Piutang Reguler');
 
-        return response()->json(['message' => 'Data tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+                    $rec = PemeriksaanPiutangReguler::updateOrCreate(
+                        ['plan_audit_id' => $planId],
+                        [
+                            'piutang_json' => $request->input('piutang', []),
+                            'updated_by'   => $who,
+                        ]
+                    );
+                    if (!$rec->created_by) $rec->update(['created_by' => $who]);
+
+                    return response()->json(['message' => 'Data tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+            });
     }
 
     // Update HANYA kolom "keterangan" 1 baris (by index), bukan kirim ulang seluruh
@@ -53,20 +62,22 @@ class PiutangRegulerController extends Controller
         ]);
         $who = $request->user()?->username ?? $request->user()?->email;
 
-        $rec = PemeriksaanPiutangReguler::where('plan_audit_id', $data['planAuditId'])->first();
-        if (!$rec) {
-            return response()->json(['message' => 'Data piutang reguler belum ada untuk plan audit ini.'], 422);
-        }
+        return $this->denganKunciPemeriksaan(PemeriksaanPiutangReguler::class, $data['planAuditId'],
+            function (?PemeriksaanPiutangReguler $rec) use ($request, $data, $who) {
+                if (!$rec) {
+                    return response()->json(['message' => 'Data piutang reguler belum ada untuk plan audit ini.'], 422);
+                }
 
-        $items = $rec->piutang_json ?? [];
-        if (!array_key_exists($data['index'], $items)) {
-            return response()->json(['message' => 'Baris piutang tidak ditemukan.'], 404);
-        }
+                $items = $rec->piutang_json ?? [];
+                if (!array_key_exists($data['index'], $items)) {
+                    return response()->json(['message' => 'Baris piutang tidak ditemukan.'], 404);
+                }
 
-        $items[$data['index']]['keterangan'] = $data['keterangan'] ?? '';
-        $rec->update(['piutang_json' => $items, 'updated_by' => $who]);
+                $items[$data['index']]['keterangan'] = $data['keterangan'] ?? '';
+                $rec->update(['piutang_json' => $items, 'updated_by' => $who]);
 
-        return response()->json(['message' => 'Keterangan tersimpan.']);
+                return response()->json(['message' => 'Keterangan tersimpan.']);
+            });
     }
 
     public function parseExcel(Request $request): JsonResponse

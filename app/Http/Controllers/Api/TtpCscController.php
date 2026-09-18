@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\MengunciDataPemeriksaan;
+use App\Http\Controllers\Concerns\MenolakTimpaanBasi;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\PemeriksaanTtpCsc;
@@ -15,6 +17,8 @@ use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
 class TtpCscController extends Controller
 {
     use RequiresAuditorAuditee;
+    use MengunciDataPemeriksaan;
+    use MenolakTimpaanBasi;
 
     public function show(Request $request): JsonResponse
     {
@@ -29,13 +33,18 @@ class TtpCscController extends Controller
         $this->ensureAuditorFilled((int) $planId, 'ttp-csc');
         $who    = $request->user()?->username ?? $request->user()?->email;
 
-        $rec = PemeriksaanTtpCsc::updateOrCreate(
-            ['plan_audit_id' => $planId],
-            ['items_json' => $request->input('items', []), 'updated_by' => $who]
-        );
-        if (!$rec->created_by) $rec->update(['created_by' => $who]);
+        return $this->denganKunciPemeriksaan(PemeriksaanTtpCsc::class, $planId,
+            function (?PemeriksaanTtpCsc $rec) use ($request, $planId, $who) {
+                $this->tolakKalauBasi($rec, $request, 'TTP CSC');
 
-        return response()->json(['message' => 'Data TTP CSC tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+                    $rec = PemeriksaanTtpCsc::updateOrCreate(
+                        ['plan_audit_id' => $planId],
+                        ['items_json' => $request->input('items', []), 'updated_by' => $who]
+                    );
+                    if (!$rec->created_by) $rec->update(['created_by' => $who]);
+
+                    return response()->json(['message' => 'Data TTP CSC tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+            });
     }
 
     // Simpan "Tanggal Portal" 1 baris (by index) — sekaligus hitung ulang
@@ -53,33 +62,35 @@ class TtpCscController extends Controller
         ]);
         $who = $request->user()?->username ?? $request->user()?->email;
 
-        $rec = PemeriksaanTtpCsc::where('plan_audit_id', $data['planAuditId'])->first();
-        if (!$rec) {
-            return response()->json(['message' => 'Data TTP CSC belum ada untuk plan audit ini.'], 422);
-        }
+        return $this->denganKunciPemeriksaan(PemeriksaanTtpCsc::class, $data['planAuditId'],
+            function (?PemeriksaanTtpCsc $rec) use ($request, $data, $who) {
+                if (!$rec) {
+                    return response()->json(['message' => 'Data TTP CSC belum ada untuk plan audit ini.'], 422);
+                }
 
-        $items = $rec->items_json ?? [];
-        if (!array_key_exists($data['index'], $items)) {
-            return response()->json(['message' => 'Baris tidak ditemukan.'], 404);
-        }
+                $items = $rec->items_json ?? [];
+                if (!array_key_exists($data['index'], $items)) {
+                    return response()->json(['message' => 'Baris tidak ditemukan.'], 404);
+                }
 
-        $item = $items[$data['index']];
-        $tanggalPortal = $data['tanggalPortal'] ?? '';
-        $item['tanggalPortal'] = $tanggalPortal;
+                $item = $items[$data['index']];
+                $tanggalPortal = $data['tanggalPortal'] ?? '';
+                $item['tanggalPortal'] = $tanggalPortal;
 
-        if ($tanggalPortal === '' || empty($item['tanggal'])) {
-            $item['selisihTgl'] = null;
-            $item['keterangan'] = '';
-        } else {
-            $selisih = (int) abs(Carbon::parse($tanggalPortal)->startOfDay()->diffInDays(Carbon::parse($item['tanggal'])->startOfDay()));
-            $item['selisihTgl'] = $selisih;
-            $item['keterangan'] = $selisih === 0 ? 'Data Sesuai' : 'Selisih';
-        }
+                if ($tanggalPortal === '' || empty($item['tanggal'])) {
+                    $item['selisihTgl'] = null;
+                    $item['keterangan'] = '';
+                } else {
+                    $selisih = (int) abs(Carbon::parse($tanggalPortal)->startOfDay()->diffInDays(Carbon::parse($item['tanggal'])->startOfDay()));
+                    $item['selisihTgl'] = $selisih;
+                    $item['keterangan'] = $selisih === 0 ? 'Data Sesuai' : 'Selisih';
+                }
 
-        $items[$data['index']] = $item;
-        $rec->update(['items_json' => $items, 'updated_by' => $who]);
+                $items[$data['index']] = $item;
+                $rec->update(['items_json' => $items, 'updated_by' => $who]);
 
-        return response()->json(['message' => 'Tanggal Portal tersimpan.', 'item' => $item]);
+                return response()->json(['message' => 'Tanggal Portal tersimpan.', 'item' => $item]);
+            });
     }
 
     // Override manual teks Keterangan (opsional) — dipisah dari
@@ -97,20 +108,22 @@ class TtpCscController extends Controller
         ]);
         $who = $request->user()?->username ?? $request->user()?->email;
 
-        $rec = PemeriksaanTtpCsc::where('plan_audit_id', $data['planAuditId'])->first();
-        if (!$rec) {
-            return response()->json(['message' => 'Data TTP CSC belum ada untuk plan audit ini.'], 422);
-        }
+        return $this->denganKunciPemeriksaan(PemeriksaanTtpCsc::class, $data['planAuditId'],
+            function (?PemeriksaanTtpCsc $rec) use ($request, $data, $who) {
+                if (!$rec) {
+                    return response()->json(['message' => 'Data TTP CSC belum ada untuk plan audit ini.'], 422);
+                }
 
-        $items = $rec->items_json ?? [];
-        if (!array_key_exists($data['index'], $items)) {
-            return response()->json(['message' => 'Baris tidak ditemukan.'], 404);
-        }
+                $items = $rec->items_json ?? [];
+                if (!array_key_exists($data['index'], $items)) {
+                    return response()->json(['message' => 'Baris tidak ditemukan.'], 404);
+                }
 
-        $items[$data['index']]['keterangan'] = $data['keterangan'] ?? '';
-        $rec->update(['items_json' => $items, 'updated_by' => $who]);
+                $items[$data['index']]['keterangan'] = $data['keterangan'] ?? '';
+                $rec->update(['items_json' => $items, 'updated_by' => $who]);
 
-        return response()->json(['message' => 'Keterangan tersimpan.']);
+                return response()->json(['message' => 'Keterangan tersimpan.']);
+            });
     }
 
     // Parser "LAPORAN TTP PANJAR" — ambil HANYA bagian "II. TTP SESUAI

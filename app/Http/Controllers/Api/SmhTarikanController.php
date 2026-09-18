@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\MengunciDataPemeriksaan;
+use App\Http\Controllers\Concerns\MenolakTimpaanBasi;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
 use App\Models\PemeriksaanSmhTarikan;
@@ -11,6 +13,8 @@ use Illuminate\Http\Request;
 class SmhTarikanController extends Controller
 {
     use RequiresAuditorAuditee;
+    use MengunciDataPemeriksaan;
+    use MenolakTimpaanBasi;
 
     public function show(Request $request): JsonResponse
     {
@@ -25,12 +29,17 @@ class SmhTarikanController extends Controller
         $this->ensureAuditorFilled((int) $planId, 'smh-tarikan');
         $who    = $request->user()?->username ?? $request->user()?->email;
 
-        $rec = PemeriksaanSmhTarikan::updateOrCreate(
-            ['plan_audit_id' => $planId],
-            ['items_json' => $request->input('items', []), 'updated_by' => $who]
-        );
-        if (!$rec->created_by) $rec->update(['created_by' => $who]);
+        return $this->denganKunciPemeriksaan(PemeriksaanSmhTarikan::class, $planId,
+            function (?PemeriksaanSmhTarikan $rec) use ($request, $planId, $who) {
+                $this->tolakKalauBasi($rec, $request, 'SMH Tarikan');
 
-        return response()->json(['message' => 'Data SMH Tarikan tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+                $rec = PemeriksaanSmhTarikan::updateOrCreate(
+                    ['plan_audit_id' => $planId],
+                    ['items_json' => $request->input('items', []), 'updated_by' => $who]
+                );
+                if (!$rec->created_by) $rec->update(['created_by' => $who]);
+
+                return response()->json(['message' => 'Data SMH Tarikan tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+            });
     }
 }

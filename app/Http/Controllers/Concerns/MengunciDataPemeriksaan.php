@@ -42,4 +42,20 @@ trait MengunciDataPemeriksaan
             return $aksi($rec);
         });
     }
+
+    /**
+     * Sama, tapi untuk baris yang sudah dipegang controller-nya (route model
+     * binding). Barisnya DIBACA ULANG di dalam transaksi sambil dikunci —
+     * salinan yang terlanjur dipegang di luar transaksi sudah bisa basi.
+     *
+     * @param  callable(Model): mixed  $aksi
+     */
+    protected function denganKunciBaris(Model $baris, callable $aksi): mixed
+    {
+        return DB::transaction(function () use ($baris, $aksi) {
+            $segar = $baris->newQuery()->whereKey($baris->getKey())->lockForUpdate()->first() ?? $baris;
+
+            return $aksi($segar);
+        });
+    }
 }
