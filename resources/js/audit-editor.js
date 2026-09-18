@@ -9512,37 +9512,72 @@ function gradingSavePicaModal() {
 async function gradingLoadMaster() {
     const jenis   = _gradingData?.jenis || '';
     const wilayah = _gradingData?.area  || '';
-    if (!jenis) { _gradingMaster = []; return; }
+
+    if (!jenis) {
+        _gradingMaster = [];
+        gradingSetMasterInfo('Pilih Jenis dulu (Cabang / Bengkel / WHS PART / WHS UNIT) — daftar item pemeriksaan mengikuti Jenis yang dipilih.', 'ingat');
+        return;
+    }
+
     try {
-        // 1. Coba filter jenis + wilayah
+        // 1. Jenis + wilayah — daftar yang paling tepat.
         let res = await fetchJson(
             `/api/audit-detail/grading/master?jenis=${encodeURIComponent(jenis)}&wilayah=${encodeURIComponent(wilayah)}`,
             { headers: authHeaders() }
         );
         _gradingMaster = res.data || [];
+        if (_gradingMaster.length > 0) { gradingSetMasterInfo('', ''); return; }
 
-        // 2. Jika kosong, coba filter jenis saja (tanpa wilayah)
-        if (_gradingMaster.length === 0 && wilayah) {
+        // 2. Wilayahnya saja yang dilepas. Penamaan wilayah di master grading
+        //    tidak selalu sama dengan di master unit usaha, dan itu tidak boleh
+        //    membuat auditor kehilangan seluruh daftarnya — tapi Jenis TETAP
+        //    dipegang, jadi item milik unit usaha jenis lain tidak ikut masuk.
+        if (wilayah) {
             res = await fetchJson(
                 `/api/audit-detail/grading/master?jenis=${encodeURIComponent(jenis)}`,
                 { headers: authHeaders() }
             );
             _gradingMaster = res.data || [];
+            if (_gradingMaster.length > 0) {
+                gradingSetMasterInfo(
+                    `Tidak ada item grading khusus wilayah "${wilayah}" untuk Jenis ${jenis} — yang ditampilkan item Jenis ${jenis} dari semua wilayah.`,
+                    'ingat');
+                return;
+            }
         }
 
-        // 3. Jika masih kosong (jenis tidak cocok di db), ambil semua data
-        //    (controller sudah deduplikasi by label, tidak akan ada duplikat)
-        if (_gradingMaster.length === 0) {
-            res = await fetchJson(`/api/audit-detail/grading/master?wilayah=${encodeURIComponent(wilayah)}`, { headers: authHeaders() });
-            _gradingMaster = res.data || [];
-        }
-        if (_gradingMaster.length === 0) {
-            res = await fetchJson(`/api/audit-detail/grading/master`, { headers: authHeaders() });
-            _gradingMaster = res.data || [];
-        }
+        // 3. Benar-benar tidak ada. Daftarnya DIKOSONGKAN, bukan diganti
+        //    seluruh isi master seperti sebelumnya: menampilkan semua jenis
+        //    sekaligus membuat audit CSC memunculkan item milik SO, dan auditor
+        //    tidak punya cara untuk tahu bahwa yang dilihatnya salah.
+        _gradingMaster = [];
+        const ada = res?.tersedia || {};
+        const jenisAda = (ada.jenis || []).join(', ');
+        gradingSetMasterInfo(
+            `Belum ada item grading untuk Jenis "${jenis}" di master.`
+            + (jenisAda ? ` Jenis yang tersedia di master: ${jenisAda}.` : '')
+            + ' Lengkapi dulu master grading lewat menu Database → Grading, atau pilih Jenis yang sesuai.',
+            'awas');
     } catch (e) {
         _gradingMaster = [];
+        gradingSetMasterInfo('Gagal memuat daftar item grading dari server. Coba muat ulang tab ini.', 'awas');
     }
+}
+
+// Satu keterangan dipasang di dua tempat: di bawah tombol Jenis (terlihat
+// sebelum auditor menekan Tambah Item) dan di dalam dialog Tambah Item itu
+// sendiri (terlihat tepat saat daftarnya kosong).
+function gradingSetMasterInfo(pesan, jenisPesan) {
+    const kelas = jenisPesan === 'awas'
+        ? 'rounded-lg px-3 py-2 text-xs border border-amber-600/50 bg-amber-900/25 text-amber-200'
+        : 'rounded-lg px-3 py-2 text-xs border border-slate-600/50 bg-slate-800/60 text-slate-300';
+
+    ['gradingMasterInfo', 'gradingMasterInfoModal'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = pesan || '';
+        el.className = pesan ? kelas : 'hidden';
+    });
 }
 
 function gradingPopulateNamaSelect(currentVal = '') {
