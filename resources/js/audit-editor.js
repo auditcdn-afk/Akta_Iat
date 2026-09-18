@@ -4828,6 +4828,39 @@ const MT_LABEL    = { bagus: 'Bagus', rusak: 'Rusak', skAudit: 'SK Audit', hilan
 const MT_COLOR    = { bagus: 'emerald', rusak: 'red', skAudit: 'blue', hilang: 'orange' };
 
 function mtEmptyData() { return { entries: [], mekanikSelectedJenis: {} }; }
+
+// ── Satu SPT, dua auditor yang membagi mekanik ───────────────────────────────
+// Tiap perubahan kecil di tab MT mengirim SELURUH isi layar ini ke server.
+// Supaya kiriman itu tidak menimpa pekerjaan rekan yang belum terlihat di sini,
+// server menggabungkan per (mekanik, jenis) — dan supaya MENGHAPUS tetap bisa,
+// layar ini ikut mengirim entri apa saja yang memang ada padanya waktu memuat.
+// Entri yang dikenal tapi tidak ikut terkirim = memang dihapus auditor ini.
+const mtKunciEntri = (e) => `${(e?.mekanik || '').trim().toUpperCase()}|${(e?.jenis || '').trim().toLowerCase()}`;
+let _mtDikenal = new Set();
+
+function mtCatatDikenal(data) {
+    _mtDikenal = new Set((data?.entries || []).map(mtKunciEntri));
+}
+
+// Entri dari server yang belum ada di layar ini (punya rekan) ditambahkan;
+// yang sudah ada TIDAK disentuh supaya isian yang sedang dikerjakan tidak
+// berubah sendiri di bawah tangan auditor.
+function mtSerapDariServer(dataServer) {
+    if (!_mtData) _mtData = mtEmptyData();
+    const punya = new Set((_mtData.entries || []).map(mtKunciEntri));
+    let tambah = 0;
+    (dataServer?.entries || []).forEach((e) => {
+        if (punya.has(mtKunciEntri(e))) return;
+        (_mtData.entries = _mtData.entries || []).push(e);
+        tambah++;
+    });
+    _mtData.mekanikSelectedJenis = {
+        ...(dataServer?.mekanikSelectedJenis || {}),
+        ...(_mtData.mekanikSelectedJenis || {}),
+    };
+    mtCatatDikenal(dataServer);
+    return tambah;
+}
 function mtActiveJenis()   { return document.querySelector('.mt-jenis-btn.active')?.dataset.mtJenis || 'baru'; }
 function mtActiveMekanik() { return _mtActiveMekanik; }
 
@@ -4942,6 +4975,7 @@ async function loadMtTab() {
     if (res.data && res.data.data && !Array.isArray(res.data.data)) {
         _mtData = { ...mtEmptyData(), ...res.data.data };
     }
+    mtCatatDikenal(_mtData);
     mtInitForm();
 }
 
@@ -5306,11 +5340,19 @@ function mtRenderKategori() {
 async function _doSaveMt() {
     if (!activePlanId) throw new Error('Pilih plan audit terlebih dahulu.');
     if (!_mtData) _mtData = mtEmptyData();
-    return await fetchJson('/api/audit-detail/mt', {
+    const res = await fetchJson('/api/audit-detail/mt', {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ planAuditId: activePlanId, data: _mtData }),
+        body: JSON.stringify({ planAuditId: activePlanId, data: _mtData, dikenal: [..._mtDikenal] }),
     });
+    // Balasannya isi gabungan: pekerjaan rekan yang belum terlihat di sini ikut
+    // masuk sekarang juga, jadi auditor tahu daftar mekaniknya sudah lengkap.
+    const tambah = mtSerapDariServer(res.data?.data);
+    if (tambah) {
+        mtRenderMekanikList();
+        showAlert(`${tambah} data mekanik dari rekan auditor ikut dimuat.`, 'success');
+    }
+    return res;
 }
 
 async function saveMt() {
