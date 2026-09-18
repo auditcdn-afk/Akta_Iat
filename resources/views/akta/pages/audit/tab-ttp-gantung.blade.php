@@ -49,8 +49,19 @@
             <div id="ttpTableSection" class="hidden overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
                 <div class="flex items-center justify-between border-b border-slate-700 bg-slate-800/60 px-5 py-3">
                     <span class="text-xs font-bold uppercase tracking-wide text-slate-200">🧾 Daftar Tagihan TTP Gantung</span>
-                    <span id="ttpTableCount" class="rounded-full bg-blue-600/20 px-3 py-1 text-xs font-bold text-blue-300">0 Data</span>
+                    <div class="flex items-center gap-3">
+                        <button type="button" id="ttpEditToggle"
+                            class="hidden rounded-lg border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300 hover:border-blue-500 hover:text-blue-300 transition">
+                            ✏️ Mode Edit
+                        </button>
+                        <span id="ttpTableCount" class="rounded-full bg-blue-600/20 px-3 py-1 text-xs font-bold text-blue-300">0 Data</span>
+                    </div>
                 </div>
+                <p id="ttpEditHint" class="hidden border-b border-slate-700 bg-amber-900/20 px-5 py-2 text-xs text-amber-200">
+                    Mode edit aktif — klik sel mana pun untuk memperbaiki hasil impor yang salah. Perubahan langsung tersimpan.
+                    <span class="text-amber-300/80">Tagihan Belum Cair dihitung ulang otomatis (Nilai − Sudah Cair − Pencairan) sampai Anda mengisinya sendiri.</span>
+                    Sel yang bergaris putus-putus berarti sudah diperbaiki manual — arahkan kursor untuk melihat angka aslinya.
+                </p>
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[1300px] text-xs">
                         <thead class="border-b border-slate-700 bg-slate-800">

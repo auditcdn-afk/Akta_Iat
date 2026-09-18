@@ -4374,6 +4374,73 @@ function initPcdnForm() {
 // ══════════════════════════════════════════════════════════
 
 let _ttpItems = [];
+let _ttpModeEdit = false;
+
+// Kolom hasil impor yang boleh diperbaiki auditor. "No." dan "Diff" tidak ada
+// di sini karena keduanya dihitung, bukan data.
+const TTP_KOLOM_ANGKA = ['nilai', 'sudahCair', 'pencNilai', 'belumCair'];
+
+// Nilai hasil impor disimpan di r.asliImpor begitu auditor mengubahnya, supaya
+// perbaikan manual tetap terlihat jejaknya (dan tidak hilang saat berkas
+// diimpor ulang). Kalau nilainya dikembalikan seperti semula, jejaknya dibuang.
+function ttpCatatAsli(r, field, nilaiLama) {
+    r.asliImpor = r.asliImpor || {};
+    if (!(field in r.asliImpor)) r.asliImpor[field] = nilaiLama;
+    if (String(r.asliImpor[field]) === String(r[field] ?? '')) delete r.asliImpor[field];
+    if (Object.keys(r.asliImpor).length === 0) delete r.asliImpor;
+}
+
+function ttpAsliImpor(r, field) {
+    return r.asliImpor && Object.prototype.hasOwnProperty.call(r.asliImpor, field)
+        ? r.asliImpor[field] : null;
+}
+
+// Sel yang isinya sudah tidak sama dengan berkas impor diberi garis putus-putus
+// dan nilai aslinya ditaruh di tooltip -- auditor lain harus bisa melihat mana
+// yang diperbaiki tangan dan berapa angka aslinya.
+function ttpTandaiSel(r, field, tampil) {
+    const asli = ttpAsliImpor(r, field);
+    if (asli === null) return tampil;
+    const asliTxt = (asli === '' || asli === null || asli === undefined) ? '(kosong)'
+        : (TTP_KOLOM_ANGKA.includes(field) ? ttpFmtNum(asli) : String(asli));
+    return `<span class="border-b border-dashed border-amber-400/80 cursor-help" `
+        + `title="Hasil impor: ${escHtml(asliTxt)} — diperbaiki manual oleh auditor">${tampil}</span>`;
+}
+
+function ttpInputSel(idx, field, nilai, tipe, kelas = '') {
+    const t = tipe === 'angka' ? 'number' : tipe === 'tanggal' ? 'date' : 'text';
+    const step = tipe === 'angka' ? ' step="any"' : '';
+    return `<input type="${t}"${step} data-ttp-idx="${idx}" data-ttp-field="${field}" value="${escHtml(nilai ?? '')}"
+        class="ttp-edit-input w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none ${kelas}">`;
+}
+
+// Satu perubahan sel: nilainya dipasang, jejak aslinya dicatat, lalu Tagihan
+// Belum Cair dihitung ulang (nilai - sudah cair - pencairan) SELAMA auditor
+// belum pernah mengisi kolom itu sendiri. Begitu ia mengisinya manual, angka
+// itulah yang dipakai dan tidak ditimpa hitungan lagi.
+function ttpTerapkanEdit(idx, field, nilaiBaru) {
+    const r = _ttpItems[idx];
+    if (!r) return false;
+
+    const angka = TTP_KOLOM_ANGKA.includes(field);
+    const baru  = angka ? (parseFloat(String(nilaiBaru).replace(',', '.')) || 0) : String(nilaiBaru ?? '').trim();
+    const lama  = r[field] ?? (angka ? 0 : '');
+    if (String(baru) === String(lama)) return false;
+
+    r[field] = baru;
+    ttpCatatAsli(r, field, lama);
+    if (field === 'belumCair') r.belumCairManual = true;
+
+    if (['nilai', 'sudahCair', 'pencNilai'].includes(field) && !r.belumCairManual) {
+        const hitung = (r.nilai || 0) - (r.sudahCair || 0) - (r.pencNilai || 0);
+        if (hitung !== (r.belumCair || 0)) {
+            const belumLama = r.belumCair || 0;
+            r.belumCair = hitung;
+            ttpCatatAsli(r, 'belumCair', belumLama);
+        }
+    }
+    return true;
+}
 
 async function loadTtpTab() {
     if (!activePlanId) { ttpRender(); return; }
@@ -4418,10 +4485,10 @@ function ttpRender() {
     const diffs    = items.map(r => ttpDiff(r.tglTtp)).filter(d => d !== null && d >= 0);
     const maxDiff  = diffs.length ? Math.max(...diffs) : 0;
 
-    const s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-    s('ttpStatTotal', items.length);
-    s('ttpStatBelum', ttpFmtRp(totBelum));
-    s('ttpStatDiff',  maxDiff + ' hari');
+    const s2 = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    s2('ttpStatTotal', items.length);
+    s2('ttpStatBelum', ttpFmtRp(totBelum));
+    s2('ttpStatDiff',  maxDiff + ' hari');
 
     const section = document.getElementById('ttpTableSection');
     const count   = document.getElementById('ttpTableCount');
@@ -4431,12 +4498,16 @@ function ttpRender() {
     if (items.length === 0) {
         if (section) section.classList.add('hidden');
         tbody.innerHTML = '';
+        _ttpModeEdit = false;
+        ttpSetTombolEdit();
         return;
     }
 
     if (section) section.classList.remove('hidden');
     if (count) count.textContent = `${items.length} Data`;
+    ttpSetTombolEdit();
 
+    const edit = _ttpModeEdit;
     let currentLeasing = '';
     let no = 0;
     const rows = [];
@@ -4445,10 +4516,14 @@ function ttpRender() {
         // Insert leasing group header row
         if (r.leasing !== currentLeasing) {
             currentLeasing = r.leasing;
+            const judul = edit
+                ? `<input type="text" data-ttp-leasing="${escHtml(currentLeasing ?? '')}" value="${escHtml(currentLeasing ?? '')}"
+                       class="ttp-leasing-input w-72 rounded border border-slate-600 bg-slate-950 px-2 py-1 text-xs font-bold uppercase text-slate-100 focus:border-blue-500 focus:outline-none">`
+                : ttpTandaiSel(r, 'leasing', escHtml(currentLeasing ?? ''));
             rows.push(`
                 <tr class="bg-slate-700/60">
                     <td class="px-3 py-1.5"></td>
-                    <td colspan="12" class="px-3 py-1.5 font-bold text-slate-200 uppercase tracking-wide">${currentLeasing}</td>
+                    <td colspan="12" class="px-3 py-1.5 font-bold text-slate-200 uppercase tracking-wide">${judul}</td>
                 </tr>`);
         }
         no++;
@@ -4460,19 +4535,32 @@ function ttpRender() {
                       : 'text-slate-300';
         const belumCls = r.belumCair > 0 ? 'text-orange-300 font-semibold' : 'text-slate-500';
 
+        // Sel dibaca lewat dua helper supaya mode baca dan mode edit tidak
+        // pernah berbeda isinya: yang berubah hanya bungkusnya.
+        const baca = (field, tampil, kosong = '-') =>
+            ttpTandaiSel(r, field, (tampil === '' || tampil === null || tampil === undefined) ? kosong : tampil);
+        const sel = (field, tipe, tampil, kosong = '-') =>
+            edit ? ttpInputSel(idx, field, r[field], tipe, tipe === 'angka' ? 'text-right' : '')
+                 : baca(field, tampil, kosong);
+
+        const noSel = edit
+            ? `${no} <button type="button" data-ttp-hapus="${idx}"
+                   class="ttp-hapus-btn ml-1 rounded px-1 text-red-400 hover:bg-red-900/40" title="Hapus baris ini">🗑</button>`
+            : String(no);
+
         rows.push(`
             <tr class="hover:bg-slate-800/40 transition">
-                <td class="px-3 py-2 text-slate-400">${no}</td>
-                <td class="px-3 py-2 font-mono text-blue-300">${r.noTtp || '-'}</td>
-                <td class="px-3 py-2 text-slate-300 whitespace-nowrap">${r.tglTtp || '-'}</td>
-                <td class="px-3 py-2 font-mono text-xs text-slate-300">${r.noFaktur || '-'}</td>
-                <td class="px-3 py-2 text-slate-100">${r.nama || '-'}</td>
-                <td class="px-3 py-2 text-right text-slate-200">${ttpFmtNum(r.nilai)}</td>
-                <td class="px-3 py-2 text-right ${r.sudahCair > 0 ? 'text-green-400' : 'text-slate-500'}">${ttpFmtNum(r.sudahCair)}</td>
-                <td class="px-3 py-2 text-center text-slate-400">${r.pencTgl || '-'}</td>
-                <td class="px-3 py-2 text-right ${r.pencNilai > 0 ? 'text-green-400' : 'text-slate-500'}">${ttpFmtNum(r.pencNilai)}</td>
-                <td class="px-3 py-2 text-right ${belumCls}">${ttpFmtNum(r.belumCair)}</td>
-                <td class="px-3 py-2 text-xs text-slate-400 max-w-[220px] whitespace-pre-wrap">${r.keterangan || '-'}</td>
+                <td class="px-3 py-2 text-slate-400 whitespace-nowrap">${noSel}</td>
+                <td class="px-3 py-2 font-mono text-blue-300">${sel('noTtp', 'teks', escHtml(r.noTtp || ''))}</td>
+                <td class="px-3 py-2 text-slate-300 whitespace-nowrap">${sel('tglTtp', 'tanggal', escHtml(r.tglTtp || ''))}</td>
+                <td class="px-3 py-2 font-mono text-xs text-slate-300">${sel('noFaktur', 'teks', escHtml(r.noFaktur || ''))}</td>
+                <td class="px-3 py-2 text-slate-100">${sel('nama', 'teks', escHtml(r.nama || ''))}</td>
+                <td class="px-3 py-2 text-right text-slate-200">${sel('nilai', 'angka', ttpFmtNum(r.nilai))}</td>
+                <td class="px-3 py-2 text-right ${r.sudahCair > 0 ? 'text-green-400' : 'text-slate-500'}">${sel('sudahCair', 'angka', ttpFmtNum(r.sudahCair))}</td>
+                <td class="px-3 py-2 text-center text-slate-400">${sel('pencTgl', 'tanggal', escHtml(r.pencTgl || ''))}</td>
+                <td class="px-3 py-2 text-right ${r.pencNilai > 0 ? 'text-green-400' : 'text-slate-500'}">${sel('pencNilai', 'angka', ttpFmtNum(r.pencNilai))}</td>
+                <td class="px-3 py-2 text-right ${belumCls}">${sel('belumCair', 'angka', ttpFmtNum(r.belumCair))}</td>
+                <td class="px-3 py-2 text-xs text-slate-400 max-w-[220px] whitespace-pre-wrap">${sel('keterangan', 'teks', escHtml(r.keterangan || ''))}</td>
                 <td class="px-3 py-2 text-center ${diffCls}">${diffTxt}</td>
                 <td class="px-3 py-2 text-center">
                     <input type="checkbox" data-ttp-idx="${idx}" ${r.fisik ? 'checked' : ''}
@@ -4491,6 +4579,69 @@ function ttpRender() {
             saveTtp().catch(() => {});
         });
     });
+
+    if (!edit) return;
+
+    // Perubahan sel disimpan saat auditor pindah sel (change), bukan tiap
+    // ketikan -- satu kali simpan per perbaikan, bukan per huruf.
+    tbody.querySelectorAll('.ttp-edit-input').forEach(inp => {
+        inp.addEventListener('change', (e) => {
+            const i = parseInt(e.target.dataset.ttpIdx, 10);
+            if (!ttpTerapkanEdit(i, e.target.dataset.ttpField, e.target.value)) return;
+            ttpRender();
+            saveTtp().catch(() => {});
+        });
+    });
+
+    // Nama leasing berlaku untuk satu kelompok: menggantinya mengganti semua
+    // baris di kelompok itu, bukan cuma judulnya.
+    tbody.querySelectorAll('.ttp-leasing-input').forEach(inp => {
+        inp.addEventListener('change', (e) => {
+            const lama = e.target.dataset.ttpLeasing;
+            const baru = e.target.value.trim();
+            if (baru === lama) return;
+            let berubah = false;
+            _ttpItems.forEach((r, i) => {
+                if (r.leasing === lama) berubah = ttpTerapkanEdit(i, 'leasing', baru) || berubah;
+            });
+            if (!berubah) return;
+            ttpRender();
+            saveTtp().catch(() => {});
+        });
+    });
+
+    tbody.querySelectorAll('.ttp-hapus-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const i = parseInt(e.currentTarget.dataset.ttpHapus, 10);
+            const r = _ttpItems[i];
+            if (!r) return;
+            if (!confirm(`Hapus baris TTP ${r.noTtp || '(tanpa nomor)'} a/n ${r.nama || '-'}?\n\nBaris yang dihapus bisa dikembalikan dengan mengimpor ulang berkasnya.`)) return;
+            _ttpItems.splice(i, 1);
+            ttpRender();
+            saveTtp().catch(() => {});
+        });
+    });
+}
+
+function ttpSetTombolEdit() {
+    const btn  = document.getElementById('ttpEditToggle');
+    const hint = document.getElementById('ttpEditHint');
+    if (btn) {
+        btn.textContent = _ttpModeEdit ? '✅ Selesai Edit' : '✏️ Mode Edit';
+        btn.className = _ttpModeEdit
+            ? 'rounded-lg border border-emerald-600 bg-emerald-600/20 px-3 py-1 text-xs font-semibold text-emerald-300 hover:bg-emerald-600/30 transition'
+            : 'rounded-lg border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300 hover:border-blue-500 hover:text-blue-300 transition';
+        btn.classList.toggle('hidden', _ttpItems.length === 0);
+    }
+    if (hint) hint.classList.toggle('hidden', !_ttpModeEdit);
+
+    // Kolom yang berisi kotak isian butuh ruang lebih daripada kolom teks biasa;
+    // tanpa ini nomor TTP dan nominal terpotong di tengah saat diperbaiki.
+    const tabel = document.querySelector('#ttpTableSection table');
+    if (tabel) {
+        tabel.classList.toggle('min-w-[1300px]', !_ttpModeEdit);
+        tabel.classList.toggle('min-w-[1750px]', _ttpModeEdit);
+    }
 }
 
 async function saveTtp() {
@@ -4516,12 +4667,28 @@ async function ttpHandleFile(file) {
         if (!res.ok) throw new Error(json.message || 'Gagal memproses file.');
         const raw = json.data ?? [];
         if (raw.length === 0) throw new Error('Tidak ada data TTP ditemukan dalam file.');
-        // Preserve existing fisik & keterangan on re-import
+        // Impor ulang tidak boleh menghapus pekerjaan auditor: centang fisik,
+        // keterangan, DAN semua sel yang sudah diperbaiki manual dipasang lagi
+        // di atas data baru. Kuncinya nomor TTP hasil impor (bukan yang sudah
+        // diperbaiki), supaya baris yang justru nomornya salah tetap ketemu.
         const existingMap = {};
-        _ttpItems.forEach(it => { existingMap[it.noTtp] = it; });
+        _ttpItems.forEach(it => { existingMap[ttpAsliImpor(it, 'noTtp') ?? it.noTtp] = it; });
         _ttpItems = raw.map(it => {
             const old = existingMap[it.noTtp];
-            if (old) { it.fisik = old.fisik; it.keterangan = it.keterangan || old.keterangan; }
+            if (!old) return it;
+
+            it.fisik = old.fisik ?? false;
+            if (old.belumCairManual) it.belumCairManual = true;
+
+            const asli = {};
+            Object.keys(old.asliImpor ?? {}).forEach(field => {
+                const imporBaru = it[field];
+                it[field] = old[field];                       // nilai perbaikan auditor menang
+                if (String(imporBaru) !== String(old[field])) asli[field] = imporBaru;
+            });
+            if (Object.keys(asli).length) it.asliImpor = asli;
+
+            if (!it.keterangan && old.keterangan) it.keterangan = old.keterangan;
             return it;
         });
         if (msgEl) {
@@ -4564,6 +4731,11 @@ function initTtpForm() {
 
     document.getElementById('ttpSaveBtn')?.addEventListener('click', () => {
         saveTtp().catch(err => showAlert(err.message || 'Gagal menyimpan.', 'error'));
+    });
+
+    document.getElementById('ttpEditToggle')?.addEventListener('click', () => {
+        _ttpModeEdit = !_ttpModeEdit;
+        ttpRender();
     });
 }
 

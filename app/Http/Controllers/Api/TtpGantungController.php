@@ -125,11 +125,40 @@ class TtpGantungController extends Controller
         return response()->json(['data' => $items]);
     }
 
+    // Berbeda dengan tool lain yang membaca berkas Excel (angkanya sudah berupa
+    // angka sungguhan), berkas TTP Gantung berbentuk HTML: SEMUA nilai datang
+    // sebagai teks yang sudah diformat untuk dibaca manusia. Maka pemisah ribuan
+    // harus dibedakan dari koma desimal, kalau tidak "167.182" terbaca 167,182
+    // rupiah -- seperseribu dari nilai sebenarnya, dan diam-diam salah.
+    //
+    // Aturannya: pemisah TERAKHIR yang diikuti tepat tiga angka adalah pemisah
+    // ribuan (gaya Indonesia "167.182" maupun gaya Inggris "167,182"); selain
+    // itu barulah dianggap koma desimal ("1.234.567,89" -> 1234567.89).
     private function parseNum(mixed $val): float
     {
-        $s = strip_tags((string)$val);
-        $s = preg_replace('/[^0-9.\-]/', '', $s);
-        return ($s === '' || $s === '-') ? 0 : (float)$s;
+        if ($val === null || $val === '') return 0;
+        if (is_int($val) || is_float($val)) return (float) $val;
+
+        $s   = trim(strip_tags((string) $val));
+        $neg = str_starts_with($s, '-') || str_contains($s, '(');   // (1.000) = negatif di sebagian laporan
+        $s   = preg_replace('/[^0-9.,]/', '', $s);
+        if ($s === '') return 0;
+
+        $titik = strrpos($s, '.');
+        $koma  = strrpos($s, ',');
+        $akhir = max($titik === false ? -1 : $titik, $koma === false ? -1 : $koma);
+
+        if ($akhir === -1) {
+            $angka = $s;
+        } else {
+            $ekor = substr($s, $akhir + 1);
+            $angka = preg_match('/^\d{3}$/', $ekor) || $ekor === ''
+                ? str_replace(['.', ','], '', $s)
+                : str_replace(['.', ','], '', substr($s, 0, $akhir)) . '.' . $ekor;
+        }
+
+        if ($angka === '' || !is_numeric($angka)) return 0;
+        return ($neg ? -1 : 1) * (float) $angka;
     }
 
     private function normDate(string $val): string
