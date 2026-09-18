@@ -9552,7 +9552,16 @@ async function gradingLoadMaster() {
             { headers: authHeaders() }
         );
         _gradingMaster = res.data || [];
-        if (_gradingMaster.length > 0) { gradingSetMasterInfo('', ''); return; }
+        if (_gradingMaster.length > 0) {
+            // Sumber daftarnya disebutkan terang-terangan. Sudah dua kali daftar
+            // item terasa "milik unit usaha lain" tanpa ada cara memastikannya
+            // dari layar; dengan baris ini jenis & wilayah yang dipakai bisa
+            // dicocokkan langsung dengan menu Database → Grading.
+            gradingSetMasterInfo(
+                `Menampilkan ${_gradingMaster.length} item grading Jenis "${jenis}" wilayah "${wilayah}" dari master.`,
+                'ingat');
+            return;
+        }
 
         // 2. Wilayahnya saja yang dilepas. Penamaan wilayah di master grading
         //    tidak selalu sama dengan di master unit usaha, dan itu tidak boleh
@@ -9566,7 +9575,8 @@ async function gradingLoadMaster() {
             _gradingMaster = res.data || [];
             if (_gradingMaster.length > 0) {
                 gradingSetMasterInfo(
-                    `Tidak ada item grading khusus wilayah "${wilayah}" untuk Jenis ${jenis} — yang ditampilkan item Jenis ${jenis} dari semua wilayah.`,
+                    `Menampilkan ${_gradingMaster.length} item grading Jenis "${jenis}" dari SEMUA wilayah — `
+                    + `master tidak punya item khusus wilayah "${wilayah}" untuk jenis ini.`,
                     'ingat');
                 return;
             }

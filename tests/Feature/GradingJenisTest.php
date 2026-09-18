@@ -201,4 +201,82 @@ class GradingJenisTest extends TestCase
         $this->assertCount(1, $res->json('data'));
         $this->assertSame('Pemeriksaan Kas Kecil', $res->json('data.0.namaPemeriksaan'));
     }
+
+    /**
+     * Grading yang disimpan sebelum sebutan jenisnya diseragamkan menyimpan
+     * "Bengkel"/"Cabang", sementara master menulisnya "CSC"/"SO". Dibuka apa
+     * adanya, jenis itu tidak punya isi di master: daftar itemnya kosong dan
+     * tombol bersebutan lama ikut nongol seolah-olah pilihan yang sah.
+     */
+    public function test_jenis_tersimpan_yang_sebutannya_lama_diterjemahkan_ke_sebutan_master(): void
+    {
+        $this->masterItem('CSC', 'Penilaian Mekanik');
+        $this->masterItem('SO',  'Penitipan SMH');
+
+        $plan = $this->plan('Audit Full CSC', 'CSC UJT');
+        \App\Models\AuditGrading::query()->create([
+            'plan_audit_id' => $plan->id,
+            'jenis'         => 'Bengkel',   // sebutan lama
+            'area'          => 'RIAU',
+            'details'       => [],
+        ]);
+
+        $res = $this->getJson("/api/audit-detail/grading?plan_audit_id={$plan->id}")->assertOk();
+
+        $this->assertSame('CSC', $res->json('data.jenis'),
+            '"Bengkel" dan "CSC" satu keluarga; yang dipakai harus sebutan master.');
+    }
+
+    /** Jenis tersimpan yang memang sudah sesuai master tidak diutak-atik. */
+    public function test_jenis_tersimpan_yang_sudah_sesuai_dibiarkan(): void
+    {
+        $this->masterItem('CSC', 'Penilaian Mekanik');
+
+        $plan = $this->plan('Audit Full CSC', 'CSC UJT');
+        \App\Models\AuditGrading::query()->create([
+            'plan_audit_id' => $plan->id, 'jenis' => 'CSC', 'area' => 'RIAU', 'details' => [],
+        ]);
+
+        $this->assertSame('CSC',
+            $this->getJson("/api/audit-detail/grading?plan_audit_id={$plan->id}")->json('data.jenis'));
+    }
+
+    /** Yang tidak dikenali sama sekali dibiarkan apa adanya, bukan digeser diam-diam. */
+    public function test_jenis_tersimpan_yang_asing_tidak_digeser(): void
+    {
+        $this->masterItem('CSC', 'Penilaian Mekanik');
+
+        $plan = $this->plan('Audit Full CSC', 'CSC UJT');
+        \App\Models\AuditGrading::query()->create([
+            'plan_audit_id' => $plan->id, 'jenis' => 'Lain-Lain', 'area' => 'RIAU', 'details' => [],
+        ]);
+
+        $this->assertSame('Lain-Lain',
+            $this->getJson("/api/audit-detail/grading?plan_audit_id={$plan->id}")->json('data.jenis'));
+    }
+
+    /**
+     * Penjaga inti: daftar item untuk satu jenis tidak boleh memuat satu pun
+     * item milik jenis lain, sebanyak apa pun isi masternya.
+     */
+    public function test_daftar_item_csc_tidak_memuat_item_milik_so(): void
+    {
+        foreach (['Area Gedung', 'Pemeriksaan Kas Kecil', 'Penilaian Mekanik', 'Selisih Kas Besar/Kecil'] as $n) {
+            $this->masterItem('CSC', $n, 'Aceh');
+        }
+        foreach (['Pemeriksaan Rekening Bank SO (Virtual & Non Virtual)', 'Penitipan SMH',
+                  'Cash Gantung', 'Setoran ke H1'] as $n) {
+            $this->masterItem('SO', $n, 'Aceh');
+        }
+
+        // Wilayah plan (RIAU) tidak ada di master -> jatuh ke "semua wilayah",
+        // dan justru di situlah dulu item jenis lain ikut terbawa.
+        $res = $this->getJson('/api/audit-detail/grading/master?jenis=CSC')->assertOk();
+
+        $nama = array_column($res->json('data'), 'namaPemeriksaan');
+        sort($nama);
+        $this->assertSame(
+            ['Area Gedung', 'Pemeriksaan Kas Kecil', 'Penilaian Mekanik', 'Selisih Kas Besar/Kecil'],
+            $nama);
+    }
 }
