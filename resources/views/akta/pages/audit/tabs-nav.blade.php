@@ -1,4 +1,8 @@
-        <div class="flex flex-wrap gap-2 rounded-2xl border border-slate-800 bg-slate-900 p-2">
+        {{-- Baris pertama = tool pemeriksaan yang sesungguhnya (sama dengan
+             config/audit_tabs.php). Hanya tab di baris inilah yang punya
+             pasangan Nama Auditor & Auditee — dipakai loadAuditorWidget()
+             untuk memutuskan widget itu ditampilkan atau disembunyikan. --}}
+        <div id="alatPemeriksaanRow" class="flex flex-wrap gap-2 rounded-2xl border border-slate-800 bg-slate-900 p-2">
             <button type="button" data-tab="kas"
                 class="audit-tab-btn rounded-xl px-4 py-2 text-sm font-semibold transition bg-blue-600 text-white">
                 Pemeriksaan Kas

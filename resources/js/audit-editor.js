@@ -246,8 +246,27 @@ function switchTab(tab) {
 
 let auditorWidgetTool = null;
 
+// Hanya tab di baris pertama (tool pemeriksaan yang sesungguhnya) yang punya
+// pasangan Nama Auditor & Auditee. Grading, PICA, Rekomendasi, dan BU
+// Performance ada di baris kedua -- semuanya hasil & tindak lanjut, bukan
+// pemeriksaan. Dulu widget itu ikut muncul di sana juga, dan menekan Simpan-nya
+// mengirim tool yang memang ditolak server: auditor cuma melihat pesan
+// penolakan tanpa tahu apa yang salah, padahal memang tidak ada yang perlu
+// diisi di situ.
+function tabPunyaAuditor(tool) {
+    return Boolean(document.querySelector(`#alatPemeriksaanRow .audit-tab-btn[data-tab="${tool}"]`));
+}
+
 async function loadAuditorWidget(tool) {
     if (!activePlanId || !tool) return;
+
+    const widget = document.getElementById("auditorWidget");
+    if (!tabPunyaAuditor(tool)) {
+        auditorWidgetTool = null;
+        widget?.classList.add("hidden");
+        return;
+    }
+    widget?.classList.remove("hidden");
     auditorWidgetTool = tool;
 
     const label = document.querySelector(`.audit-tab-btn[data-tab="${tool}"]`)?.textContent?.trim();

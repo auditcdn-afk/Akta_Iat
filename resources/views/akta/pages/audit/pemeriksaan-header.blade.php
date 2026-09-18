@@ -15,7 +15,7 @@
              loadAuditorWidget() di audit-editor.js. Menyimpan tool apa pun (Kas,
              Bank, dst) akan ditolak server selama pasangan ini untuk tool tersebut
              belum tersimpan. --}}
-        <div class="rounded-2xl border border-slate-700 bg-slate-900 p-4">
+        <div id="auditorWidget" class="rounded-2xl border border-slate-700 bg-slate-900 p-4">
             <div class="mb-2 flex items-center justify-between">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Data Auditor — <span id="auditorWidgetToolLabel">-</span>
