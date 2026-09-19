@@ -76,7 +76,11 @@ class DatabaseController extends Controller
         'plafon'       => ['kode'],
         'perlengkapan' => ['kode', 'wilayah'],
         'unit-usaha'   => ['unit_usaha', 'wilayah'],
-        'grading'      => ['id_grading'],
+        // Master grading memakai ULANG id_grading untuk wilayah berbeda (G1151
+        // ada untuk Aceh, Riau, dan Kepri). Dikunci pada id_grading saja, impor
+        // menimpa baris yang sudah masuk dan hanya wilayah terakhir yang
+        // tersisa — pada berkas nyata 200 dari 960 baris hilang tanpa pesan.
+        'grading'      => ['id_grading', 'wilayah'],
         'mt'           => ['kode_peralatan', 'jenis'],
         'het'          => ['kode'],
         'ahm-oil'      => ['kode'],
