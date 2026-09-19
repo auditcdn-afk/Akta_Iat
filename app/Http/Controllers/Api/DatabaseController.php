@@ -466,6 +466,8 @@ class DatabaseController extends Controller
         $uniqueKeys = self::$uniqueKeys[$type] ?? [];
         $tabel      = (new $model())->getTable();
 
+        $this->pastikanStrukturSiap($tabel, $uniqueKeys, $baris);
+
         if (empty($uniqueKeys) || ! $this->punyaIndeksUnik($tabel, $uniqueKeys)) {
             $this->simpanSatuSatu($model, $uniqueKeys, $baris);
 
@@ -538,6 +540,52 @@ class DatabaseController extends Controller
                 $model::updateOrCreate($keyData, $valData);
             } else {
                 $model::create($data);
+            }
+        }
+    }
+
+    /**
+     * Hentikan import SEBELUM menyentuh database kalau struktur tabelnya masih
+     * lebih ketat daripada kunci import-nya.
+     *
+     * Kejadian nyatanya: kunci import grading dipindah ke (id_grading, wilayah)
+     * karena berkas master memakai ulang ID yang sama untuk wilayah berbeda,
+     * tapi indeks unik lama pada id_grading SAJA belum ikut dipindah di hosting
+     * (migration-nya belum dijalankan). Import lalu merayap satu-satu selama
+     * puluhan detik, baru kandas di baris kesekian dengan "Server Error" --
+     * tanpa satu pun petunjuk bahwa yang kurang cuma pembaruan struktur.
+     *
+     * Diperiksa di depan, dan hanya kalau berkasnya memang memuat nilai kembar
+     * pada kolom indeks lama itu: struktur lama yang kebetulan masih cocok
+     * dengan isi berkas tidak perlu diganggu.
+     */
+    private function pastikanStrukturSiap(string $tabel, array $uniqueKeys, array $baris): void
+    {
+        if (count($uniqueKeys) < 2) {
+            return;
+        }
+
+        foreach (Schema::getIndexes($tabel) as $indeks) {
+            if (empty($indeks['unique'])) continue;
+
+            $kolom = array_map('strtolower', $indeks['columns']);
+            if ($kolom === ['id']) continue;                       // primary key
+            if (! array_diff($uniqueKeys, $kolom)) continue;       // menutupi kunci import: aman
+
+            $lebihSempit = ! array_diff($kolom, $uniqueKeys);      // bagian dari kunci import
+            if (! $lebihSempit) continue;
+
+            $terlihat = [];
+            foreach ($baris as $data) {
+                $tanda = implode('|', array_map(fn ($k) => (string) ($data[$k] ?? ''), $kolom));
+                if (isset($terlihat[$tanda])) {
+                    abort(422, 'Struktur database "' . $tabel . '" masih yang lama: '
+                        . implode(' + ', $kolom) . ' belum boleh berulang, padahal berkas ini memakai '
+                        . 'nilai yang sama ("' . $tanda . '") untuk ' . implode(' + ', array_diff($uniqueKeys, $kolom)) . ' yang berbeda. '
+                        . 'Jalankan pembaruan struktur database (/deploy/migrate) lebih dulu, lalu ulangi import ini. '
+                        . 'Tidak ada data yang diubah.');
+                }
+                $terlihat[$tanda] = true;
             }
         }
     }

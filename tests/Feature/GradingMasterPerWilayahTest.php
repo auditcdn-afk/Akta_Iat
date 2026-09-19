@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Models\DbGrading;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -42,7 +44,11 @@ class GradingMasterPerWilayahTest extends TestCase
 
     private function unggah(UploadedFile $file)
     {
-        return $this->post('/api/database/grading/import', ['file' => $file]);
+        // Header Accept sama dengan yang dikirim halaman Database (authHeaders
+        // di akta-database.js) — supaya pesan penolakannya sampai ke layar
+        // sebagai JSON, bukan halaman error.
+        return $this->post('/api/database/grading/import', ['file' => $file],
+            ['Accept' => 'application/json']);
     }
 
     /** ID yang sama di tiga wilayah harus masuk SEMUA, bukan saling menimpa. */
@@ -122,5 +128,45 @@ class GradingMasterPerWilayahTest extends TestCase
         $this->assertSame(2, DbGrading::count());
         $this->assertEqualsWithDelta(1.0, (float) DbGrading::where('wilayah', 'Aceh')->value('nilai'), 0.001);
         $this->assertEqualsWithDelta(4.0, (float) DbGrading::where('wilayah', 'Riau')->value('nilai'), 0.001);
+    }
+
+    /**
+     * Kalau struktur tabel di hosting masih yang lama (indeks unik pada
+     * id_grading saja) sementara berkasnya memakai ID berulang, import dulu
+     * merayap satu-satu selama puluhan detik lalu kandas dengan "Server Error"
+     * -- tanpa petunjuk bahwa yang kurang cuma pembaruan struktur.
+     */
+    public function test_struktur_lama_ditolak_di_depan_dengan_pesan_yang_jelas(): void
+    {
+        // Kembalikan ke keadaan sebelum migration dijalankan.
+        Schema::table('db_grading', fn(Blueprint $t) => $t->dropUnique('db_grading_id_grading_wilayah_unique'));
+        Schema::table('db_grading', fn(Blueprint $t) => $t->unique('id_grading', 'db_grading_id_grading_unique'));
+
+        $res = $this->unggah($this->berkas([
+            ['G1151', 'WHS UNIT', 'Aceh', 'Pemeriksaan Kas Kecil', '5. sesuai', 1],
+            ['G1151', 'WHS UNIT', 'Riau', 'Pemeriksaan Kas Kecil', '5. sesuai', 1],
+        ]))->assertStatus(422);
+
+        $pesan = (string) $res->json('message');
+        $this->assertStringContainsString('Struktur database', $pesan);
+        $this->assertStringContainsString('id_grading', $pesan);
+        $this->assertStringContainsString('/deploy/migrate', $pesan);
+
+        $this->assertSame(0, DbGrading::count(),
+            'Ditolak di depan: tidak boleh ada baris yang sempat tertulis.');
+    }
+
+    /** Struktur lama yang kebetulan masih cocok dengan isi berkas tidak diganggu. */
+    public function test_struktur_lama_tetap_dilayani_kalau_berkasnya_tidak_memakai_id_berulang(): void
+    {
+        Schema::table('db_grading', fn(Blueprint $t) => $t->dropUnique('db_grading_id_grading_wilayah_unique'));
+        Schema::table('db_grading', fn(Blueprint $t) => $t->unique('id_grading', 'db_grading_id_grading_unique'));
+
+        $this->unggah($this->berkas([
+            ['G0001', 'SO', 'Aceh', 'Penitipan SMH', '5. sesuai', 1],
+            ['G0002', 'SO', 'Riau', 'Penitipan SMH', '5. sesuai', 1],
+        ]))->assertOk();
+
+        $this->assertSame(2, DbGrading::count());
     }
 }
