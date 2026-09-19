@@ -110,11 +110,48 @@ class GradingController extends Controller
         try {
             $planId = $request->query('plan_audit_id');
             $rec    = AuditGrading::where('plan_audit_id', $planId)->first();
-            return response()->json(['data' => $rec ? $rec->toAktaArray() : null]);
+            if (!$rec) return response()->json(['data' => null]);
+
+            $data = $rec->toAktaArray();
+            $data['jenis'] = self::sebutanJenisDiMaster($data['jenis']);
+
+            return response()->json(['data' => $data]);
         } catch (\Exception $e) {
             // Tabel belum dibuat — kembalikan null agar UI tidak crash
             return response()->json(['data' => null]);
         }
+    }
+
+    /**
+     * Terjemahkan jenis yang TERSIMPAN ke sebutan yang dipakai master sekarang.
+     *
+     * Grading yang disimpan sebelum sebutannya diseragamkan bisa menyimpan
+     * "Bengkel" atau "Cabang", sementara master menulisnya "CSC" dan "SO".
+     * Tanpa penerjemahan ini, membuka grading lama memilih jenis yang tidak ada
+     * isinya di master — daftar itemnya kosong, dan tombol bersebutan lama itu
+     * ikut nongol di layar seolah-olah pilihan yang sah.
+     *
+     * Yang tidak dikenali sama sekali dibiarkan apa adanya: lebih baik auditor
+     * melihat pilihannya yang dulu daripada diam-diam digeser ke jenis lain.
+     */
+    private static function sebutanJenisDiMaster(?string $tersimpan): ?string
+    {
+        $tersimpan = trim((string) $tersimpan);
+        if ($tersimpan === '') return $tersimpan;
+
+        $diMaster = self::jenisDiMaster();
+        foreach ($diMaster as $j) {
+            if (strcasecmp($j, $tersimpan) === 0) return $j;   // sudah sesuai
+        }
+
+        $keluarga = self::keluargaJenis($tersimpan);
+        if (!$keluarga) return $tersimpan;
+
+        foreach ($diMaster as $j) {
+            if (self::keluargaJenis($j) === $keluarga) return $j;
+        }
+
+        return $tersimpan;
     }
 
     public function save(Request $request): JsonResponse
