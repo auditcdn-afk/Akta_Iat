@@ -14,6 +14,19 @@ class PicaController extends Controller
     // Role cabang yang boleh mengisi kolom Problem Identification, Corrective Action, dll.
     private const BRANCH_ROLES = ['h1', 'h2', 'unit', 'bpk'];
 
+    // Tahap 1 -- milik auditor/kantor pusat. Cabang tidak boleh mengubahnya.
+    private const KOLOM_PUSAT = ['title', 'current_condition', 'notes', 'unit_usaha'];
+
+    // Tahap 2 -- milik unit usaha pemilik PICA. Pihak Relation Ship tidak boleh
+    // menimpanya; dulu isian ini hilang karena tanggapan menumpang di kolom yang sama.
+    private const KOLOM_CABANG = [
+        'problem_identification', 'corrective_action', 'pic',
+        'relation_ship', 'relation_ship2', 'target_date',
+    ];
+
+    // Tahap 3 -- milik pihak Relation Ship.
+    private const KOLOM_TANGGAPAN = ['tanggapan_pica'];
+
     private array $writeRoles = ['admin', 'manajer', 'auditor', 'h1', 'h2', 'unit'];
 
     private array $closeRoles = ['admin', 'manajer'];
@@ -29,10 +42,21 @@ class PicaController extends Controller
             ->with(['recommendation', 'plan', 'task'])
             ->latest('id');
 
-        // Role cabang (unit usaha, H1/H2/WHS) hanya boleh melihat PICA milik
-        // plan dari unit usahanya sendiri.
+        // Role cabang (unit usaha, H1/H2/WHS) hanya boleh melihat PICA unit
+        // usahanya sendiri -- ditambah PICA yang diteruskan kepadanya sebagai
+        // pihak Relation Ship, yang plan-nya justru milik cabang lain.
         if (!in_array($user?->role, self::HO_ROLES, true)) {
-            $query->whereHas('plan', fn($q) => $q->where('cabang', $user?->unit_usaha));
+            $unitUsaha = $user?->unit_usaha;
+            $adaKolomTerusan = \Illuminate\Support\Facades\Schema::hasColumn('picas', 'forwarded_to_unit');
+
+            $query->where(function ($q) use ($unitUsaha, $adaKolomTerusan) {
+                $q->whereHas('plan', fn($p) => $p->where('cabang', $unitUsaha))
+                    ->orWhere('unit_usaha', $unitUsaha);
+
+                if ($adaKolomTerusan) {
+                    $q->orWhere('forwarded_to_unit', $unitUsaha);
+                }
+            });
         }
 
         $recommendationId = $request->query('audit_recommendation_id')
@@ -69,21 +93,6 @@ class PicaController extends Controller
 
         if ($request->filled('prioritas') && $request->query('prioritas') !== 'all') {
             $query->where('priority', $request->query('prioritas'));
-        }
-
-        // Cabang melihat PICA milik unitnya ATAU PICA yang diteruskan ke unitnya
-        $role = strtolower((string) ($request->user()?->role ?? ''));
-        if (in_array($role, self::BRANCH_ROLES, true)) {
-            $unitUsaha = $request->user()?->unit_usaha;
-            if ($unitUsaha) {
-                $hasForwardedCol = \Illuminate\Support\Facades\Schema::hasColumn('picas', 'forwarded_to_unit');
-                $query->where(function ($q) use ($unitUsaha, $hasForwardedCol) {
-                    $q->where('unit_usaha', $unitUsaha);
-                    if ($hasForwardedCol) {
-                        $q->orWhere('forwarded_to_unit', $unitUsaha);
-                    }
-                });
-            }
         }
 
         if ($request->filled('q')) {
@@ -136,7 +145,7 @@ class PicaController extends Controller
         $data['status'] = $data['status'] ?? 'open';
         $data['priority'] = $data['priority'] ?? 'sedang';
 
-        $pica = Pica::query()->create($data);
+        $pica = Pica::query()->create($this->kolomYangAdaDiTabel($data));
 
         if (!$pica->pica_no) {
             $pica->pica_no = 'PICA-' . now()->format('Ymd') . '-' . str_pad((string) $pica->id, 4, '0', STR_PAD_LEFT);
@@ -181,17 +190,26 @@ class PicaController extends Controller
 
         // Jika cabang menyimpan dan relation_ship sudah diisi → cari unit_usaha pihak terkait
         $role = $this->role($request);
-        $relationShip = $data['relation_ship'] ?? $pica->relation_ship;
 
-        $userUnit   = $request->user()?->unit_usaha;
-        $isForwarded = $userUnit && (
+        $userUnit = $request->user()?->unit_usaha;
+
+        // Unit usaha pemilik PICA selalu berperan sebagai cabang, tidak pernah
+        // sebagai pihak Relation Ship -- meski namanya sendiri yang ditulis di
+        // kolom Relation Ship.
+        $isPemilik = (bool) ($userUnit && $pica->unit_usaha === $userUnit);
+
+        $isForwarded = !$isPemilik && $userUnit && (
             $pica->forwarded_to_unit === $userUnit ||
             ($pica->relation_ship && str_contains($pica->relation_ship, $userUnit)) ||
             ($pica->relation_ship2 && str_contains($pica->relation_ship2, $userUnit))
         );
 
-        // Jika forwarded party yang menyimpan, tandai sudah diisi
-        if ($isForwarded && !in_array($role, self::BRANCH_ROLES, true)) {
+        $data = $this->kolomYangBolehDiubah($data, $role, $isForwarded);
+
+        $relationShip = $data['relation_ship'] ?? $pica->relation_ship;
+
+        // Jika pihak Relation Ship yang menyimpan, tandai sudah diisi
+        if ($isForwarded) {
             $data['forwarded_filled_at'] = now();
         }
 
@@ -216,21 +234,12 @@ class PicaController extends Controller
             }
         }
 
-        // Coba simpan dengan forwarded_to_unit; jika kolom belum ada, simpan tanpa itu
-        try {
-            $pica->fill($data);
-            $pica->save();
-        } catch (\Illuminate\Database\QueryException $e) {
-            if (str_contains($e->getMessage(), 'forwarded_to_unit') || str_contains($e->getMessage(), 'Unknown column')) {
-                unset($data['forwarded_to_unit']);
-                $pica->fill($data);
-                $pica->save();
-            } else {
-                throw $e;
-            }
-        }
+        // Kolom yang belum ada di database dibuang lebih dulu; kalau dipaksakan,
+        // yang sampai ke layar cuma "Server Error".
+        $pica->fill($this->kolomYangAdaDiTabel($data));
+        $pica->save();
 
-        $forwarded = !empty($relationShip) && in_array($role, self::BRANCH_ROLES, true);
+        $forwarded = !empty($relationShip) && in_array($role, self::BRANCH_ROLES, true) && !$isForwarded;
         $message   = $forwarded
             ? "PICA berhasil disimpan dan diteruskan ke: {$relationShip}."
             : 'PICA berhasil disimpan.';
@@ -283,6 +292,41 @@ class PicaController extends Controller
         );
     }
 
+    /**
+     * Buang kolom milik tahap lain.
+     *
+     * PICA diisi bergiliran: auditor, unit usaha, lalu pihak Relation Ship.
+     * Tanpa batas ini, isian satu tahap bisa hilang tertimpa tahap berikutnya
+     * -- yang persis terjadi pada Problem Identification milik unit usaha.
+     */
+    private function kolomYangBolehDiubah(array $data, string $role, bool $isForwarded): array
+    {
+        if ($isForwarded) {
+            return array_diff_key($data, array_flip([...self::KOLOM_PUSAT, ...self::KOLOM_CABANG]));
+        }
+
+        if (in_array($role, self::BRANCH_ROLES, true)) {
+            return array_diff_key($data, array_flip([...self::KOLOM_PUSAT, ...self::KOLOM_TANGGAPAN]));
+        }
+
+        return $data;
+    }
+
+    /**
+     * Sisakan hanya kolom yang benar-benar ada di tabel.
+     *
+     * Beberapa kolom alur PICA (tanggapan, re-chek) baru dibuat lewat migration
+     * terbaru. Kalau hosting belum menjalankannya, menyimpan kolom itu bikin
+     * seluruh simpanan gagal dengan "Server Error" -- padahal sisanya baik-baik
+     * saja. Lebih baik kolom barunya yang dilewati.
+     */
+    private function kolomYangAdaDiTabel(array $data): array
+    {
+        $kolom = \Illuminate\Support\Facades\Schema::getColumnListing('picas');
+
+        return array_intersect_key($data, array_flip($kolom));
+    }
+
     private function validatePayload(array $payload, bool $isCreate): array
     {
         $rules = [
@@ -296,6 +340,7 @@ class PicaController extends Controller
             'problem' => ['nullable', 'string'],
             'current_condition' => ['nullable', 'string'],
             'problem_identification' => ['nullable', 'string'],
+            'tanggapan_pica' => ['nullable', 'string'],
             'root_cause' => ['nullable', 'string'],
             'corrective_action' => ['nullable', 'string'],
             'preventive_action' => ['nullable', 'string'],
@@ -333,6 +378,7 @@ class PicaController extends Controller
             'picaNo' => 'pica_no',
             'rootCause' => 'root_cause',
             'correctiveAction' => 'corrective_action',
+            'tanggapanPica' => 'tanggapan_pica',
             'preventiveAction' => 'preventive_action',
             'targetDate' => 'target_date',
             'actualDate' => 'actual_date',

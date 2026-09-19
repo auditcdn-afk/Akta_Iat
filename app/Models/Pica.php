@@ -19,6 +19,7 @@ class Pica extends Model
         'problem',
         'current_condition',
         'problem_identification',
+        'tanggapan_pica',
         'root_cause',
         'corrective_action',
         'preventive_action',

@@ -26,9 +26,50 @@ function authHeaders() {
 }
 
 const BRANCH_ROLES = ['h1', 'h2', 'unit', 'bpk'];
+const HO_ROLES = ['admin', 'manajer', 'auditor', 'koordinator', 'coo'];
 
 function isBranchRole() {
     return BRANCH_ROLES.includes(currentUser?.role);
+}
+
+function myUnit() {
+    return currentUser?.unitUsaha || currentUser?.unit_usaha || '';
+}
+
+/**
+ * PICA diisi bergiliran, dan tiap giliran punya kolomnya sendiri:
+ *
+ *   pusat    - auditor/manajer: Judul, Current Condition
+ *   cabang   - unit usaha pemilik PICA: Problem Identification s/d Relation Ship
+ *   relation - pihak yang ditunjuk di Relation Ship: Tanggapan PICA
+ *
+ * Unit usaha pemilik PICA selalu berperan sebagai cabang, sekalipun namanya
+ * sendiri tertulis di kolom Relation Ship.
+ */
+function peranPada(item) {
+    if (HO_ROLES.includes(currentUser?.role)) {
+        return 'pusat';
+    }
+
+    const unit = myUnit();
+    const pemilik = !!(unit && item?.unit_usaha === unit);
+
+    if (!pemilik && unit && (
+        item?.forwarded_to_unit === unit ||
+        (item?.relation_ship && item.relation_ship.includes(unit)) ||
+        (item?.relation_ship2 && item.relation_ship2.includes(unit))
+    )) {
+        return 'relation';
+    }
+
+    return isBranchRole() ? 'cabang' : 'pusat';
+}
+
+function setBisaDiisi(ids, bisa) {
+    ids.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !bisa;
+    });
 }
 
 function canManagePicas() {
@@ -260,15 +301,11 @@ function renderPicas() {
             `
             : '';
 
-        const isBranch = isBranchRole();
-        const myUnit = currentUser?.unitUsaha || currentUser?.unit_usaha;
-        // PICA diteruskan ke unit user ini: cek forwarded_to_unit, atau fallback ke relation_ship fields
-        const forwardedByColumn = item.forwarded_to_unit && myUnit && item.forwarded_to_unit === myUnit;
-        const forwardedByRelation = myUnit && !forwardedByColumn && (
-            (item.relation_ship && item.relation_ship.includes(myUnit)) ||
-            (item.relation_ship2 && item.relation_ship2.includes(myUnit))
-        );
-        const isForwardedToMe = forwardedByColumn || forwardedByRelation;
+        // Giliran dihitung sekali di satu tempat (lihat peranPada) supaya daftar
+        // dan formulir tidak pernah berbeda pendapat soal siapa yang mengisi.
+        const peran = peranPada(item);
+        const isBranch = peran === 'cabang';
+        const isForwardedToMe = peran === 'relation';
         // Forwarded party dianggap sudah mengisi jika ada field forwarded_filled_at (set saat mereka simpan)
         const forwardedAlreadyFilled = isForwardedToMe && !!item.forwarded_filled_at;
 
@@ -278,16 +315,20 @@ function renderPicas() {
             ? `<button type="button" class="delete-pica ml-2 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${item.id}">Hapus</button>`
             : '';
 
-        let actions;
-        if (isForwardedToMe && !forwardedAlreadyFilled) {
-            // Pihak Relation Ship: hanya tombol Isi
-            actions = `
-                <button type="button" class="edit-pica rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/10" data-id="${item.id}">
-                    Isi
+        // Sudah mengisi bukan berarti terkunci: selama tahap berikutnya belum
+        // berjalan, yang mengisi masih boleh membetulkan isiannya sendiri.
+        const tombolIsi = (label, kelas) => `
+                <button type="button" class="edit-pica rounded-lg border ${kelas} px-3 py-1.5 text-xs font-semibold" data-id="${item.id}">
+                    ${label}
                 </button>
             `;
-        } else if (isForwardedToMe && forwardedAlreadyFilled) {
-            actions = '<span class="text-xs text-emerald-500">✓ Sudah diisi</span>';
+
+        let actions;
+        if (isForwardedToMe) {
+            const terkunci = !!item.recheck_at;
+            actions = terkunci
+                ? '<span class="text-xs text-emerald-500">✓ Sudah diisi</span>'
+                : `${tombolIsi(forwardedAlreadyFilled ? '✓ Perbaiki' : 'Isi', 'border-amber-500/40 text-amber-300 hover:bg-amber-500/10')}`;
         } else if (!canManagePicas()) {
             actions = '<span class="text-xs text-slate-500">Read only</span>';
         } else if (isBranch && item.forwarded_filled_at) {
@@ -302,7 +343,7 @@ function renderPicas() {
                 </button>
             `;
         } else if (isBranch && branchAlreadyFilled) {
-            actions = '<span class="text-xs text-emerald-500">✓ Sudah diisi</span>';
+            actions = tombolIsi('✓ Perbaiki', 'border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10');
         } else {
             const editLabel = isBranch ? 'Isi' : 'Edit';
             actions = `
@@ -395,6 +436,38 @@ function renderPicas() {
     }).join('');
 }
 
+const KOLOM_PUSAT   = ['title', 'currentCondition', 'notes'];
+const KOLOM_CABANG  = ['problemIdentification', 'correctiveAction', 'pic', 'targetDate', 'relationShip', 'relationShip2'];
+const KOLOM_TANGGAPAN = ['tanggapanPica'];
+
+const PETUNJUK_GILIRAN = {
+    pusat: 'PICA wajib terhubung ke rekomendasi audit.',
+    cabang: 'Giliran unit usaha: isi Problem Identification, Corrective Action, PIC, Deadline, dan Relation Ship.',
+    relation: 'Giliran pihak Relation Ship: isi Tanggapan PICA. Isian unit usaha di atas tidak bisa diubah.',
+};
+
+/** Buka hanya kolom milik giliran yang sedang mengisi, kunci sisanya. */
+function aturKolomPerGiliran(peran) {
+    setBisaDiisi(KOLOM_PUSAT, peran === 'pusat');
+    setBisaDiisi(KOLOM_CABANG, peran === 'pusat' || peran === 'cabang');
+    setBisaDiisi(KOLOM_TANGGAPAN, peran === 'pusat' || peran === 'relation');
+
+    const hint = document.getElementById('picaModalHint');
+    if (hint) hint.textContent = PETUNJUK_GILIRAN[peran] || PETUNJUK_GILIRAN.pusat;
+}
+
+/**
+ * Tanggapan Relation Ship dulu menumpang di kolom problem_identification.
+ * Baris lama dari hosting yang belum menjalankan migration masih begitu.
+ */
+function tanggapanDari(item) {
+    if (item.tanggapan_pica) return item.tanggapan_pica;
+
+    return item.forwarded_filled_at && item.tanggapan_pica === undefined
+        ? (item.problem_identification || '')
+        : '';
+}
+
 function openModal(item = null) {
     const modal = document.getElementById('picaModal');
     const title = document.getElementById('picaModalTitle');
@@ -402,7 +475,7 @@ function openModal(item = null) {
     document.getElementById('picaForm').reset();
 
     if (item) {
-        title.textContent = 'Edit PICA';
+        title.textContent = peranPada(item) === 'pusat' ? 'Edit PICA' : 'Isi PICA';
 
         document.getElementById('picaId').value = item.id;
         if (document.getElementById('auditRecommendationId')) document.getElementById('auditRecommendationId').value = item.audit_recommendation_id || '';
@@ -410,8 +483,7 @@ function openModal(item = null) {
         document.getElementById('title').value = item.title || '';
         document.getElementById('currentCondition').value = item.current_condition || '';
         document.getElementById('problemIdentification').value = item.problem_identification || '';
-        const piReadonly = document.getElementById('problemIdentificationReadonly');
-        if (piReadonly) piReadonly.value = item.problem_identification || '';
+        document.getElementById('tanggapanPica').value = tanggapanDari(item);
         document.getElementById('correctiveAction').value = item.corrective_action || '';
         document.getElementById('pic').value = item.pic || '';
         document.getElementById('relationShip').value = item.relation_ship || '';
@@ -428,29 +500,7 @@ function openModal(item = null) {
         const unitWrap = document.getElementById('unitUsahaWrap');
         if (unitWrap) unitWrap.classList.toggle('hidden', !isAdminOrMgr);
 
-        // Cabang ATAU pihak Relation Ship hanya bisa isi kolom tertentu
-        const _myUnit = currentUser?.unitUsaha || currentUser?.unit_usaha;
-        const _fwdByCol = item.forwarded_to_unit && _myUnit && item.forwarded_to_unit === _myUnit;
-        const _fwdByRel = _myUnit && !_fwdByCol && (
-            (item.relation_ship && item.relation_ship.includes(_myUnit)) ||
-            (item.relation_ship2 && item.relation_ship2.includes(_myUnit))
-        );
-        const isForwardedToMe = _fwdByCol || _fwdByRel;
-        const restrictedMode = isBranchRole() || isForwardedToMe;
-        // Field yang TIDAK boleh diubah
-        ['title','currentCondition','notes']
-            .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = restrictedMode; });
-        // Field yang bisa diisi (aktifkan hanya yg editable)
-        ['problemIdentification','targetDate']
-            .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
-        // Field info cabang selalu read-only
-        ['correctiveAction','pic','relationShip','relationShip2']
-            .forEach(id => { const el = document.getElementById(id); if (el) el.disabled = true; });
-
-        // Forwarded party mengisi form baru — kosongkan Tanggapan PICA agar tidak terisi data cabang
-        if (isForwardedToMe) {
-            document.getElementById('problemIdentification').value = '';
-        }
+        aturKolomPerGiliran(peranPada(item));
     } else {
         title.textContent = 'Tambah PICA';
 
@@ -459,6 +509,8 @@ function openModal(item = null) {
         document.getElementById('status').value = 'open';
         const unitWrap = document.getElementById('unitUsahaWrap');
         if (unitWrap) unitWrap.classList.add('hidden');
+
+        aturKolomPerGiliran('pusat');
     }
 
     modal.classList.remove('hidden');
@@ -481,6 +533,7 @@ function getFormPayload() {
         title: emptyToNull(document.getElementById('title').value),
         current_condition: emptyToNull(document.getElementById('currentCondition').value),
         problem_identification: emptyToNull(document.getElementById('problemIdentification').value),
+        tanggapan_pica: emptyToNull(document.getElementById('tanggapanPica').value),
         corrective_action: emptyToNull(document.getElementById('correctiveAction').value),
         pic: emptyToNull(document.getElementById('pic').value),
         relation_ship: emptyToNull(document.getElementById('relationShip').value),
@@ -500,14 +553,9 @@ async function savePica(event) {
     const id = document.getElementById('picaId').value;
     const isEdit = Boolean(id);
 
-    // Cek apakah user adalah forwarded party untuk PICA ini
+    // Pihak Relation Ship boleh menyimpan walau role-nya tidak mengelola PICA.
     const currentPica = isEdit ? picas.find(p => String(p.id) === String(id)) : null;
-    const myUnit = currentUser?.unitUsaha || currentUser?.unit_usaha;
-    const isForwardedParty = currentPica && myUnit && (
-        currentPica.forwarded_to_unit === myUnit ||
-        (currentPica.relation_ship && currentPica.relation_ship.includes(myUnit)) ||
-        (currentPica.relation_ship2 && currentPica.relation_ship2.includes(myUnit))
-    );
+    const isForwardedParty = !!currentPica && peranPada(currentPica) === 'relation';
 
     if (!canManagePicas() && !isForwardedParty) {
         showAlert('Role kamu hanya boleh melihat data.', 'error');
@@ -675,7 +723,7 @@ function openViewModal(item) {
         <hr class="border-slate-800">
         <p class="text-xs font-semibold uppercase text-slate-500">— Tanggapan Relation Ship —</p>
         ${item.forwarded_filled_at
-            ? fieldRow('Tanggapan PICA', item.problem_identification, true)
+            ? fieldRow('Tanggapan PICA', tanggapanDari(item), true)
             : '<div class="text-xs text-slate-600 italic">Belum ada tanggapan.</div>'}
         <hr class="border-slate-800">
         <p class="text-xs font-semibold uppercase text-slate-500">— Re-Chek Unit Usaha —</p>
