@@ -28,6 +28,11 @@
                 <option value="ditolak">Ditolak</option>
             </select>
 
+            <button id="openImporSkButton" type="button"
+                class="hidden rounded-xl border border-indigo-500/50 px-4 py-2 text-sm font-semibold text-indigo-300 transition hover:bg-indigo-500/10">
+                Import SK Lama
+            </button>
+
             <button id="openCreateSkButton" type="button"
                 class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500">
                 Tambah
@@ -366,6 +371,78 @@
                     class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">Tutup</button>
             </div>
         </form>
+    </div>
+</div>
+
+{{-- Modal Import SK Lama (arsip dari aplikasi AppSheet) --}}
+<div id="imporSkModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 px-4 py-8">
+    <div class="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+            <div>
+                <h3 class="text-lg font-bold">Import SK Lama</h3>
+                <p class="text-sm text-slate-400">
+                    Arsip SK dari aplikasi sebelumnya. Masuk sebagai berkas riwayat berstatus
+                    <span class="font-semibold text-emerald-300">Selesai</span> — tanpa persetujuan ulang,
+                    tanpa distribusi, dan tanpa tagihan pembebanan.
+                </p>
+            </div>
+
+            <button id="closeImporSkModal" type="button"
+                class="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">
+                Tutup
+            </button>
+        </div>
+
+        <div class="space-y-4 px-5 py-5">
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Berkas ZIP berisi PDF SK <span class="text-red-400">*</span></label>
+                    <input id="imporSkZip" type="file" accept=".zip"
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-300 outline-none focus:border-indigo-500">
+                    <p class="mt-1 text-xs text-slate-500">
+                        Nomor SK dan unit usaha dibaca dari nama berkasnya, mis. <code>CDN.SK.2025.005.IAT CSC TDB.pdf</code>.
+                    </p>
+                </div>
+
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-300">Ekspor tabel SK <span class="text-xs text-slate-500">(opsional)</span></label>
+                    <input id="imporSkMeta" type="file" accept=".xlsx,.xls,.csv"
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-300 outline-none focus:border-indigo-500">
+                    <p class="mt-1 text-xs text-slate-500">
+                        Kalau ada, No SPT dan poin Memutuskan diambil dari sini — lebih tepat daripada dibaca dari PDF.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <button id="imporSkPratinjauBtn" type="button"
+                    class="rounded-xl border border-indigo-500/50 px-4 py-2 text-sm font-semibold text-indigo-300 hover:bg-indigo-500/10">
+                    Periksa Dulu
+                </button>
+
+                <button id="imporSkSimpanBtn" type="button" disabled
+                    class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40">
+                    Simpan
+                </button>
+
+                <span id="imporSkRingkasan" class="text-sm text-slate-400"></span>
+            </div>
+
+            <div id="imporSkHasil" class="hidden overflow-hidden rounded-xl border border-slate-800">
+                <table class="min-w-full divide-y divide-slate-800 text-sm">
+                    <thead class="bg-slate-950/60">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">No SK</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Unit Usaha</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">No SPT</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Memutuskan</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Keadaan</th>
+                        </tr>
+                    </thead>
+                    <tbody id="imporSkHasilBody" class="divide-y divide-slate-800"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 @endsection
