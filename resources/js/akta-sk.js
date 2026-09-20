@@ -1407,10 +1407,176 @@ function formatDateTime(value) {
     return String(value).replace("T", " ").slice(0, 19);
 }
 
+
+/* ── Import SK lama (arsip dari aplikasi AppSheet) ─────────────────────────
+ *
+ * Dua langkah dengan sengaja: "Periksa Dulu" hanya membaca ZIP-nya dan
+ * menunjukkan apa yang akan masuk, tanpa menulis satu baris pun. Yang
+ * disimpan baru terjadi setelah isinya dilihat.
+ */
+
+function openImporModal() {
+    const modal = document.getElementById("imporSkModal");
+    if (!modal) return;
+
+    document.getElementById("imporSkZip").value = "";
+    document.getElementById("imporSkMeta").value = "";
+    document.getElementById("imporSkRingkasan").textContent = "";
+    document.getElementById("imporSkHasil").classList.add("hidden");
+    document.getElementById("imporSkHasilBody").innerHTML = "";
+    document.getElementById("imporSkSimpanBtn").disabled = true;
+    document.getElementById("imporSkSimpanBtn").textContent = "Simpan";
+
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+
+function closeImporModal() {
+    const modal = document.getElementById("imporSkModal");
+    modal?.classList.add("hidden");
+    modal?.classList.remove("flex");
+}
+
+const LENCANA_KEADAAN = {
+    baru: "border-emerald-500/40 text-emerald-300",
+    "sudah ada": "border-slate-600 text-slate-400",
+    gagal: "border-red-500/40 text-red-300",
+};
+
+function renderImporHasil(baris) {
+    const body = document.getElementById("imporSkHasilBody");
+
+    body.innerHTML = baris
+        .map(
+            (b) => `
+            <tr class="hover:bg-slate-950/50">
+                <td class="px-3 py-2 align-top">
+                    <div class="font-semibold text-slate-100">${escapeHtml(b.no_sk || "-")}</div>
+                    <div class="text-xs text-slate-500">${escapeHtml(b.berkas || "")}</div>
+                </td>
+                <td class="px-3 py-2 align-top text-slate-300">${escapeHtml(b.unit_usaha || "-")}</td>
+                <td class="px-3 py-2 align-top text-slate-300">${escapeHtml(b.no_spt || "-")}</td>
+                <td class="px-3 py-2 align-top text-slate-400">
+                    <div class="max-w-md truncate">${escapeHtml((b.memutuskan || "—").replace(/\s+/g, " "))}</div>
+                </td>
+                <td class="px-3 py-2 align-top">
+                    <span class="inline-flex rounded-full border px-2 py-0.5 text-xs font-bold ${LENCANA_KEADAAN[b.keadaan] || LENCANA_KEADAAN.gagal}">
+                        ${escapeHtml(b.keadaan || "-")}
+                    </span>
+                    ${b.catatan ? `<div class="mt-1 max-w-xs text-xs text-amber-400/80">${escapeHtml(b.catatan)}</div>` : ""}
+                </td>
+            </tr>`
+        )
+        .join("");
+
+    document.getElementById("imporSkHasil").classList.remove("hidden");
+}
+
+async function kirimImpor({ pratinjau }) {
+    const zip = document.getElementById("imporSkZip").files?.[0];
+
+    if (!zip) {
+        showAlert("Berkas ZIP wajib dipilih.", "error");
+        return null;
+    }
+
+    const formData = new FormData();
+    formData.append("file", zip);
+
+    const meta = document.getElementById("imporSkMeta").files?.[0];
+    if (meta) formData.append("meta", meta);
+    if (pratinjau) formData.append("pratinjau", "1");
+
+    const session = getSession();
+    const response = await fetch("/api/sk/impor-arsip", {
+        method: "POST",
+        headers: {
+            Accept: "application/json",
+            Authorization: `${session?.tokenType || "Bearer"} ${session?.token}`,
+        },
+        body: formData,
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        const firstError = payload.errors ? Object.values(payload.errors).flat()[0] : null;
+        throw new Error(firstError || payload.message || "Request gagal.");
+    }
+
+    return payload;
+}
+
+async function pratinjauImpor() {
+    const btn = document.getElementById("imporSkPratinjauBtn");
+    const simpanBtn = document.getElementById("imporSkSimpanBtn");
+
+    btn.textContent = "Membaca...";
+    btn.disabled = true;
+
+    try {
+        const payload = await kirimImpor({ pratinjau: true });
+        if (!payload) return;
+
+        const r = payload.ringkasan || {};
+        document.getElementById("imporSkRingkasan").textContent =
+            `${r.baru || 0} akan masuk · ${r.sudah_ada || 0} sudah ada · ${r.gagal || 0} tidak terbaca`;
+
+        renderImporHasil(payload.baris || []);
+
+        simpanBtn.disabled = !r.baru;
+        simpanBtn.textContent = r.baru ? `Simpan ${r.baru} SK` : "Tidak ada yang perlu disimpan";
+    } catch (error) {
+        showAlert(error.message || "Gagal membaca berkas impor.", "error");
+    } finally {
+        btn.textContent = "Periksa Dulu";
+        btn.disabled = false;
+    }
+}
+
+async function simpanImpor() {
+    const btn = document.getElementById("imporSkSimpanBtn");
+    const teksAwal = btn.textContent;
+
+    btn.textContent = "Menyimpan...";
+    btn.disabled = true;
+
+    try {
+        const payload = await kirimImpor({ pratinjau: false });
+        if (!payload) return;
+
+        renderImporHasil(payload.baris || []);
+        showAlert(payload.message || "Arsip SK berhasil dipindahkan.");
+        await loadSkItems();
+
+        btn.textContent = "Selesai";
+    } catch (error) {
+        showAlert(error.message || "Gagal memindahkan arsip SK.", "error");
+        btn.textContent = teksAwal;
+        btn.disabled = false;
+    }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     document
         .getElementById("openCreateSkButton")
         ?.addEventListener("click", () => openModal());
+
+    document
+        .getElementById("openImporSkButton")
+        ?.addEventListener("click", openImporModal);
+
+    document
+        .getElementById("closeImporSkModal")
+        ?.addEventListener("click", closeImporModal);
+
+    document
+        .getElementById("imporSkPratinjauBtn")
+        ?.addEventListener("click", pratinjauImpor);
+
+    document
+        .getElementById("imporSkSimpanBtn")
+        ?.addEventListener("click", simpanImpor);
 
     document
         .getElementById("closeSkModalButton")
@@ -1609,6 +1775,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             document
                 .getElementById("openCreateSkButton")
                 ?.classList.add("hidden");
+        }
+
+        // Memindahkan arsip menulis banyak baris sekaligus, jadi hanya admin.
+        if (currentUser?.role === "admin") {
+            document
+                .getElementById("openImporSkButton")
+                ?.classList.remove("hidden");
         }
 
         // Keempat pemuatan ini tidak saling bergantung — masing-masing mengisi

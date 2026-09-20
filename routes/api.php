@@ -115,6 +115,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/sk', [SuratKeputusanController::class, 'store'])
         ->middleware('akta.role:admin,manajer,auditor');
 
+    // Pindahan arsip SK dari aplikasi lama (ZIP PDF + ekspor tabel opsional).
+    Route::post('/sk/impor-arsip', [SuratKeputusanController::class, 'imporArsip'])
+        ->middleware('akta.role:admin');
+
     Route::put('/sk/{suratKeputusan}', [SuratKeputusanController::class, 'update'])
         ->middleware('akta.role:admin');
 

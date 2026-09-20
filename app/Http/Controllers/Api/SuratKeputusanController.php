@@ -7,6 +7,7 @@ use App\Models\PlanAudit;
 use App\Models\SkDistribusi;
 use App\Models\SuratKeputusan;
 use App\Models\User;
+use App\Services\ImporSkArsip;
 use App\Services\NotificationDispatcher;
 use App\Services\SkMemutuskanExtractor;
 use Illuminate\Http\JsonResponse;
@@ -38,7 +39,15 @@ class SuratKeputusanController extends Controller
         // plan dari unit usahanya sendiri (distribusi ke mereka tetap lewat
         // endpoint myDistribusi terpisah).
         if (!in_array($user?->role, self::HO_ROLES, true)) {
-            $query->whereHas('planAudit', fn($q) => $q->where('cabang', $user?->unit_usaha));
+            $unitUsaha = $user?->unit_usaha;
+
+            // Arsip SK dari aplikasi lama tidak punya plan audit, jadi unit
+            // usahanya dicocokkan langsung -- tanpa ini cabang tidak pernah
+            // melihat SK lamanya sendiri.
+            $query->where(function ($q) use ($unitUsaha) {
+                $q->whereHas('planAudit', fn($p) => $p->where('cabang', $unitUsaha))
+                    ->orWhere('unit_usaha', $unitUsaha);
+            });
         }
 
         $planAuditId = $request->query('plan_audit_id')
@@ -326,6 +335,60 @@ class SuratKeputusanController extends Controller
         return response()->json([
             'message' => 'Poin Memutuskan berhasil diekstrak ulang.',
             'data' => $suratKeputusan->load('planAudit'),
+        ]);
+    }
+
+    /**
+     * Pindahkan arsip SK dari aplikasi lama (AppSheet) ke aplikasi ini.
+     *
+     * SK yang masuk lewat sini adalah berkas riwayat, bukan pekerjaan yang
+     * masih berjalan: langsung berstatus selesai, tanpa persetujuan ulang dan
+     * tanpa tagihan pembebanan. Dengan "pratinjau" isinya bisa diperiksa dulu
+     * sebelum satu baris pun ditulis ke database.
+     */
+    public function imporArsip(Request $request): JsonResponse
+    {
+        $this->ensureIsAdmin($request);
+
+        $request->validate([
+            'file'      => ['required', 'file', 'mimes:zip', 'max:51200'],
+            'meta'      => ['nullable', 'file', 'mimes:xlsx,xls,csv,txt', 'max:10240'],
+            'pratinjau' => ['nullable'],
+        ]);
+
+        $impor = ImporSkArsip::untuk($request->file('meta')?->getRealPath());
+        $zip   = $request->file('file')->getRealPath();
+
+        if ($request->boolean('pratinjau')) {
+            $baris = $impor->pratinjau($zip);
+
+            return response()->json([
+                'pratinjau' => true,
+                'ringkasan' => [
+                    'baru'      => count(array_filter($baris, fn($b) => $b['keadaan'] === 'baru')),
+                    'sudah_ada' => count(array_filter($baris, fn($b) => $b['keadaan'] === 'sudah ada')),
+                    'gagal'     => count(array_filter($baris, fn($b) => $b['keadaan'] === 'gagal')),
+                ],
+                'baris' => $baris,
+            ]);
+        }
+
+        $hasil = $impor->simpan(
+            $zip,
+            $this->userIdentifier($request),
+            $this->userDisplayName($request)
+        );
+
+        return response()->json([
+            'message' => $hasil['disimpan'] . ' SK arsip berhasil dipindahkan'
+                . ($hasil['dilewati'] ? ', ' . $hasil['dilewati'] . ' dilewati' : '')
+                . ($hasil['gagal'] ? ', ' . $hasil['gagal'] . ' gagal' : '') . '.',
+            'ringkasan' => [
+                'disimpan'  => $hasil['disimpan'],
+                'dilewati'  => $hasil['dilewati'],
+                'gagal'     => $hasil['gagal'],
+            ],
+            'baris' => $hasil['baris'],
         ]);
     }
 
