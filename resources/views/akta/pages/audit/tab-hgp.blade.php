@@ -187,6 +187,19 @@
                                 <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400 w-8">No.</th>
                                 <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400 w-28">No. Part</th>
                                 <th class="px-3 py-2 text-left font-semibold uppercase text-slate-400">Nama Part</th>
+                                {{-- Kolom laporan stok dari berkas import (laporan stok WHS).
+                                     Disembunyikan otomatis kalau berkas yang diimport tidak
+                                     punya kolomnya — lihat hgpHitungKolomStok(). --}}
+                                <th class="hgp-col-stok hidden px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Awal</th>
+                                <th class="hgp-col-stok hidden px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Masuk</th>
+                                <th class="hgp-col-stok hidden px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Keluar</th>
+                                <th class="hgp-col-stok hidden px-3 py-2 text-right font-semibold uppercase text-slate-400 w-14">Adj</th>
+                                <th class="hgp-col-stok hidden px-3 py-2 text-right font-semibold uppercase text-slate-400 w-14">MM1</th>
+                                <th class="hgp-col-stok hidden px-3 py-2 text-right font-semibold uppercase text-slate-400 w-14">MK1</th>
+                                <th class="hgp-col-stok hidden px-3 py-2 text-right font-semibold uppercase text-slate-400 w-14">MM2</th>
+                                <th class="hgp-col-stok hidden px-3 py-2 text-right font-semibold uppercase text-slate-400 w-14">MK2</th>
+                                <th class="hgp-col-stok hidden px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20" title="Faktur Belum Kutip">Fkt Blm Kutip</th>
+                                <th class="hgp-col-stok hidden px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Claim</th>
                                 <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400 w-24">Tgl. Periksa</th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20">Saldo Akhir</th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Fisik (Qty)</th>
