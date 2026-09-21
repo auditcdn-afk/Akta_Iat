@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Concerns\MengunciDataPemeriksaan;
+use App\Http\Controllers\Concerns\PenyegaranRingkas;
 use App\Http\Controllers\Concerns\MenjagaHasilPemeriksaan;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
@@ -18,12 +19,11 @@ class HgaController extends Controller
     use RequiresAuditorAuditee;
     use MenjagaHasilPemeriksaan;
     use MengunciDataPemeriksaan;
+    use PenyegaranRingkas;
 
     public function show(Request $request): JsonResponse
     {
-        $planId = $request->query('plan_audit_id');
-        $rec    = PemeriksaanHga::where('plan_audit_id', $planId)->first();
-        return response()->json(['data' => $rec ? $rec->toAktaArray() : null]);
+        return response()->json($this->jawabanPemeriksaan(PemeriksaanHga::class, $request));
     }
 
     // Simpan-penuh: menulis ULANG seluruh items_json dari apa yang dikirim browser.
@@ -76,7 +76,7 @@ class HgaController extends Controller
                 );
                 if (!$rec->created_by) $rec->update(['created_by' => $who]);
 
-                return response()->json(['message' => 'Data HGA tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+                return response()->json(['message' => 'Data HGA tersimpan.', 'data' => $this->dataDenganSidik($rec->fresh())]);
             });
     }
 

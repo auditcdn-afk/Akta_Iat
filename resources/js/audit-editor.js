@@ -6351,12 +6351,39 @@ function buatPenyegarPemeriksaan(opsi) {
         el.textContent = pesan ? `${pesan} · ${jam}` : `Diperbarui ${jam}`;
     }
 
+    // Versi (waktu perubahan) terakhir yang sudah diserap layar ini. Dikirim
+    // balik ke server supaya penyegaran yang tidak membawa apa-apa cukup
+    // dijawab "tidak ada perubahan" -- bukan mengirim ulang seluruh daftar.
+    let versiTerakhir = null;
+
     async function jalankan({ paksa = false } = {}) {
         if (!paksa && !boleh()) return null;
         if (sedang || !activePlanId) return null;
         sedang = true;
         try {
-            const res = await fetchJson(`${opsi.url}?plan_audit_id=${activePlanId}`, { headers: authHeaders() });
+            const alamat = new URLSearchParams({ plan_audit_id: activePlanId, ringkas: '1' });
+            if (versiTerakhir) alamat.set('versi', versiTerakhir);
+
+            const res = await fetchJson(`${opsi.url}?${alamat}`, { headers: authHeaders() });
+
+            if (res.ringkas) {
+                versiTerakhir = res.versi || versiTerakhir;
+
+                if (!res.berubah) {
+                    tandaiWaktu(null);
+                    return { diperbarui: 0, asing: 0 };
+                }
+
+                // Daftar itemnya sendiri berganti (import ulang / part baru):
+                // yang ringkas tidak cukup, muat penuh sekali.
+                const sidikLokal = opsi.data()?.sidik;
+                if (res.sidik && sidikLokal && res.sidik !== sidikLokal) {
+                    await opsi.muatUlang();
+                    tandaiWaktu('daftar diperbarui');
+                    return { diperbarui: 0, asing: 1 };
+                }
+            }
+
             const hasil = serap(res.data?.items || []);
             // Rekan menambah No. Part baru (Tambah Part Manual / impor ulang):
             // barisnya belum ada di tabel ini, jadi muat penuh sekali.
@@ -6370,7 +6397,11 @@ function buatPenyegarPemeriksaan(opsi) {
         }
     }
 
-    setInterval(() => { jalankan().catch(() => {}); }, 20000);
+    // 10 detik, bukan 20: sejak penyegaran hanya membawa yang berubah (dan 76
+    // byte saat tidak ada perubahan), memeriksanya lebih sering justru murah --
+    // dan makin cepat hasil scan rekan terlihat, makin kecil peluang satu part
+    // dihitung dua kali oleh dua auditor.
+    setInterval(() => { jalankan().catch(() => {}); }, 10000);
 
     // Tombol manual: selalu jalan (kecuali antreannya sendiri belum terkirim),
     // dan hasilnya dikatakan ke auditor supaya jelas sudah sinkron atau belum.
@@ -6474,6 +6505,7 @@ async function hgpHandleFile(file) {
         _doSaveHgp('import').then(async (saved) => {
             if (!Array.isArray(saved?.data?.items)) return;
             _hgpData.items = saved.data.items;
+            if (saved.data.sidik) _hgpData.sidik = saved.data.sidik;
             _hgpData.items.forEach(it => hgpCalcItem(it));
             await hgpEnrichWithHet(_hgpData.items);
             hgpRenderItems();
@@ -6819,7 +6851,7 @@ async function loadHgpTab() {
     // kosong) — sebelumnya hanya ditimpa kalau items tidak kosong, jadi kalau
     // pindah ke plan lain yang belum ada data HGP-nya, _hgpData tetap berisi
     // data plan sebelumnya dan bisa ikut tersimpan ke plan yang salah.
-    _hgpData = (res.data && Array.isArray(res.data.items)) ? { items: res.data.items } : hgpEmptyData();
+    _hgpData = (res.data && Array.isArray(res.data.items)) ? { items: res.data.items, sidik: res.data.sidik } : hgpEmptyData();
     (_hgpData.items || []).forEach(it => hgpCalcItem(it));
     await hgpEnrichWithHet(_hgpData.items);
     hgpRenderItems();
@@ -7403,6 +7435,7 @@ async function rsaHgpHandleFile(file) {
         _doSaveRsaHgp('import').then(async (saved) => {
             if (!Array.isArray(saved?.data?.items)) return;
             _rsaHgpData.items = saved.data.items;
+            if (saved.data.sidik) _rsaHgpData.sidik = saved.data.sidik;
             _rsaHgpData.items.forEach(it => rsaHgpCalcItem(it));
             await rsaHgpEnrichWithHet(_rsaHgpData.items);
             rsaHgpRenderItems();
@@ -7748,7 +7781,7 @@ async function loadRsaHgpTab() {
     // pindah ke plan lain yang belum ada data RSA HGP-nya, _rsaHgpData tetap
     // berisi data plan sebelumnya dan bisa ikut tersimpan ke plan yang salah.
     _rsaHgpData = (res.data && Array.isArray(res.data.items))
-        ? { items: res.data.items, totalDitemukan: res.data.totalDitemukan, sampleSize: res.data.sampleSize }
+        ? { items: res.data.items, sidik: res.data.sidik, totalDitemukan: res.data.totalDitemukan, sampleSize: res.data.sampleSize }
         : rsaHgpEmptyData();
     (_rsaHgpData.items || []).forEach(it => rsaHgpCalcItem(it));
     await rsaHgpEnrichWithHet(_rsaHgpData.items);
@@ -8609,6 +8642,7 @@ async function hgaHandleFile(file) {
         _doSaveHga('import').then(async (saved) => {
             if (!Array.isArray(saved?.data?.items)) return;
             _hgaData.items = saved.data.items;
+            if (saved.data.sidik) _hgaData.sidik = saved.data.sidik;
             _hgaData.items.forEach(it => hgaCalcItem(it));
             await hgaEnrichWithHet(_hgaData.items);
             hgaRenderItems();
@@ -8701,7 +8735,7 @@ async function loadHgaTab() {
     // kosong) — sebelumnya hanya ditimpa kalau items tidak kosong, jadi kalau
     // pindah ke plan lain yang belum ada data HGA-nya, _hgaData tetap berisi
     // data plan sebelumnya dan bisa ikut tersimpan ke plan yang salah.
-    _hgaData = (res.data && Array.isArray(res.data.items)) ? { items: res.data.items } : hgaEmptyData();
+    _hgaData = (res.data && Array.isArray(res.data.items)) ? { items: res.data.items, sidik: res.data.sidik } : hgaEmptyData();
     (_hgaData.items || []).forEach(it => hgaCalcItem(it));
     await hgaEnrichWithHet(_hgaData.items);
     hgaRenderItems();
