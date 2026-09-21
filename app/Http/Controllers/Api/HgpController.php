@@ -177,6 +177,52 @@ class HgpController extends Controller
             });
     }
 
+    /**
+     * Ganti judul kolom yang menambah hitungan fisik (bawaannya "WO").
+     *
+     * Yang dihitung tidak berubah sama sekali -- hanya namanya, sebab tiap
+     * cabang menyebutnya berbeda (titipan, display, retur, dan seterusnya).
+     * Dibuat endpoint sendiri, bukan lewat simpan-penuh, supaya mengganti
+     * nama tidak perlu mengirim ulang seluruh daftar item.
+     */
+    public function gantiLabelWo(Request $request): JsonResponse
+    {
+        $planId = $request->input('planAuditId') ?? $request->input('plan_audit_id');
+
+        $data = $request->validate([
+            'label' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        abort_unless($planId, 422, 'plan_audit_id wajib diisi.');
+
+        $label = trim((string) ($data['label'] ?? ''));
+        $who   = $request->user()?->username ?? $request->user()?->email;
+
+        // Kolomnya baru ada lewat migration terbaru. Kalau hosting belum
+        // menjalankannya, katakan apa adanya -- jangan jatuh jadi "Server Error".
+        abort_unless(
+            \Illuminate\Support\Facades\Schema::hasColumn('pemeriksaan_hgp', 'label_wo'),
+            422,
+            'Struktur database belum diperbarui untuk mengganti judul kolom ini. '
+                . 'Jalankan pembaruan struktur database (/deploy/migrate) lebih dulu.'
+        );
+
+        return $this->denganKunciPemeriksaan(PemeriksaanHgp::class, $planId,
+            function (?PemeriksaanHgp $rec) use ($planId, $label, $who) {
+                $rec = $rec ?? new PemeriksaanHgp(['plan_audit_id' => $planId]);
+
+                // Dikosongkan = kembali ke judul bawaan.
+                $rec->label_wo   = $label !== '' ? $label : null;
+                $rec->updated_by = $who;
+                $rec->save();
+
+                return response()->json([
+                    'message' => 'Judul kolom disimpan.',
+                    'labelWo' => $rec->label_wo ?: PemeriksaanHgp::LABEL_WO_BAWAAN,
+                ]);
+            });
+    }
+
     // Tambah 1 No. Part manual (tombol "+ Tambah Part Manual") lewat baca-ubah-simpan
     // di server — bukan push ke array lokal browser lalu kirim ulang seluruh array
     // (rawan sama seperti masalah di scanIncrement: snapshot stale 1 auditor bisa
@@ -718,9 +764,11 @@ class HgpController extends Controller
         ];
 
         $spreadsheet = new Spreadsheet();
-        $this->tulisSheetSelisih($spreadsheet->getActiveSheet(), "AHM OIL'S", $infoLines, $oilBaris);
+        $labelWo = $rec?->label_wo ?: PemeriksaanHgp::LABEL_WO_BAWAAN;
+
+        $this->tulisSheetSelisih($spreadsheet->getActiveSheet(), "AHM OIL'S", $infoLines, $oilBaris, $labelWo);
         $sheetSparepart = $spreadsheet->createSheet();
-        $this->tulisSheetSelisih($sheetSparepart, 'SPAREPART', $infoLines, $sparepartBaris);
+        $this->tulisSheetSelisih($sheetSparepart, 'SPAREPART', $infoLines, $sparepartBaris, $labelWo);
         $spreadsheet->setActiveSheetIndex(0);
 
         $filename = 'hgp-selisih-' . ($plan->no_spt ?? $planId) . '-' . now()->format('Y-m-d_H-i') . '.xlsx';
@@ -738,7 +786,8 @@ class HgpController extends Controller
         \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet,
         string $judul,
         array $infoLines,
-        array $baris
+        array $baris,
+        string $labelWo = PemeriksaanHgp::LABEL_WO_BAWAAN
     ): void {
         // Nama sheet Excel tidak boleh mengandung karakter ' \ / ? * [ ] dan
         // maksimal 31 karakter — "AHM OIL'S" punya tanda kutip, jadi dibersihkan.
@@ -754,7 +803,7 @@ class HgpController extends Controller
         $sheet->setCellValue([1, $judulRow], $judul . ' (' . count($baris) . ' item selisih)');
         $sheet->getStyle('A' . $judulRow)->getFont()->setBold(true)->setSize(12);
 
-        $headers = ['No', 'No. Part', 'Nama Sparepart', 'Tanggal', 'Saldo', 'Fisik', 'WO', 'Akhir', 'Selisih', 'Harga HET', 'Jumlah', 'Keterangan'];
+        $headers = ['No', 'No. Part', 'Nama Sparepart', 'Tanggal', 'Saldo', 'Fisik', $labelWo, 'Akhir', 'Selisih', 'Harga HET', 'Jumlah', 'Keterangan'];
         $headerRow = $judulRow + 1;
         foreach ($headers as $i => $header) {
             $sheet->setCellValue([$i + 1, $headerRow], $header);

@@ -203,7 +203,16 @@
                                 <th class="px-3 py-2 text-center font-semibold uppercase text-slate-400 w-24">Tgl. Periksa</th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20">Saldo Akhir</th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Fisik (Qty)</th>
-                                <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16 text-amber-400" title="Work Order — menambah Fisik Qty">WO</th>
+                                {{-- Judul kolom ini bisa diganti per plan audit (mis. Titipan,
+                                     Display, Retur). Isinya tetap sama: menambah Fisik Qty. --}}
+                                <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-20 text-amber-400">
+                                    <button type="button" id="hgpLabelWoBtn"
+                                        class="inline-flex items-center gap-1 uppercase text-amber-400 hover:text-amber-300"
+                                        title="Menambah Fisik Qty — klik untuk mengganti judul kolom ini">
+                                        <span id="hgpLabelWo">WO</span>
+                                        <span class="text-[10px] opacity-60">✎</span>
+                                    </button>
+                                </th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Akhir</th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-16">Selisih</th>
                                 <th class="px-3 py-2 text-right font-semibold uppercase text-slate-400 w-24">Harga HET</th>
