@@ -188,19 +188,20 @@ class BpkbOnhandController extends Controller
         $noBpkb = trim($data['no_bpkb']);
         $force  = (bool) ($data['force'] ?? false);
 
-        // No. BPKB di data import biasanya berformat "U-04886028", tapi hasil scan
-        // barcode fisiknya kadang tidak membawa tanda "-" ("U04886028") — kalau
-        // dicocokkan persis, unit yang sebenarnya sama jadi dianggap "di luar onhand".
-        // Bandingkan juga versi tanpa strip/spasi supaya tetap dikenali sebagai unit
-        // yang sama (sama seperti perbaikan No. Mesin/Rangka SMH & No. Part HGP/HGA).
-        $noBpkbNorm = strtoupper(preg_replace('/[\s\-]+/', '', $noBpkb));
+        // Dicari SEPERTI YANG DIKIRIM lebih dulu. Sebagian No. BPKB memang
+        // memuat spasi beserta huruf di belakangnya ("I-04308002 D"), dan itu
+        // bagian dari nomornya -- bukan embel-embel hasil scan.
+        $item = $this->cariOnhand($planId, $noBpkb);
 
-        $item = BpkbOnhandItem::where('plan_audit_id', $planId)
-            ->where(function ($q) use ($noBpkb, $noBpkbNorm) {
-                $q->where('no_bpkb', $noBpkb)
-                  ->orWhereRaw("UPPER(REPLACE(REPLACE(no_bpkb, '-', ''), ' ', '')) = ?", [$noBpkbNorm]);
-            })
-            ->first();
+        // Baru kalau tidak ketemu, embel-embel hasil scan barcode dibuang
+        // ("W1840506-BPKB POLRI 2025" -> "W1840506") lalu dicari sekali lagi.
+        if (!$item) {
+            $inti = $this->intiNoBpkb($noBpkb);
+
+            if ($inti !== $noBpkb && $item = $this->cariOnhand($planId, $inti)) {
+                $noBpkb = $inti;
+            }
+        }
 
         if ($item) {
             // Ada di onhand — tandai fisik ada
@@ -217,8 +218,12 @@ class BpkbOnhandController extends Controller
         // Tanpa ini, salah ketik/typo yang tidak sengaja cocok dengan nomor
         // lain langsung membuat baris baru "LUAR" tanpa disadari user.
         if (!$force) {
-            return response()->json(['status' => 'confirm', 'data' => null]);
+            return response()->json(['status' => 'confirm', 'data' => null, 'noBpkb' => $noBpkb]);
         }
+
+        // Yang tercatat sebagai baris baru adalah nomornya saja, tanpa tulisan
+        // lain yang kebetulan ikut terbaca alat scan.
+        $noBpkb = $this->bersihkanNoBpkb($noBpkb);
 
         $item = BpkbOnhandItem::updateOrCreate(
             ['plan_audit_id' => $planId, 'no_bpkb' => $noBpkb],
@@ -230,6 +235,63 @@ class BpkbOnhandController extends Controller
             ]
         );
         return response()->json(['status' => 'outside', 'data' => $item->fresh()->toAktaArray()]);
+    }
+
+    /**
+     * Cari satu baris onhand yang nomornya sama.
+     *
+     * No. BPKB di data import biasanya berformat "U-04886028", tapi hasil scan
+     * barcode fisiknya kadang tidak membawa tanda "-" ("U04886028") — kalau
+     * dicocokkan persis, unit yang sebenarnya sama jadi dianggap "di luar
+     * onhand". Strip dan spasi karena itu diabaikan di kedua sisi (sama seperti
+     * perbaikan No. Mesin/Rangka SMH & No. Part HGP/HGA).
+     */
+    private function cariOnhand(mixed $planId, string $noBpkb): ?BpkbOnhandItem
+    {
+        $norm = strtoupper(preg_replace('/[\s\-]+/', '', $noBpkb) ?? '');
+
+        if ($norm === '') {
+            return null;
+        }
+
+        return BpkbOnhandItem::where('plan_audit_id', $planId)
+            ->where(function ($q) use ($noBpkb, $norm) {
+                $q->where('no_bpkb', $noBpkb)
+                  ->orWhereRaw("UPPER(REPLACE(REPLACE(no_bpkb, '-', ''), ' ', '')) = ?", [$norm]);
+            })
+            ->first();
+    }
+
+    /** Bagian nomor saja: huruf + angka di depan ("W1840506-BPKB POLRI" -> "W1840506"). */
+    private function intiNoBpkb(string $noBpkb): string
+    {
+        return preg_match('/^([A-Za-z]+-?\d+)/', $noBpkb, $m) ? strtoupper($m[1]) : $noBpkb;
+    }
+
+    /**
+     * Nomor untuk baris "Fisik Diluar On Hand".
+     *
+     * Alat scan kadang ikut membaca tulisan lain di lembar BPKB ("W1840506-BPKB
+     * POLRI 2025"); itu dibuang. Tapi huruf pendek di belakang nomor
+     * ("I-04308002 D") memang bagian dari nomornya dan harus ikut tersimpan --
+     * membuangnya membuat dua BPKB berbeda tercatat dengan nomor yang sama.
+     */
+    private function bersihkanNoBpkb(string $noBpkb): string
+    {
+        $inti = $this->intiNoBpkb($noBpkb);
+        $sisa = trim(mb_substr($noBpkb, mb_strlen($inti)));
+
+        if ($sisa === '') {
+            return $noBpkb;
+        }
+
+        foreach (preg_split('/[\s\-]+/', $sisa, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $kata) {
+            if (mb_strlen($kata) >= 4) {
+                return $inti;   // ada kata utuh: itu tulisan lain, bukan bagian nomor
+            }
+        }
+
+        return $noBpkb;
     }
 
     // ── DELETE /api/audit-detail/bpkb/scan/{item} ────────────────────────────

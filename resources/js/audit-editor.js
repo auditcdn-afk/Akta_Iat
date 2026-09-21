@@ -3144,28 +3144,54 @@ async function bpkbUnscan(e) {
 }
 
 // Barcode scanner kadang ikut membaca teks tambahan setelah No BPKB (mis.
-// "W1840506-BPKB POLRI 2025"). No BPKB sendiri selalu berbentuk huruf +
-// opsional strip + angka (contoh: "Q-07856595", "W1840506") — ambil bagian
-// itu saja, buang sisanya. Kalau hasil scan tidak cocok pola ini sama
-// sekali, kembalikan apa adanya (fail-safe, jangan sampai menolak input yang
-// valid hanya karena polanya tak terduga).
-function bpkbExtractNoBpkb(raw) {
-    const match = String(raw ?? "").trim().match(/^([A-Za-z]+-?\d+)/);
-    return match ? match[1].toUpperCase() : raw;
-}
+// "W1840506-BPKB POLRI 2025"). Pemangkasan itu SEKARANG DIKERJAKAN SERVER,
+// bukan di sini: sebagian No. BPKB memang memuat spasi beserta huruf di
+// belakangnya ("I-04308002 D"), dan memangkasnya lebih dulu di layar membuat
+// nomor yang sah tidak pernah ketemu -- auditor malah ditawari mencatatnya
+// sebagai "Fisik Diluar On Hand". Server mencari nomor apa adanya dulu, baru
+// memangkas kalau memang tidak ketemu (lihat BpkbOnhandController::scan).
 
 // No BPKB asli selalu jauh lebih panjang dari ini (contoh: "Q-07856595",
 // "V08634123") — di bawah ambang ini kemungkinan besar user masih mengetik
 // atau salah ketik, jadi jangan discan sama sekali (biarkan lanjut mengetik).
 const BPKB_MIN_SCAN_LENGTH = 6;
 
+/**
+ * Scan otomatis sesudah ketikan berhenti — untuk alat scan barcode, yang
+ * mengirim nomornya sekaligus lalu diam.
+ *
+ * Tapi auditor juga mengetik sendiri, dan sebagian No. BPKB punya huruf di
+ * belakang spasi ("I-04308002 D"). Mengetik bagian depannya saja dulu akan
+ * memicu scan atas nomor yang belum utuh, dan yang muncul justru tawaran
+ * mencatatnya sebagai "Fisik Diluar On Hand" — padahal nomornya ada, tinggal
+ * dipilih dari daftar saran. Karena itu: selama daftar saran menampilkan
+ * sesuatu yang BELUM sama persis dengan isi kotaknya, auto-scan menunggu.
+ * Menekan Enter tetap langsung men-scan, apa pun keadaannya.
+ */
+function bpkbAutoScan(q) {
+    const nilai = (document.getElementById("bpkbScanInput")?.value ?? "").trim();
+
+    if (nilai !== q) return;   // sudah berubah lagi, biarkan timer berikutnya
+
+    // Saran belum menyusul untuk kata kunci ini: tunggu sebentar lagi.
+    if (_bpkbSaranUntuk !== q) {
+        bpkbAutoTimer = setTimeout(() => bpkbAutoScan(q), 400);
+        return;
+    }
+
+    const cocokPersis = _bpkbSaran.some(n => n.toUpperCase() === q.toUpperCase());
+
+    if (_bpkbSaran.length && !cocokPersis) return;
+
+    bpkbScanSubmit();
+}
+
 async function bpkbScanSubmit(force = false) {
     const planId = activePlanId;
     if (!planId) { showAlert("Pilih plan audit terlebih dahulu.", "warning"); return; }
     const scanInputEl = document.getElementById("bpkbScanInput");
-    const noBpkb = bpkbExtractNoBpkb(scanInputEl?.value?.trim());
+    const noBpkb = (scanInputEl?.value ?? "").trim();
     if (!noBpkb || noBpkb.length < BPKB_MIN_SCAN_LENGTH) return;
-    if (scanInputEl && scanInputEl.value !== noBpkb) scanInputEl.value = noBpkb;
 
     const resultEl = document.getElementById("bpkbScanResult");
     try {
@@ -3180,7 +3206,7 @@ async function bpkbScanSubmit(force = false) {
         // langsung membuat baris baru. Kalau user setuju, kirim ulang dengan
         // force=true untuk benar-benar mencatatnya.
         if (res.status === "confirm") {
-            const lanjut = confirm(`Nomor BPKB "${noBpkb}" tidak ditemukan di database onhand.\n\nMasukkan sebagai Fisik Diluar On Hand?`);
+            const lanjut = confirm(`Nomor BPKB "${res.noBpkb ?? noBpkb}" tidak ditemukan di database onhand.\n\nMasukkan sebagai Fisik Diluar On Hand?`);
             if (lanjut) await bpkbScanSubmit(true);
             return;
         }
@@ -3209,9 +3235,16 @@ async function bpkbScanSubmit(force = false) {
     }
 }
 
+// Nomor pada daftar saran yang sedang tampil, beserta kata kunci yang
+// menghasilkannya. Dipakai auto-scan untuk tahu apakah auditor masih memilih.
+let _bpkbSaran = [];
+let _bpkbSaranUntuk = null;
+
 async function bpkbSearchSuggest(q) {
     const planId = activePlanId;
     if (!planId || q.length < 3) {
+        _bpkbSaran = [];
+        _bpkbSaranUntuk = q;
         document.getElementById("bpkbSuggestions")?.classList.add("hidden");
         return;
     }
@@ -3220,6 +3253,8 @@ async function bpkbSearchSuggest(q) {
         const box = document.getElementById("bpkbSuggestions");
         if (!box) return;
         const items = res.data ?? [];
+        _bpkbSaran = items.map(i => String(i.noBpkb ?? ""));
+        _bpkbSaranUntuk = q;
         if (!items.length) { box.classList.add("hidden"); return; }
         box.innerHTML = items.map(i => `
             <div class="bpkb-suggest-item cursor-pointer px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 border-b border-slate-700 last:border-0"
@@ -3230,8 +3265,15 @@ async function bpkbSearchSuggest(q) {
         box.classList.remove("hidden");
         box.querySelectorAll(".bpkb-suggest-item").forEach(el => {
             el.addEventListener("click", () => {
-                document.getElementById("bpkbScanInput").value = el.dataset.val;
+                const input = document.getElementById("bpkbScanInput");
+                input.value = el.dataset.val;
+                _bpkbSaran = [el.dataset.val];
+                _bpkbSaranUntuk = el.dataset.val;
                 box.classList.add("hidden");
+                // Dipilih dari daftar = nomor yang dimaksud sudah pasti;
+                // tidak perlu menekan Enter lagi.
+                clearTimeout(bpkbAutoTimer);
+                bpkbScanSubmit();
             });
         });
     } catch (_) {}
@@ -3308,7 +3350,7 @@ function initBpkbForm() {
         bpkbSuggestTimer = setTimeout(() => bpkbSearchSuggest(q), 200);
         // Auto-scan: jika input berhenti 600ms dan panjang >= BPKB_MIN_SCAN_LENGTH
         if (q.length >= BPKB_MIN_SCAN_LENGTH) {
-            bpkbAutoTimer = setTimeout(() => bpkbScanSubmit(), 600);
+            bpkbAutoTimer = setTimeout(() => bpkbAutoScan(q), 600);
         }
     });
     scanInput?.addEventListener("keydown", (e) => {
