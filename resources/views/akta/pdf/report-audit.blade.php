@@ -2599,7 +2599,7 @@ window.addEventListener('load', function() {
             <th style="width:70px;text-align:center;">Tgl Periksa</th>
             <th style="width:50px;text-align:right;">Saldo Akhir</th>
             <th style="width:40px;text-align:right;">Fisik</th>
-            <th style="width:36px;text-align:right;color:#92400e;background:#fffbeb;">WO</th>
+            <th style="width:36px;text-align:right;color:#92400e;background:#fffbeb;">{{ $hgp?->label_wo ?: 'WO' }}</th>
             <th style="width:50px;text-align:right;">Akhir</th>
             <th style="width:46px;text-align:right;">Selisih</th>
             <th style="width:70px;text-align:right;">Harga HET</th>

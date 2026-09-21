@@ -5970,7 +5970,50 @@ function createScanIncrementQueue({ endpoint, simpananKey, delay = 400, maksPerc
    ============================================================ */
 let _hgpData = null; // { items: [ { sparepart, saldoAkhir, fisik, akhir, selisih, keterangan, tgl, logScan:[] } ] }
 
-function hgpEmptyData() { return { items: [] }; }
+function hgpEmptyData() { return { items: [], labelWo: HGP_LABEL_WO_BAWAAN }; }
+
+// Judul kolom yang menambah hitungan fisik. Bawaannya "WO", tapi tiap cabang
+// menyebutnya berbeda (titipan, display, retur) — jadi bisa diganti per plan
+// audit. Yang dihitung tidak berubah sama sekali, hanya judulnya.
+const HGP_LABEL_WO_BAWAAN = 'WO';
+
+function hgpLabelWo() {
+    return (_hgpData?.labelWo || '').trim() || HGP_LABEL_WO_BAWAAN;
+}
+
+function hgpTampilkanLabelWo() {
+    const el = document.getElementById('hgpLabelWo');
+    if (el) el.textContent = hgpLabelWo();
+}
+
+async function hgpGantiLabelWo() {
+    if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'warning'); return; }
+
+    const sekarang = hgpLabelWo();
+    const jawab = prompt(
+        `Judul kolom "${sekarang}" mau diganti jadi apa?\n\n`
+        + 'Yang dihitung tetap sama — angkanya tetap menambah Fisik Qty.\n'
+        + 'Kosongkan untuk kembali ke judul bawaan (WO).',
+        sekarang === HGP_LABEL_WO_BAWAAN ? '' : sekarang
+    );
+
+    if (jawab === null) return;   // dibatalkan
+
+    try {
+        const res = await fetchJson('/api/audit-detail/hgp/label-wo', {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ plan_audit_id: activePlanId, label: jawab.trim() }),
+        });
+
+        if (!_hgpData) _hgpData = hgpEmptyData();
+        _hgpData.labelWo = res.labelWo || HGP_LABEL_WO_BAWAAN;
+        hgpTampilkanLabelWo();
+        showAlert(`Judul kolom diganti menjadi "${hgpLabelWo()}".`);
+    } catch (err) {
+        showAlert(err.message || 'Gagal mengganti judul kolom.', 'error');
+    }
+}
 
 function hgpN(v) {
     if (v === null || v === undefined || v === '') return 0;
@@ -6087,7 +6130,7 @@ function hgpRowHtml(it, i) {
         <td data-c="fisik" class="px-3 py-2 text-right text-slate-100 font-semibold">${v.fisik}</td>
         <td data-c="wo" class="px-3 py-2 text-right">
             <input type="number" min="0" data-hgp-i="${i}" data-hgp-f="wo"
-                value="${v.wo || ''}" placeholder="0"
+                value="${v.wo || ''}" placeholder="0" title="${escHtml(hgpLabelWo())} — menambah Fisik Qty"
                 class="hgp-inp w-16 rounded border border-amber-700/50 bg-amber-900/20 px-2 py-1 text-xs text-amber-300 text-right focus:border-amber-500 focus:outline-none">
         </td>
         <td data-c="akhir" class="px-3 py-2 text-right text-slate-300">${v.akhir}</td>
@@ -6905,7 +6948,10 @@ async function loadHgpTab() {
     // kosong) — sebelumnya hanya ditimpa kalau items tidak kosong, jadi kalau
     // pindah ke plan lain yang belum ada data HGP-nya, _hgpData tetap berisi
     // data plan sebelumnya dan bisa ikut tersimpan ke plan yang salah.
-    _hgpData = (res.data && Array.isArray(res.data.items)) ? { items: res.data.items, sidik: res.data.sidik } : hgpEmptyData();
+    _hgpData = (res.data && Array.isArray(res.data.items))
+        ? { items: res.data.items, sidik: res.data.sidik, labelWo: res.data.labelWo }
+        : hgpEmptyData();
+    hgpTampilkanLabelWo();
     (_hgpData.items || []).forEach(it => hgpCalcItem(it));
     await hgpEnrichWithHet(_hgpData.items);
     hgpRenderItems();
@@ -7122,6 +7168,8 @@ function initHgpForm() {
     });
     addPartNo?.addEventListener('keydown', e => { if (e.key === 'Enter') addPartSave?.click(); });
     addPartNama?.addEventListener('keydown', e => { if (e.key === 'Enter') addPartSave?.click(); });
+
+    document.getElementById('hgpLabelWoBtn')?.addEventListener('click', hgpGantiLabelWo);
 
     document.getElementById('hgpClearBtn')?.addEventListener('click', () => {
         if (!confirm('Hapus semua data HGP & AHM Oils? Data lama akan dikosongkan, lalu import ulang file Excel.')) return;

@@ -308,6 +308,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/audit-detail/hgp/batch-het',    [HgpController::class, 'batchHet']);
     Route::post('/audit-detail/hgp',             [HgpController::class, 'save'])
         ->middleware('akta.role:admin,manajer,auditor');
+    // Ganti judul kolom WO (bawaannya "WO") — isinya tidak berubah, hanya namanya.
+    Route::post('/audit-detail/hgp/label-wo', [HgpController::class, 'gantiLabelWo'])
+        ->middleware('akta.role:admin,manajer,auditor');
+
     Route::post('/audit-detail/hgp/scan-increment', [HgpController::class, 'scanIncrement'])
         ->middleware('akta.role:admin,manajer,auditor');
     Route::post('/audit-detail/hgp/add-item', [HgpController::class, 'addItem'])
