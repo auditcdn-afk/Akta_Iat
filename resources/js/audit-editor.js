@@ -5685,8 +5685,8 @@ function observeTableSentinel(tbody, onReach) {
     return obs;
 }
 
-function tableSentinelHtml(sisa) {
-    return `<tr data-row-sentinel><td colspan="13" class="px-4 py-3 text-center text-[11px] text-slate-500">
+function tableSentinelHtml(sisa, kolom = 13) {
+    return `<tr data-row-sentinel><td colspan="${kolom}" class="px-4 py-3 text-center text-[11px] text-slate-500">
         Menggulir untuk memuat ${sisa} baris berikutnya — atau ketuk di sini.
     </td></tr>`;
 }
@@ -5995,31 +5995,70 @@ function hgpLogHtml(v) {
 
 // Bangun HTML 1 baris tabel HGP/AHM Oil. Dipisah dari hgpRenderItems() supaya
 // bisa dipakai juga untuk baris yang baru muncul lewat render bertahap.
+// Kolom laporan stok dari berkas import (laporan stok WHS). Urutannya sama
+// dengan urutan di berkasnya supaya auditor bisa mencocokkan baris demi baris.
+const HGP_KOLOM_STOK = [
+    ['awal', 'Awal'], ['masuk', 'Masuk'], ['keluar', 'Keluar'], ['adj', 'Adj'],
+    ['mm1', 'MM1'], ['mk1', 'MK1'], ['mm2', 'MM2'], ['mk2', 'MK2'],
+    ['fakturBelumKutip', 'Faktur Belum Kutip'], ['claim', 'Claim'],
+];
+
+// Berkas onhand cabang tidak punya kolom-kolom itu; kolomnya hanya ditampilkan
+// kalau datanya memang ada, supaya tabel cabang tidak penuh kolom kosong.
+let _hgpAdaKolomStok = false;
+
+function hgpHitungKolomStok() {
+    const items = _hgpData?.items || [];
+    _hgpAdaKolomStok = items.some(it => it.stok && Object.keys(it.stok).length > 0);
+
+    document.querySelectorAll('#tabPanel-hgp .hgp-col-stok').forEach(th => {
+        th.classList.toggle('hidden', !_hgpAdaKolomStok);
+    });
+
+    return _hgpAdaKolomStok;
+}
+
+function hgpJumlahKolom() {
+    return 13 + (_hgpAdaKolomStok ? HGP_KOLOM_STOK.length : 0);
+}
+
+function hgpSelStok(it) {
+    if (!_hgpAdaKolomStok) return '';
+
+    return HGP_KOLOM_STOK.map(([kunci]) => {
+        const nilai = it.stok?.[kunci];
+        const teks  = (nilai === undefined || nilai === null || nilai === '') ? '' : hgpN(nilai);
+
+        return `<td class="px-3 py-2 text-right text-slate-400">${teks}</td>`;
+    }).join('');
+}
+
 function hgpRowHtml(it, i) {
     const v = hgpRowView(it);
     return `<tr class="hover:bg-slate-800/40" data-hgp-row="${i}">
         <td class="px-3 py-2 text-slate-400">${i + 1}</td>
         <td class="px-3 py-2 text-slate-400 text-xs">${it.noPart || ''}</td>
         <td class="px-3 py-2 text-slate-100 font-medium">${it.sparepart || ''}</td>
-        <td class="px-3 py-2 text-center text-slate-300">${v.tglHtml}</td>
-        <td class="px-3 py-2 text-right text-slate-300">${v.saldo}</td>
-        <td class="px-3 py-2 text-right text-slate-100 font-semibold">${v.fisik}</td>
-        <td class="px-3 py-2 text-right">
+        ${hgpSelStok(it)}
+        <td data-c="tgl" class="px-3 py-2 text-center text-slate-300">${v.tglHtml}</td>
+        <td data-c="saldo" class="px-3 py-2 text-right text-slate-300">${v.saldo}</td>
+        <td data-c="fisik" class="px-3 py-2 text-right text-slate-100 font-semibold">${v.fisik}</td>
+        <td data-c="wo" class="px-3 py-2 text-right">
             <input type="number" min="0" data-hgp-i="${i}" data-hgp-f="wo"
                 value="${v.wo || ''}" placeholder="0"
                 class="hgp-inp w-16 rounded border border-amber-700/50 bg-amber-900/20 px-2 py-1 text-xs text-amber-300 text-right focus:border-amber-500 focus:outline-none">
         </td>
-        <td class="px-3 py-2 text-right text-slate-300">${v.akhir}</td>
-        <td class="px-3 py-2 text-right ${v.selClass}">${v.selSign}${v.selisih}</td>
-        <td class="px-3 py-2 text-right text-slate-300">${v.hargaHtml}</td>
-        <td class="px-3 py-2 text-right ${v.jumlahClass}">${v.jumlahFmt}</td>
-        <td class="px-3 py-2">
+        <td data-c="akhir" class="px-3 py-2 text-right text-slate-300">${v.akhir}</td>
+        <td data-c="selisih" class="px-3 py-2 text-right ${v.selClass}">${v.selSign}${v.selisih}</td>
+        <td data-c="harga" class="px-3 py-2 text-right text-slate-300">${v.hargaHtml}</td>
+        <td data-c="jumlah" class="px-3 py-2 text-right ${v.jumlahClass}">${v.jumlahFmt}</td>
+        <td data-c="ket" class="px-3 py-2">
             <input type="text" data-hgp-i="${i}" data-hgp-f="keterangan"
                 value="${it.keterangan || ''}"
                 placeholder="Keterangan..."
                 class="hgp-inp w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
         </td>
-        <td class="px-3 py-2 text-xs">${hgpLogHtml(v)}</td>
+        <td data-c="log" class="px-3 py-2 text-xs">${hgpLogHtml(v)}</td>
     </tr>`;
 }
 
@@ -6027,23 +6066,40 @@ function hgpRowHtml(it, i) {
 // murah, cara ini tidak mencabut <input> WO/Keterangan dari DOM: mengganti node
 // yang sedang difokus membuat kursor auditor hilang di tengah mengetik dan
 // memicu focusout yang mengirim simpan-delta lagi.
-// Urutan kolom: 0=no, 1=noPart, 2=nama, 3=tgl, 4=saldo, 5=fisik, 6=wo-input,
-// 7=akhir, 8=selisih, 9=harga, 10=jumlah, 11=ket-input, 12=log.
+// Kolom dialamatkan lewat penanda data-c, bukan nomor urutnya: jumlah kolom
+// berubah-ubah mengikuti isi berkas import (laporan stok WHS membawa kolom
+// Awal s/d Claim yang tidak ada pada berkas onhand cabang).
 function hgpPaintRow(row, it) {
     const v = hgpRowView(it);
-    const cells = row.children;
-    if (cells[3])  cells[3].innerHTML   = v.tglHtml;
-    if (cells[4])  cells[4].textContent = v.saldo;
-    if (cells[5])  cells[5].textContent = v.fisik;
-    if (cells[7])  cells[7].textContent = v.akhir;
-    if (cells[8])  { cells[8].textContent  = `${v.selSign}${v.selisih}`; cells[8].className  = `px-3 py-2 text-right ${v.selClass}`; }
-    if (cells[9])  cells[9].innerHTML   = v.hargaHtml;
-    if (cells[10]) { cells[10].textContent = v.jumlahFmt; cells[10].className = `px-3 py-2 text-right ${v.jumlahClass}`; }
-    if (cells[12]) cells[12].innerHTML  = hgpLogHtml(v);
+    const sel = (c) => row.querySelector(`[data-c="${c}"]`);
+
+    const tgl = sel('tgl');       if (tgl) tgl.innerHTML   = v.tglHtml;
+    const saldo = sel('saldo');   if (saldo) saldo.textContent = v.saldo;
+    const fisik = sel('fisik');   if (fisik) fisik.textContent = v.fisik;
+    const akhir = sel('akhir');   if (akhir) akhir.textContent = v.akhir;
+
+    const selisih = sel('selisih');
+    if (selisih) {
+        selisih.textContent = `${v.selSign}${v.selisih}`;
+        selisih.className   = `px-3 py-2 text-right ${v.selClass}`;
+        selisih.dataset.c   = 'selisih';
+    }
+
+    const harga = sel('harga');   if (harga) harga.innerHTML = v.hargaHtml;
+
+    const jumlah = sel('jumlah');
+    if (jumlah) {
+        jumlah.textContent = v.jumlahFmt;
+        jumlah.className   = `px-3 py-2 text-right ${v.jumlahClass}`;
+        jumlah.dataset.c   = 'jumlah';
+    }
+
+    const log = sel('log');       if (log) log.innerHTML = hgpLogHtml(v);
+
     // Nilai input hanya disetel ulang kalau auditor tidak sedang mengetik di situ.
-    const woInp = cells[6]?.querySelector('input');
+    const woInp = sel('wo')?.querySelector('input');
     if (woInp && document.activeElement !== woInp) woInp.value = v.wo || '';
-    const ketInp = cells[11]?.querySelector('input');
+    const ketInp = sel('ket')?.querySelector('input');
     if (ketInp && document.activeElement !== ketInp) ketInp.value = it.keterangan || '';
 }
 
@@ -6146,7 +6202,7 @@ function hgpAppendRows() {
     _hgpTableShown = end;
     const sisa = _hgpTableView.length - end;
     if (sisa > 0) {
-        tbody.insertAdjacentHTML('beforeend', tableSentinelHtml(sisa));
+        tbody.insertAdjacentHTML('beforeend', tableSentinelHtml(sisa, hgpJumlahKolom()));
         _hgpRowObserver = observeTableSentinel(tbody, hgpAppendRows);
     }
     hgpUpdateShownInfo();
@@ -6156,6 +6212,7 @@ function hgpRenderItems() {
     const tbody = document.getElementById('hgpTableBody');
     if (!tbody) return;
     hgpBindTableEvents(tbody);
+    hgpHitungKolomStok();
     hgpRebuildIndex();
     _hgpRowObserver?.disconnect();
     _hgpRowObserver = null;
@@ -6164,10 +6221,11 @@ function hgpRenderItems() {
     tbody.innerHTML = '';
 
     const total = (_hgpData?.items || []).length;
+    const kolom = hgpJumlahKolom();
     if (total === 0) {
-        tbody.innerHTML = `<tr><td colspan="13" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${kolom}" class="px-4 py-8 text-center text-slate-400 text-xs">Belum ada data — import file Excel terlebih dahulu.</td></tr>`;
     } else if (_hgpTableView.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="13" class="px-4 py-8 text-center text-slate-400 text-xs">Tidak ada item yang cocok dengan pencarian.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${kolom}" class="px-4 py-8 text-center text-slate-400 text-xs">Tidak ada item yang cocok dengan pencarian.</td></tr>`;
     } else {
         hgpAppendRows();
     }

@@ -240,6 +240,15 @@ class HgpController extends Controller
         // Header: col[2]="NO PART", col[4]="NAMA PART", col[5]="AWAL", col[10]="KETERANGAN"
         // Data:   col[1]=noPart,    col[2]=namapart,    col[5]=awal,   col[10]=ket
         // Rumus: colNoPart_data = colAwal - 4, colNama_data = colAwal - 3, colKet_data = colAwal + 5
+        // Laporan stok WHS punya judul kolom LENGKAP di tiap kolomnya (NO, NO
+        // PART, NAMA PART, AWAL, MASUK, ... AKHIR, Fisik, Selisih) tanpa satu
+        // pun kolom gabungan, jadi kolomnya bisa dibaca dari namanya sendiri.
+        // Kalau bentuknya bukan itu, dipakai aturan lama berbasis jarak dari
+        // kolom AWAL -- lihat catatan di bacaLewatJudul().
+        if ($lewatJudul = $this->bacaLewatJudul($rows)) {
+            return $this->jawabanImpor($lewatJudul, $request);
+        }
+
         $items = [];
         $headerPassed = false;
         $colAwal      = null;
@@ -338,6 +347,169 @@ class HgpController extends Controller
             }
         }
 
+        return $this->jawabanImpor($items, $request);
+    }
+
+    // Judul kolom laporan stok, apa adanya seperti tertulis di berkas WHS.
+    // Kuncinya yang dipakai di seluruh aplikasi; nilainya daftar tulisan yang
+    // dianggap sama.
+    private const JUDUL_KOLOM = [
+        'noPart'           => ['no part', 'no_part', 'part number', 'part no', 'kode part', 'kode'],
+        'nama'             => ['nama part', 'nama_part', 'nama barang', 'sparepart', 'nama'],
+        'awal'             => ['awal', 'saldo awal', 'stok awal'],
+        'masuk'            => ['masuk'],
+        'keluar'           => ['keluar'],
+        'adj'              => ['adj', 'adjust', 'adjustment'],
+        'mm1'              => ['mm1'],
+        'mk1'              => ['mk1'],
+        'mm2'              => ['mm2'],
+        'mk2'              => ['mk2'],
+        'fakturBelumKutip' => ['faktur belum kutip', 'fkt belum kutip'],
+        'claim'            => ['claim', 'klaim'],
+        'akhir'            => ['akhir', 'saldo akhir', 'stok akhir'],
+        'keterangan'       => ['keterangan', 'ket', 'lokasi'],
+    ];
+
+    // Kolom laporan stok yang dibawa apa adanya ke layar, di luar yang sudah
+    // punya tempat sendiri (noPart, nama, akhir -> saldoAkhir).
+    //
+    // Fisik dan Selisih sengaja TIDAK ikut: keduanya hasil pemeriksaan di
+    // aplikasi ini (fisik dari scan, selisih dihitung dari saldo akhir), bukan
+    // isi laporan stok. Berkas WHS yang benar pun tidak memuatnya.
+    private const KOLOM_STOK = [
+        'awal', 'masuk', 'keluar', 'adj', 'mm1', 'mk1', 'mm2', 'mk2',
+        'fakturBelumKutip', 'claim',
+    ];
+
+    /**
+     * Baca berkas yang baris judulnya RAPAT -- tiap kolom punya judul sendiri,
+     * tidak ada kolom gabungan (merged). Laporan stok WHS bentuknya begitu, dan
+     * susunan kolomnya sama sekali berbeda dari berkas onhand cabang: AWAL ada
+     * di kolom ke-4, sementara aturan lama mengira nomor part berjarak empat
+     * kolom di KIRI AWAL -- pada berkas ini jatuh di luar tabel.
+     *
+     * Berkas onhand cabang sengaja TIDAK lewat sini: judulnya memakai kolom
+     * gabungan sehingga posisi judul bergeser dari posisi datanya, dan membaca
+     * lewat nama justru menghasilkan kolom yang salah. Yang membedakan keduanya
+     * cuma satu hal yang bisa diperiksa: ada tidaknya judul kolom yang kosong
+     * di antara judul pertama dan terakhir.
+     *
+     * @return array<int, array<string, mixed>>|null null kalau bentuknya bukan ini
+     */
+    private function bacaLewatJudul(array $rows): ?array
+    {
+        $peta = null;
+        $mulai = 0;
+
+        foreach ($rows as $i => $row) {
+            if ($i > 30) break;   // judul selalu di awal berkas
+
+            $calon = $this->petaJudulRapat($row);
+
+            if ($calon !== null) {
+                $peta  = $calon;
+                $mulai = $i + 1;
+                break;
+            }
+        }
+
+        if ($peta === null) {
+            return null;
+        }
+
+        $items = [];
+
+        foreach (array_slice($rows, $mulai) as $row) {
+            $noPart = trim((string) ($row[$peta['noPart']] ?? ''));
+            $nama   = isset($peta['nama']) ? trim((string) ($row[$peta['nama']] ?? '')) : '';
+
+            if ($noPart === '' && $nama === '') continue;
+
+            // Baris jumlah/total di kaki tabel, bukan data part.
+            if ($noPart === '' || preg_match('/^(total|jumlah|grand)/i', $noPart)) continue;
+
+            $saldoAkhir = isset($peta['akhir']) ? $this->n($row[$peta['akhir']] ?? 0) : 0.0;
+
+            $stok = [];
+            foreach (self::KOLOM_STOK as $kolom) {
+                if (!isset($peta[$kolom])) continue;
+
+                $isi = $row[$peta[$kolom]] ?? null;
+
+                // Kolom yang memang kosong di berkas dibiarkan kosong, bukan
+                // dijadikan 0 -- "belum diisi" dan "nol" bukan hal yang sama.
+                if ($isi === null || trim((string) $isi) === '') continue;
+
+                $stok[$kolom] = $this->n($isi);
+            }
+
+            $items[] = [
+                'noPart'     => $noPart,
+                'sparepart'  => $nama !== '' ? $nama : $noPart,
+                'saldoAkhir' => $saldoAkhir,
+                'fisik'      => 0,
+                'akhir'      => $saldoAkhir,
+                'selisih'    => -$saldoAkhir,
+                'keterangan' => isset($peta['keterangan']) ? trim((string) ($row[$peta['keterangan']] ?? '')) : '',
+                'tgl'        => date('Y-m-d'),
+                'logScan'    => [],
+                'stok'       => $stok,
+            ];
+        }
+
+        return $items === [] ? null : $items;
+    }
+
+    /**
+     * Peta kolom dari satu baris judul, HANYA kalau baris itu rapat: setiap
+     * kolom di antara judul pertama dan terakhir punya tulisan. Satu saja yang
+     * kosong berarti ada kolom gabungan, dan posisi data tidak bisa dipercaya
+     * sama dengan posisi judulnya.
+     *
+     * @return array<string, int>|null
+     */
+    private function petaJudulRapat(array $row): ?array
+    {
+        $isi = [];
+
+        foreach ($row as $i => $sel) {
+            $teks = strtolower(trim((string) $sel));
+
+            if ($teks !== '') {
+                $isi[$i] = $teks;
+            }
+        }
+
+        if (count($isi) < 4) {
+            return null;
+        }
+
+        $posisi = array_keys($isi);
+
+        for ($i = min($posisi); $i <= max($posisi); $i++) {
+            if (!isset($isi[$i])) {
+                return null;   // ada judul kosong: kolom gabungan
+            }
+        }
+
+        $peta = [];
+
+        foreach (self::JUDUL_KOLOM as $kunci => $tulisan) {
+            foreach ($isi as $i => $teks) {
+                if (in_array($teks, $tulisan, true) && !isset($peta[$kunci])) {
+                    $peta[$kunci] = $i;
+                }
+            }
+        }
+
+        // Tanpa nomor part tidak ada yang bisa diperiksa; tanpa saldo akhir
+        // tidak ada pembanding fisiknya.
+        return isset($peta['noPart'], $peta['akhir']) ? $peta : null;
+    }
+
+    /** Sampling & bentuk jawaban impor, sama untuk kedua cara baca kolom. */
+    private function jawabanImpor(array $items, Request $request): JsonResponse
+    {
         $totalFound = count($items);
         $planId     = $request->input('planAuditId') ?? $request->input('plan_audit_id');
 
