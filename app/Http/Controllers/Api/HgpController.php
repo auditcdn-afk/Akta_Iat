@@ -31,13 +31,18 @@ class HgpController extends Controller
     use MengunciDataPemeriksaan;
     use PenyegaranRingkas;
 
-    // Khusus jenis audit ini, tool "HGP & AHM Oils" (bukan tool terpisah
-    // "RSA HGP & AHM Oils") ikut disampling acak 30 item saat import — item
-    // lengkap dari file tetap ada di sistem (hanya HET DB dsb), tapi yang
-    // dimuat untuk diperiksa hanya sample-nya. Jenis audit lain yang memakai
-    // tool ini (Audit Full SO, Audit Kas + HGP & AHM Oils, dst) tidak
-    // terpengaruh — tetap menampilkan seluruh item seperti sebelumnya.
-    private const SAMPLED_JENIS_AUDIT = 'Audit Online Kas + HGP & AHM Oils';
+    // Dua jenis audit memuat hanya sebagian isi berkas onhand untuk diperiksa,
+    // dan aturannya BERBEDA:
+    //
+    //   Audit Online Kas + HGP & AHM Oils : 30 item acak saja.
+    //   Audit Kas + HGP & AHM Oils        : SELURUH item yang ada di database
+    //                                       AHM Oils, ditambah 30 part lain acak.
+    //
+    // Jenis audit lain (Audit Full SO, Audit Warehouse PART, dst) tidak
+    // terpengaruh -- tetap menampilkan seluruh item. Tool terpisah "RSA HGP &
+    // AHM Oils" juga punya aturannya sendiri dan tidak ikut ke sini.
+    private const JENIS_SAMPLE_ACAK = 'Audit Online Kas + HGP & AHM Oils';
+    private const JENIS_SAMPLE_OLI  = 'Audit Kas + HGP & AHM Oils';
     private const SAMPLE_SIZE = 30;
 
     public function show(Request $request): JsonResponse
@@ -513,8 +518,10 @@ class HgpController extends Controller
         $totalFound = count($items);
         $planId     = $request->input('planAuditId') ?? $request->input('plan_audit_id');
 
-        if ($this->shouldSample($planId)) {
-            [$items, $sampled] = $this->applySample($items, self::SAMPLE_SIZE);
+        if ($aturan = $this->aturanSample($planId)) {
+            $denganOli = $aturan === 'oli';
+
+            [$items, $sampled, $jumlahOli] = $this->applySample($items, self::SAMPLE_SIZE, $denganOli);
 
             return response()->json([
                 'data'       => $items,
@@ -522,43 +529,102 @@ class HgpController extends Controller
                 'totalFound' => $totalFound,
                 'sampleSize' => self::SAMPLE_SIZE,
                 'sampled'    => $sampled,
+                'ahmOil'     => $denganOli ? $jumlahOli : null,
+                // Master AHM Oils belum diisi: yang masuk cuma 30 part acak,
+                // dan tidak ada satu pun oli yang diperiksa. Auditor harus tahu
+                // itu sebelum mulai menghitung, bukan sesudah laporannya jadi.
+                'catatan'    => $denganOli && $jumlahOli === 0
+                    ? 'Tidak ada satu pun item yang cocok dengan database AHM Oils — '
+                        . 'periksa menu Database → AHM Oils, lalu import ulang berkas ini.'
+                    : null,
             ]);
         }
 
         return response()->json(['data' => $items, 'total' => $totalFound]);
     }
 
-    private function shouldSample(mixed $planId): bool
+    /**
+     * Aturan pemuatan item untuk plan ini: null (seluruhnya), 'acak', atau 'oli'.
+     */
+    private function aturanSample(mixed $planId): ?string
     {
         if (!$planId) {
-            return false;
+            return null;
         }
 
-        return PlanAudit::where('id', $planId)
-            ->where('jenis_audit', self::SAMPLED_JENIS_AUDIT)
-            ->exists();
+        $jenis = PlanAudit::where('id', $planId)->value('jenis_audit');
+
+        return match ($jenis) {
+            self::JENIS_SAMPLE_ACAK => 'acak',
+            self::JENIS_SAMPLE_OLI  => 'oli',
+            default                 => null,
+        };
     }
 
     // Sama seperti RsaHgpController::applySample() — sample diambil acak tapi
     // dikembalikan dalam urutan asli file (bukan urutan acak) supaya lebih
     // mudah dibaca auditor saat scan. Kalau jumlah item <= sampleSize, tidak
     // perlu disampling, kembalikan semuanya apa adanya.
-    private function applySample(array $items, int $sampleSize): array
+    /**
+     * Ambil item yang akan diperiksa.
+     *
+     * Pada aturan 'oli', SELURUH item yang ada di database AHM Oils ikut,
+     * ditambah $sampleSize part lain yang diambil acak. Pada aturan 'acak',
+     * $sampleSize item diambil acak dari seluruh berkas tanpa memandang isinya.
+     *
+     * Urutannya dikembalikan seperti urutan di berkas aslinya, bukan oli dulu
+     * baru sparepart: auditor menyusuri rak mengikuti urutan itu.
+     *
+     * @return array{0: array<int, array<string, mixed>>, 1: bool, 2: int}
+     *         [item terpilih, ada yang tidak ikut, jumlah item AHM Oils]
+     */
+    private function applySample(array $items, int $sampleSize, bool $denganOli): array
     {
-        $total = count($items);
-        if ($total <= $sampleSize) {
-            return [$items, false];
+        $kodeOli = $denganOli ? $this->kodeAhmOil() : [];
+
+        $indeksOli  = [];
+        $indeksLain = [];
+
+        foreach ($items as $i => $it) {
+            $kode = strtolower(trim((string) ($it['noPart'] ?? '')));
+
+            if ($denganOli && $kode !== '' && isset($kodeOli[$kode])) {
+                $indeksOli[] = $i;
+            } else {
+                $indeksLain[] = $i;
+            }
         }
 
-        $keys = array_rand($items, $sampleSize);
-        if (!is_array($keys)) {
-            $keys = [$keys];
+        $terpilihLain = $indeksLain;
+
+        if (count($indeksLain) > $sampleSize) {
+            $acak = (array) array_rand($indeksLain, $sampleSize);
+            $terpilihLain = array_map(fn($k) => $indeksLain[$k], $acak);
         }
-        sort($keys);
 
-        $sampled = array_values(array_map(fn($k) => $items[$k], $keys));
+        $indeks = array_merge($indeksOli, $terpilihLain);
+        sort($indeks);
 
-        return [$sampled, true];
+        $terpilih = array_map(fn($i) => $items[$i], $indeks);
+
+        return [array_values($terpilih), count($terpilih) < count($items), count($indeksOli)];
+    }
+
+    /**
+     * Kode AHM Oils dari master, sebagai peta untuk pencocokan cepat.
+     *
+     * Pencocokannya sama persis dengan yang dipakai rekap selisih (exportSelisih)
+     * dan Report Audit PDF, supaya ketiga tempat mengelompokkan item yang sama.
+     *
+     * @return array<string, mixed>
+     */
+    private function kodeAhmOil(): array
+    {
+        return DbAhmOil::query()->pluck('kode')
+            ->map(fn($k) => strtolower(trim((string) $k)))
+            ->filter()
+            ->flip()
+            ->all();
     }
 
     public function lookupHet(Request $request): JsonResponse

@@ -6514,12 +6514,16 @@ async function hgpHandleFile(file) {
             if (msg) msg.textContent = 'Tidak ada data ditemukan dalam file.';
             return;
         }
-        // Khusus jenis audit "Audit Online Kas + HGP & AHM Oils", server men-sampling
-        // acak (lihat HgpController::shouldSample) — jenis audit lain memuat semua item
-        // seperti biasa dan res.sampled akan selalu false.
-        const sampleNote = res.sampled
-            ? ` — disampling otomatis ${res.data.length} dari ${res.totalFound} item ditemukan (ukuran sample: ${res.sampleSize}).`
-            : '';
+        // Dua jenis audit memuat sebagian isi berkas saja, dengan aturan berbeda
+        // (lihat HgpController::aturanSample):
+        //   Audit Online Kas + HGP & AHM Oils -> 30 item acak saja
+        //   Audit Kas + HGP & AHM Oils        -> seluruh AHM Oils + 30 part lain
+        // Jenis audit lain memuat semua item, dan res.sampled selalu false.
+        const sampleNote = !res.sampled
+            ? ''
+            : (typeof res.ahmOil === 'number'
+                ? ` — ${res.ahmOil} item AHM Oils (seluruhnya) + ${res.data.length - res.ahmOil} part lain hasil sampling acak, dari ${res.totalFound} item di berkas.`
+                : ` — disampling otomatis ${res.data.length} dari ${res.totalFound} item di berkas (ukuran sample: ${res.sampleSize}).`);
         if (!_hgpData) _hgpData = hgpEmptyData();
         // Replace: import = master data baru. Pertahankan fisik & logScan untuk noPart yang cocok.
         const prevByPart = {};
@@ -6537,7 +6541,15 @@ async function hgpHandleFile(file) {
         });
         if (msg) { msg.textContent = `${res.data.length} item diimport${sampleNote} — memuat harga HET...`; }
         await hgpEnrichWithHet(_hgpData.items);
-        if (msg) { msg.textContent = `${res.data.length} item diimport (data lama diganti).${sampleNote}`; }
+        if (msg) {
+            msg.textContent = `${res.data.length} item diimport (data lama diganti).${sampleNote}`;
+            if (res.catatan) {
+                msg.textContent += ` ⚠ ${res.catatan}`;
+                msg.className = 'text-sm font-medium text-amber-400';
+            } else {
+                msg.className = 'text-sm font-medium text-green-400';
+            }
+        }
         hgpRenderItems();
         hgpPopulateDatalist();
         // mode 'import': daftar & saldo baru dari file, tapi hasil scan yang sudah
