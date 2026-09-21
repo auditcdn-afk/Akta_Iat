@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Concerns\MengunciDataPemeriksaan;
+use App\Http\Controllers\Concerns\PenyegaranRingkas;
 use App\Http\Controllers\Concerns\MenjagaHasilPemeriksaan;
 use App\Http\Controllers\Concerns\RequiresAuditorAuditee;
 use App\Http\Controllers\Controller;
@@ -26,15 +27,14 @@ class RsaHgpController extends Controller
     use RequiresAuditorAuditee;
     use MenjagaHasilPemeriksaan;
     use MengunciDataPemeriksaan;
+    use PenyegaranRingkas;
 
     private const DEFAULT_SAMPLE_SIZE = 30;
     private const WHS_SAMPLE_SIZE = 50;
 
     public function show(Request $request): JsonResponse
     {
-        $planId = $request->query('plan_audit_id');
-        $rec    = PemeriksaanRsaHgp::where('plan_audit_id', $planId)->first();
-        return response()->json(['data' => $rec ? $rec->toAktaArray() : null]);
+        return response()->json($this->jawabanPemeriksaan(PemeriksaanRsaHgp::class, $request));
     }
 
     // Sama seperti HgpController::save() — payload diperiksa dulu supaya snapshot
@@ -73,7 +73,7 @@ class RsaHgpController extends Controller
                 $rec = PemeriksaanRsaHgp::updateOrCreate(['plan_audit_id' => $planId], $data);
                 if (!$rec->created_by) $rec->update(['created_by' => $who]);
 
-                return response()->json(['message' => 'Data RSA HGP tersimpan.', 'data' => $rec->fresh()->toAktaArray()]);
+                return response()->json(['message' => 'Data RSA HGP tersimpan.', 'data' => $this->dataDenganSidik($rec->fresh())]);
             });
     }
 
