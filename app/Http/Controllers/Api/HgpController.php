@@ -162,11 +162,7 @@ class HgpController extends Controller
                 if ($request->has('wo')) {
                     $it['wo'] = $this->n($request->input('wo'));
                 }
-                // Rumus sama dengan hgpCalcItem() di frontend: WO ikut menambah fisik.
-                $saldo = $this->n($it['saldoAkhir'] ?? 0);
-                $total = $this->n($it['fisik'] ?? 0) + $this->n($it['wo'] ?? 0);
-                $it['akhir']   = $saldo - $total;
-                $it['selisih'] = $total - $saldo;
+                $it = $this->hitungUlangBaris($it);
                 $items[$idx] = $it;
 
                 $rec->items_json  = $items;
@@ -441,15 +437,10 @@ class HgpController extends Controller
         ];
     }
 
-    /** Rumus sama dengan hgpCalcItem() di layar: WO ikut menambah fisik. */
     private function pakaiWo(array $it, float $qty): array
     {
         $it['wo'] = $qty;
-        $saldo    = $this->n($it['saldoAkhir'] ?? 0);
-        $total    = $this->n($it['fisik'] ?? 0) + $qty;
-        $it['akhir']   = $saldo - $total;
-        $it['selisih'] = $total - $saldo;
-        return $it;
+        return $this->hitungUlangBaris($it);
     }
 
     private function ringkasPerubahanWo(array $it): array
@@ -932,6 +923,35 @@ class HgpController extends Controller
         return response()->json(['data' => $map]);
     }
 
+    /**
+     * Hitung ulang Akhir & Selisih satu baris. SATU-SATUNYA rumus di sisi
+     * server, dipakai baik oleh scan/edit manual maupun impor kolom WO --
+     * dua jalur yang mengisi kolom yang sama tidak boleh berbeda hasilnya.
+     *
+     * Sama persis dengan hgpCalcItem() di layar:
+     *   Akhir   = saldo - (fisik + wo)
+     *   Selisih = (fisik + wo) - saldo
+     *
+     * WO ikut menambah fisik. Saldo baseline dari saldoAkhir, dengan
+     * saldoAwal sebagai cadangan untuk data versi lama -- sama seperti
+     * hgpSaldo() di layar, exportSelisih(), dan Report Audit PDF.
+     */
+    private function hitungUlangBaris(array $it): array
+    {
+        $saldo = $this->saldoBaris($it);
+        $total = $this->n($it['fisik'] ?? 0) + $this->n($it['wo'] ?? 0);
+
+        $it['akhir']   = $saldo - $total;
+        $it['selisih'] = $total - $saldo;
+
+        return $it;
+    }
+
+    private function saldoBaris(array $it): float
+    {
+        return $this->n($it['saldoAkhir'] ?? ($it['saldoAwal'] ?? 0));
+    }
+
     private function n(mixed $val): float
     {
         if ($val === null || $val === '') return 0.0;
@@ -966,11 +986,12 @@ class HgpController extends Controller
         $oilBaris = [];
         $sparepartBaris = [];
         foreach ($items as $it) {
-            $fisik  = $this->n($it['fisik'] ?? 0);
-            $wo     = $this->n($it['wo'] ?? 0);
-            $saldo  = $this->n($it['saldoAkhir'] ?? ($it['saldoAwal'] ?? 0));
-            $akhir  = $saldo - ($fisik + $wo);
-            $selisih = ($fisik + $wo) - $saldo;
+            $hitung  = $this->hitungUlangBaris($it);
+            $fisik   = $this->n($it['fisik'] ?? 0);
+            $wo      = $this->n($it['wo'] ?? 0);
+            $saldo   = $this->saldoBaris($it);
+            $akhir   = $this->n($hitung['akhir']);
+            $selisih = $this->n($hitung['selisih']);
             if ($selisih === 0.0) continue;
 
             $harga  = $this->n($it['hargaHet'] ?? 0);

@@ -272,6 +272,128 @@ class HgpImporWoTest extends TestCase
             ->assertJsonFragment(['message' => 'Daftar item belum ada. Import data HGP & AHM Oils dulu, baru isi kolom ini.']);
     }
 
+    /**
+     * Pertanyaan dari lapangan: setelah angkanya masuk lewat impor, apakah
+     * rumus selisihnya berjalan sama seperti waktu diketik satu per satu?
+     *
+     * Dibuktikan dengan membandingkan dua jalur itu pada data yang sama:
+     * hasilnya harus identik, bukan sekadar mirip.
+     */
+    public function test_hasil_impor_identik_dengan_angka_yang_diketik_manual(): void
+    {
+        $contoh = [
+            // [saldoAkhir, fisik hasil scan, qty dari berkas]
+            [13, 0, 10],    // belum discan            -> selisih -3
+            [10, 2, 5],     // sudah discan sebagian   -> selisih -3
+            [5,  0, 5],     // pas                     -> selisih  0
+            [4,  1, 6],     // lebih                   -> selisih +3
+            [0,  0, 7],     // tidak ada di sistem     -> selisih +7
+            [8,  0, 0],     // titipan nol             -> selisih -8
+        ];
+
+        foreach ($contoh as [$saldo, $fisik, $qty]) {
+            $noPart = "PART{$saldo}X{$fisik}X{$qty}";
+
+            // Jalur A: diketik manual di tabel (endpoint yang sudah dipakai
+            // sejak kolom WO ada).
+            $manual = $this->isiDaftar([$this->item($noPart, saldo: $saldo, fisik: $fisik)]);
+            $this->postJson('/api/audit-detail/hgp/scan-increment', [
+                'plan_audit_id' => $this->plan->id,
+                'noPart'        => $noPart,
+                'qty'           => 0,
+                'wo'            => $qty,
+            ])->assertOk();
+            $hasilManual = $manual->fresh()->items_json[0];
+            $manual->delete();
+
+            // Jalur B: masuk lewat impor berkas.
+            $impor = $this->isiDaftar([$this->item($noPart, saldo: $saldo, fisik: $fisik)]);
+            $this->impor($this->berkas([[$noPart, $qty]]))->assertOk();
+            $hasilImpor = $impor->fresh()->items_json[0];
+            $impor->delete();
+
+            $ringkas = fn (array $it) => [
+                'wo'      => (float) $it['wo'],
+                'akhir'   => (float) $it['akhir'],
+                'selisih' => (float) $it['selisih'],
+            ];
+
+            $this->assertSame(
+                $ringkas($hasilManual),
+                $ringkas($hasilImpor),
+                "saldo {$saldo}, fisik {$fisik}, titipan {$qty}: impor beda dengan ketik manual"
+            );
+
+            // Sekalian pastikan rumusnya memang yang dimaksud, bukan dua jalur
+            // yang sama-sama salah.
+            $this->assertEquals($saldo - ($fisik + $qty), $hasilImpor['akhir']);
+            $this->assertEquals(($fisik + $qty) - $saldo, $hasilImpor['selisih']);
+        }
+    }
+
+    public function test_selisih_ikut_dihitung_ulang_saat_titipan_dikosongkan(): void
+    {
+        // Angka yang salah dikoreksi jadi 0: selisihnya harus kembali seperti
+        // sebelum titipan diisi, bukan tertinggal di angka lama.
+        $rec = $this->isiDaftar([$this->item('61304K0JA00', saldo: 13, fisik: 0, wo: 10)]);
+
+        $this->impor($this->berkas([['61304K0JA00', 0]]))->assertOk();
+
+        $it = $rec->fresh()->items_json[0];
+        $this->assertEquals(0, $it['wo']);
+        $this->assertEquals(13, $it['akhir']);
+        $this->assertEquals(-13, $it['selisih']);
+    }
+
+    public function test_data_lama_yang_cuma_punya_saldo_awal_ikut_terhitung(): void
+    {
+        // Item dari versi aplikasi lama menyimpan saldoAwal, bukan saldoAkhir.
+        $rec = $this->isiDaftar([[
+            'noPart' => '61304K0JA00', 'sparepart' => 'STAY RECEIVER',
+            'saldoAwal' => 13, 'fisik' => 0, 'wo' => 0,
+            'keterangan' => '', 'tgl' => '2026-09-21', 'logScan' => [],
+        ]]);
+
+        $this->impor($this->berkas([['61304K0JA00', 10]]))->assertOk();
+
+        $it = $rec->fresh()->items_json[0];
+        $this->assertEquals(3, $it['akhir'], 'saldoAwal harus ikut dipakai, sama seperti di layar');
+        $this->assertEquals(-3, $it['selisih']);
+    }
+
+    public function test_titipan_hasil_impor_masuk_ke_export_selisih(): void
+    {
+        $rec = $this->isiDaftar([
+            $this->item('61304K0JA00', saldo: 13),   // jadi selisih -3 setelah impor
+            $this->item('64300K2FP00', saldo: 5),    // jadi selisih 0  -> tidak ikut
+        ]);
+        $rec->update(['label_wo' => 'Titipan']);
+
+        $this->impor($this->berkas([
+            ['61304K0JA00', 10],
+            ['64300K2FP00', 5],
+        ]))->assertOk();
+
+        $res = $this->get('/api/audit-detail/hgp/export-selisih?plan_audit_id=' . $this->plan->id);
+        $res->assertOk();
+
+        $path = tempnam(sys_get_temp_dir(), 'selisih') . '.xlsx';
+        file_put_contents($path, $res->streamedContent());
+        $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($path)->getSheetByName('SPAREPART');
+        $isi   = $sheet->toArray();
+
+        $rata = [];
+        foreach ($isi as $baris) {
+            foreach ($baris as $sel) {
+                if ($sel !== null && $sel !== '') $rata[] = (string) $sel;
+            }
+        }
+
+        $this->assertContains('Titipan', $rata, 'judul kolom ikut ke berkas export');
+        $this->assertContains('61304K0JA00', $rata, 'item yang selisih ikut terbawa');
+        $this->assertNotContains('64300K2FP00', $rata, 'item yang selisihnya nol tidak ikut');
+    }
+
     public function test_simpan_penuh_dari_layar_ketinggalan_tidak_menghapus_hasil_impor(): void
     {
         // Auditor lain masih memegang tabel versi SEBELUM import ini. Kalau
