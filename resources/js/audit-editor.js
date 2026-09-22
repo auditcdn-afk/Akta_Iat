@@ -5984,6 +5984,10 @@ function hgpLabelWo() {
 function hgpTampilkanLabelWo() {
     const el = document.getElementById('hgpLabelWo');
     if (el) el.textContent = hgpLabelWo();
+    // Bar import kolom ini ikut menyebut nama yang dipakai plan ini, supaya
+    // tidak ada dua sebutan berbeda untuk kolom yang sama dalam satu layar.
+    const bar = document.getElementById('hgpWoImportLabel');
+    if (bar) bar.textContent = hgpLabelWo();
 }
 
 async function hgpGantiLabelWo() {
@@ -6012,6 +6016,100 @@ async function hgpGantiLabelWo() {
         showAlert(`Judul kolom diganti menjadi "${hgpLabelWo()}".`);
     } catch (err) {
         showAlert(err.message || 'Gagal mengganti judul kolom.', 'error');
+    }
+}
+
+// Isi kolom WO (di lapangan sering "Titipan") untuk banyak No. Part sekaligus
+// dari berkas dua kolom: No Part + QTY.
+//
+// Dikirim DUA KALI dengan sengaja: yang pertama pratinjau — server menghitung
+// dampaknya tanpa menulis apa pun, dan angkanya ditunjukkan dulu. Berkas yang
+// salah plan terbaca di situ ("0 dari 387 cocok") sebelum apa pun tertimpa.
+async function hgpImporWo(file) {
+    const msg   = document.getElementById('hgpWoImportMsg');
+    const label = hgpLabelWo();
+    const kosongkan = !!document.getElementById('hgpWoKosongkan')?.checked;
+
+    const tulis = (teks, warna) => {
+        if (!msg) return;
+        msg.classList.remove('hidden');
+        msg.textContent = teks;
+        msg.className = `mt-2 text-xs font-medium ${warna}`;
+    };
+
+    if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'warning'); return; }
+
+    const kirim = async (pratinjau) => {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('plan_audit_id', activePlanId);
+        if (pratinjau) fd.append('pratinjau', '1');
+        if (kosongkan) fd.append('kosongkanSisanya', '1');
+        return fetchJson('/api/audit-detail/hgp/impor-wo', {
+            method: 'POST', headers: authHeaders(), body: fd,
+        });
+    };
+
+    try {
+        tulis('Membaca berkas...', 'text-slate-300');
+        const lihat = await kirim(true);
+
+        if (!lihat.cocok) {
+            tulis(
+                `Tidak ada No. Part berkas yang cocok dengan daftar pemeriksaan `
+                + `(${lihat.noPartUnik} No. Part dibaca). Pastikan berkasnya untuk plan audit ini.`,
+                'text-red-400'
+            );
+            return;
+        }
+
+        const rincian = [
+            `${lihat.cocok} dari ${lihat.noPartUnik} No. Part cocok`,
+            `total QTY ${fmtNum(lihat.totalQty)}`,
+        ];
+        if (lihat.tidakCocok) rincian.push(`${lihat.tidakCocok} tidak ada di daftar (dilewati)`);
+        if (lihat.dikosongkan) rincian.push(`${lihat.dikosongkan} item lain dikosongkan`);
+
+        const contoh = (lihat.contohTidakCocok || []).length
+            ? `\n\nYang tidak ada di daftar, antara lain:\n${lihat.contohTidakCocok.join(', ')}`
+            : '';
+
+        if (!confirm(
+            `Isi kolom "${label}" dari berkas ini?\n\n`
+            + rincian.map(r => `• ${r}`).join('\n')
+            + contoh
+            + `\n\nAngka lama di kolom "${label}" untuk item yang cocok akan diganti. `
+            + 'Hasil scan Fisik tidak disentuh.'
+        )) {
+            tulis('Dibatalkan — tidak ada yang diubah.', 'text-slate-400');
+            return;
+        }
+
+        tulis('Menyimpan...', 'text-slate-300');
+        const res = await kirim(false);
+
+        // Server cuma mengirim balik item yang BERUBAH, bukan seluruh daftar
+        // (pada audit gudang isinya 4.781 item). Ditambal ke data di layar
+        // lewat No. Part-nya.
+        const perIndex = {};
+        (_hgpData?.items || []).forEach((it, i) => {
+            if (it.noPart) perIndex[String(it.noPart).toUpperCase()] = i;
+        });
+        (res.perubahan || []).forEach(p => {
+            const i = perIndex[String(p.noPart || '').toUpperCase()];
+            if (i === undefined) return;
+            _hgpData.items[i].wo = p.wo;
+            hgpCalcItem(_hgpData.items[i]);
+        });
+
+        hgpRenderItems();
+        tulis(
+            `Kolom "${label}" terisi untuk ${res.cocok} item (total QTY ${fmtNum(res.totalQty)})`
+            + (res.tidakCocok ? ` — ${res.tidakCocok} No. Part berkas tidak ada di daftar dan dilewati.` : '.'),
+            res.tidakCocok ? 'text-amber-400' : 'text-green-400'
+        );
+    } catch (e) {
+        tulis('Gagal: ' + (e.message || 'Unknown error'), 'text-red-400');
     }
 }
 
@@ -7170,6 +7268,12 @@ function initHgpForm() {
     addPartNama?.addEventListener('keydown', e => { if (e.key === 'Enter') addPartSave?.click(); });
 
     document.getElementById('hgpLabelWoBtn')?.addEventListener('click', hgpGantiLabelWo);
+
+    const woFile = document.getElementById('hgpWoFileInput');
+    woFile?.addEventListener('change', () => {
+        if (woFile.files[0]) hgpImporWo(woFile.files[0]);
+        woFile.value = '';
+    });
 
     document.getElementById('hgpClearBtn')?.addEventListener('click', () => {
         if (!confirm('Hapus semua data HGP & AHM Oils? Data lama akan dikosongkan, lalu import ulang file Excel.')) return;
