@@ -162,11 +162,7 @@ class HgpController extends Controller
                 if ($request->has('wo')) {
                     $it['wo'] = $this->n($request->input('wo'));
                 }
-                // Rumus sama dengan hgpCalcItem() di frontend: WO ikut menambah fisik.
-                $saldo = $this->n($it['saldoAkhir'] ?? 0);
-                $total = $this->n($it['fisik'] ?? 0) + $this->n($it['wo'] ?? 0);
-                $it['akhir']   = $saldo - $total;
-                $it['selisih'] = $total - $saldo;
+                $it = $this->hitungUlangBaris($it);
                 $items[$idx] = $it;
 
                 $rec->items_json  = $items;
@@ -221,6 +217,240 @@ class HgpController extends Controller
                     'labelWo' => $rec->label_wo ?: PemeriksaanHgp::LABEL_WO_BAWAAN,
                 ]);
             });
+    }
+
+
+    /**
+     * Isi kolom yang menambah hitungan fisik (judul bawaannya "WO", di lapangan
+     * sering disebut Titipan) untuk BANYAK No. Part sekaligus dari berkas Excel.
+     *
+     * Tanpa ini, angka titipan diketik satu per satu: pada audit gudang daftar
+     * onhand-nya ribuan item, sementara titipannya ratusan -- mencari tiap
+     * No. Part di tabel lalu mengetik angkanya memakan waktu berjam-jam dan
+     * salah ketiknya tidak ketahuan.
+     *
+     * Berkasnya cukup dua kolom: No Part dan QTY.
+     *
+     * Yang DITULIS hanya kolom itu. Fisik hasil scan, keterangan, saldo, dan
+     * riwayat logScan tidak disentuh sama sekali -- jadi ini aman dijalankan di
+     * tengah pemeriksaan yang sedang berjalan.
+     */
+    public function imporWo(Request $request): JsonResponse
+    {
+        $planId = $request->input('planAuditId') ?? $request->input('plan_audit_id');
+
+        $request->validate(['file' => 'required|file|max:51200']);
+        abort_unless($planId, 422, 'plan_audit_id wajib diisi.');
+
+        $file = $request->file('file');
+        $ext  = strtolower($file->getClientOriginalExtension());
+        if (!in_array($ext, ['xls', 'xlsx', 'csv'], true)) {
+            return response()->json(['message' => 'File harus berformat .xls, .xlsx, atau .csv.'], 422);
+        }
+
+        $berkas = $this->bacaBerkasWo($file->getRealPath(), $ext);
+        if ($berkas === []) {
+            return response()->json([
+                'message' => 'Tidak ada baris yang bisa dibaca. Berkasnya perlu dua kolom: No. Part dan QTY.',
+            ], 422);
+        }
+
+        // Dijalankan dua kali oleh layar: sekali untuk melihat dampaknya
+        // (pratinjau), lalu sekali lagi untuk benar-benar menulis. Angka yang
+        // ditampilkan sebelum menimpa itu yang membuat auditor sadar kalau
+        // berkasnya salah plan -- mis. "0 dari 387 cocok".
+        $pratinjau = $request->boolean('pratinjau');
+        // Item yang TIDAK disebut berkas biasanya memang tidak ada titipannya.
+        // Tapi mengosongkannya berarti menghapus angka yang mungkin sudah
+        // diketik auditor lain, jadi tidak dilakukan kecuali diminta.
+        $kosongkanSisanya = $request->boolean('kosongkanSisanya');
+
+        return $this->denganKunciPemeriksaan(PemeriksaanHgp::class, $planId,
+            function (?PemeriksaanHgp $rec) use ($berkas, $pratinjau, $kosongkanSisanya, $request) {
+                if (!$rec || !is_array($rec->items_json) || $rec->items_json === []) {
+                    return response()->json([
+                        'message' => 'Daftar item belum ada. Import data HGP & AHM Oils dulu, baru isi kolom ini.',
+                    ], 422);
+                }
+
+                $items  = $rec->items_json;
+                $labelWo = $rec->label_wo ?: PemeriksaanHgp::LABEL_WO_BAWAAN;
+                $hasil  = $this->terapkanWoDariBerkas($items, $berkas, $kosongkanSisanya);
+
+                if ($pratinjau) {
+                    return response()->json($hasil['ringkasan'] + [
+                        'pratinjau' => true,
+                        'labelWo'   => $labelWo,
+                    ]);
+                }
+
+                $rec->items_json = $hasil['items'];
+                $rec->updated_by = $request->user()?->username ?? $request->user()?->email;
+                $rec->save();
+
+                return response()->json($hasil['ringkasan'] + [
+                    'pratinjau'  => false,
+                    'labelWo'    => $labelWo,
+                    'message'    => "Kolom \"{$labelWo}\" terisi untuk {$hasil['ringkasan']['cocok']} item.",
+                    // Cuma item yang BERUBAH yang dikirim balik, bukan seluruh
+                    // daftar: pada audit gudang daftarnya 4.781 item (1,3 MB),
+                    // sementara yang berubah paling ratusan.
+                    'perubahan'  => $hasil['perubahan'],
+                ]);
+            });
+    }
+
+    /**
+     * Baca berkas dua kolom (No. Part + QTY) menjadi [ kunci => ['noPart','qty'] ].
+     *
+     * QTY untuk No. Part yang muncul berkali-kali DIJUMLAHKAN: daftar titipan
+     * sering ditulis per kejadian (satu baris per surat jalan), bukan sudah
+     * direkap per part.
+     */
+    private function bacaBerkasWo(string $path, string $ext): array
+    {
+        $reader = match ($ext) {
+            'xlsx' => new Xlsx(),
+            'xls'  => new Xls(),
+            'csv'  => new Csv(),
+        };
+        $reader->setReadDataOnly(true);
+        $rows = $reader->load($path)->getActiveSheet()->toArray(null, true, true, false);
+
+        [$kolomPart, $kolomQty] = $this->kolomBerkasWo($rows);
+
+        $keluar = [];
+        foreach ($rows as $row) {
+            $noPart = trim((string) ($row[$kolomPart] ?? ''));
+            if ($noPart === '') continue;
+
+            $mentah = $row[$kolomQty] ?? '';
+            // Baris judul ikut terbaca kalau kolomnya ditebak dari posisi.
+            // Dikenali dari QTY-nya yang bukan angka, bukan dari tulisan
+            // judulnya -- judul bisa apa saja.
+            if (!is_numeric(trim((string) $mentah))) continue;
+
+            $kunci = $this->kunciPart($noPart);
+            if ($kunci === '') continue;
+
+            if (!isset($keluar[$kunci])) {
+                $keluar[$kunci] = ['noPart' => $noPart, 'qty' => 0.0, 'baris' => 0];
+            }
+            $keluar[$kunci]['qty']   += $this->n($mentah);
+            $keluar[$kunci]['baris'] += 1;
+        }
+
+        return $keluar;
+    }
+
+    /** Posisi kolom No. Part & QTY: dari judulnya kalau ada, kalau tidak dua kolom pertama. */
+    private function kolomBerkasWo(array $rows): array
+    {
+        foreach (array_slice($rows, 0, 10) as $row) {
+            $part = null;
+            $qty  = null;
+            foreach ($row as $ci => $cell) {
+                $lower = strtolower(trim((string) $cell));
+                if ($lower === '') continue;
+                if ($part === null && $this->cocokJudul($lower, self::JUDUL_KOLOM['noPart'])) $part = $ci;
+                if ($qty === null && $this->cocokJudul($lower, ['qty', 'jumlah', 'qty titipan', 'titipan', 'wo', 'quantity'])) $qty = $ci;
+            }
+            if ($part !== null && $qty !== null) return [$part, $qty];
+        }
+
+        // Tanpa judul yang dikenali: kolom pertama No. Part, kolom kedua QTY.
+        return [0, 1];
+    }
+
+    private function cocokJudul(string $lower, array $daftar): bool
+    {
+        foreach ($daftar as $judul) {
+            if ($lower === $judul || str_contains($lower, $judul)) return true;
+        }
+        return false;
+    }
+
+    /** No. Part dibandingkan tanpa memandang besar-kecil huruf, spasi, dan tanda pisah. */
+    private function kunciPart(string $noPart): string
+    {
+        return preg_replace('/[^A-Z0-9]/', '', strtoupper(trim($noPart))) ?? '';
+    }
+
+    /**
+     * Tulis QTY berkas ke kolom WO pada item yang No. Part-nya cocok.
+     *
+     * Nilai lama DIGANTI, bukan ditambah: import ulang berkas yang sudah
+     * dikoreksi harus memberi angka yang tertulis di berkas, bukan kelipatannya.
+     */
+    private function terapkanWoDariBerkas(array $items, array $berkas, bool $kosongkanSisanya): array
+    {
+        $indeks = [];
+        foreach ($items as $i => $row) {
+            $kunci = $this->kunciPart((string) ($row['noPart'] ?? ''));
+            // No. Part kembar di daftar onhand: yang pertama yang diisi,
+            // supaya QTY yang sama tidak dihitung dua kali.
+            if ($kunci !== '' && !isset($indeks[$kunci])) $indeks[$kunci] = $i;
+        }
+
+        $perubahan   = [];
+        $tersentuh   = [];
+        $tidakCocok  = [];
+        $totalQty    = 0.0;
+        $barisBerkas = 0;
+
+        foreach ($berkas as $kunci => $isi) {
+            $barisBerkas += $isi['baris'];
+            if (!isset($indeks[$kunci])) {
+                $tidakCocok[] = $isi['noPart'];
+                continue;
+            }
+
+            $idx = $indeks[$kunci];
+            $tersentuh[$idx] = true;
+            $totalQty += $isi['qty'];
+            $items[$idx] = $this->pakaiWo($items[$idx], $isi['qty']);
+            $perubahan[] = $this->ringkasPerubahanWo($items[$idx]);
+        }
+
+        $dikosongkan = 0;
+        if ($kosongkanSisanya) {
+            foreach ($items as $i => $row) {
+                if (isset($tersentuh[$i]) || $this->n($row['wo'] ?? 0) === 0.0) continue;
+                $items[$i]   = $this->pakaiWo($row, 0);
+                $perubahan[] = $this->ringkasPerubahanWo($items[$i]);
+                $dikosongkan++;
+            }
+        }
+
+        return [
+            'items'     => $items,
+            'perubahan' => $perubahan,
+            'ringkasan' => [
+                'barisBerkas'      => $barisBerkas,
+                'noPartUnik'       => count($berkas),
+                'cocok'            => count($tersentuh),
+                'totalQty'         => $totalQty,
+                'tidakCocok'       => count($tidakCocok),
+                'contohTidakCocok' => array_slice($tidakCocok, 0, 10),
+                'dikosongkan'      => $dikosongkan,
+            ],
+        ];
+    }
+
+    private function pakaiWo(array $it, float $qty): array
+    {
+        $it['wo'] = $qty;
+        return $this->hitungUlangBaris($it);
+    }
+
+    private function ringkasPerubahanWo(array $it): array
+    {
+        return [
+            'noPart'  => (string) ($it['noPart'] ?? ''),
+            'wo'      => $this->n($it['wo'] ?? 0),
+            'akhir'   => $this->n($it['akhir'] ?? 0),
+            'selisih' => $this->n($it['selisih'] ?? 0),
+        ];
     }
 
     // Tambah 1 No. Part manual (tombol "+ Tambah Part Manual") lewat baca-ubah-simpan
@@ -693,6 +923,35 @@ class HgpController extends Controller
         return response()->json(['data' => $map]);
     }
 
+    /**
+     * Hitung ulang Akhir & Selisih satu baris. SATU-SATUNYA rumus di sisi
+     * server, dipakai baik oleh scan/edit manual maupun impor kolom WO --
+     * dua jalur yang mengisi kolom yang sama tidak boleh berbeda hasilnya.
+     *
+     * Sama persis dengan hgpCalcItem() di layar:
+     *   Akhir   = saldo - (fisik + wo)
+     *   Selisih = (fisik + wo) - saldo
+     *
+     * WO ikut menambah fisik. Saldo baseline dari saldoAkhir, dengan
+     * saldoAwal sebagai cadangan untuk data versi lama -- sama seperti
+     * hgpSaldo() di layar, exportSelisih(), dan Report Audit PDF.
+     */
+    private function hitungUlangBaris(array $it): array
+    {
+        $saldo = $this->saldoBaris($it);
+        $total = $this->n($it['fisik'] ?? 0) + $this->n($it['wo'] ?? 0);
+
+        $it['akhir']   = $saldo - $total;
+        $it['selisih'] = $total - $saldo;
+
+        return $it;
+    }
+
+    private function saldoBaris(array $it): float
+    {
+        return $this->n($it['saldoAkhir'] ?? ($it['saldoAwal'] ?? 0));
+    }
+
     private function n(mixed $val): float
     {
         if ($val === null || $val === '') return 0.0;
@@ -727,11 +986,12 @@ class HgpController extends Controller
         $oilBaris = [];
         $sparepartBaris = [];
         foreach ($items as $it) {
-            $fisik  = $this->n($it['fisik'] ?? 0);
-            $wo     = $this->n($it['wo'] ?? 0);
-            $saldo  = $this->n($it['saldoAkhir'] ?? ($it['saldoAwal'] ?? 0));
-            $akhir  = $saldo - ($fisik + $wo);
-            $selisih = ($fisik + $wo) - $saldo;
+            $hitung  = $this->hitungUlangBaris($it);
+            $fisik   = $this->n($it['fisik'] ?? 0);
+            $wo      = $this->n($it['wo'] ?? 0);
+            $saldo   = $this->saldoBaris($it);
+            $akhir   = $this->n($hitung['akhir']);
+            $selisih = $this->n($hitung['selisih']);
             if ($selisih === 0.0) continue;
 
             $harga  = $this->n($it['hargaHet'] ?? 0);

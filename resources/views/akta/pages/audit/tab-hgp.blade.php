@@ -33,6 +33,27 @@
                 <p id="hgpImportMsg" class="hidden text-sm font-medium text-green-400"></p>
             </div>
 
+            {{-- Isi kolom WO (di lapangan sering disebut Titipan) untuk banyak
+                 No. Part sekaligus. Berkasnya cukup dua kolom: No Part + QTY.
+                 Judulnya ikut sebutan yang dipakai plan ini. --}}
+            <div class="rounded-xl border border-slate-700 bg-slate-800/40 px-4 py-3">
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="text-sm text-slate-300">
+                        Isi kolom <span id="hgpWoImportLabel" class="font-semibold text-amber-300">WO</span>
+                        sekaligus dari Excel <span class="text-slate-500">(dua kolom: No Part &amp; QTY)</span>
+                    </span>
+                    <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-amber-500/60 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 transition">
+                        📥 Pilih File
+                        <input type="file" id="hgpWoFileInput" accept=".xls,.xlsx,.csv" class="hidden">
+                    </label>
+                    <label class="inline-flex items-center gap-2 text-xs text-slate-400" title="Item yang tidak disebut di berkas dikembalikan ke 0 — pakai kalau berkasnya daftar lengkap">
+                        <input type="checkbox" id="hgpWoKosongkan" class="rounded border-slate-600 bg-slate-800">
+                        Kosongkan item yang tidak ada di berkas
+                    </label>
+                </div>
+                <p id="hgpWoImportMsg" class="hidden mt-2 text-xs font-medium"></p>
+            </div>
+
             {{-- Stat --}}
             <div class="grid grid-cols-3 gap-4">
                 <div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4 text-center">
