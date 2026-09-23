@@ -165,17 +165,54 @@ class PemeriksaanKasController extends Controller
     //
     // Kunci kecocokannya kata TERAKHIR nama unit usaha ("SO UJT" & "CSC UJT"
     // sama-sama UJT). Nama tiga kata ikut terlayani: "WHS Part KIM" -> KIM.
+    //
+    // KECUALI kalau kata terakhirnya penanda divisi. Lihat PENANDA_DIVISI.
 
-    /** Kata terakhir nama unit usaha, huruf besar semua. Kosong kalau namanya kosong. */
+    /**
+     * Penanda divisi Honda di ekor nama unit usaha: H1 (sepeda motor),
+     * H2 (suku cadang), H3 (bengkel).
+     *
+     * Ini menandakan DIVISI, bukan lokasi -- memakainya sebagai kunci membuat
+     * dua kesalahan sekaligus:
+     *
+     *   "CVKJ H2" dianggap sejenis dengan "CVAB H2" dan "CV Anugerah H2"
+     *      -> perusahaan yang sama sekali berbeda ditawarkan sebagai sumber
+     *         salinan, dan kas cabang lain bisa tersalin ke sini;
+     *   "CVKJ H1" tidak pernah bertemu "CVKJ H2"
+     *      -> padahal keduanya satu lokasi dan kasnya memang sama.
+     *
+     * Kalau nanti ada penanda lain, cukup ditambahkan di sini.
+     */
+    private const PENANDA_DIVISI = ['H1', 'H2', 'H3'];
+
+    /**
+     * Kunci kecocokan unit usaha, huruf besar semua. Kosong kalau namanya kosong.
+     *
+     *   SO UJT        -> UJT       (kata terakhir = lokasi)
+     *   CSC UJT       -> UJT
+     *   WHS Part KIM  -> KIM
+     *   CVKJ H1       -> CVKJ      (kata terakhir = divisi, dibuang)
+     *   CVKJ H2       -> CVKJ
+     *   CV Anugerah H2 -> CV ANUGERAH
+     */
     private function kunciUnitUsaha(?string $cabang): string
     {
         $bersih = trim(preg_replace('/\s+/', ' ', (string) $cabang));
         if ($bersih === '') {
             return '';
         }
-        $potong = explode(' ', $bersih);
+        $potong = explode(' ', mb_strtoupper($bersih));
 
-        return mb_strtoupper(end($potong));
+        // Penanda divisi dibuang, sisanya yang jadi kunci. Hanya kalau masih
+        // ada kata lain di depannya -- unit usaha yang namanya cuma "H2" tidak
+        // punya sisa apa pun untuk dicocokkan.
+        if (count($potong) > 1 && in_array(end($potong), self::PENANDA_DIVISI, true)) {
+            array_pop($potong);
+
+            return implode(' ', $potong);
+        }
+
+        return end($potong);
     }
 
     /** GET /api/audit-detail/kas/sumber-salin?plan_audit_id= */
@@ -221,9 +258,14 @@ class PemeriksaanKasController extends Controller
             ->with('planAudit:id,no_spt,cabang,jenis_audit,tgl_plan')
             ->where('plan_audit_id', '!=', $planId)
             ->whereHas('planAudit', function ($q) use ($kunci, $semuaPeriode, $mulaiPeriode, $sampaiPeriode) {
+                // Kuncinya bisa berada di EKOR nama ("SO UJT" untuk kunci UJT)
+                // maupun di DEPAN ("CVKJ H1" untuk kunci CVKJ). Keduanya ditarik,
+                // lalu disaring ulang di PHP dengan kunciUnitUsaha() supaya yang
+                // cuma mirip tidak ikut lolos.
                 $q->where(fn ($c) => $c
                     ->where('cabang', $kunci)
-                    ->orWhere('cabang', 'like', '% ' . $kunci));
+                    ->orWhere('cabang', 'like', '% ' . $kunci)
+                    ->orWhere('cabang', 'like', $kunci . ' %'));
                 if (! $semuaPeriode) {
                     $q->whereBetween('tgl_plan', [$mulaiPeriode, $sampaiPeriode]);
                 }
@@ -299,7 +341,8 @@ class PemeriksaanKasController extends Controller
         if ($kunciTujuan === '' || $kunciTujuan !== $kunciSumber) {
             return response()->json([
                 'message' => "Tidak bisa menyalin: \"{$sumber->cabang}\" dan \"{$tujuan->cabang}\" bukan unit usaha yang sama. "
-                    . 'Hanya unit usaha dengan kata terakhir yang sama yang boleh saling menyalin.',
+                    . 'Hanya unit usaha di lokasi yang sama yang boleh saling menyalin '
+                    . '(mis. SO UJT dengan CSC UJT, atau CVKJ H1 dengan CVKJ H2).',
             ], 422);
         }
 
