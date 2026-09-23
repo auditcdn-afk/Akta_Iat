@@ -47,6 +47,121 @@ class KasSalinUnitUsahaTest extends TestCase
         ]);
     }
 
+    // ── Unit usaha berpenanda divisi (H1 / H2 / H3) ─────────────────────────
+    //
+    // Nama seperti "CVKJ H1" dan "CVKJ H2" kata terakhirnya menandakan DIVISI,
+    // bukan lokasi. Memakainya sebagai kunci membuat dua kesalahan sekaligus:
+    // perusahaan berbeda dianggap sejenis, dan dua divisi di lokasi yang sama
+    // tidak pernah bertemu.
+
+    /** Plan + isi kas siap pakai, supaya tiap tes tidak mengulang persiapannya. */
+    private function planBerkas(string $noSpt, string $cabang, string $jenis = 'Audit Kas'): PlanAudit
+    {
+        $plan = $this->plan($noSpt, $cabang, $jenis);
+        $this->auditorTerisi($plan);
+
+        PemeriksaanKas::query()->create([
+            'plan_audit_id' => $plan->id,
+            'no_spt'        => $plan->no_spt,
+            'cabang'        => $plan->cabang,
+            'jenis_audit'   => $plan->jenis_audit,
+            'nama_pos'      => 'Pemeriksaan Kas',
+            'saldo_fisik'   => 10_000_000,
+            'saldo_buku'    => 10_000_000,
+            'selisih'       => 0,
+            'detail_json'   => $this->isiKas(),
+            'created_by'    => 'salim',
+        ]);
+
+        return $plan;
+    }
+
+    private function daftarSumber(PlanAudit $tujuan): array
+    {
+        $res = $this->getJson('/api/audit-detail/kas/sumber-salin?plan_audit_id=' . $tujuan->id);
+        $res->assertOk();
+
+        return array_column($res->json('data'), 'cabang');
+    }
+
+    public function test_h1_dan_h2_di_perusahaan_sama_bisa_saling_salin(): void
+    {
+        $this->planBerkas('0501/01/09/2026/SPT-IAT', 'CVKJ H1');
+        $tujuan = $this->plan('0502/01/09/2026/SPT-IAT', 'CVKJ H2', 'Audit Kas');
+
+        $this->assertSame(['CVKJ H1'], $this->daftarSumber($tujuan));
+    }
+
+    public function test_perusahaan_berbeda_tidak_ikut_walau_divisinya_sama(): void
+    {
+        // Inti cacatnya: dulu kuncinya "H2", jadi CVAB H2 dan CV Anugerah H2
+        // ikut ditawarkan sebagai sumber salinan untuk CVKJ H2.
+        $this->planBerkas('0511/01/09/2026/SPT-IAT', 'CVAB H2');
+        $this->planBerkas('0512/01/09/2026/SPT-IAT', 'CV Anugerah H2');
+        $tujuan = $this->plan('0513/01/09/2026/SPT-IAT', 'CVKJ H2', 'Audit Kas');
+
+        $this->assertSame([], $this->daftarSumber($tujuan));
+    }
+
+    public function test_menyalin_dari_perusahaan_lain_ditolak_server_walau_dipaksa(): void
+    {
+        $asing  = $this->planBerkas('0521/01/09/2026/SPT-IAT', 'CVAB H2');
+        $tujuan = $this->plan('0522/01/09/2026/SPT-IAT', 'CVKJ H2', 'Audit Kas');
+
+        $this->postJson('/api/audit-detail/kas/salin', [
+            'plan_audit_id'        => $tujuan->id,
+            'sumber_plan_audit_id' => $asing->id,
+        ])->assertStatus(422);
+
+        $this->assertDatabaseMissing('pemeriksaan_kas', ['plan_audit_id' => $tujuan->id]);
+    }
+
+    public function test_salin_antar_divisi_satu_perusahaan_benar_benar_berjalan(): void
+    {
+        $sumber = $this->planBerkas('0531/01/09/2026/SPT-IAT', 'CVKJ H1');
+        $tujuan = $this->plan('0532/01/09/2026/SPT-IAT', 'CVKJ H2', 'Audit Kas');
+
+        $this->postJson('/api/audit-detail/kas/salin', [
+            'plan_audit_id'        => $tujuan->id,
+            'sumber_plan_audit_id' => $sumber->id,
+        ])->assertOk();
+
+        $kas = PemeriksaanKas::query()->where('plan_audit_id', $tujuan->id)->first();
+
+        $this->assertNotNull($kas);
+        // Isinya ikut, tapi identitas cabangnya tetap milik plan TUJUAN.
+        $this->assertSame('CVKJ H2', $kas->cabang);
+        $this->assertSame($this->isiKas()['kas_besar']['saldo_awal'], $kas->detail_json['kas_besar']['saldo_awal']);
+    }
+
+    public function test_nama_perusahaan_dua_kata_tetap_dibedakan(): void
+    {
+        // "CV Anugerah H1" -> CV ANUGERAH, bukan ANUGERAH: kalau cuma kata
+        // sebelum penanda yang dipakai, "CV Berkah H1" ikut tertarik.
+        $this->planBerkas('0541/01/09/2026/SPT-IAT', 'CV Anugerah H1');
+        $this->planBerkas('0542/01/09/2026/SPT-IAT', 'CV Berkah H1');
+        $tujuan = $this->plan('0543/01/09/2026/SPT-IAT', 'CV Anugerah H2', 'Audit Kas');
+
+        $this->assertSame(['CV Anugerah H1'], $this->daftarSumber($tujuan));
+    }
+
+    public function test_pola_lama_so_csc_tidak_berubah(): void
+    {
+        // Penanda divisi tidak boleh mengganggu nama yang kata terakhirnya
+        // memang lokasi.
+        $this->assertSame(['SO UJT'], $this->daftarSumber($this->csc));
+    }
+
+    public function test_unit_usaha_yang_namanya_hanya_penanda_divisi_tidak_menyapu_semuanya(): void
+    {
+        // Nama "H2" tidak menyisakan apa pun untuk dicocokkan. Yang penting:
+        // jangan sampai dia cocok dengan SELURUH unit usaha berakhiran H2.
+        $this->planBerkas('0551/01/09/2026/SPT-IAT', 'CVKJ H2');
+        $tujuan = $this->plan('0552/01/09/2026/SPT-IAT', 'H2', 'Audit Kas');
+
+        $this->assertSame([], $this->daftarSumber($tujuan));
+    }
+
     // ── Daftar sumber ────────────────────────────────────────────────────────
 
     public function test_daftar_sumber_hanya_unit_usaha_dengan_kata_terakhir_sama(): void
