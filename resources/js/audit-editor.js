@@ -5848,13 +5848,28 @@ function createScanIncrementQueue({ endpoint, simpananKey, delay = 400, maksPerc
             }
         }
         if (dipulihkan) {
-            onStuck?.(scanTertunda(), null);
+            onStuck?.(scanTertundaAktif(), null, semuaMentok());
             jadwalkan(0);
         }
         return dipulihkan;
     }
 
     const scanTertunda = () => semua().reduce((n, p) => n + p.entries.length, 0);
+
+    // Yang ditampilkan di layar HANYA scan milik plan yang sedang dibuka.
+    // Dulu dipakai hitungan lintas-plan, sehingga satu scan tersangkut di plan
+    // lain membuat peringatan menempel terus di layar plan ini -- auditor jadi
+    // tidak pernah tahu apakah scan-nya YANG INI sudah masuk atau belum.
+    const scanTertundaAktif = () =>
+        semua().filter(p => p.planId === activePlanId).reduce((n, p) => n + p.entries.length, 0);
+
+    // Semua yang tersisa sudah habis jatah percobaan otomatisnya. Dipakai supaya
+    // peringatannya tidak menjanjikan "masih dicoba ulang otomatis" padahal
+    // percobaan otomatisnya sudah berhenti.
+    const semuaMentok = () => {
+        const sisa = semua().filter(p => p.planId === activePlanId && p.entries.length);
+        return sisa.length > 0 && sisa.every(p => (p.percobaan || 0) >= maksPercobaan);
+    };
 
     function jadwalkan(ms) {
         if (timer) clearTimeout(timer);
@@ -5885,6 +5900,7 @@ function createScanIncrementQueue({ endpoint, simpananKey, delay = 400, maksPerc
         batch.forEach(p => terkirim.set(`${tanda}|${kunci(p.planId, p.noPart)}`, p));
         chain = chain.then(async () => {
             let adaGagal = false;
+            let pesanKhusus = null;
             for (const p of batch) {
                 const kTerkirim = `${tanda}|${kunci(p.planId, p.noPart)}`;
                 try {
@@ -5911,7 +5927,7 @@ function createScanIncrementQueue({ endpoint, simpananKey, delay = 400, maksPerc
                     const ditolak = err?.status === 404 || err?.status === 422;
                     kembalikan(p);
                     if (ditolak && p.percobaan >= maksPercobaan) {
-                        onStuck?.(scanTertunda(), `${err?.message || 'Scan ditolak server.'} — ${p.entries.length} scan No. Part ${p.noPart} disimpan di perangkat & akan dicoba lagi saat tab dibuka.`);
+                        pesanKhusus = `${err?.message || 'Scan ditolak server.'} — ${p.entries.length} scan No. Part ${p.noPart} disimpan di perangkat & akan dicoba lagi saat tab dibuka.`;
                         continue;
                     }
                     adaGagal = true;
@@ -5920,12 +5936,20 @@ function createScanIncrementQueue({ endpoint, simpananKey, delay = 400, maksPerc
             simpanAntrean();
             if (adaGagal) {
                 gagalBeruntun++;
-                onStuck?.(scanTertunda(), null);
                 jadwalkan(Math.min(30000, 1000 * 2 ** Math.min(gagalBeruntun - 1, 5)));
-            } else if (gagalBeruntun) {
+            } else {
                 gagalBeruntun = 0;
-                onStuck?.(scanTertunda(), null);
             }
+            // Peringatan SELALU disegarkan dari keadaan antrean saat ini.
+            //
+            // Dulu baris ini hanya dijalankan kalau ada yang gagal, atau kalau
+            // sebelumnya sempat gagal. Akibatnya: peringatan yang dipasang saat
+            // tab dibuka (pulihkanAntrean / loadHgpTab) tidak pernah dihapus
+            // ketika antreannya ternyata langsung terkirim habis -- gagalBeruntun
+            // masih 0, jadi kedua cabang itu sama-sama dilewati. Auditor melihat
+            // "1 scan belum tersimpan" menempel di layar padahal semuanya sudah
+            // masuk, dan tidak punya cara membedakan mana yang benar.
+            onStuck?.(scanTertundaAktif(), pesanKhusus, semuaMentok());
         });
         return chain;
     }
@@ -5960,6 +5984,8 @@ function createScanIncrementQueue({ endpoint, simpananKey, delay = 400, maksPerc
             ? semua().some(p => p.planId === activePlanId)
             : semua().some(p => p.planId === activePlanId && p.noPart === noPart)),
         scanTertunda,
+        scanTertundaAktif,
+        semuaMentok,
         pulihkanAntrean,
         flush,
     };
@@ -6854,7 +6880,20 @@ function hgpFormSelectPart(code) {
 // ulang SELURUH array) — jalur itulah yang bisa menimpa hasil scan perangkat
 // lain. Yang gagal tetap diantre & dicoba ulang oleh _hgpScanQueue, dan
 // auditor diberi tahu lewat peringatan di bawah form.
-function hgpSetSyncWarn(tertunda, pesan) {
+// Kalimat peringatan scan tertunda — satu sumber untuk HGP, RSA HGP, dan HGA.
+//
+// Dibedakan antara yang MASIH dicoba ulang otomatis dan yang percobaan
+// otomatisnya sudah berhenti: menjanjikan "masih dicoba ulang" untuk scan yang
+// sebenarnya sudah menyerah membuat auditor menunggu sesuatu yang tidak akan
+// datang.
+function pesanScanTertunda(tertunda, mentok) {
+    return mentok
+        ? `${tertunda} scan belum diterima server dan sudah berhenti dicoba otomatis. `
+          + 'Datanya aman tersimpan di perangkat ini — buka ulang tab pemeriksaan untuk mencobanya lagi.'
+        : `${tertunda} scan belum tersimpan ke server — masih dicoba ulang otomatis. Jangan tutup halaman ini dulu.`;
+}
+
+function hgpSetSyncWarn(tertunda, pesan, mentok = false) {
     const el = document.getElementById('hgpSyncWarn');
     if (!el) return;
     if (pesan) {
@@ -6864,7 +6903,7 @@ function hgpSetSyncWarn(tertunda, pesan) {
     }
     if (!tertunda) { el.classList.add('hidden'); el.textContent = ''; return; }
     el.classList.remove('hidden');
-    el.textContent = `⚠️ ${tertunda} scan belum tersimpan ke server — masih dicoba ulang otomatis. Jangan tutup halaman ini dulu.`;
+    el.textContent = `⚠️ ${pesanScanTertunda(tertunda, mentok)}`;
 }
 
 // Kirim scan yang masih mengantre sekarang juga (dipanggil sebelum pindah tab /
@@ -6907,7 +6946,7 @@ const _hgpScanQueue = createScanIncrementQueue({
         _hgpData.items[i] = { ..._hgpData.items[i], ...res.item };
         hgpUpdateSingleRow(i);
     },
-    onStuck: (tertunda, pesan) => hgpSetSyncWarn(tertunda, pesan),
+    onStuck: (tertunda, pesan, mentok) => hgpSetSyncWarn(tertunda, pesan, mentok),
 });
 
 function _doScanHgpIncrement(noPart, qty, idx, extra = {}, scanId = null) {
@@ -7037,7 +7076,7 @@ async function loadHgpTab() {
     // (halaman baru dimuat), tetap ambil dari server: tabel kosong justru
     // memancing auditor mengimpor ulang atau menekan "Hapus Semua Data".
     if (_hgpScanQueue.hasPending() && _hgpData?.items?.length) {
-        hgpSetSyncWarn(_hgpScanQueue.scanTertunda(), null);
+        hgpSetSyncWarn(_hgpScanQueue.scanTertundaAktif(), null, _hgpScanQueue.semuaMentok());
         hgpRenderItems();
         return;
     }
@@ -7795,7 +7834,7 @@ function rsaHgpFormSelectPart(code) {
 // ulang SELURUH array) — jalur itulah yang bisa menimpa hasil scan perangkat
 // lain. Yang gagal tetap diantre & dicoba ulang oleh _rsaHgpScanQueue, dan
 // auditor diberi tahu lewat peringatan di bawah form.
-function rsaHgpSetSyncWarn(tertunda, pesan) {
+function rsaHgpSetSyncWarn(tertunda, pesan, mentok = false) {
     const el = document.getElementById('rsaHgpSyncWarn');
     if (!el) return;
     if (pesan) {
@@ -7805,7 +7844,7 @@ function rsaHgpSetSyncWarn(tertunda, pesan) {
     }
     if (!tertunda) { el.classList.add('hidden'); el.textContent = ''; return; }
     el.classList.remove('hidden');
-    el.textContent = `⚠️ ${tertunda} scan belum tersimpan ke server — masih dicoba ulang otomatis. Jangan tutup halaman ini dulu.`;
+    el.textContent = `⚠️ ${pesanScanTertunda(tertunda, mentok)}`;
 }
 
 // Kirim scan yang masih mengantre sekarang juga (dipanggil sebelum pindah tab /
@@ -7848,7 +7887,7 @@ const _rsaHgpScanQueue = createScanIncrementQueue({
         _rsaHgpData.items[i] = { ..._rsaHgpData.items[i], ...res.item };
         rsaHgpUpdateSingleRow(i);
     },
-    onStuck: (tertunda, pesan) => rsaHgpSetSyncWarn(tertunda, pesan),
+    onStuck: (tertunda, pesan, mentok) => rsaHgpSetSyncWarn(tertunda, pesan, mentok),
 });
 
 function _doScanRsaHgpIncrement(noPart, qty, idx, extra = {}, scanId = null) {
@@ -7977,7 +8016,7 @@ async function loadRsaHgpTab() {
     // (halaman baru dimuat), tetap ambil dari server: tabel kosong justru
     // memancing auditor mengimpor ulang atau menekan "Hapus Semua Data".
     if (_rsaHgpScanQueue.hasPending() && _rsaHgpData?.items?.length) {
-        rsaHgpSetSyncWarn(_rsaHgpScanQueue.scanTertunda(), null);
+        rsaHgpSetSyncWarn(_rsaHgpScanQueue.scanTertundaAktif(), null, _rsaHgpScanQueue.semuaMentok());
         rsaHgpRenderItems();
         return;
     }
@@ -8682,7 +8721,7 @@ function hgaFormSelectPart(code) {
 // lain — lihat catatan panjang di createScanIncrementQueue dan
 // MenjagaHasilPemeriksaan. Yang gagal tetap diantre & dicoba ulang, dan auditor
 // diberi tahu lewat peringatan di bawah form.
-function hgaSetSyncWarn(tertunda, pesan) {
+function hgaSetSyncWarn(tertunda, pesan, mentok = false) {
     const el = document.getElementById('hgaSyncWarn');
     if (!el) return;
     if (pesan) {
@@ -8692,7 +8731,7 @@ function hgaSetSyncWarn(tertunda, pesan) {
     }
     if (!tertunda) { el.classList.add('hidden'); el.textContent = ''; return; }
     el.classList.remove('hidden');
-    el.textContent = `⚠️ ${tertunda} scan belum tersimpan ke server — masih dicoba ulang otomatis. Jangan tutup halaman ini dulu.`;
+    el.textContent = `⚠️ ${pesanScanTertunda(tertunda, mentok)}`;
 }
 
 // Kirim scan yang masih mengantre sekarang juga (dipanggil sebelum pindah tab /
@@ -8729,7 +8768,7 @@ const _hgaScanQueue = createScanIncrementQueue({
         _hgaData.items[i] = { ..._hgaData.items[i], ...res.item };
         hgaUpdateSingleRow(i);
     },
-    onStuck: (tertunda, pesan) => hgaSetSyncWarn(tertunda, pesan),
+    onStuck: (tertunda, pesan, mentok) => hgaSetSyncWarn(tertunda, pesan, mentok),
 });
 
 function _doScanHgaIncrement(noPart, qty, idx, extra = {}, scanId = null) {
@@ -8932,7 +8971,7 @@ async function loadHgaTab() {
     // (halaman baru dimuat), tetap ambil dari server: tabel kosong justru
     // memancing auditor mengimpor ulang atau menekan "Hapus Semua Data".
     if (_hgaScanQueue.hasPending() && _hgaData?.items?.length) {
-        hgaSetSyncWarn(_hgaScanQueue.scanTertunda(), null);
+        hgaSetSyncWarn(_hgaScanQueue.scanTertundaAktif(), null, _hgaScanQueue.semuaMentok());
         hgaRenderItems();
         return;
     }
