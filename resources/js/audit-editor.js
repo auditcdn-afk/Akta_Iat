@@ -6788,6 +6788,95 @@ function hgpPopulateDatalistDebounced(filterTerm, delay = 150) {
 // kasus format barcode yang beda total dari data tersimpan.
 const hgpNormalizeCode = (s) => (s || '').toString().trim().toLowerCase().replace(/[\s-]+/g, '');
 
+// Pencari No. Part bersama untuk HGP, RSA HGP, dan HGA.
+//
+// Yang dikembalikan bukan cuma indeksnya, tapi juga SEBERAPA yakin
+// kecocokannya -- supaya pemanggil bisa menolak tebakan alih-alih menerimanya
+// diam-diam:
+//
+//   'persis' : No. Part atau nama part cocok utuh (strip & spasi diabaikan)
+//   'mirip'  : cocok sebagian, dan HANYA SATU kandidat
+//   'ambigu' : cocok sebagian ke beberapa part -- tidak boleh ditebak
+//   'kosong' : tidak ada yang cocok
+//
+// Dulu ada dua jalan pintas yang mengembalikan kandidat PERTAMA tanpa memeriksa
+// apakah ada kandidat lain:
+//
+//   1. cocok sebagian (includes) -> ambil yang pertama ketemu;
+//   2. 5 karakter terakhir sama  -> ambil yang pertama ketemu.
+//
+// Yang kedua ditiru dari scan No. Mesin/Rangka SMH, tempat aturan itu memang
+// masuk akal. Untuk No. Part Honda tidak: akhirannya menandakan warna/varian,
+// bukan identitas. Diukur pada daftar onhand WHS berisi 4.781 item, 4.059 di
+// antaranya (84,9%) berbagi akhiran 5 karakter dengan part lain -- akhiran
+// "n00za" saja dimiliki 100 part berbeda. Scan No. Part yang TIDAK ADA di
+// daftar karena itu bisa menambah Fisik pada part lain yang kebetulan
+// berakhiran sama, tanpa peringatan apa pun. Dilaporkan dari lapangan:
+// "43000K1AA00" (tidak ada di daftar) ditampilkan sebagai "64301K1AA00".
+//
+// Aturan 5-karakter itu dibuang. Cocok sebagian tetap ada -- barcode kadang
+// membawa awalan/akhiran tambahan -- tapi sekarang hanya dipakai kalau
+// kandidatnya TUNGGAL.
+const CARI_PART_MAKS_KANDIDAT = 8;
+
+function cariNoPartDalam(code, items, index = null) {
+    const term = (code || '').trim().toLowerCase();
+    if (!term) return { idx: -1, status: 'kosong', kandidat: [] };
+
+    const termNorm = hgpNormalizeCode(code);
+    let idx;
+
+    if (index) {
+        idx = index.byPart.get(term);
+        if (idx === undefined) idx = index.byNama.get(term);
+        if (idx === undefined) idx = index.byNorm.get(termNorm);
+    } else {
+        const cocokPersis = items.findIndex(it =>
+            (it.noPart || '').trim().toLowerCase() === term
+            || (it.sparepart || '').trim().toLowerCase() === term
+            || hgpNormalizeCode(it.noPart) === termNorm);
+        if (cocokPersis >= 0) idx = cocokPersis;
+    }
+    if (idx !== undefined) return { idx, status: 'persis', kandidat: [] };
+
+    if (!termNorm) return { idx: -1, status: 'kosong', kandidat: [] };
+
+    // SELURUH kandidat dikumpulkan lebih dulu: yang pertama ketemu tidak boleh
+    // langsung dipakai, karena justru di situ letak salah-tunjuknya.
+    //
+    // Dua arah, sebab alat scanner bisa membaca LEBIH SEDIKIT maupun LEBIH
+    // BANYAK dari yang tersimpan:
+    //   - yang diketik bagian dari No. Part tersimpan  (ketikan terpotong);
+    //   - No. Part tersimpan bagian dari yang diketik  (barcode membawa
+    //     awalan/akhiran tambahan, mis. "64301K1AA00 001").
+    // Panjang minimal 5 supaya potongan pendek tidak menyapu separuh daftar.
+    const kandidat = [];
+    if (termNorm.length >= 5) {
+        for (let i = 0; i < items.length; i++) {
+            const partNorm = hgpNormalizeCode(items[i].noPart);
+            if (!partNorm) continue;
+            const cocok = partNorm.includes(termNorm)
+                || (partNorm.length >= 5 && termNorm.includes(partNorm));
+            if (cocok) {
+                kandidat.push(i);
+                if (kandidat.length > CARI_PART_MAKS_KANDIDAT) break;
+            }
+        }
+    }
+    if (kandidat.length === 1) return { idx: kandidat[0], status: 'mirip', kandidat };
+    if (kandidat.length > 1)   return { idx: -1, status: 'ambigu', kandidat };
+    return { idx: -1, status: 'kosong', kandidat: [] };
+}
+
+// Kalimat penolakan yang menyebutkan kandidatnya, supaya auditor tahu harus
+// mengetik apa -- bukan cuma "tidak ditemukan".
+function pesanPartAmbigu(term, kandidat, items) {
+    const contoh = kandidat.slice(0, 5).map(i => items[i]?.noPart).filter(Boolean);
+    const lebih  = kandidat.length > contoh.length ? ', dan lainnya' : '';
+    return `"${term}" cocok ke beberapa No. Part (${contoh.join(', ')}${lebih}). `
+        + 'Ketik No. Part selengkapnya supaya tidak salah part.';
+}
+
 // Indeks pencarian No. Part. Tanpa ini, tiap scan menyapu seluruh daftar item
 // sampai 5 kali (cocok persis → nama → tanpa strip → sebagian → 5 digit
 // terakhir) sambil me-lowercase ulang tiap No. Part — pekerjaan yang terasa
@@ -6795,7 +6884,7 @@ const hgpNormalizeCode = (s) => (s || '').toString().trim().toLowerCase().replac
 // hanya ketika daftar itemnya berubah (lihat hgpRenderItems).
 let _hgpIndex = null;
 function hgpRebuildIndex() {
-    const byPart = new Map(), byNama = new Map(), byNorm = new Map(), byLast5 = new Map();
+    const byPart = new Map(), byNama = new Map(), byNorm = new Map();
     (_hgpData?.items || []).forEach((it, i) => {
         const part = (it.noPart || '').trim().toLowerCase();
         const nama = (it.sparepart || '').trim().toLowerCase();
@@ -6803,30 +6892,20 @@ function hgpRebuildIndex() {
         if (part && !byPart.has(part)) byPart.set(part, i);
         if (nama && !byNama.has(nama)) byNama.set(nama, i);
         if (norm && !byNorm.has(norm)) byNorm.set(norm, i);
-        if (norm.length >= 5 && !byLast5.has(norm.slice(-5))) byLast5.set(norm.slice(-5), i);
     });
-    _hgpIndex = { byPart, byNama, byNorm, byLast5 };
+    _hgpIndex = { byPart, byNama, byNorm };
 }
 
-// Urutan pencocokan tetap sama seperti sebelumnya: No. Part persis → nama part
-// persis → tanpa strip/spasi → sebagian → 5 karakter terakhir. Yang berubah
-// hanya caranya: lewat indeks, bukan menyapu array berulang kali.
-function hgpFindIdx(code) {
-    const term = (code || '').trim().toLowerCase();
-    if (!term) return -1;
+function hgpCariPart(code) {
     if (!_hgpIndex) hgpRebuildIndex();
-    const termNorm = hgpNormalizeCode(code);
+    return cariNoPartDalam(code, _hgpData?.items || [], _hgpIndex);
+}
 
-    let idx = _hgpIndex.byPart.get(term);
-    if (idx === undefined) idx = _hgpIndex.byNama.get(term);
-    if (idx === undefined) idx = _hgpIndex.byNorm.get(termNorm);
-    if (idx === undefined) {
-        const items = _hgpData?.items || [];
-        const found = items.findIndex(it => (it.noPart || '').toLowerCase().includes(term));
-        if (found >= 0) idx = found;
-    }
-    if (idx === undefined && termNorm.length >= 5) idx = _hgpIndex.byLast5.get(termNorm.slice(-5));
-    return idx === undefined ? -1 : idx;
+// Bentuk lama dipertahankan untuk pemanggil yang cuma butuh indeksnya.
+// Yang AMBIGU dikembalikan sebagai -1: lebih baik tidak ketemu daripada
+// ketemu part yang salah.
+function hgpFindIdx(code) {
+    return hgpCariPart(code).idx;
 }
 
 function hgpFormRecalc() {
@@ -6855,16 +6934,33 @@ function hgpFormRecalc() {
 }
 
 function hgpFormSelectPart(code) {
-    const info = document.getElementById('hgpFormPartInfo');
-    const idx  = hgpFindIdx(code);
+    const info  = document.getElementById('hgpFormPartInfo');
+    const items = _hgpData?.items || [];
+    const hasil = hgpCariPart(code);
+    const idx   = hasil.idx;
     _hgpSelIdx = idx;
     if (idx < 0) {
-        if (info) { info.textContent = code ? `No. Part "${code}" tidak ditemukan dalam data import.` : ''; info.className = 'mt-0.5 text-xs text-red-400'; }
+        // Ambigu BUKAN "tidak ditemukan": kandidatnya disebutkan supaya auditor
+        // tahu harus mengetik apa, bukan menebak-nebak.
+        const teks = !code ? ''
+            : hasil.status === 'ambigu'
+                ? pesanPartAmbigu(code.trim(), hasil.kandidat, items)
+                : `No. Part "${code}" tidak ditemukan dalam data import.`;
+        if (info) { info.textContent = teks; info.className = 'mt-0.5 text-xs text-red-400'; }
+        // Kotak Qty ikut disembunyikan: membiarkannya terbuka padahal tidak ada
+        // part yang terpilih membuat auditor mengetik angka ke tempat kosong.
+        document.getElementById('hgpFormFields')?.classList.add('hidden');
         hgpFormRecalc();
         return;
     }
-    const it = _hgpData.items[idx];
-    if (info) { info.textContent = `${it.noPart || '-'} — ${it.sparepart || ''} | Saldo Akhir: ${hgpSaldo(it)} | Fisik Terscan: ${hgpN(it.fisik)} | Sisa: ${hgpN(it.akhir)}`; info.className = 'mt-0.5 text-xs text-green-400'; }
+    const it = items[idx];
+    // Cocok sebagian tetap dipakai (kandidatnya tunggal), tapi DIKATAKAN --
+    // auditor perlu tahu kalau yang dipilih bukan persis yang diketiknya.
+    const rinci = `${it.noPart || '-'} — ${it.sparepart || ''} | Saldo Akhir: ${hgpSaldo(it)} | Fisik Terscan: ${hgpN(it.fisik)} | Sisa: ${hgpN(it.akhir)}`;
+    if (info) {
+        info.textContent = hasil.status === 'mirip' ? `≈ cocok sebagian → ${rinci}` : rinci;
+        info.className = 'mt-0.5 text-xs ' + (hasil.status === 'mirip' ? 'text-amber-400' : 'text-green-400');
+    }
     document.getElementById('hgpFormFields')?.classList.remove('hidden');
     // Pre-fill dari record yang ada
     const qtyEl = document.getElementById('hgpFormQty');
@@ -6967,14 +7063,21 @@ function hgpScanAccumulate(code) {
     const term = (code || '').trim();
     if (!term) return;
 
-    const idx = hgpFindIdx(term);
+    // Scan barcode langsung MENAMBAH Fisik, jadi tebakan di sini paling mahal
+    // akibatnya: salah part berarti hasil pemeriksaannya salah tanpa ada yang
+    // tahu. Yang ambigu ditolak, bukan ditebak.
+    const items = _hgpData?.items || [];
+    const hasil = hgpCariPart(term);
+    const idx   = hasil.idx;
     if (idx < 0) {
-        showMsg(`✗ No. Part "${term}" tidak ditemukan dalam data import.`, false);
+        showMsg(hasil.status === 'ambigu'
+            ? `✗ ${pesanPartAmbigu(term, hasil.kandidat, items)}`
+            : `✗ No. Part "${term}" tidak ditemukan dalam data import.`, false);
         hgpFormClearInputs();
         return;
     }
 
-    const it = _hgpData.items[idx];
+    const it = items[idx];
     it.fisik = hgpN(it.fisik) + 1;                       // akumulasi
     if (!Array.isArray(it.logScan)) it.logScan = [];
     // id yang sama dipakai di layar dan di kiriman ke server: kalau berbeda,
@@ -7749,7 +7852,7 @@ const rsaHgpNormalizeCode = (s) => (s || '').toString().trim().toLowerCase().rep
 // hanya ketika daftar itemnya berubah (lihat rsaHgpRenderItems).
 let _rsaHgpIndex = null;
 function rsaHgpRebuildIndex() {
-    const byPart = new Map(), byNama = new Map(), byNorm = new Map(), byLast5 = new Map();
+    const byPart = new Map(), byNama = new Map(), byNorm = new Map();
     (_rsaHgpData?.items || []).forEach((it, i) => {
         const part = (it.noPart || '').trim().toLowerCase();
         const nama = (it.sparepart || '').trim().toLowerCase();
@@ -7757,30 +7860,20 @@ function rsaHgpRebuildIndex() {
         if (part && !byPart.has(part)) byPart.set(part, i);
         if (nama && !byNama.has(nama)) byNama.set(nama, i);
         if (norm && !byNorm.has(norm)) byNorm.set(norm, i);
-        if (norm.length >= 5 && !byLast5.has(norm.slice(-5))) byLast5.set(norm.slice(-5), i);
     });
-    _rsaHgpIndex = { byPart, byNama, byNorm, byLast5 };
+    _rsaHgpIndex = { byPart, byNama, byNorm };
 }
 
 // Urutan pencocokan tetap sama seperti sebelumnya: No. Part persis → nama part
 // persis → tanpa strip/spasi → sebagian → 5 karakter terakhir. Yang berubah
 // hanya caranya: lewat indeks, bukan menyapu array berulang kali.
-function rsaHgpFindIdx(code) {
-    const term = (code || '').trim().toLowerCase();
-    if (!term) return -1;
+function rsaHgpCariPart(code) {
     if (!_rsaHgpIndex) rsaHgpRebuildIndex();
-    const termNorm = rsaHgpNormalizeCode(code);
+    return cariNoPartDalam(code, _rsaHgpData?.items || [], _rsaHgpIndex);
+}
 
-    let idx = _rsaHgpIndex.byPart.get(term);
-    if (idx === undefined) idx = _rsaHgpIndex.byNama.get(term);
-    if (idx === undefined) idx = _rsaHgpIndex.byNorm.get(termNorm);
-    if (idx === undefined) {
-        const items = _rsaHgpData?.items || [];
-        const found = items.findIndex(it => (it.noPart || '').toLowerCase().includes(term));
-        if (found >= 0) idx = found;
-    }
-    if (idx === undefined && termNorm.length >= 5) idx = _rsaHgpIndex.byLast5.get(termNorm.slice(-5));
-    return idx === undefined ? -1 : idx;
+function rsaHgpFindIdx(code) {
+    return rsaHgpCariPart(code).idx;
 }
 
 function rsaHgpFormRecalc() {
@@ -7809,16 +7902,33 @@ function rsaHgpFormRecalc() {
 }
 
 function rsaHgpFormSelectPart(code) {
-    const info = document.getElementById('rsaHgpFormPartInfo');
-    const idx  = rsaHgpFindIdx(code);
+    const info  = document.getElementById('rsaHgpFormPartInfo');
+    const items = _rsaHgpData?.items || [];
+    const hasil = rsaHgpCariPart(code);
+    const idx   = hasil.idx;
     _rsaHgpSelIdx = idx;
     if (idx < 0) {
-        if (info) { info.textContent = code ? `No. Part "${code}" tidak ditemukan dalam data import.` : ''; info.className = 'mt-0.5 text-xs text-red-400'; }
+        // Ambigu BUKAN "tidak ditemukan": kandidatnya disebutkan supaya auditor
+        // tahu harus mengetik apa, bukan menebak-nebak.
+        const teks = !code ? ''
+            : hasil.status === 'ambigu'
+                ? pesanPartAmbigu(code.trim(), hasil.kandidat, items)
+                : `No. Part "${code}" tidak ditemukan dalam data import.`;
+        if (info) { info.textContent = teks; info.className = 'mt-0.5 text-xs text-red-400'; }
+        // Kotak Qty ikut disembunyikan: membiarkannya terbuka padahal tidak ada
+        // part yang terpilih membuat auditor mengetik angka ke tempat kosong.
+        document.getElementById('rsaHgpFormFields')?.classList.add('hidden');
         rsaHgpFormRecalc();
         return;
     }
-    const it = _rsaHgpData.items[idx];
-    if (info) { info.textContent = `${it.noPart || '-'} — ${it.sparepart || ''} | Saldo Akhir: ${rsaHgpSaldo(it)} | Fisik Terscan: ${rsaHgpN(it.fisik)} | Sisa: ${rsaHgpN(it.akhir)}`; info.className = 'mt-0.5 text-xs text-green-400'; }
+    const it = items[idx];
+    // Cocok sebagian tetap dipakai (kandidatnya tunggal), tapi DIKATAKAN --
+    // auditor perlu tahu kalau yang dipilih bukan persis yang diketiknya.
+    const rinci = `${it.noPart || '-'} — ${it.sparepart || ''} | Saldo Akhir: ${rsaHgpSaldo(it)} | Fisik Terscan: ${rsaHgpN(it.fisik)} | Sisa: ${rsaHgpN(it.akhir)}`;
+    if (info) {
+        info.textContent = hasil.status === 'mirip' ? `≈ cocok sebagian → ${rinci}` : rinci;
+        info.className = 'mt-0.5 text-xs ' + (hasil.status === 'mirip' ? 'text-amber-400' : 'text-green-400');
+    }
     document.getElementById('rsaHgpFormFields')?.classList.remove('hidden');
     // Pre-fill dari record yang ada
     const qtyEl = document.getElementById('rsaHgpFormQty');
@@ -7908,14 +8018,21 @@ function rsaHgpScanAccumulate(code) {
     const term = (code || '').trim();
     if (!term) return;
 
-    const idx = rsaHgpFindIdx(term);
+    // Scan barcode langsung MENAMBAH Fisik, jadi tebakan di sini paling mahal
+    // akibatnya: salah part berarti hasil pemeriksaannya salah tanpa ada yang
+    // tahu. Yang ambigu ditolak, bukan ditebak.
+    const items = _rsaHgpData?.items || [];
+    const hasil = rsaHgpCariPart(term);
+    const idx   = hasil.idx;
     if (idx < 0) {
-        showMsg(`✗ No. Part "${term}" tidak ditemukan dalam data import.`, false);
+        showMsg(hasil.status === 'ambigu'
+            ? `✗ ${pesanPartAmbigu(term, hasil.kandidat, items)}`
+            : `✗ No. Part "${term}" tidak ditemukan dalam data import.`, false);
         rsaHgpFormClearInputs();
         return;
     }
 
-    const it = _rsaHgpData.items[idx];
+    const it = items[idx];
     it.fisik = rsaHgpN(it.fisik) + 1;                       // akumulasi
     if (!Array.isArray(it.logScan)) it.logScan = [];
     // id yang sama dipakai di layar dan di kiriman ke server: kalau berbeda,
@@ -8661,14 +8778,12 @@ function hgaPopulateDatalist(filterTerm) {
     }).join('');
 }
 
+function hgaCariPart(code) {
+    return cariNoPartDalam(code, _hgaData?.items || []);
+}
+
 function hgaFindIdx(code) {
-    const term  = (code || '').trim().toLowerCase();
-    if (!term) return -1;
-    const items = _hgaData?.items || [];
-    let idx = items.findIndex(it => (it.noPart || '').toLowerCase() === term);
-    if (idx < 0) idx = items.findIndex(it => (it.sparepart || '').toLowerCase() === term);
-    if (idx < 0) idx = items.findIndex(it => (it.noPart || '').toLowerCase().includes(term));
-    return idx;
+    return hgaCariPart(code).idx;
 }
 
 function hgaFormRecalc() {
@@ -8696,15 +8811,24 @@ function hgaFormRecalc() {
 }
 
 function hgaFormSelectPart(code) {
-    const info = document.getElementById('hgaFormPartInfo');
-    const idx  = hgaFindIdx(code);
+    const info  = document.getElementById('hgaFormPartInfo');
+    const items = _hgaData?.items || [];
+    const hasil = hgaCariPart(code);
+    const idx   = hasil.idx;
     _hgaSelIdx = idx;
     if (idx < 0) {
-        if (info) { info.textContent = code ? `No. Part "${code}" tidak ditemukan.` : ''; info.className = 'mt-0.5 text-xs text-red-400'; }
+        const teks = !code ? ''
+            : hasil.status === 'ambigu'
+                ? pesanPartAmbigu(code.trim(), hasil.kandidat, items)
+                : `No. Part "${code}" tidak ditemukan.`;
+        if (info) { info.textContent = teks; info.className = 'mt-0.5 text-xs text-red-400'; }
+        // Kotak Qty ikut disembunyikan: membiarkannya terbuka padahal tidak ada
+        // part yang terpilih membuat auditor mengetik angka ke tempat kosong.
+        document.getElementById('hgaFormFields')?.classList.add('hidden');
         hgaFormRecalc();
         return;
     }
-    const it = _hgaData.items[idx];
+    const it = items[idx];
     if (info) { info.textContent = `${it.noPart || '-'} — ${it.sparepart || ''} | Saldo Akhir: ${hgaSaldo(it)} | Fisik: ${hgaN(it.fisik)} | Sisa: ${hgaN(it.akhir)}`; info.className = 'mt-0.5 text-xs text-green-400'; }
     document.getElementById('hgaFormFields')?.classList.remove('hidden');
     const qtyEl = document.getElementById('hgaFormQty');
@@ -8784,9 +8908,17 @@ function hgaScanAccumulate(code) {
     };
     const term = (code || '').trim();
     if (!term) return;
-    const idx = hgaFindIdx(term);
-    if (idx < 0) { showMsg(`✗ No. Part "${term}" tidak ditemukan dalam data import.`, false); hgaFormClearInputs(); return; }
-    const it = _hgaData.items[idx];
+    const items = _hgaData?.items || [];
+    const hasil = hgaCariPart(term);
+    const idx   = hasil.idx;
+    if (idx < 0) {
+        showMsg(hasil.status === 'ambigu'
+            ? `✗ ${pesanPartAmbigu(term, hasil.kandidat, items)}`
+            : `✗ No. Part "${term}" tidak ditemukan dalam data import.`, false);
+        hgaFormClearInputs();
+        return;
+    }
+    const it = items[idx];
     it.fisik = hgaN(it.fisik) + 1;
     if (!Array.isArray(it.logScan)) it.logScan = [];
     // Lihat catatan id scan di hgpScanAccumulate().
