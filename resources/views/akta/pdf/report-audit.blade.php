@@ -2563,6 +2563,14 @@ window.addEventListener('load', function() {
         // dan kolomnya cuma ada pada data impor laporan stok WHS -- jadi plan
         // lain sama sekali tidak terpengaruh.
         $hgpFkt   = (bool) ($hgp->hitung_fkt_claim ?? false);
+
+        // Kolom Faktur Belum Kutip & Claim hanya ada pada data hasil impor
+        // laporan stok WHS. Berkas onhand cabang tidak punya kolom itu sama
+        // sekali, jadi kolomnya tidak ikut dicetak di sana -- aturan yang sama
+        // dipakai layar (hgpHitungKolomStok), supaya keduanya tidak berbeda.
+        $hgpAdaStok = collect($hgpItems)->contains(fn ($it) => !empty($it['stok'] ?? null));
+        $hgpTotalFktKutip = array_sum(array_map(fn ($it) => $hN($it['stok']['fakturBelumKutip'] ?? 0), $hgpItems));
+        $hgpTotalClaim    = array_sum(array_map(fn ($it) => $hN($it['stok']['claim'] ?? 0), $hgpItems));
         $hgpSaldoBaris = fn($it) => $hN($it['saldoAkhir'] ?? $it['saldoAwal'] ?? 0)
             - ($hgpFkt ? $hN($it['stok']['fakturBelumKutip'] ?? 0) : 0);
         $hgpClaimBaris = fn($it) => $hgpFkt ? $hN($it['stok']['claim'] ?? 0) : 0;
@@ -2600,13 +2608,20 @@ window.addEventListener('load', function() {
 
       @if(count($hgpItems))
       <div class="tbl-scroll" style="overflow-x:auto;">
-      <table style="font-size:9.5px;min-width:800px;">
+      <table style="font-size:9.5px;min-width:{{ $hgpAdaStok ? 880 : 800 }}px;">
         <thead>
           <tr>
             <th style="width:28px;">#</th>
             <th style="width:80px;">No. Part</th>
             <th>Nama Part</th>
             <th style="width:70px;text-align:center;">Tgl Periksa</th>
+            @if($hgpAdaStok)
+              {{-- Dua kolom laporan stok WHS yang paling sering dijadikan
+                   penjelas selisih. Ditaruh tepat SEBELUM Saldo Akhir karena
+                   keduanya itulah yang menerangkan angka saldo tersebut. --}}
+              <th style="width:44px;text-align:right;color:#3730a3;background:#eef2ff;">FKT Blm Kutip</th>
+              <th style="width:38px;text-align:right;color:#3730a3;background:#eef2ff;">Claim</th>
+            @endif
             <th style="width:50px;text-align:right;">Saldo Akhir</th>
             <th style="width:40px;text-align:right;">Fisik</th>
             <th style="width:36px;text-align:right;color:#92400e;background:#fffbeb;">{{ $hgp?->label_wo ?: 'WO' }}</th>
@@ -2640,6 +2655,14 @@ window.addEventListener('load', function() {
               <td style="font-size:8.5px;color:#6b7280;">{{ $it['noPart'] ?? '-' }}</td>
               <td style="font-weight:600;">{{ $it['sparepart'] ?? $it['nama'] ?? '-' }}</td>
               <td style="text-align:center;color:#6b7280;">{{ $it['tgl'] ?? '-' }}</td>
+              @if($hgpAdaStok)
+                @php
+                  $fktBaris   = $hN($it['stok']['fakturBelumKutip'] ?? 0);
+                  $claimBaris = $hN($it['stok']['claim'] ?? 0);
+                @endphp
+                <td style="text-align:right;background:#eef2ff;color:#3730a3;font-weight:{{ $fktBaris != 0 ? '700' : '400' }};">{{ $fktBaris != 0 ? $fmtN($fktBaris) : '—' }}</td>
+                <td style="text-align:right;background:#eef2ff;color:#3730a3;font-weight:{{ $claimBaris != 0 ? '700' : '400' }};">{{ $claimBaris != 0 ? $fmtN($claimBaris) : '—' }}</td>
+              @endif
               <td style="text-align:right;">{{ $saldo > 0 ? $fmtN($saldo) : '0' }}</td>
               <td style="text-align:right;font-weight:700;">{{ $fmtN($fisik) }}</td>
               <td style="text-align:right;background:#fffbeb;color:#92400e;font-weight:{{ $wo > 0 ? '700' : '400' }};">{{ $wo > 0 ? $fmtN($wo) : '—' }}</td>
@@ -2653,6 +2676,10 @@ window.addEventListener('load', function() {
           {{-- Total row --}}
           <tr style="background:#f3f4f6;font-weight:700;border-top:2px solid #d1d5db;">
             <td colspan="4" style="text-align:right;">TOTAL</td>
+            @if($hgpAdaStok)
+              <td style="text-align:right;background:#eef2ff;color:#3730a3;">{{ $hgpTotalFktKutip != 0 ? $fmtN($hgpTotalFktKutip) : '—' }}</td>
+              <td style="text-align:right;background:#eef2ff;color:#3730a3;">{{ $hgpTotalClaim != 0 ? $fmtN($hgpTotalClaim) : '—' }}</td>
+            @endif
             <td style="text-align:right;">{{ $fmtN($hgpTotalSaldo) }}</td>
             <td style="text-align:right;">{{ $fmtN($hgpTotalFisikOnly) }}</td>
             <td style="text-align:right;background:#fffbeb;color:#92400e;">{{ $hgpTotalWo > 0 ? $fmtN($hgpTotalWo) : '—' }}</td>
