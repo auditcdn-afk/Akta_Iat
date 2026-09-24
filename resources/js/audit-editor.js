@@ -6911,11 +6911,23 @@ function hgpFindIdx(code) {
 function hgpFormRecalc() {
     const qty = hgpN(document.getElementById('hgpFormQty')?.value);
     const it  = _hgpSelIdx >= 0 ? _hgpData.items[_hgpSelIdx] : null;
-    const saldo = it ? hgpSaldo(it) : 0;
-    // Preview: akhir setelah tambah qty baru ini (akumulasi ke fisik yang sudah ada)
-    const fisikTotal = hgpN(it?.fisik) + qty;
-    const akhir = saldo - fisikTotal;
-    const selisih = fisikTotal - saldo;
+
+    // Pratinjau dihitung lewat hgpCalcItem() yang SAMA dengan baris tabel, bukan
+    // salinan rumus tersendiri. Salinan itulah yang dulu melewatkan kolom
+    // manual (WO/Titipan): baris tabel menulis "Selisih +0" sementara form di
+    // atasnya menulis "Selisih -4" untuk part yang sama, dan auditor mengira
+    // masih ada selisih.
+    //
+    // Yang dihitung item BAYANGAN -- salinan dengan fisik ditambah qty yang
+    // baru diketik -- supaya item aslinya tidak ikut berubah sebelum disimpan.
+    const bayangan = it ? { ...it, fisik: hgpN(it.fisik) + qty } : null;
+    if (bayangan) hgpCalcItem(bayangan);
+
+    const saldo      = bayangan ? hgpSaldo(bayangan) : 0;
+    const fisikTotal = bayangan ? hgpN(bayangan.fisik) : 0;
+    const manual     = bayangan ? hgpN(bayangan.wo) : 0;
+    const akhir      = bayangan ? hgpN(bayangan.akhir) : 0;
+    const selisih    = bayangan ? hgpN(bayangan.selisih) : 0;
     const elAkhir = document.getElementById('hgpFormAkhir');
     const elSel   = document.getElementById('hgpFormSelisih');
     if (elAkhir) elAkhir.value = akhir;
@@ -6929,7 +6941,12 @@ function hgpFormRecalc() {
         // Fisik Terscan = akumulasi qty yang sudah dimasukkan (termasuk qty yang
         // baru diketik ini), bukan jumlah berapa kali tombol Simpan diklik —
         // supaya history-nya jelas menunjukkan total unit, bukan jumlah entri log.
-        log.textContent = `Fisik Terscan : ${it ? fisikTotal : 0} | Saldo Akhir : ${it ? saldo : '-'}`;
+        // Kolom manual ikut disebut kalau isinya tidak nol: tanpa itu auditor
+        // melihat "Fisik Terscan : 0" tapi "Selisih : +0" dan bingung.
+        const bagian = [`Fisik Terscan : ${it ? fisikTotal : 0}`];
+        if (manual) bagian.push(`${hgpLabelWo()} : ${manual}`);
+        bagian.push(`Saldo Akhir : ${it ? saldo : '-'}`);
+        log.textContent = bagian.join(' | ');
     }
 }
 
@@ -7879,11 +7896,23 @@ function rsaHgpFindIdx(code) {
 function rsaHgpFormRecalc() {
     const qty = rsaHgpN(document.getElementById('rsaHgpFormQty')?.value);
     const it  = _rsaHgpSelIdx >= 0 ? _rsaHgpData.items[_rsaHgpSelIdx] : null;
-    const saldo = it ? rsaHgpSaldo(it) : 0;
-    // Preview: akhir setelah tambah qty baru ini (akumulasi ke fisik yang sudah ada)
-    const fisikTotal = rsaHgpN(it?.fisik) + qty;
-    const akhir = saldo - fisikTotal;
-    const selisih = fisikTotal - saldo;
+
+    // Pratinjau dihitung lewat rsaHgpCalcItem() yang SAMA dengan baris tabel, bukan
+    // salinan rumus tersendiri. Salinan itulah yang dulu melewatkan kolom
+    // manual (WO/Titipan): baris tabel menulis "Selisih +0" sementara form di
+    // atasnya menulis "Selisih -4" untuk part yang sama, dan auditor mengira
+    // masih ada selisih.
+    //
+    // Yang dihitung item BAYANGAN -- salinan dengan fisik ditambah qty yang
+    // baru diketik -- supaya item aslinya tidak ikut berubah sebelum disimpan.
+    const bayangan = it ? { ...it, fisik: rsaHgpN(it.fisik) + qty } : null;
+    if (bayangan) rsaHgpCalcItem(bayangan);
+
+    const saldo      = bayangan ? rsaHgpSaldo(bayangan) : 0;
+    const fisikTotal = bayangan ? rsaHgpN(bayangan.fisik) : 0;
+    const manual     = bayangan ? rsaHgpN(bayangan.wo) : 0;
+    const akhir      = bayangan ? rsaHgpN(bayangan.akhir) : 0;
+    const selisih    = bayangan ? rsaHgpN(bayangan.selisih) : 0;
     const elAkhir = document.getElementById('rsaHgpFormAkhir');
     const elSel   = document.getElementById('rsaHgpFormSelisih');
     if (elAkhir) elAkhir.value = akhir;
@@ -7897,7 +7926,12 @@ function rsaHgpFormRecalc() {
         // Fisik Terscan = akumulasi qty yang sudah dimasukkan (termasuk qty yang
         // baru diketik ini), bukan jumlah berapa kali tombol Simpan diklik —
         // supaya history-nya jelas menunjukkan total unit, bukan jumlah entri log.
-        log.textContent = `Fisik Terscan : ${it ? fisikTotal : 0} | Saldo Akhir : ${it ? saldo : '-'}`;
+        // Kolom manual ikut disebut kalau isinya tidak nol: tanpa itu auditor
+        // melihat "Fisik Terscan : 0" tapi "Selisih : +0" dan bingung.
+        const bagian = [`Fisik Terscan : ${it ? fisikTotal : 0}`];
+        if (manual) bagian.push(`${'WO'} : ${manual}`);
+        bagian.push(`Saldo Akhir : ${it ? saldo : '-'}`);
+        log.textContent = bagian.join(' | ');
     }
 }
 
@@ -8789,10 +8823,23 @@ function hgaFindIdx(code) {
 function hgaFormRecalc() {
     const qty  = hgaN(document.getElementById('hgaFormQty')?.value);
     const it   = _hgaSelIdx >= 0 ? _hgaData.items[_hgaSelIdx] : null;
-    const saldo = it ? hgaSaldo(it) : 0;
-    const fisikTotal = hgaN(it?.fisik) + qty;
-    const akhir   = saldo - fisikTotal;
-    const selisih = fisikTotal - saldo;
+
+    // Pratinjau dihitung lewat hgaCalcItem() yang SAMA dengan baris tabel.
+    // Salinan rumus yang dulu di sini melewatkan DUA hal: kolom Fisik TTP,
+    // dan saldoPts sebagai acuan saldo (hgaCalcItem memakainya kalau ada,
+    // hgaSaldo tidak). Form karena itu bisa menunjukkan selisih yang tidak
+    // pernah ada di barisnya.
+    const bayangan = it ? { ...it, fisik: hgaN(it.fisik) + qty } : null;
+    if (bayangan) hgaCalcItem(bayangan);
+
+    const saldo      = bayangan
+        ? ((bayangan.saldoPts !== undefined && bayangan.saldoPts !== null)
+            ? hgaN(bayangan.saldoPts) : hgaSaldo(bayangan))
+        : 0;
+    const fisikTotal = bayangan ? hgaN(bayangan.fisik) : 0;
+    const manual     = bayangan ? hgaN(bayangan.fisikTtp) : 0;
+    const akhir      = bayangan ? hgaN(bayangan.akhir) : 0;
+    const selisih    = bayangan ? hgaN(bayangan.selisih) : 0;
     const elAkhir = document.getElementById('hgaFormAkhir');
     const elSel   = document.getElementById('hgaFormSelisih');
     if (elAkhir) elAkhir.value = akhir;
@@ -8806,7 +8853,10 @@ function hgaFormRecalc() {
         // Fisik Terscan = akumulasi qty yang sudah dimasukkan (termasuk qty yang
         // baru diketik ini), bukan jumlah berapa kali tombol Simpan diklik —
         // supaya history-nya jelas menunjukkan total unit, bukan jumlah entri log.
-        log.textContent = `Fisik Terscan : ${it ? fisikTotal : 0} | Saldo Akhir : ${it ? saldo : '-'}`;
+        const bagian = [`Fisik Terscan : ${it ? fisikTotal : 0}`];
+        if (manual) bagian.push(`Fisik TTP : ${manual}`);
+        bagian.push(`Saldo Akhir : ${it ? saldo : '-'}`);
+        log.textContent = bagian.join(' | ');
     }
 }
 
