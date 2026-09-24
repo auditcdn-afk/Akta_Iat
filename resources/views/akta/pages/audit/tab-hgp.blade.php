@@ -54,6 +54,25 @@
                 <p id="hgpWoImportMsg" class="hidden mt-2 text-xs font-medium"></p>
             </div>
 
+            {{-- Saklar aturan gudang. Hanya muncul kalau data yang diimpor memang
+                 dari laporan stok WHS -- berkas onhand cabang tidak punya kolom
+                 Faktur Belum Kutip / Claim sama sekali. Mati secara bawaan:
+                 aturan ini untuk data yang sudah terlanjur diinput, dan ke depan
+                 tidak berlaku lagi. --}}
+            <div id="hgpFktClaimBar" class="hidden rounded-xl border border-amber-600/40 bg-amber-900/10 px-4 py-3">
+                <label class="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" id="hgpFktClaimToggle" class="mt-0.5 rounded border-slate-600 bg-slate-800">
+                    <span class="text-sm text-amber-300">
+                        <span class="font-semibold">Aturan gudang: Faktur Belum Kutip mengurangi Saldo Akhir, Claim menambah Fisik</span>
+                        <span class="block text-xs text-amber-200/70">
+                            Khusus data WHS yang sudah terlanjur diinput. Hanya berlaku untuk plan audit ini —
+                            plan lain dan plan baru tidak terpengaruh.
+                        </span>
+                    </span>
+                </label>
+                <p id="hgpFktClaimMsg" class="mt-2 hidden text-xs font-medium"></p>
+            </div>
+
             {{-- Stat --}}
             <div class="grid grid-cols-3 gap-4">
                 <div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4 text-center">

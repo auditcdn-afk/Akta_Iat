@@ -6139,18 +6139,91 @@ async function hgpImporWo(file) {
     }
 }
 
+// Nyalakan / matikan aturan gudang untuk plan yang sedang dibuka.
+//
+// Angka yang tersimpan ikut dihitung ulang di server, supaya Report Audit PDF
+// dan Export Selisih tidak memakai hasil dari aturan yang sudah tidak berlaku.
+// Fisik, Titipan, keterangan, dan riwayat scan tidak disentuh.
+async function hgpGantiFktClaim(aktif) {
+    const tombol = document.getElementById('hgpFktClaimToggle');
+    const msg    = document.getElementById('hgpFktClaimMsg');
+    const tulis  = (teks, warna) => {
+        if (!msg) return;
+        msg.classList.remove('hidden');
+        msg.textContent = teks;
+        msg.className = `mt-2 text-xs font-medium ${warna}`;
+    };
+
+    if (!activePlanId) { showAlert('Pilih plan audit terlebih dahulu.', 'warning'); return; }
+
+    if (aktif && !confirm(
+        'Nyalakan aturan gudang untuk plan audit ini?\n\n'
+        + '• Faktur Belum Kutip dikurangkan dari Saldo Akhir\n'
+        + '• Claim ditambahkan ke Fisik\n\n'
+        + 'Saldo sebagian item bisa menjadi MINUS, sebab laporan WHS umumnya '
+        + 'sudah memotong Faktur Belum Kutip lewat kolom KELUAR.\n\n'
+        + 'Hasil scan dan Titipan tidak disentuh. Bisa dimatikan lagi kapan saja.'
+    )) { if (tombol) tombol.checked = false; return; }
+
+    if (tombol) tombol.disabled = true;
+    tulis('Menghitung ulang...', 'text-slate-300');
+
+    try {
+        const res = await fetchJson('/api/audit-detail/hgp/hitung-fkt-claim', {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ plan_audit_id: activePlanId, aktif: aktif ? 1 : 0 }),
+        });
+
+        if (!_hgpData) _hgpData = hgpEmptyData();
+        _hgpData.hitungFktClaim = !!res.hitungFktClaim;
+        if (Array.isArray(res.data?.items)) _hgpData.items = res.data.items;
+        if (res.data?.sidik) _hgpData.sidik = res.data.sidik;
+        _hgpData.items.forEach(it => hgpCalcItem(it));
+
+        await hgpEnrichWithHet(_hgpData.items);
+        hgpRenderItems();
+        hgpFormRecalc();
+        tulis(res.message || 'Tersimpan.', 'text-green-400');
+    } catch (err) {
+        if (tombol) tombol.checked = !aktif;
+        tulis(err.message || 'Gagal menyimpan aturan.', 'text-red-400');
+    } finally {
+        if (tombol) tombol.disabled = false;
+    }
+}
+
 function hgpN(v) {
     if (v === null || v === undefined || v === '') return 0;
     return parseFloat(v) || 0;
 }
 
 // Saldo baseline = saldo akhir sistem (fallback ke field lama saldoAwal)
+// Saklar aturan gudang (WHS) untuk plan yang sedang dibuka: Faktur Belum Kutip
+// mengurangi Saldo Akhir, Claim menambah Fisik.
+//
+// Dibuat sebagai saklar per plan dan MATI secara bawaan, bukan dipaku di kode:
+// aturan ini cuma untuk data WHS yang sudah terlanjur diinput dan ke depan
+// tidak berlaku lagi. Kolom FKT & Claim pun hanya ada pada data impor laporan
+// stok WHS, jadi berkas onhand cabang tidak pernah terpengaruh.
+function hgpPakaiFktClaim() {
+    return !!_hgpData?.hitungFktClaim;
+}
+
+function hgpFktBaris(item) {
+    return hgpPakaiFktClaim() ? hgpN(item?.stok?.fakturBelumKutip) : 0;
+}
+
+function hgpClaimBaris(item) {
+    return hgpPakaiFktClaim() ? hgpN(item?.stok?.claim) : 0;
+}
+
 function hgpSaldo(item) {
-    return hgpN(item?.saldoAkhir ?? item?.saldoAwal);
+    return hgpN(item?.saldoAkhir ?? item?.saldoAwal) - hgpFktBaris(item);
 }
 
 function hgpCalcItem(item) {
-    const fisik   = hgpN(item.fisik);
+    const fisik   = hgpN(item.fisik) + hgpClaimBaris(item);   // Claim ikut jadi fisik
     const wo      = hgpN(item.wo);           // WO menambah fisik
     const total   = fisik + wo;
     const saldo   = hgpSaldo(item);
@@ -6219,6 +6292,13 @@ let _hgpAdaKolomStok = false;
 function hgpHitungKolomStok() {
     const items = _hgpData?.items || [];
     _hgpAdaKolomStok = items.some(it => it.stok && Object.keys(it.stok).length > 0);
+
+    // Saklar aturan gudang ikut muncul/hilang bersama kolomnya: tanpa kolom
+    // Faktur Belum Kutip & Claim, saklarnya tidak ada gunanya.
+    const bar = document.getElementById('hgpFktClaimBar');
+    if (bar) bar.classList.toggle('hidden', !_hgpAdaKolomStok);
+    const tombol = document.getElementById('hgpFktClaimToggle');
+    if (tombol) tombol.checked = hgpPakaiFktClaim();
 
     document.querySelectorAll('#tabPanel-hgp .hgp-col-stok').forEach(th => {
         th.classList.toggle('hidden', !_hgpAdaKolomStok);
@@ -7206,7 +7286,8 @@ async function loadHgpTab() {
     // pindah ke plan lain yang belum ada data HGP-nya, _hgpData tetap berisi
     // data plan sebelumnya dan bisa ikut tersimpan ke plan yang salah.
     _hgpData = (res.data && Array.isArray(res.data.items))
-        ? { items: res.data.items, sidik: res.data.sidik, labelWo: res.data.labelWo }
+        ? { items: res.data.items, sidik: res.data.sidik, labelWo: res.data.labelWo,
+            hitungFktClaim: !!res.data.hitungFktClaim }
         : hgpEmptyData();
     hgpTampilkanLabelWo();
     (_hgpData.items || []).forEach(it => hgpCalcItem(it));
@@ -7427,6 +7508,10 @@ function initHgpForm() {
     addPartNama?.addEventListener('keydown', e => { if (e.key === 'Enter') addPartSave?.click(); });
 
     document.getElementById('hgpLabelWoBtn')?.addEventListener('click', hgpGantiLabelWo);
+
+    document.getElementById('hgpFktClaimToggle')?.addEventListener('change', (e) => {
+        hgpGantiFktClaim(!!e.target.checked);
+    });
 
     const woFile = document.getElementById('hgpWoFileInput');
     woFile?.addEventListener('change', () => {

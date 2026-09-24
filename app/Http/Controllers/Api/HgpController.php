@@ -162,7 +162,7 @@ class HgpController extends Controller
                 if ($request->has('wo')) {
                     $it['wo'] = $this->n($request->input('wo'));
                 }
-                $it = $this->hitungUlangBaris($it);
+                $it = $this->hitungUlangBaris($it, (bool) $rec->hitung_fkt_claim);
                 $items[$idx] = $it;
 
                 $rec->items_json  = $items;
@@ -221,6 +221,79 @@ class HgpController extends Controller
 
 
     /**
+     * Nyalakan/matikan aturan gudang: Faktur Belum Kutip mengurangi Saldo
+     * Akhir, dan Claim menambah hitungan Fisik.
+     *
+     * Dibuat sebagai saklar PER PLAN AUDIT dan MATI secara bawaan, bukan
+     * dipaku di kode, karena aturan ini cuma untuk data WHS yang sudah
+     * terlanjur diinput dan ke depan tidak berlaku lagi: plan baru otomatis
+     * tidak memakainya, dan mematikannya nanti tidak perlu deploy ulang.
+     *
+     * Kolom Faktur Belum Kutip & Claim hanya ada pada data yang diimpor dari
+     * laporan stok WHS, jadi berkas onhand cabang tetap tidak terpengaruh
+     * walau saklarnya menyala.
+     */
+    public function gantiHitungFktClaim(Request $request): JsonResponse
+    {
+        $planId = $request->input('planAuditId') ?? $request->input('plan_audit_id');
+        abort_unless($planId, 422, 'plan_audit_id wajib diisi.');
+
+        $request->validate(['aktif' => ['required', 'boolean']]);
+        $aktif = $request->boolean('aktif');
+        $who   = $request->user()?->username ?? $request->user()?->email;
+
+        // Kolomnya baru ada lewat migration terbaru. Kalau hosting belum
+        // menjalankannya, katakan apa adanya -- jangan jatuh jadi "Server Error".
+        abort_unless(
+            \Illuminate\Support\Facades\Schema::hasColumn('pemeriksaan_hgp', 'hitung_fkt_claim'),
+            422,
+            'Struktur database belum diperbarui untuk aturan ini. '
+                . 'Jalankan pembaruan struktur database (/deploy/migrate) lebih dulu.'
+        );
+
+        return $this->denganKunciPemeriksaan(PemeriksaanHgp::class, $planId,
+            function (?PemeriksaanHgp $rec) use ($planId, $aktif, $who) {
+                if (!$rec || !is_array($rec->items_json) || $rec->items_json === []) {
+                    return response()->json([
+                        'message' => 'Daftar item belum ada. Import data HGP & AHM Oils dulu.',
+                    ], 422);
+                }
+
+                $rec->hitung_fkt_claim = $aktif;
+
+                // Akhir & Selisih yang tersimpan ikut dihitung ulang sekarang,
+                // supaya Report Audit PDF dan layar lain tidak memakai angka
+                // dari aturan yang sudah tidak berlaku. Fisik, WO, keterangan,
+                // dan riwayat logScan tidak disentuh sama sekali.
+                $items = array_map(
+                    fn (array $it) => $this->hitungUlangBaris($it, $aktif),
+                    $rec->items_json
+                );
+
+                $rec->items_json = $items;
+                $rec->updated_by = $who;
+                $rec->save();
+
+                $terdampak = 0;
+                foreach ($items as $it) {
+                    if ($this->n($it['stok']['fakturBelumKutip'] ?? 0) !== 0.0
+                        || $this->n($it['stok']['claim'] ?? 0) !== 0.0) {
+                        $terdampak++;
+                    }
+                }
+
+                return response()->json([
+                    'message'        => $aktif
+                        ? "Aturan gudang dinyalakan untuk plan ini ({$terdampak} item terdampak)."
+                        : 'Aturan gudang dimatikan untuk plan ini.',
+                    'hitungFktClaim' => $aktif,
+                    'terdampak'      => $terdampak,
+                    'data'           => $this->dataDenganSidik($rec->fresh()),
+                ]);
+            });
+    }
+
+    /**
      * Isi kolom yang menambah hitungan fisik (judul bawaannya "WO", di lapangan
      * sering disebut Titipan) untuk BANYAK No. Part sekaligus dari berkas Excel.
      *
@@ -275,7 +348,7 @@ class HgpController extends Controller
 
                 $items  = $rec->items_json;
                 $labelWo = $rec->label_wo ?: PemeriksaanHgp::LABEL_WO_BAWAAN;
-                $hasil  = $this->terapkanWoDariBerkas($items, $berkas, $kosongkanSisanya);
+                $hasil  = $this->terapkanWoDariBerkas($items, $berkas, $kosongkanSisanya, (bool) $rec->hitung_fkt_claim);
 
                 if ($pratinjau) {
                     return response()->json($hasil['ringkasan'] + [
@@ -382,7 +455,7 @@ class HgpController extends Controller
      * Nilai lama DIGANTI, bukan ditambah: import ulang berkas yang sudah
      * dikoreksi harus memberi angka yang tertulis di berkas, bukan kelipatannya.
      */
-    private function terapkanWoDariBerkas(array $items, array $berkas, bool $kosongkanSisanya): array
+    private function terapkanWoDariBerkas(array $items, array $berkas, bool $kosongkanSisanya, bool $hitungFktClaim = false): array
     {
         $indeks = [];
         foreach ($items as $i => $row) {
@@ -408,7 +481,7 @@ class HgpController extends Controller
             $idx = $indeks[$kunci];
             $tersentuh[$idx] = true;
             $totalQty += $isi['qty'];
-            $items[$idx] = $this->pakaiWo($items[$idx], $isi['qty']);
+            $items[$idx] = $this->pakaiWo($items[$idx], $isi['qty'], $hitungFktClaim);
             $perubahan[] = $this->ringkasPerubahanWo($items[$idx]);
         }
 
@@ -416,7 +489,7 @@ class HgpController extends Controller
         if ($kosongkanSisanya) {
             foreach ($items as $i => $row) {
                 if (isset($tersentuh[$i]) || $this->n($row['wo'] ?? 0) === 0.0) continue;
-                $items[$i]   = $this->pakaiWo($row, 0);
+                $items[$i]   = $this->pakaiWo($row, 0, $hitungFktClaim);
                 $perubahan[] = $this->ringkasPerubahanWo($items[$i]);
                 $dikosongkan++;
             }
@@ -437,10 +510,10 @@ class HgpController extends Controller
         ];
     }
 
-    private function pakaiWo(array $it, float $qty): array
+    private function pakaiWo(array $it, float $qty, bool $hitungFktClaim = false): array
     {
         $it['wo'] = $qty;
-        return $this->hitungUlangBaris($it);
+        return $this->hitungUlangBaris($it, $hitungFktClaim);
     }
 
     private function ringkasPerubahanWo(array $it): array
@@ -936,10 +1009,12 @@ class HgpController extends Controller
      * saldoAwal sebagai cadangan untuk data versi lama -- sama seperti
      * hgpSaldo() di layar, exportSelisih(), dan Report Audit PDF.
      */
-    private function hitungUlangBaris(array $it): array
+    private function hitungUlangBaris(array $it, bool $hitungFktClaim = false): array
     {
-        $saldo = $this->saldoBaris($it);
-        $total = $this->n($it['fisik'] ?? 0) + $this->n($it['wo'] ?? 0);
+        $saldo = $this->saldoBaris($it, $hitungFktClaim);
+        $total = $this->n($it['fisik'] ?? 0)
+            + $this->n($it['wo'] ?? 0)
+            + $this->claimBaris($it, $hitungFktClaim);
 
         $it['akhir']   = $saldo - $total;
         $it['selisih'] = $total - $saldo;
@@ -947,9 +1022,29 @@ class HgpController extends Controller
         return $it;
     }
 
-    private function saldoBaris(array $it): float
+    /**
+     * Saldo baseline satu baris.
+     *
+     * Dengan saklar gudang menyala, Faktur Belum Kutip dikurangkan dari Saldo
+     * Akhir. Kolom itu hanya ada pada data yang diimpor dari laporan stok WHS
+     * (lihat KOLOM_STOK), jadi berkas onhand cabang tidak pernah terpengaruh
+     * walau saklarnya kebetulan menyala.
+     */
+    private function saldoBaris(array $it, bool $hitungFktClaim = false): float
     {
-        return $this->n($it['saldoAkhir'] ?? ($it['saldoAwal'] ?? 0));
+        $saldo = $this->n($it['saldoAkhir'] ?? ($it['saldoAwal'] ?? 0));
+
+        if ($hitungFktClaim) {
+            $saldo -= $this->n($it['stok']['fakturBelumKutip'] ?? 0);
+        }
+
+        return $saldo;
+    }
+
+    /** Claim ikut menambah hitungan fisik, hanya saat saklar gudang menyala. */
+    private function claimBaris(array $it, bool $hitungFktClaim = false): float
+    {
+        return $hitungFktClaim ? $this->n($it['stok']['claim'] ?? 0) : 0.0;
     }
 
     private function n(mixed $val): float
@@ -985,11 +1080,15 @@ class HgpController extends Controller
 
         $oilBaris = [];
         $sparepartBaris = [];
+        $hitungFktClaim = (bool) ($rec?->hitung_fkt_claim);
+
         foreach ($items as $it) {
-            $hitung  = $this->hitungUlangBaris($it);
-            $fisik   = $this->n($it['fisik'] ?? 0);
+            $hitung  = $this->hitungUlangBaris($it, $hitungFktClaim);
+            // Angka yang DITULIS di berkas ikut aturan yang sama dengan
+            // Akhir/Selisih-nya, supaya barisnya tidak terbaca saling bertentangan.
+            $fisik   = $this->n($it['fisik'] ?? 0) + $this->claimBaris($it, $hitungFktClaim);
             $wo      = $this->n($it['wo'] ?? 0);
-            $saldo   = $this->saldoBaris($it);
+            $saldo   = $this->saldoBaris($it, $hitungFktClaim);
             $akhir   = $this->n($hitung['akhir']);
             $selisih = $this->n($hitung['selisih']);
             if ($selisih === 0.0) continue;

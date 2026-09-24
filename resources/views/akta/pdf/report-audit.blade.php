@@ -2557,8 +2557,18 @@ window.addEventListener('load', function() {
       @php
         $hgpItems = $hgp->items_json ?? [];
         $hN = fn($v) => (float)($v ?? 0);
-        $hgpTotalSaldo   = array_sum(array_map(fn($it) => $hN($it['saldoAkhir'] ?? $it['saldoAwal'] ?? 0), $hgpItems));
-        $hgpTotalFisikOnly = array_sum(array_map(fn($it) => $hN($it['fisik'] ?? 0), $hgpItems));
+
+        // Saklar aturan gudang (WHS) per plan audit: Faktur Belum Kutip
+        // mengurangi Saldo Akhir, Claim menambah Fisik. Mati secara bawaan,
+        // dan kolomnya cuma ada pada data impor laporan stok WHS -- jadi plan
+        // lain sama sekali tidak terpengaruh.
+        $hgpFkt   = (bool) ($hgp->hitung_fkt_claim ?? false);
+        $hgpSaldoBaris = fn($it) => $hN($it['saldoAkhir'] ?? $it['saldoAwal'] ?? 0)
+            - ($hgpFkt ? $hN($it['stok']['fakturBelumKutip'] ?? 0) : 0);
+        $hgpClaimBaris = fn($it) => $hgpFkt ? $hN($it['stok']['claim'] ?? 0) : 0;
+
+        $hgpTotalSaldo   = array_sum(array_map($hgpSaldoBaris, $hgpItems));
+        $hgpTotalFisikOnly = array_sum(array_map(fn($it) => $hN($it['fisik'] ?? 0) + $hgpClaimBaris($it), $hgpItems));
         $hgpTotalWo      = array_sum(array_map(fn($it) => $hN($it['wo'] ?? 0), $hgpItems));
         $hgpTotalFisik   = $hgpTotalFisikOnly + $hgpTotalWo;
         $hgpTotalSelisih = array_sum(array_map(fn($it) => $hN($it['selisih'] ?? 0), $hgpItems));
@@ -2611,12 +2621,14 @@ window.addEventListener('load', function() {
           @php $hgpGrandJumlah = 0; @endphp
           @foreach($hgpItems as $i => $it)
             @php
-              $saldo   = $hN($it['saldoAkhir'] ?? $it['saldoAwal'] ?? 0);
-              $fisik   = $hN($it['fisik'] ?? 0);
+              $saldo   = $hgpSaldoBaris($it);
+              $fisik   = $hN($it['fisik'] ?? 0) + $hgpClaimBaris($it);
               $wo      = $hN($it['wo'] ?? 0);
               $totalFisik = $fisik + $wo;
-              $akhir   = $hN($it['akhir'] ?? ($saldo - $totalFisik));
-              $selisih = $hN($it['selisih'] ?? ($totalFisik - $saldo));
+              // Dihitung di sini, bukan dipercaya dari field turunan yang
+              // tersimpan: field itu bisa berasal dari sebelum saklarnya diubah.
+              $akhir   = $saldo - $totalFisik;
+              $selisih = $totalFisik - $saldo;
               $harga   = $hN($it['hargaHet'] ?? 0);
               $jumlah  = $harga * $selisih;
               $hgpGrandJumlah += $jumlah;
