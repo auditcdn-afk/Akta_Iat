@@ -314,6 +314,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Isi kolom WO untuk banyak No. Part sekaligus dari berkas (No Part + QTY).
     Route::post('/audit-detail/hgp/impor-wo', [HgpController::class, 'imporWo'])
         ->middleware('akta.role:admin,manajer,auditor');
+    // Saklar aturan gudang (WHS): FKT Belum Kutip mengurangi Saldo Akhir,
+    // Claim menambah Fisik. Per plan audit, mati secara bawaan.
+    Route::post('/audit-detail/hgp/hitung-fkt-claim', [HgpController::class, 'gantiHitungFktClaim'])
+        ->middleware('akta.role:admin,manajer,auditor');
 
     Route::post('/audit-detail/hgp/scan-increment', [HgpController::class, 'scanIncrement'])
         ->middleware('akta.role:admin,manajer,auditor');
