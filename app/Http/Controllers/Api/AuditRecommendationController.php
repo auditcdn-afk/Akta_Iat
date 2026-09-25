@@ -332,9 +332,6 @@ class AuditRecommendationController extends Controller
         if (!isset($steps[$idx])) {
             return response()->json(['ok' => false, 'message' => 'Step tidak ditemukan.'], 404);
         }
-        if ($steps[$idx]['status'] === 'done' || $steps[$idx]['status'] === 'approved') {
-            return response()->json(['ok' => false, 'message' => 'Step sudah diisi.'], 422);
-        }
 
         // Tiap pihak menuliskan keputusannya SENDIRI -- itu seluruh gunanya
         // Keputusan Bertahap. Siapa pemilik sebuah step ditentukan di satu
@@ -349,11 +346,27 @@ class AuditRecommendationController extends Controller
         $stepRole = $steps[$idx]['role'] ?? $steps[$idx]['step'] ?? '';
         $cabang   = $recommendation->planAudit?->cabang ?? '';
 
-        if ($user?->role !== 'admin' && !BirokrasiResolver::bolehMengisiStep($user, $stepRole, $cabang)) {
+        $isAdmin = $user?->role === 'admin';
+
+        if (!$isAdmin && !BirokrasiResolver::bolehMengisiStep($user, $stepRole, $cabang)) {
             return response()->json([
                 'ok'      => false,
                 'message' => 'Step "' . $stepRole . '" hanya boleh diisi oleh pihak yang bersangkutan.',
             ], 403);
+        }
+
+        // Membetulkan isian sendiri boleh, SELAMA bagian berikutnya belum
+        // mengisi -- begitu pihak setelahnya menuliskan keputusannya, keputusan
+        // ini sudah jadi dasar pertimbangan mereka dan tidak boleh berubah lagi
+        // di belakang mereka. Admin tetap bisa membetulkan bagian mana pun.
+        $pembetulan = $this->sudahDiisi($steps[$idx]);
+
+        if ($pembetulan && !$isAdmin && !$this->bolehDiubah($recommendation, $steps, $idx)) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Keputusan ini sudah terkunci karena bagian berikutnya sudah mengisi. '
+                    . 'Hubungi admin kalau memang harus diubah.',
+            ], 422);
         }
 
         $steps[$idx]['status'] = 'done';
@@ -383,9 +396,52 @@ class AuditRecommendationController extends Controller
 
         return response()->json([
             'ok'      => true,
-            'message' => 'Step berhasil disetujui.',
+            'message' => $pembetulan ? 'Keputusan berhasil diperbarui.' : 'Step berhasil disetujui.',
             'data'    => $this->untukLayar($recommendation, $request->user()),
         ]);
+    }
+
+    /** Sudahkah sebuah step diisi? */
+    private function sudahDiisi(mixed $step): bool
+    {
+        return in_array(((array) $step)['status'] ?? '', ['done', 'approved'], true);
+    }
+
+    /**
+     * Bolehkah pemiliknya masih membetulkan isian step ini?
+     *
+     * Syaratnya: rekomendasinya belum selesai, DAN bagian setelahnya belum
+     * mengisi. Yang dihitung "bagian setelahnya" adalah step birokrasi
+     * berikutnya -- step teknis 'created' dan 'isi_rekomendasi' dilewati,
+     * karena 'isi_rekomendasi' ditambahkan di UJUNG array (lihat isi()), bukan
+     * pada urutan gilirannya, jadi memakai indeks berikutnya begitu saja akan
+     * salah menilai step terakhir.
+     *
+     * @param  array<int, mixed>  $steps
+     */
+    private function bolehDiubah(AuditRecommendation $recommendation, array $steps, int $idx): bool
+    {
+        if (in_array($recommendation->status, ['approved', 'done', 'cancelled'], true)) {
+            return false;
+        }
+
+        foreach ($steps as $i => $step) {
+            if ($i <= $idx) {
+                continue;
+            }
+
+            $nama = ((array) $step)['step'] ?? '';
+            if ($nama === 'created' || $nama === 'isi_rekomendasi') {
+                continue;
+            }
+
+            return !$this->sudahDiisi($step);
+        }
+
+        // Tidak ada bagian setelahnya (step terakhir). Terkunci begitu seluruh
+        // rekomendasinya disetujui -- yang biasanya terjadi persis saat step
+        // ini diisi, karena seluruh step jadi selesai.
+        return true;
     }
 
     /**
@@ -405,13 +461,20 @@ class AuditRecommendationController extends Controller
         $cabang  = $recommendation->planAudit?->cabang ?? '';
         $isAdmin = $user?->role === 'admin';
 
-        $data['steps'] = array_map(function ($step) use ($user, $cabang, $isAdmin) {
-            $step = (array) $step;
+        $semua = array_values($data['steps'] ?? []);
+
+        $data['steps'] = array_map(function ($step, $idx) use ($user, $cabang, $isAdmin, $recommendation, $semua) {
+            $step  = (array) $step;
             $peran = $step['role'] ?? $step['step'] ?? '';
-            $step['bisaDiisi'] = $isAdmin || BirokrasiResolver::bolehMengisiStep($user, $peran, $cabang);
+            $milik = $isAdmin || BirokrasiResolver::bolehMengisiStep($user, $peran, $cabang);
+
+            $step['bisaDiisi']  = $milik;
+            $step['bisaDiubah'] = $milik
+                && $this->sudahDiisi($step)
+                && ($isAdmin || $this->bolehDiubah($recommendation, $semua, $idx));
 
             return $step;
-        }, $data['steps'] ?? []);
+        }, $semua, array_keys($semua));
 
         return $data;
     }

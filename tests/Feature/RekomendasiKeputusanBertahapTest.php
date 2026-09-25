@@ -179,6 +179,131 @@ class RekomendasiKeputusanBertahapTest extends TestCase
         }
     }
 
+    // ── Membetulkan isian sendiri ───────────────────────────────────────────
+
+    public function test_pemilik_bisa_membetulkan_isiannya_selama_bagian_berikutnya_belum_mengisi(): void
+    {
+        $rek = $this->rekomendasi();
+        $whs = User::factory()->create(['role' => 'whs', 'unit_usaha' => 'WHS Unit ARK']);
+
+        Sanctum::actingAs($whs);
+        $this->isiStep($rek, self::STEP_WHS, 'Penyesuaian stok.')->assertOk();
+
+        $this->isiStep($rek, self::STEP_WHS, 'Penyesuaian stok + 4 botol dimusnahkan.')
+            ->assertOk()
+            ->assertJsonPath('message', 'Keputusan berhasil diperbarui.');
+
+        $this->assertSame(
+            'Penyesuaian stok + 4 botol dimusnahkan.',
+            $rek->fresh()->steps[self::STEP_WHS]['note']
+        );
+    }
+
+    public function test_isian_terkunci_begitu_bagian_berikutnya_mengisi(): void
+    {
+        $rek = $this->rekomendasi();
+        $whs = User::factory()->create(['role' => 'whs', 'unit_usaha' => 'WHS Unit ARK']);
+
+        Sanctum::actingAs($whs);
+        $this->isiStep($rek, self::STEP_WHS, 'Penyesuaian stok.')->assertOk();
+
+        // FIN REG mengisi bagiannya -> keputusan WHS jadi dasar pertimbangannya
+        Sanctum::actingAs(User::factory()->create(['role' => 'viewer', 'unit_usaha' => 'FIN REG']));
+        $this->isiStep($rek, self::STEP_FIN_REG, 'Disetujui.')->assertOk();
+
+        Sanctum::actingAs($whs);
+        $res = $this->isiStep($rek, self::STEP_WHS, 'Diubah diam-diam.')->assertStatus(422);
+        $this->assertStringContainsString('terkunci', (string) $res->json('message'));
+
+        $this->assertSame('Penyesuaian stok.', $rek->fresh()->steps[self::STEP_WHS]['note']);
+    }
+
+    public function test_admin_tetap_bisa_membetulkan_bagian_yang_sudah_terkunci(): void
+    {
+        $rek = $this->rekomendasi();
+
+        Sanctum::actingAs(User::factory()->create(['role' => 'whs', 'unit_usaha' => 'WHS Unit ARK']));
+        $this->isiStep($rek, self::STEP_WHS, 'Penyesuaian stok.')->assertOk();
+
+        Sanctum::actingAs(User::factory()->create(['role' => 'viewer', 'unit_usaha' => 'FIN REG']));
+        $this->isiStep($rek, self::STEP_FIN_REG, 'Disetujui.')->assertOk();
+
+        Sanctum::actingAs(User::factory()->create(['role' => 'admin', 'unit_usaha' => 'HO']));
+        $this->isiStep($rek, self::STEP_WHS, 'Dibetulkan admin.')->assertOk();
+
+        $this->assertSame('Dibetulkan admin.', $rek->fresh()->steps[self::STEP_WHS]['note']);
+    }
+
+    public function test_pihak_lain_tetap_tidak_bisa_mengubah_isian_orang(): void
+    {
+        $rek = $this->rekomendasi();
+
+        Sanctum::actingAs(User::factory()->create(['role' => 'whs', 'unit_usaha' => 'WHS Unit ARK']));
+        $this->isiStep($rek, self::STEP_WHS, 'Penyesuaian stok.')->assertOk();
+
+        // Auditor bukan pemilik step ini -- ditolak di pemeriksaan kepemilikan,
+        // sebelum aturan boleh-ubah sempat dinilai.
+        Sanctum::actingAs(User::factory()->create(['role' => 'auditor', 'unit_usaha' => '']));
+        $this->isiStep($rek, self::STEP_WHS, 'Diubah auditor.')->assertStatus(403);
+
+        $this->assertSame('Penyesuaian stok.', $rek->fresh()->steps[self::STEP_WHS]['note']);
+    }
+
+    public function test_daftar_menandai_isian_mana_yang_masih_bisa_dibetulkan(): void
+    {
+        $rek = $this->rekomendasi();
+        $whs = User::factory()->create(['role' => 'whs', 'unit_usaha' => 'WHS Unit ARK']);
+
+        Sanctum::actingAs($whs);
+        $this->isiStep($rek, self::STEP_WHS, 'Penyesuaian stok.')->assertOk();
+
+        $steps = $this->getJson('/api/recommendations?plan_audit_id=' . $this->plan->id)
+            ->assertOk()->json('data.0.steps');
+        $this->assertTrue($steps[self::STEP_WHS]['bisaDiubah'], 'masih boleh dibetulkan');
+
+        Sanctum::actingAs(User::factory()->create(['role' => 'viewer', 'unit_usaha' => 'FIN REG']));
+        $this->isiStep($rek, self::STEP_FIN_REG, 'Disetujui.')->assertOk();
+
+        Sanctum::actingAs($whs);
+        $steps = $this->getJson('/api/recommendations?plan_audit_id=' . $this->plan->id)
+            ->assertOk()->json('data.0.steps');
+        $this->assertFalse($steps[self::STEP_WHS]['bisaDiubah'], 'sudah terkunci');
+        $this->assertFalse($steps[self::STEP_FIN_REG]['bisaDiubah'], 'bukan miliknya');
+    }
+
+    public function test_step_yang_belum_diisi_tidak_ditandai_bisa_diubah(): void
+    {
+        $this->rekomendasi();
+        Sanctum::actingAs(User::factory()->create(['role' => 'whs', 'unit_usaha' => 'WHS Unit ARK']));
+
+        $steps = $this->getJson('/api/recommendations?plan_audit_id=' . $this->plan->id)
+            ->assertOk()->json('data.0.steps');
+
+        $this->assertFalse($steps[self::STEP_WHS]['bisaDiubah'], 'belum diisi, jadi belum ada yang diubah');
+        $this->assertTrue($steps[self::STEP_WHS]['bisaDiisi']);
+    }
+
+    public function test_seluruh_rekomendasi_disetujui_mengunci_semua_isian(): void
+    {
+        $rek = $this->rekomendasi();
+
+        foreach ([
+            [self::STEP_WHS, 'whs', 'WHS Unit ARK'],
+            [self::STEP_FIN_REG, 'viewer', 'FIN REG'],
+            [3, 'viewer', 'REG HEAD'],
+            [self::STEP_MANAJER, 'manajer', ''],
+            [self::STEP_AFD, 'afd', ''],
+        ] as [$idx, $role, $unit]) {
+            Sanctum::actingAs(User::factory()->create(['role' => $role, 'unit_usaha' => $unit]));
+            $this->isiStep($rek, $idx, 'ok')->assertOk();
+        }
+
+        $this->assertSame('approved', $rek->fresh()->status);
+
+        Sanctum::actingAs(User::factory()->create(['role' => 'afd', 'unit_usaha' => '']));
+        $this->isiStep($rek, self::STEP_AFD, 'diubah')->assertStatus(422);
+    }
+
     // ── Hapus rekomendasi ───────────────────────────────────────────────────
 
     public function test_hapus_hanya_untuk_auditor_dan_admin(): void

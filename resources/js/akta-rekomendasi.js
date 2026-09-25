@@ -273,10 +273,16 @@ function renderRecommendations() {
         // - jika giliran user pada step birokrasi → "Isi Rekomendasi" (step)
         // - jika user adalah unit usaha cabang → "Isi Rekomendasi" / "Lihat Isian"
         const isiStep   = (item.steps ?? []).find(s => s.step === 'isi_rekomendasi');
-        const myStep    = findMyPendingStep(item);
+        // Giliran mengisi lebih dulu; kalau tidak ada, barangkali ada isian
+        // sendiri yang masih boleh dibetulkan.
+        const stepUbah  = findMyEditableStep(item);
+        const myStep    = findMyPendingStep(item) ?? stepUbah;
         let isiBtn = '';
         if (myStep) {
-            const btnLabel = myStep.step === 'AFD' ? 'Keputusan AFD' : 'Isi Rekomendasi';
+            const membetulkan = myStep === stepUbah;
+            const btnLabel = membetulkan
+                ? 'Ubah Keputusan'
+                : (myStep.step === 'AFD' ? 'Keputusan AFD' : 'Isi Rekomendasi');
             isiBtn = `<button type="button" onclick="window.openIsiStepFromReko(${item.id}, ${myStep.realIdx}, '${escapeHtml(myStep.step)}')" class="rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white transition">
                     ${btnLabel}
                 </button>`;
@@ -476,6 +482,15 @@ function birokrasiStepsOf(item) {
         .filter(s => s.step !== 'created' && s.step !== 'isi_rekomendasi');
 }
 
+/**
+ * Step yang sudah diisi user ini dan MASIH boleh dibetulkan -- yaitu selama
+ * bagian berikutnya belum mengisi. Penilaiannya dari server (bisaDiubah),
+ * tidak dihitung ulang di sini.
+ */
+function findMyEditableStep(item) {
+    return birokrasiStepsOf(item).find(s => s.bisaDiubah === true) ?? null;
+}
+
 // Step pending pertama yang merupakan giliran user saat ini (atau null)
 function findMyPendingStep(item) {
     const steps = birokrasiStepsOf(item);
@@ -559,8 +574,14 @@ window.openIsiStepFromReko = function openIsiStepFromReko(rekId, stepIdx, roleNa
         }
     }
 
-    document.getElementById('isiTglPengisian').value = new Date().toISOString().substring(0, 10);
-    document.getElementById('isiKonten').value = '';
+    // Kalau stepnya sudah pernah diisi, modalnya dibuka dengan isian yang ada --
+    // ini membetulkan, bukan menulis dari nol.
+    const stepLama    = (item?.steps ?? [])[Number(stepIdx)];
+    const membetulkan = !!(stepLama && ['done', 'approved'].includes(stepLama.status));
+
+    document.getElementById('isiTglPengisian').value =
+        (membetulkan && stepLama.time ? String(stepLama.time).substring(0, 10) : new Date().toISOString().substring(0, 10));
+    document.getElementById('isiKonten').value = membetulkan ? (stepLama.note ?? '') : '';
     modal.classList.remove('hidden');
     modal.classList.add('flex');
     document.getElementById('isiKonten').focus();

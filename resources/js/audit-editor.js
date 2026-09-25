@@ -10880,6 +10880,11 @@ function initPicaForm() {
 // ── Rekomendasi Tab ───────────────────────────────────────────────────────────
 let _rekomendasiEditId = null;
 
+// Baris rekomendasi yang sedang tampil. Dipakai modal "Isi/Ubah Keputusan"
+// untuk mengambil isian yang sudah tersimpan tanpa harus menyelipkannya ke
+// dalam atribut onclick -- catatan keputusan memuat baris baru dan tanda kutip.
+let _rekomendasiRows = [];
+
 async function loadRekomendasiTab() {
     if (!activePlanId) return;
     // Auto-fill read-only fields dari activePlan
@@ -10900,6 +10905,7 @@ async function rekomendasiLoadList() {
     try {
         const res = await fetchJson('/api/recommendations?plan_audit_id=' + activePlanId, { headers: authHeaders() });
         const rows = res.data ?? [];
+        _rekomendasiRows = rows;
         const tambahBtn = document.getElementById('rekomendasiTambahBtn');
         if (tambahBtn) tambahBtn.style.display = rows.length ? 'none' : '';
         if (!rows.length) {
@@ -10918,7 +10924,12 @@ async function rekomendasiLoadList() {
             const statusBadge = { draft: 'text-slate-400', open: 'text-blue-400', in_progress: 'text-amber-400', done: 'text-emerald-400', approved: 'text-emerald-400', cancelled: 'text-red-400' }[r.status] || 'text-slate-400';
 
             // Build birokrasi steps (skip 'created' and 'isi_rekomendasi' helper steps)
-            const birokrasiSteps = (r.steps ?? []).filter(s => s.step !== 'created' && s.step !== 'isi_rekomendasi');
+            // Indeks aslinya dibawa serta. Sebelumnya dicari ulang dengan
+            // mencocokkan step+role+status, yang salah begitu ada dua step
+            // dengan status sama -- findIndex mengembalikan yang pertama.
+            const birokrasiSteps = (r.steps ?? [])
+                .map((s, realIdx) => ({ ...s, realIdx }))
+                .filter(s => s.step !== 'created' && s.step !== 'isi_rekomendasi');
             const birokrasiHtml = birokrasiSteps.length ? `
                 <div class="mt-3 rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3">
                     <p class="mb-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Keputusan Bertahap</p>
@@ -10937,10 +10948,15 @@ async function rekomendasiLoadList() {
                                 // milik FIN REG, REG HEAD, atau unit usaha.
                                 const giliran = !done && prevDone;
                                 const canIsi  = giliran && s.bisaDiisi === true;
-                                const fullIdx = (r.steps ?? []).findIndex((fs, fi) => fi > 0 && fs.step === s.step && fs.role === s.role && fs.status === s.status);
                                 const cardBg  = done ? 'border-slate-600 bg-slate-800' : giliran ? 'border-amber-600/50 bg-amber-900/10' : 'border-slate-700 bg-slate-900/40';
                                 const isiBtn  = canIsi
-                                    ? `<button onclick="rekomendasiIsiStep(${r.id}, ${fullIdx < 0 ? idx+1 : fullIdx}, '${escapeHtml(s.step)}')" class="mt-2 w-full rounded-lg bg-blue-600 hover:bg-blue-500 px-2 py-1 text-[11px] font-semibold text-white transition">Isi Keputusan</button>`
+                                    ? `<button onclick="rekomendasiIsiStep(${r.id}, ${s.realIdx}, '${escapeHtml(s.step)}')" class="mt-2 w-full rounded-lg bg-blue-600 hover:bg-blue-500 px-2 py-1 text-[11px] font-semibold text-white transition">Isi Keputusan</button>`
+                                    : '';
+                                // Membetulkan isian sendiri, selama bagian
+                                // berikutnya belum mengisi. Server yang menilai
+                                // (bisaDiubah); layar tinggal membacanya.
+                                const ubahBtn = (done && s.bisaDiubah === true)
+                                    ? `<button onclick="rekomendasiIsiStep(${r.id}, ${s.realIdx}, '${escapeHtml(s.step)}')" class="mt-2 w-full rounded-lg border border-slate-600 px-2 py-1 text-[11px] font-semibold text-slate-300 hover:bg-slate-700 transition">Edit</button>`
                                     : '';
                                 const content = done && s.note
                                     ? `<p class="mt-1 text-xs text-slate-200 whitespace-pre-wrap">${escapeHtml(s.note)}</p><p class="mt-1.5 text-[10px] text-slate-500">${escapeHtml(s.user ?? '')} · ${s.time ? s.time.substring(0,10) : ''}</p>`
@@ -10949,6 +10965,7 @@ async function rekomendasiLoadList() {
                                     <p class="text-xs font-bold text-slate-300">${escapeHtml(s.step)}</p>
                                     ${content}
                                     ${isiBtn}
+                                    ${ubahBtn}
                                 </div>`;
                             }).join('')}
                         </div>
@@ -11262,9 +11279,18 @@ function rekomendasiIsiStep(rekId, stepIdx, roleName) {
     if (!modal) return;
     modal.dataset.rekId   = rekId;
     modal.dataset.stepIdx = stepIdx;
+
+    // Kalau stepnya sudah pernah diisi, modalnya dibuka dengan isian yang ada --
+    // ini membetulkan, bukan menulis dari nol.
+    const baris    = _rekomendasiRows.find(x => String(x.id) === String(rekId));
+    const stepLama = (baris?.steps ?? [])[Number(stepIdx)];
+    const membetulkan = !!(stepLama && ['done', 'approved'].includes(stepLama.status));
+
     document.getElementById('isiStepRoleName').textContent = roleName || 'Keputusan';
-    document.getElementById('isiStepTgl').value = new Date().toISOString().substring(0, 10);
-    document.getElementById('isiStepKonten').value = '';
+    document.getElementById('isiStepJudul').textContent = membetulkan ? 'Ubah Keputusan' : 'Isi Keputusan';
+    document.getElementById('isiStepTgl').value =
+        (membetulkan && stepLama.time ? String(stepLama.time).substring(0, 10) : new Date().toISOString().substring(0, 10));
+    document.getElementById('isiStepKonten').value = membetulkan ? (stepLama.note ?? '') : '';
     modal.classList.remove('hidden');
     modal.classList.add('flex');
     document.getElementById('isiStepKonten').focus();
@@ -11280,7 +11306,7 @@ async function isiStepSave() {
     const btn = document.getElementById('isiStepSaveBtn');
     if (btn) { btn.textContent = 'Menyimpan...'; btn.disabled = true; }
     try {
-        await fetchJson(`/api/recommendations/${rekId}/approve-step`, {
+        const hasil = await fetchJson(`/api/recommendations/${rekId}/approve-step`, {
             method: 'POST',
             headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ step_index: Number(stepIdx), note: konten, tgl_isi: tgl }),
@@ -11288,7 +11314,7 @@ async function isiStepSave() {
         modal.classList.add('hidden');
         modal.classList.remove('flex');
         await rekomendasiLoadList();
-        rekomendasiAlert('Keputusan berhasil disimpan.', 'success');
+        rekomendasiAlert(hasil?.message || 'Keputusan berhasil disimpan.', 'success');
     } catch (e) {
         rekomendasiAlert(e.message, 'error');
     } finally {
