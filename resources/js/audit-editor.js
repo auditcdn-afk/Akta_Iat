@@ -3156,6 +3156,32 @@ async function bpkbUnscan(e) {
 // atau salah ketik, jadi jangan discan sama sekali (biarkan lanjut mengetik).
 const BPKB_MIN_SCAN_LENGTH = 6;
 
+// Alat scan barcode mengirim seluruh nomor dalam satu semburan: jeda antar
+// huruf beberapa milidetik saja. Tangan manusia 100-300 ms per huruf, dan yang
+// tercepat sekalipun tidak sampai 50 ms. Selisih sebesar itu cukup untuk
+// membedakan keduanya -- dan itulah yang membuat hasil scan tidak perlu lagi
+// menunggu.
+//
+// Kenapa perlu dibedakan: jalur menunggu di bawah (BPKB_JEDA_KETIK_MS lalu
+// menanti daftar saran pulang) ada untuk melindungi auditor yang MENGETIK
+// sendiri -- sebagian No. BPKB punya huruf di belakang spasi ("I-04308002 D"),
+// dan men-scan bagian depannya saja menawarkan "Fisik Diluar On Hand" untuk
+// nomor yang sebenarnya ada. Perlindungan itu tidak dibutuhkan alat scan,
+// yang selalu mengirim nomornya utuh sekaligus, tapi ongkosnya ditanggung
+// juga: 600 ms menunggu, lalu SATU LAGI perjalanan ke server untuk daftar
+// saran sebelum scan-nya sendiri dikirim. Diukur dengan 2.000 baris onhand:
+// 631 ms per scan di server lokal, dan 1.433 ms kalau tiap permintaan makan
+// 400 ms seperti di hosting -- padahal menekan Enter hanya 40 ms dan 445 ms.
+const BPKB_JEDA_ALAT_SCAN_MS = 50;
+
+// Semburan dianggap selesai kalau tidak ada huruf baru selama ini. Harus
+// nyaman di atas BPKB_JEDA_ALAT_SCAN_MS, kalau tidak scan-nya terkirim di
+// tengah nomor yang belum utuh.
+const BPKB_JEDA_SELESAI_MS = 120;
+
+// Jalur mengetik dengan tangan: tidak diubah.
+const BPKB_JEDA_KETIK_MS = 600;
+
 /**
  * Scan otomatis sesudah ketikan berhenti — untuk alat scan barcode, yang
  * mengirim nomornya sekaligus lalu diam.
@@ -3342,15 +3368,53 @@ function initBpkbForm() {
     });
 
     // Scan input
+    let bpkbJedaTerpanjang = 0;   // jeda antar huruf terbesar sejak kotak kosong
+    let bpkbKetikSebelumnya = 0;
+    let bpkbPanjangSebelumnya = 0;
+
     scanInput?.addEventListener("input", () => {
         const q = scanInput.value.trim();
+        const sekarang = performance.now();
+        const jeda = bpkbKetikSebelumnya ? sekarang - bpkbKetikSebelumnya : 0;
+        const tambah = q.length - bpkbPanjangSebelumnya;
+
+        bpkbKetikSebelumnya = sekarang;
+
+        // Awal isian baru: kotaknya dikosongkan/memendek (termasuk sesudah scan
+        // berhasil, yang mengosongkannya dari kode tanpa memicu event ini), atau
+        // sudah lama tidak diketik. Pengukuran jeda dimulai dari nol lagi --
+        // kalau tidak, jeda panjang antar dua scan terbawa ke isian berikutnya
+        // dan alat scan malah dikira tangan manusia.
+        if (q === "" || q.length < bpkbPanjangSebelumnya || jeda > 1000) {
+            bpkbJedaTerpanjang = 0;
+        } else if (jeda) {
+            bpkbJedaTerpanjang = Math.max(bpkbJedaTerpanjang, jeda);
+        }
+
         clearTimeout(bpkbSuggestTimer);
         clearTimeout(bpkbAutoTimer);
-        // Autocomplete suggest
+
+        // Masuk sekaligus (alat scan barcode, atau ditempel) — nomornya sudah
+        // utuh begitu semburannya berhenti. Langsung discan: tanpa menunggu
+        // 600 ms, dan tanpa menunggu daftar saran pulang lebih dulu.
+        const semburan = tambah >= BPKB_MIN_SCAN_LENGTH
+            || (bpkbJedaTerpanjang > 0 && bpkbJedaTerpanjang <= BPKB_JEDA_ALAT_SCAN_MS);
+
+        bpkbPanjangSebelumnya = q.length;
+
+        if (q.length >= BPKB_MIN_SCAN_LENGTH && semburan) {
+            bpkbAutoTimer = setTimeout(() => {
+                if ((scanInput.value ?? "").trim() !== q) return;   // masih berlanjut
+                document.getElementById("bpkbSuggestions")?.classList.add("hidden");
+                bpkbScanSubmit();
+            }, BPKB_JEDA_SELESAI_MS);
+            return;
+        }
+
+        // Diketik dengan tangan: perilakunya persis seperti sebelumnya.
         bpkbSuggestTimer = setTimeout(() => bpkbSearchSuggest(q), 200);
-        // Auto-scan: jika input berhenti 600ms dan panjang >= BPKB_MIN_SCAN_LENGTH
         if (q.length >= BPKB_MIN_SCAN_LENGTH) {
-            bpkbAutoTimer = setTimeout(() => bpkbAutoScan(q), 600);
+            bpkbAutoTimer = setTimeout(() => bpkbAutoScan(q), BPKB_JEDA_KETIK_MS);
         }
     });
     scanInput?.addEventListener("keydown", (e) => {
