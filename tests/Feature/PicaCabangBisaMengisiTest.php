@@ -129,6 +129,35 @@ class PicaCabangBisaMengisiTest extends TestCase
         );
     }
 
+    /**
+     * "bpk" dulu terdaftar sebagai role cabang tapi tidak ada di writeRoles,
+     * jadi tidak pernah benar-benar bisa menyimpan apa pun. Saat kedua daftar
+     * itu disatukan, akun bpk ber-unit usaha ikut kebagian hak isi -- dan itu
+     * tidak dikehendaki. Unit usahanya sengaja dibuat SAMA dengan pemilik PICA
+     * ("SO UJT"): kalau berbeda, 403-nya datang dari aturan kepemilikan dan
+     * ujinya lolos tanpa membuktikan apa-apa.
+     */
+    public function test_role_bpk_tidak_boleh_mengisi_walau_unit_usahanya_cocok(): void
+    {
+        $pica = $this->picaDariAuditor();
+        $this->assertSame('SO UJT', $pica->unit_usaha, 'PICA-nya memang milik unit ini');
+
+        Sanctum::actingAs(User::factory()->create(['role' => 'bpk', 'unit_usaha' => 'SO UJT']));
+
+        $this->putJson("/api/picas/{$pica->id}", $this->isianCabang())->assertStatus(403);
+
+        $this->assertNull($pica->fresh()->problem_identification);
+    }
+
+    public function test_role_bpk_tetap_bisa_melihat_pica_unitnya(): void
+    {
+        $this->picaDariAuditor();
+        Sanctum::actingAs(User::factory()->create(['role' => 'bpk', 'unit_usaha' => 'SO UJT']));
+
+        // Yang ditutup hanya hak MENGISI; melihat PICA unitnya tetap boleh.
+        $this->getJson('/api/picas')->assertOk()->assertJsonCount(1);
+    }
+
     public function test_akun_tanpa_unit_usaha_tidak_dianggap_cabang(): void
     {
         $pica = $this->picaDariAuditor();

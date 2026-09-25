@@ -304,6 +304,40 @@ class RekomendasiKeputusanBertahapTest extends TestCase
         $this->isiStep($rek, self::STEP_AFD, 'diubah')->assertStatus(422);
     }
 
+    public function test_keputusan_terakhir_terkunci_begitu_diisi_dan_hanya_admin_yang_bisa_mengubah(): void
+    {
+        $rek = $this->rekomendasi();
+
+        foreach ([
+            [self::STEP_WHS, 'whs', 'WHS Unit ARK'],
+            [self::STEP_FIN_REG, 'viewer', 'FIN REG'],
+            [3, 'viewer', 'REG HEAD'],
+            [self::STEP_MANAJER, 'manajer', ''],
+        ] as [$idx, $role, $unit]) {
+            Sanctum::actingAs(User::factory()->create(['role' => $role, 'unit_usaha' => $unit]));
+            $this->isiStep($rek, $idx, 'ok')->assertOk();
+        }
+
+        // AFD menjatuhkan keputusan penutup...
+        $afd = User::factory()->create(['role' => 'afd', 'unit_usaha' => '']);
+        Sanctum::actingAs($afd);
+        $this->isiStep($rek, self::STEP_AFD, 'Disetujui.')->assertOk();
+
+        // ...dan tidak bisa mengubahnya sendiri lagi: tidak ada bagian
+        // berikutnya yang bisa jadi penanda, dan keputusan penutup memang tidak
+        // semestinya bisa diubah sendiri sesudah dijatuhkan.
+        $this->isiStep($rek, self::STEP_AFD, 'Dibatalkan diam-diam.')->assertStatus(422);
+        $this->assertSame('Disetujui.', $rek->fresh()->steps[self::STEP_AFD]['note']);
+
+        $steps = $this->getJson('/api/recommendations?plan_audit_id=' . $this->plan->id)->json('data.0.steps');
+        $this->assertFalse($steps[self::STEP_AFD]['bisaDiubah'], 'tombol Edit tidak boleh muncul untuk AFD');
+
+        // Admin tetap bisa membetulkan.
+        Sanctum::actingAs(User::factory()->create(['role' => 'admin', 'unit_usaha' => 'HO']));
+        $this->isiStep($rek, self::STEP_AFD, 'Dibetulkan admin.')->assertOk();
+        $this->assertSame('Dibetulkan admin.', $rek->fresh()->steps[self::STEP_AFD]['note']);
+    }
+
     // ── Hapus rekomendasi ───────────────────────────────────────────────────
 
     public function test_hapus_hanya_untuk_auditor_dan_admin(): void

@@ -36,6 +36,18 @@ class PicaController extends Controller
     private const HO_ROLES = ['admin', 'manajer', 'auditor', 'koordinator', 'coo'];
 
     /**
+     * Role yang BUKAN pengisi PICA walaupun punya unit usaha.
+     *
+     * "bpk" dulu terdaftar sebagai role cabang tapi tidak ada di writeRoles,
+     * jadi tidak pernah benar-benar bisa menyimpan apa pun -- dua daftar yang
+     * saling bertentangan. Saat keduanya disatukan, akun bpk ber-unit usaha jadi
+     * ikut kebagian hak isi; ditegaskan di sini bahwa itu memang tidak
+     * dikehendaki. Melihat PICA unitnya tetap boleh, hanya mengisinya yang
+     * tidak.
+     */
+    private const ROLE_BUKAN_PENGISI = ['bpk'];
+
+    /**
      * Apakah pengguna ini berperan sebagai CABANG -- yang mengisi Problem
      * Identification, Corrective Action, PIC, Relation Ship, dan Target Date?
      *
@@ -51,6 +63,7 @@ class PicaController extends Controller
     private function isCabang(?string $role, ?string $unitUsaha): bool
     {
         return !in_array($role, self::HO_ROLES, true)
+            && !in_array($role, self::ROLE_BUKAN_PENGISI, true)
             && trim((string) $unitUsaha) !== '';
     }
 

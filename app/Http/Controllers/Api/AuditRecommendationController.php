@@ -613,10 +613,12 @@ class AuditRecommendationController extends Controller
             return !$this->sudahDiisi($step);
         }
 
-        // Tidak ada bagian setelahnya (step terakhir). Terkunci begitu seluruh
-        // rekomendasinya disetujui -- yang biasanya terjadi persis saat step
-        // ini diisi, karena seluruh step jadi selesai.
-        return true;
+        // Tidak ada bagian setelahnya: ini keputusan TERAKHIR (AFD). Terkunci
+        // begitu diisi -- tidak ada pihak berikutnya yang bisa jadi penanda
+        // "sudah jadi dasar pertimbangan orang", dan keputusan penutup memang
+        // tidak semestinya bisa diubah sendiri sesudah dijatuhkan. Hanya admin
+        // yang bisa membetulkannya.
+        return false;
     }
 
     /**
