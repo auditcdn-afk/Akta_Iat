@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditRecommendation;
+use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\BirokrasiResolver;
 use App\Services\NotificationDispatcher;
@@ -82,7 +83,7 @@ class AuditRecommendationController extends Controller
             })
             ->latest()
             ->get()
-            ->map(fn(AuditRecommendation $recommendation) => $recommendation->toAktaArray());
+            ->map(fn(AuditRecommendation $recommendation) => $this->untukLayar($recommendation, $user));
 
         return response()->json([
             'ok' => true,
@@ -119,17 +120,17 @@ class AuditRecommendationController extends Controller
         return response()->json([
             'ok' => true,
             'message' => 'Rekomendasi berhasil dibuat.',
-            'data' => $recommendation->toAktaArray(),
+            'data' => $this->untukLayar($recommendation, $request->user()),
         ], 201);
     }
 
-    public function show(AuditRecommendation $recommendation): JsonResponse
+    public function show(Request $request, AuditRecommendation $recommendation): JsonResponse
     {
         $recommendation->load(['planAudit', 'auditTask']);
 
         return response()->json([
             'ok' => true,
-            'data' => $recommendation->toAktaArray(),
+            'data' => $this->untukLayar($recommendation, $request->user()),
         ]);
     }
 
@@ -168,7 +169,7 @@ class AuditRecommendationController extends Controller
         return response()->json([
             'ok' => true,
             'message' => 'Rekomendasi berhasil diperbarui.',
-            'data' => $recommendation->toAktaArray(),
+            'data' => $this->untukLayar($recommendation, $request->user()),
         ]);
     }
 
@@ -232,7 +233,7 @@ class AuditRecommendationController extends Controller
         return response()->json([
             'ok' => true,
             'message' => 'Rekomendasi berhasil disetujui.',
-            'data' => $recommendation->toAktaArray(),
+            'data' => $this->untukLayar($recommendation, $request->user()),
         ]);
     }
 
@@ -310,7 +311,7 @@ class AuditRecommendationController extends Controller
         return response()->json([
             'ok'      => true,
             'message' => 'Isi rekomendasi berhasil disimpan.',
-            'data'    => $recommendation->toAktaArray(),
+            'data'    => $this->untukLayar($recommendation, $request->user()),
         ]);
     }
 
@@ -335,27 +336,24 @@ class AuditRecommendationController extends Controller
             return response()->json(['ok' => false, 'message' => 'Step sudah diisi.'], 422);
         }
 
-        // Authorization: internal roles (manajer/auditor) can fill any step kecuali step "AFD"
-        // yang khusus hanya boleh diisi role/unit_usaha AFD. Admin tetap bisa override semua step.
-        $user          = $request->user();
-        $stepRole      = strtoupper($steps[$idx]['role'] ?? $steps[$idx]['step'] ?? '');
-        $userRoleUpper = strtoupper($user?->role ?? '');
-        $userUnitUpper = strtoupper($user?->unit_usaha ?? '');
-        $isAdmin       = $user?->role === 'admin';
-        $isInternal    = $user && in_array($user->role, ['admin', 'manajer', 'auditor']);
-        $bypass        = $isAdmin || ($isInternal && $stepRole !== 'AFD');
-        if (!$bypass) {
-            // Step generik yang mewakili jenis unit usaha (mis. "SO", "WHS", "CSC") --
-            // nama unit usaha diawali kata jenisnya (mis. "SO ALB", "SO BDS"). Unit
-            // usaha pemilik plan ini boleh mengisi step jenisnya sendiri.
-            $planCabangUpper = strtoupper($recommendation->planAudit?->cabang ?? '');
-            $isOwnUnitTypeStep = $stepRole
-                && $userUnitUpper === $planCabangUpper
-                && str_starts_with($planCabangUpper, $stepRole . ' ');
+        // Tiap pihak menuliskan keputusannya SENDIRI -- itu seluruh gunanya
+        // Keputusan Bertahap. Siapa pemilik sebuah step ditentukan di satu
+        // tempat saja, BirokrasiResolver::bolehMengisiStep(), yang dipakai juga
+        // oleh layar (penanda bisaDiisi) dan oleh pemilihan penerima notifikasi.
+        //
+        // Dulu di sini ada jalan pintas tersendiri: admin/manajer/auditor boleh
+        // mengisi step APA PUN kecuali "AFD". Akibatnya auditor bisa menuliskan
+        // keputusan atas nama FIN REG, REG HEAD, atau unit usaha. Sekarang
+        // tinggal admin yang boleh menimpa, sebagai jalur darurat.
+        $user     = $request->user();
+        $stepRole = $steps[$idx]['role'] ?? $steps[$idx]['step'] ?? '';
+        $cabang   = $recommendation->planAudit?->cabang ?? '';
 
-            if ($stepRole && $userRoleUpper !== $stepRole && $userUnitUpper !== $stepRole && !$isOwnUnitTypeStep) {
-                return response()->json(['ok' => false, 'message' => 'Anda tidak berwenang mengisi step ini.'], 403);
-            }
+        if ($user?->role !== 'admin' && !BirokrasiResolver::bolehMengisiStep($user, $stepRole, $cabang)) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Step "' . $stepRole . '" hanya boleh diisi oleh pihak yang bersangkutan.',
+            ], 403);
         }
 
         $steps[$idx]['status'] = 'done';
@@ -386,8 +384,36 @@ class AuditRecommendationController extends Controller
         return response()->json([
             'ok'      => true,
             'message' => 'Step berhasil disetujui.',
-            'data'    => $recommendation->toAktaArray(),
+            'data'    => $this->untukLayar($recommendation, $request->user()),
         ]);
+    }
+
+    /**
+     * Bentuk rekomendasi untuk layar: sama dengan toAktaArray(), tapi tiap step
+     * diberi penanda bisaDiisi -- boleh tidaknya PENGGUNA INI mengisi step itu.
+     *
+     * Dihitung di server dengan BirokrasiResolver::bolehMengisiStep(), aturan
+     * yang sama persis dengan yang dipakai approveStep(). Tanpa ini layar harus
+     * menyalin ulang aturannya, dan menyalin aturan ke dua tempat justru yang
+     * membuat tombol "Isi Keputusan" muncul untuk pihak yang tidak berhak.
+     *
+     * @return array<string, mixed>
+     */
+    private function untukLayar(AuditRecommendation $recommendation, ?User $user): array
+    {
+        $data    = $recommendation->toAktaArray();
+        $cabang  = $recommendation->planAudit?->cabang ?? '';
+        $isAdmin = $user?->role === 'admin';
+
+        $data['steps'] = array_map(function ($step) use ($user, $cabang, $isAdmin) {
+            $step = (array) $step;
+            $peran = $step['role'] ?? $step['step'] ?? '';
+            $step['bisaDiisi'] = $isAdmin || BirokrasiResolver::bolehMengisiStep($user, $peran, $cabang);
+
+            return $step;
+        }, $data['steps'] ?? []);
+
+        return $data;
     }
 
     private function buildBirokrasiSteps(int $planAuditId, string $username): array

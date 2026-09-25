@@ -550,11 +550,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/recommendations', [AuditRecommendationController::class, 'store'])
         ->middleware('akta.role:admin,manajer,auditor');
 
-    // Edit & hapus rekomendasi hanya admin
-    Route::middleware('akta.role:admin')->group(function () {
-        Route::put('/recommendations/{recommendation}', [AuditRecommendationController::class, 'update']);
-        Route::delete('/recommendations/{recommendation}', [AuditRecommendationController::class, 'destroy']);
-    });
+    // Edit rekomendasi hanya admin.
+    Route::put('/recommendations/{recommendation}', [AuditRecommendationController::class, 'update'])
+        ->middleware('akta.role:admin');
+
+    // Hapus rekomendasi: auditor (yang menuliskannya) dan admin. Pihak birokrasi
+    // yang mengisi Keputusan Bertahap tidak boleh menghapus rekomendasinya.
+    Route::delete('/recommendations/{recommendation}', [AuditRecommendationController::class, 'destroy'])
+        ->middleware('akta.role:admin,auditor');
 
     Route::post('/recommendations/{recommendation}/approve', [AuditRecommendationController::class, 'approve'])
         ->middleware('akta.role:admin,manajer');

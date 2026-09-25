@@ -10906,6 +10906,13 @@ async function rekomendasiLoadList() {
             list.innerHTML = '<p class="py-8 text-center text-sm text-slate-500">Belum ada rekomendasi untuk pemeriksaan ini.</p>';
             return;
         }
+        // Edit & Hapus disembunyikan dari pihak yang memang ditolak server, supaya
+        // tidak ada tombol yang hanya berakhir dengan 403. Harus sama dengan
+        // middleware rute /api/recommendations/{id} di routes/api.php.
+        const peran      = String(currentUser?.role || '').trim().toLowerCase();
+        const bolehEdit  = peran === 'admin';
+        const bolehHapus = peran === 'admin' || peran === 'auditor';
+
         list.innerHTML = rows.map(r => {
             const prioBadge = { rendah: 'bg-slate-700 text-slate-300', sedang: 'bg-amber-900/60 text-amber-300', tinggi: 'bg-orange-900/60 text-orange-300', urgent: 'bg-red-900/60 text-red-300' }[r.prioritas] || 'bg-slate-700 text-slate-300';
             const statusBadge = { draft: 'text-slate-400', open: 'text-blue-400', in_progress: 'text-amber-400', done: 'text-emerald-400', approved: 'text-emerald-400', cancelled: 'text-red-400' }[r.status] || 'text-slate-400';
@@ -10920,15 +10927,24 @@ async function rekomendasiLoadList() {
                             ${birokrasiSteps.map((s, idx) => {
                                 const done = s.status === 'done' || s.status === 'approved';
                                 const prevDone = idx === 0 || (() => { const prev = birokrasiSteps[idx-1]; return prev?.status === 'done' || prev?.status === 'approved'; })();
-                                const canIsi  = !done && prevDone;
+                                // Giliran sudah sampai di step ini, DAN step ini
+                                // memang milik pengguna yang sedang membuka layar.
+                                // Kepemilikannya dihitung server (bisaDiisi, lihat
+                                // BirokrasiResolver::bolehMengisiStep) supaya
+                                // aturannya tidak disalin ke dua tempat -- dulu di
+                                // sini tidak ada pemeriksaan peran sama sekali,
+                                // sehingga auditor pun ditawari mengisi keputusan
+                                // milik FIN REG, REG HEAD, atau unit usaha.
+                                const giliran = !done && prevDone;
+                                const canIsi  = giliran && s.bisaDiisi === true;
                                 const fullIdx = (r.steps ?? []).findIndex((fs, fi) => fi > 0 && fs.step === s.step && fs.role === s.role && fs.status === s.status);
-                                const cardBg  = done ? 'border-slate-600 bg-slate-800' : canIsi ? 'border-amber-600/50 bg-amber-900/10' : 'border-slate-700 bg-slate-900/40';
+                                const cardBg  = done ? 'border-slate-600 bg-slate-800' : giliran ? 'border-amber-600/50 bg-amber-900/10' : 'border-slate-700 bg-slate-900/40';
                                 const isiBtn  = canIsi
                                     ? `<button onclick="rekomendasiIsiStep(${r.id}, ${fullIdx < 0 ? idx+1 : fullIdx}, '${escapeHtml(s.step)}')" class="mt-2 w-full rounded-lg bg-blue-600 hover:bg-blue-500 px-2 py-1 text-[11px] font-semibold text-white transition">Isi Keputusan</button>`
                                     : '';
                                 const content = done && s.note
                                     ? `<p class="mt-1 text-xs text-slate-200 whitespace-pre-wrap">${escapeHtml(s.note)}</p><p class="mt-1.5 text-[10px] text-slate-500">${escapeHtml(s.user ?? '')} · ${s.time ? s.time.substring(0,10) : ''}</p>`
-                                    : (!done ? `<p class="mt-1 text-xs text-slate-500 italic">${canIsi ? 'Menunggu pengisian...' : 'Belum giliran'}</p>` : '');
+                                    : (!done ? `<p class="mt-1 text-xs text-slate-500 italic">${giliran ? 'Menunggu pengisian...' : 'Belum giliran'}</p>` : '');
                                 return `<div class="rounded-xl border p-3 ${cardBg}" style="min-width:180px;max-width:260px">
                                     <p class="text-xs font-bold text-slate-300">${escapeHtml(s.step)}</p>
                                     ${content}
@@ -10956,8 +10972,8 @@ async function rekomendasiLoadList() {
                     ${r.deadline ? `<span>Deadline: <span class="text-slate-300">${r.deadline}</span></span>` : ''}
                 </div>
                 <div class="flex gap-2 justify-end">
-                    <button onclick="rekomendasiEdit(${r.id})" class="rounded-lg bg-slate-700 px-3 py-1 text-xs text-slate-200 hover:bg-slate-600 transition">Edit</button>
-                    <button onclick="rekomendasiDelete(${r.id})" class="rounded-lg bg-red-900/40 px-3 py-1 text-xs text-red-300 hover:bg-red-800 transition">Hapus</button>
+                    ${bolehEdit ? `<button onclick="rekomendasiEdit(${r.id})" class="rounded-lg bg-slate-700 px-3 py-1 text-xs text-slate-200 hover:bg-slate-600 transition">Edit</button>` : ''}
+                    ${bolehHapus ? `<button onclick="rekomendasiDelete(${r.id})" class="rounded-lg bg-red-900/40 px-3 py-1 text-xs text-red-300 hover:bg-red-800 transition">Hapus</button>` : ''}
                 </div>
             </div>`;
         }).join('');
