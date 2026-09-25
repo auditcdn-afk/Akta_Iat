@@ -10,6 +10,8 @@ use App\Services\BirokrasiResolver;
 use App\Services\NotificationDispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class AuditRecommendationController extends Controller
@@ -188,6 +190,7 @@ class AuditRecommendationController extends Controller
 
         $judul = $recommendation->judul;
 
+        $this->buangBerkasLampiran($recommendation);
         $recommendation->delete();
 
         $logger->write(
@@ -413,6 +416,100 @@ class AuditRecommendationController extends Controller
             'message' => $pembetulan ? 'Keputusan berhasil diperbarui.' : 'Step berhasil disetujui.',
             'data'    => $this->untukLayar($recommendation, $request->user()),
         ]);
+    }
+
+    /**
+     * Unggah (atau ganti) berkas lampiran rekomendasi.
+     *
+     * Form Rekomendasi sudah lama punya "Upload File Lampiran", tapi berkasnya
+     * tidak pernah dikirim ke mana pun: layar hanya mengambil NAMANYA lalu
+     * menempelkannya sebagai teks di akhir deskripsi ("Lampiran: REKAP
+     * SELISIH.pdf"). Jadi yang tersimpan cuma tulisan, berkasnya hilang --
+     * itulah sebabnya lampirannya tidak pernah bisa dibuka.
+     */
+    public function unggahLampiran(
+        Request $request,
+        AuditRecommendation $recommendation,
+        ActivityLogger $logger
+    ): JsonResponse {
+        if (!$this->adaKolomLampiran()) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Struktur database belum punya kolom lampiran. '
+                    . 'Jalankan pembaruan struktur database (/deploy/migrate) lebih dulu.',
+            ], 422);
+        }
+
+        $request->validate([
+            'lampiran' => ['required', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx'],
+        ], [
+            'lampiran.required' => 'Berkas lampiran belum dipilih.',
+            'lampiran.max'      => 'Ukuran lampiran melebihi batas 10MB.',
+            'lampiran.mimes'    => 'Lampiran harus PDF, gambar, Word, atau Excel.',
+        ]);
+
+        $berkas = $request->file('lampiran');
+
+        $this->buangBerkasLampiran($recommendation);
+
+        $recommendation->lampiran_path = $berkas->store('lampiran-rekomendasi', 'public');
+        $recommendation->lampiran_nama = $berkas->getClientOriginalName();
+        $recommendation->updated_by    = $request->user()?->username;
+        $recommendation->save();
+        $recommendation->load(['planAudit', 'auditTask']);
+
+        $logger->write($request, 'RECOMMENDATION_LAMPIRAN', 'audit_recommendations',
+            'Unggah lampiran "' . $recommendation->lampiran_nama . '" pada rekomendasi: ' . $recommendation->judul,
+            $request->user());
+
+        return response()->json([
+            'ok'      => true,
+            'message' => 'Lampiran berhasil diunggah.',
+            'data'    => $this->untukLayar($recommendation, $request->user()),
+        ]);
+    }
+
+    public function hapusLampiran(
+        Request $request,
+        AuditRecommendation $recommendation,
+        ActivityLogger $logger
+    ): JsonResponse {
+        if (!$this->adaKolomLampiran() || !$recommendation->lampiran_path) {
+            return response()->json(['ok' => false, 'message' => 'Tidak ada lampiran pada rekomendasi ini.'], 404);
+        }
+
+        $nama = $recommendation->lampiran_nama;
+
+        $this->buangBerkasLampiran($recommendation);
+        $recommendation->lampiran_path = null;
+        $recommendation->lampiran_nama = null;
+        $recommendation->updated_by    = $request->user()?->username;
+        $recommendation->save();
+        $recommendation->load(['planAudit', 'auditTask']);
+
+        $logger->write($request, 'RECOMMENDATION_LAMPIRAN_HAPUS', 'audit_recommendations',
+            'Hapus lampiran "' . $nama . '" pada rekomendasi: ' . $recommendation->judul,
+            $request->user());
+
+        return response()->json([
+            'ok'      => true,
+            'message' => 'Lampiran berhasil dihapus.',
+            'data'    => $this->untukLayar($recommendation, $request->user()),
+        ]);
+    }
+
+    /** Buang berkas lama dari penyimpanan supaya tidak menumpuk tanpa pemilik. */
+    private function buangBerkasLampiran(AuditRecommendation $recommendation): void
+    {
+        if ($recommendation->lampiran_path && Storage::disk('public')->exists($recommendation->lampiran_path)) {
+            Storage::disk('public')->delete($recommendation->lampiran_path);
+        }
+    }
+
+    /** Hosting bisa saja belum menjalankan migrasinya. */
+    private function adaKolomLampiran(): bool
+    {
+        return Schema::hasColumn('audit_recommendations', 'lampiran_path');
     }
 
     /**

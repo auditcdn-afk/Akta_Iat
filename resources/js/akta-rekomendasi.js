@@ -346,6 +346,13 @@ function renderRecommendations() {
                 <td class="px-4 py-4">
                     <div class="font-semibold text-slate-100">${escapeHtml(item.judul || '-')}</div>
                     <div class="text-xs text-slate-500">${escapeHtml(item.kategori || '-')}</div>
+                    ${item.lampiranUrl ? `
+                    <div class="mt-1.5">
+                        <a href="${escapeHtml(item.lampiranUrl)}" target="_blank" rel="noopener"
+                           class="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/40 bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-300 hover:bg-blue-500/20 transition">
+                            📎 ${escapeHtml(item.lampiranNama || 'Lihat Lampiran')}
+                        </a>
+                    </div>` : ''}
                     ${buildBirokrasiCards(item)}
                 </td>
 
