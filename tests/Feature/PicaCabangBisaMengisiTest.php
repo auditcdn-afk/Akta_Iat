@@ -87,6 +87,75 @@ class PicaCabangBisaMengisiTest extends TestCase
         $this->assertSame('2026-10-31', $pica->target_date->toDateString());
     }
 
+    /**
+     * Role bisa ditambah sendiri lewat panel Kelola Role, jadi hak mengisi
+     * bagian cabang tidak boleh bergantung pada daftar nama role di kode.
+     *
+     * Dilaporkan dari WHS PART AVIAN (role "whs"): PICA unitnya terlihat --
+     * index() memang sudah memakai aturan "bukan kantor pusat" -- lengkap
+     * dengan tanda "Menunggu isian cabang", tapi yang tersedia cuma tulisan
+     * "Read only", dan menyimpan dijawab 403 "Role tidak diizinkan mengubah
+     * PICA".
+     */
+    public function test_role_cabang_di_luar_daftar_tetap_bisa_mengisi(): void
+    {
+        $pica = $this->picaDariAuditor(['unit_usaha' => 'WHS PART AVIAN']);
+        Sanctum::actingAs(User::factory()->create(['role' => 'whs', 'unit_usaha' => 'WHS PART AVIAN']));
+
+        $this->putJson("/api/picas/{$pica->id}", $this->isianCabang())
+            ->assertOk();
+
+        $pica->refresh();
+        $this->assertSame('BPKB belum diambil konsumen walau sudah dihubungi.', $pica->problem_identification);
+        $this->assertSame('Kepala Administrasi', $pica->pic);
+    }
+
+    public function test_role_cabang_di_luar_daftar_tidak_boleh_mengubah_kolom_pusat(): void
+    {
+        $pica = $this->picaDariAuditor(['unit_usaha' => 'WHS PART AVIAN']);
+        Sanctum::actingAs(User::factory()->create(['role' => 'whs', 'unit_usaha' => 'WHS PART AVIAN']));
+
+        $this->putJson("/api/picas/{$pica->id}", $this->isianCabang([
+            'title'             => 'DIUBAH CABANG',
+            'current_condition' => 'DIUBAH CABANG',
+        ]))->assertOk();
+
+        $pica->refresh();
+        $this->assertSame('Penyerahan BPKB', $pica->title, 'Judul milik auditor, cabang tidak boleh menimpanya');
+        $this->assertSame(
+            'Penyerahan BPKB dari tanggal BO ke Konsumen > 120 hari.',
+            $pica->current_condition,
+            'Current Condition milik auditor, cabang tidak boleh menimpanya'
+        );
+    }
+
+    public function test_akun_tanpa_unit_usaha_tidak_dianggap_cabang(): void
+    {
+        $pica = $this->picaDariAuditor();
+        Sanctum::actingAs(User::factory()->create(['role' => 'whs', 'unit_usaha' => '']));
+
+        $this->putJson("/api/picas/{$pica->id}", $this->isianCabang())
+            ->assertStatus(403);
+
+        $this->assertNull($pica->fresh()->problem_identification);
+    }
+
+    public function test_role_kantor_pusat_tanpa_hak_tulis_tetap_hanya_melihat(): void
+    {
+        $pica = $this->picaDariAuditor();
+
+        // koordinator/coo punya unit usaha pun tetap kantor pusat: melihat
+        // semua unit, tidak mengisi.
+        foreach (['koordinator', 'coo'] as $role) {
+            Sanctum::actingAs(User::factory()->create(['role' => $role, 'unit_usaha' => 'HO']));
+
+            $this->putJson("/api/picas/{$pica->id}", $this->isianCabang())
+                ->assertStatus(403);
+        }
+
+        $this->assertNull($pica->fresh()->problem_identification);
+    }
+
     public function test_pica_diteruskan_ke_unit_pihak_relation_ship(): void
     {
         $pica = $this->picaDariAuditor();

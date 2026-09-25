@@ -11,8 +11,6 @@ use Illuminate\Support\Facades\Validator;
 
 class PicaController extends Controller
 {
-    // Role cabang yang boleh mengisi kolom Problem Identification, Corrective Action, dll.
-    private const BRANCH_ROLES = ['h1', 'h2', 'unit', 'bpk'];
 
     // Tahap 1 -- milik auditor/kantor pusat. Cabang tidak boleh mengubahnya.
     private const KOLOM_PUSAT = ['title', 'current_condition', 'notes', 'unit_usaha'];
@@ -27,12 +25,34 @@ class PicaController extends Controller
     // Tahap 3 -- milik pihak Relation Ship.
     private const KOLOM_TANGGAPAN = ['tanggapan_pica'];
 
-    private array $writeRoles = ['admin', 'manajer', 'auditor', 'h1', 'h2', 'unit'];
+    // Role kantor pusat yang boleh mengubah PICA. Cabang tidak didaftar di sini
+    // -- haknya dihitung oleh isCabang(), lihat keterangannya di bawah. Pihak
+    // Relation Ship ikut boleh lewat forwarded_to_unit, apa pun role-nya.
+    private array $writeRoles = ['admin', 'manajer', 'auditor'];
 
     private array $closeRoles = ['admin', 'manajer'];
 
     // Role kantor pusat (HO) yang boleh melihat semua unit usaha.
     private const HO_ROLES = ['admin', 'manajer', 'auditor', 'koordinator', 'coo'];
+
+    /**
+     * Apakah pengguna ini berperan sebagai CABANG -- yang mengisi Problem
+     * Identification, Corrective Action, PIC, Relation Ship, dan Target Date?
+     *
+     * Sengaja BUKAN daftar nama role. Role bisa ditambah sendiri lewat panel
+     * Kelola Role, dan daftar tetap ['h1','h2','unit','bpk'] membuat tiap role
+     * baru terkunci separuh jalan: akun WHS PART AVIAN (role "whs") bisa
+     * MELIHAT PICA unit usahanya -- index() memang sudah memakai aturan "bukan
+     * HO" -- tapi begitu mengisi bagian yang jelas berlabel "(diisi cabang)",
+     * jawabannya 403 "Role tidak diizinkan mengubah PICA". Jadi aturannya
+     * disamakan dengan yang sudah dipakai index(): siapa pun yang bukan kantor
+     * pusat dan punya unit usaha berperan sebagai cabang.
+     */
+    private function isCabang(?string $role, ?string $unitUsaha): bool
+    {
+        return !in_array($role, self::HO_ROLES, true)
+            && trim((string) $unitUsaha) !== '';
+    }
 
     public function index(Request $request): JsonResponse
     {
@@ -204,7 +224,9 @@ class PicaController extends Controller
             ($pica->relation_ship2 && str_contains($pica->relation_ship2, $userUnit))
         );
 
-        $data = $this->kolomYangBolehDiubah($data, $role, $isForwarded);
+        $isCabang = $this->isCabang($role, $userUnit);
+
+        $data = $this->kolomYangBolehDiubah($data, $isCabang, $isForwarded);
 
         $relationShip = $data['relation_ship'] ?? $pica->relation_ship;
 
@@ -213,7 +235,7 @@ class PicaController extends Controller
             $data['forwarded_filled_at'] = now();
         }
 
-        if ((in_array($role, self::BRANCH_ROLES, true) || $isForwarded) && !empty($relationShip)) {
+        if (($isCabang || $isForwarded) && !empty($relationShip)) {
             // Parse nama dari format "Nama (unit_usaha)" atau cari user langsung
             $forwardedUnit = null;
             preg_match('/\(([^)]+)\)$/', $relationShip, $m);
@@ -239,7 +261,7 @@ class PicaController extends Controller
         $pica->fill($this->kolomYangAdaDiTabel($data));
         $pica->save();
 
-        $forwarded = !empty($relationShip) && in_array($role, self::BRANCH_ROLES, true) && !$isForwarded;
+        $forwarded = !empty($relationShip) && $isCabang && !$isForwarded;
         $message   = $forwarded
             ? "PICA berhasil disimpan dan diteruskan ke: {$relationShip}."
             : 'PICA berhasil disimpan.';
@@ -299,13 +321,13 @@ class PicaController extends Controller
      * Tanpa batas ini, isian satu tahap bisa hilang tertimpa tahap berikutnya
      * -- yang persis terjadi pada Problem Identification milik unit usaha.
      */
-    private function kolomYangBolehDiubah(array $data, string $role, bool $isForwarded): array
+    private function kolomYangBolehDiubah(array $data, bool $isCabang, bool $isForwarded): array
     {
         if ($isForwarded) {
             return array_diff_key($data, array_flip([...self::KOLOM_PUSAT, ...self::KOLOM_CABANG]));
         }
 
-        if (in_array($role, self::BRANCH_ROLES, true)) {
+        if ($isCabang) {
             return array_diff_key($data, array_flip([...self::KOLOM_PUSAT, ...self::KOLOM_TANGGAPAN]));
         }
 
@@ -398,11 +420,13 @@ class PicaController extends Controller
 
     private function ensureCanWrite(Request $request, ?Pica $pica = null): void
     {
-        $canWrite = in_array($this->role($request), $this->writeRoles, true);
+        $userUnit = $request->user()?->unit_usaha;
+
+        $canWrite = in_array($this->role($request), $this->writeRoles, true)
+            || $this->isCabang($this->role($request), $userUnit);
 
         // Also allow forwarded party (any role) to update the PICA
         if (!$canWrite && $pica) {
-            $userUnit = $request->user()?->unit_usaha;
             $canWrite = $userUnit && $pica->forwarded_to_unit === $userUnit;
         }
 

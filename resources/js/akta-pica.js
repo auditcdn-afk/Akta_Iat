@@ -25,15 +25,30 @@ function authHeaders() {
     };
 }
 
-const BRANCH_ROLES = ['h1', 'h2', 'unit', 'bpk'];
 const HO_ROLES = ['admin', 'manajer', 'auditor', 'koordinator', 'coo'];
 
-function isBranchRole() {
-    return BRANCH_ROLES.includes(currentUser?.role);
-}
+// Role kantor pusat yang boleh mengubah PICA. Cabang tidak didaftar di sini --
+// haknya dihitung isBranchRole(). Harus sama dengan PicaController::$writeRoles.
+const HO_WRITE_ROLES = ['admin', 'manajer', 'auditor'];
 
 function myUnit() {
     return currentUser?.unitUsaha || currentUser?.unit_usaha || '';
+}
+
+/**
+ * Berperan sebagai CABANG -- yang mengisi Problem Identification s/d Target
+ * Date.
+ *
+ * Sengaja BUKAN daftar nama role. Role bisa ditambah sendiri lewat panel
+ * Kelola Role, dan daftar tetap ['h1','h2','unit','bpk'] membuat tiap role
+ * baru terkunci: akun WHS PART AVIAN (role "whs") melihat PICA unitnya, tapi
+ * yang muncul cuma tulisan "Read only" -- padahal barisnya sendiri bertanda
+ * "Menunggu isian cabang". Aturannya disamakan dengan yang dipakai daftar
+ * PICA dan PicaController::isCabang(): bukan kantor pusat, dan punya unit
+ * usaha.
+ */
+function isBranchRole() {
+    return !HO_ROLES.includes(currentUser?.role) && myUnit() !== '';
 }
 
 /**
@@ -73,7 +88,7 @@ function setBisaDiisi(ids, bisa) {
 }
 
 function canManagePicas() {
-    return ['admin', 'manajer', 'auditor', 'h1', 'h2', 'unit'].includes(currentUser?.role);
+    return HO_WRITE_ROLES.includes(currentUser?.role) || isBranchRole();
 }
 
 function canClosePicas() {
