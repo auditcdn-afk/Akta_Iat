@@ -236,6 +236,81 @@ class HgpFktClaimTest extends TestCase
         return $teks;
     }
 
+    /** Judul kolom satu sheet berkas Export Selisih. */
+    private function judulSheet(string $nama): array
+    {
+        $res = $this->get('/api/audit-detail/hgp/export-selisih?plan_audit_id=' . $this->plan->id);
+        $res->assertOk();
+
+        $path = tempnam(sys_get_temp_dir(), 'selisih') . '.xlsx';
+        file_put_contents($path, $res->streamedContent());
+
+        $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($path)->getSheetByName($nama);
+        $this->assertNotNull($sheet, "sheet {$nama} tidak ada");
+
+        foreach ($sheet->toArray(null, true, false, false) as $baris) {
+            if (($baris[0] ?? '') === 'No') {
+                return array_values(array_filter($baris, fn ($c) => $c !== null && $c !== ''));
+            }
+        }
+
+        return [];
+    }
+
+    public function test_export_selisih_memuat_kolom_fkt_dan_claim_untuk_data_whs(): void
+    {
+        // Berkas ini yang sering dilampirkan ke unit usaha. Tanpa kedua kolom
+        // itu, selisihnya terbaca tanpa penjelasan sama sekali.
+        $this->isiDaftar([
+            $this->item('P1', saldo: 32, fisik: 0, stok: ['fakturBelumKutip' => 1, 'claim' => 4]),
+        ]);
+
+        $judul = $this->judulSheet('SPAREPART');
+
+        $this->assertSame(
+            ['No', 'No. Part', 'Nama Sparepart', 'Tanggal', 'FKT Blm Kutip', 'Claim',
+             'Saldo', 'Fisik', 'WO', 'Akhir', 'Selisih', 'Harga HET', 'Jumlah', 'Keterangan'],
+            $judul
+        );
+    }
+
+    public function test_export_selisih_cabang_tetap_tanpa_kedua_kolom(): void
+    {
+        $this->isiDaftar([$this->item('P1', saldo: 32, fisik: 0)]);   // tanpa 'stok'
+
+        $judul = $this->judulSheet('SPAREPART');
+
+        $this->assertNotContains('FKT Blm Kutip', $judul);
+        $this->assertSame(['No', 'No. Part', 'Nama Sparepart', 'Tanggal', 'Saldo'], array_slice($judul, 0, 5));
+    }
+
+    public function test_angka_fkt_di_export_apa_adanya_walau_saklarnya_mati(): void
+    {
+        // Kedua kolom itu KETERANGAN, bukan hasil hitungan: angkanya dari
+        // berkas WHS apa adanya, entah saklar gudangnya menyala atau tidak.
+        $this->isiDaftar([
+            $this->item('P1', saldo: 32, fisik: 0, stok: ['fakturBelumKutip' => 7, 'claim' => 3]),
+        ]);
+
+        $res = $this->get('/api/audit-detail/hgp/export-selisih?plan_audit_id=' . $this->plan->id);
+        $path = tempnam(sys_get_temp_dir(), 'selisih') . '.xlsx';
+        file_put_contents($path, $res->streamedContent());
+
+        $rows = \PhpOffice\PhpSpreadsheet\IOFactory::load($path)->getSheetByName('SPAREPART')
+            ->toArray(null, true, false, false);
+
+        $data = null;
+        $lewatJudul = false;
+        foreach ($rows as $baris) {
+            if ($lewatJudul && ($baris[0] ?? null) !== null && $baris[0] !== '') { $data = $baris; break; }
+            if (($baris[0] ?? '') === 'No') $lewatJudul = true;
+        }
+
+        $this->assertNotNull($data);
+        $this->assertEquals(7, $data[4], 'FKT ditulis apa adanya');
+        $this->assertEquals(3, $data[5], 'Claim ditulis apa adanya');
+    }
+
     public function test_ditolak_kalau_daftar_item_belum_ada(): void
     {
         $this->saklar(true)

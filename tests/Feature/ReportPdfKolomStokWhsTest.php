@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\PemeriksaanHgp;
+use App\Models\PemeriksaanRsaHgp;
 use App\Models\PlanAudit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -139,6 +140,95 @@ class ReportPdfKolomStokWhsTest extends TestCase
 
         $posFkt = array_search('FKT Blm Kutip', $tabel['judul'], true);
         $this->assertSame('—', $tabel['baris'][1][$posFkt], 'yang kosong ditulis tanda pisah, bukan dilewati');
+    }
+
+    /** Tabel REKAP SELISIH PART & AHM OIL'S di bawah tabel lengkapnya. */
+    private function tabelRekap(string $html): array
+    {
+        $i = strpos($html, 'REKAP SELISIH');
+        $this->assertNotFalse($i, 'section rekap selisih tidak ada');
+
+        $t0 = strpos($html, '<table', $i);
+        $blok = substr($html, $t0, strpos($html, '</table>', $t0) - $t0);
+
+        $bersih = fn ($t) => trim(preg_replace('/\s+/', ' ', strip_tags($t)));
+        preg_match('/<thead>(.*?)<\/thead>/s', $blok, $th);
+        $judul = array_map($bersih, preg_match_all('/<th[^>]*>(.*?)<\/th>/s', $th[1] ?? '', $m) ? $m[1] : []);
+
+        $baris = [];
+        foreach (preg_match_all('/<tr[^>]*>(.*?)<\/tr>/s', substr($blok, strpos($blok, '<tbody>')), $r) ? $r[1] : [] as $row) {
+            $sel = array_map($bersih, preg_match_all('/<td[^>]*>(.*?)<\/td>/s', $row, $c) ? $c[1] : []);
+            if ($sel !== []) $baris[] = $sel;
+        }
+
+        return ['judul' => $judul, 'baris' => $baris];
+    }
+
+    public function test_rekap_selisih_ikut_memunculkan_kedua_kolom(): void
+    {
+        // Rekap selisih dibaca terpisah dari tabel lengkapnya -- sering justru
+        // itu yang dilampirkan ke unit usaha. Tanpa kedua kolom ini, selisih
+        // yang sebenarnya punya penjelasan terbaca tanpa sebab.
+        PemeriksaanHgp::query()->create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json'    => [
+                // fisik 0 vs saldo 32 -> selisih -32, jadi ikut rekap
+                array_merge($this->item('P1', 32, ['fakturBelumKutip' => 1, 'claim' => 4]), ['selisih' => -32]),
+            ],
+        ]);
+
+        $rekap = $this->tabelRekap($this->html());
+
+        $this->assertSame(
+            ['NO', 'KODE PART', 'NAMA PART', 'FKT BLM KUTIP', 'CLAIM', 'SISTEM', 'FISIK', 'SELISIH', 'HET', 'KETERANGAN'],
+            $rekap['judul']
+        );
+
+        $this->assertSame('1', $rekap['baris'][0][3]);
+        $this->assertSame('4', $rekap['baris'][0][4]);
+    }
+
+    public function test_rekap_selisih_cabang_tetap_seperti_semula(): void
+    {
+        PemeriksaanHgp::query()->create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json'    => [array_merge($this->item('P1', 32), ['selisih' => -32])],
+        ]);
+
+        $this->assertSame(
+            ['NO', 'KODE PART', 'NAMA PART', 'SISTEM', 'FISIK', 'SELISIH', 'HET', 'KETERANGAN'],
+            $this->tabelRekap($this->html())['judul']
+        );
+    }
+
+    public function test_rekap_rsa_hgp_tidak_ikut_melebar(): void
+    {
+        // Partial rekap dipakai bersama RSA HGP, dan hanya HGP yang
+        // mengirimkan 'kolomStok'. Diuji dengan sengaja memberi RSA data yang
+        // MEMBAWA kolom stok: tabelnya tetap harus 8 kolom, kalau ikut melebar
+        // kolom kanannya terdorong keluar halaman A4.
+        PemeriksaanHgp::query()->create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json'    => [
+                array_merge($this->item('P1', 32, ['fakturBelumKutip' => 1]), ['selisih' => -32]),
+            ],
+        ]);
+
+        PemeriksaanRsaHgp::query()->create([
+            'plan_audit_id' => $this->plan->id,
+            'items_json'    => [
+                array_merge($this->item('R1', 20, ['fakturBelumKutip' => 9]), ['selisih' => -20]),
+            ],
+        ]);
+
+        $html = $this->html();
+
+        // HGP punya dua tabel rekap (AHM OIL'S & SPAREPART), tapi yang kosong
+        // dicetak "Tidak ada selisih." tanpa judul kolom. Satu item di atas
+        // jatuh ke SPAREPART, jadi tepat satu tabel yang bertajuk lengkap --
+        // dan RSA yang datanya juga membawa stok TIDAK menambahinya.
+        $this->assertSame(1, substr_count($html, 'FKT BLM KUTIP'));
+        $this->assertStringContainsString('R1', $html, 'rekap RSA memang ikut tercetak');
     }
 
     public function test_baris_total_menjumlahkan_kedua_kolom(): void
