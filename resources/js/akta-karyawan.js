@@ -59,7 +59,6 @@ function escapeHtml(value) {
 // Role kantor pusat yang boleh melihat semua unit usaha (read-only) --
 // harus konsisten dengan KaryawanController::HO_ROLES di backend.
 const HO_ROLES = ["admin", "manajer", "auditor", "koordinator", "coo"];
-const BRANCH_ROLES = ["h1", "h2", "unit", "bpk"];
 
 let currentUser = null;
 let kryItems = [];
@@ -313,15 +312,37 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     const isAdmin = currentUser.role === "admin";
-    const isBranch = BRANCH_ROLES.includes(currentUser.role);
     const isHo = HO_ROLES.includes(currentUser.role);
+    const unitSendiri = (currentUser.unitUsaha || "").trim();
 
-    if (isAdmin || isBranch) {
+    // Siapa yang dapat form Tambah ditentukan oleh PUNYA UNIT USAHA atau tidak,
+    // bukan oleh daftar nama role.
+    //
+    // Sebelumnya dikunci ke daftar tetap ["h1","h2","unit","bpk"], padahal role
+    // bisa ditambah sendiri lewat panel Kelola Role. Akibatnya setiap akun unit
+    // usaha dengan role di luar empat itu -- misalnya akun gudang WHS Part --
+    // tidak kebagian form sama sekali, padahal KaryawanController::store()
+    // mengizinkannya: non-admin cukup punya unit_usaha, dan unitnya dipaksa ke
+    // unit usaha akun itu sendiri. Jadi layarnya lebih ketat daripada server,
+    // dan yang terlihat pengguna cuma halaman tanpa tombol apa pun.
+    if (isAdmin) {
         document.getElementById("kryFormCard")?.classList.remove("hidden");
-        if (isAdmin) {
-            document.getElementById("kryUnitUsahaWrap")?.classList.remove("hidden");
-            await loadUnitUsahaOptions(document.getElementById("kryUnitUsaha"), false);
+        document.getElementById("kryUnitUsahaWrap")?.classList.remove("hidden");
+        await loadUnitUsahaOptions(document.getElementById("kryUnitUsaha"), false);
+    } else if (unitSendiri && !isHo) {
+        // Role kantor pusat tetap read-only seperti sebelumnya -- tugasnya
+        // melihat data semua unit usaha, bukan mengisinya.
+        document.getElementById("kryFormCard")?.classList.remove("hidden");
+        const tanda = document.getElementById("kryUnitSendiri");
+        if (tanda) {
+            tanda.textContent = unitSendiri;
+            document.getElementById("kryUnitSendiriWrap")?.classList.remove("hidden");
         }
+    } else if (!isHo) {
+        // Tidak punya unit usaha: server pasti menolak dengan 403 "Akun Anda
+        // belum terhubung ke unit usaha manapun". Daripada memberi form yang
+        // sudah pasti gagal, atau halaman kosong tanpa keterangan, jelaskan.
+        document.getElementById("kryTanpaUnit")?.classList.remove("hidden");
     }
 
     if (isHo) {

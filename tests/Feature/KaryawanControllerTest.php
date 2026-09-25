@@ -114,6 +114,52 @@ class KaryawanControllerTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors('no_hp');
     }
 
+    /**
+     * Role bisa ditambah sendiri lewat panel Kelola Role, jadi hak menambah
+     * tidak boleh bergantung pada daftar nama role yang ditulis tetap di kode.
+     * Layar Data Karyawan dulu mengunci form Tambah ke ["h1","h2","unit","bpk"],
+     * sehingga akun gudang seperti WHS Part tidak kebagian form sama sekali --
+     * padahal server, seperti yang dibuktikan di sini, mengizinkannya.
+     */
+    public function test_role_di_luar_daftar_tetap_bisa_menambah_untuk_unitnya_sendiri(): void
+    {
+        $user = User::factory()->create(['role' => 'whs', 'unit_usaha' => 'WHS Part Avian']);
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/karyawan', ['nama' => 'Budi Santoso', 'jabatan' => 'Part Keeper'])
+            ->assertStatus(201);
+
+        $this->assertDatabaseHas('karyawans', [
+            'unit_usaha' => 'WHS Part Avian',
+            'nama'       => 'Budi Santoso',
+            'created_by' => $user->username,
+        ]);
+    }
+
+    public function test_akun_tanpa_unit_usaha_ditolak_dengan_keterangan(): void
+    {
+        Sanctum::actingAs(User::factory()->create(['role' => 'whs', 'unit_usaha' => '']));
+
+        $this->postJson('/api/karyawan', ['nama' => 'Budi Santoso', 'jabatan' => 'Part Keeper'])
+            ->assertStatus(403)
+            ->assertJsonPath('message', 'Akun Anda belum terhubung ke unit usaha manapun.');
+
+        $this->assertSame(0, Karyawan::count());
+    }
+
+    public function test_role_di_luar_daftar_hanya_melihat_unitnya_sendiri(): void
+    {
+        Karyawan::create(['unit_usaha' => 'WHS Part Avian', 'nama' => 'Budi', 'jabatan' => 'Part Keeper']);
+        Karyawan::create(['unit_usaha' => 'SO ALB', 'nama' => 'Andi', 'jabatan' => 'Sales']);
+
+        Sanctum::actingAs(User::factory()->create(['role' => 'whs', 'unit_usaha' => 'WHS Part Avian']));
+
+        $this->getJson('/api/karyawan')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.nama', 'Budi');
+    }
+
     public function test_unit_usaha_tidak_bisa_menambah_atas_nama_cabang_lain(): void
     {
         $user = User::factory()->create(['role' => 'unit', 'unit_usaha' => 'SO ALB']);

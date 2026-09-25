@@ -20,6 +20,14 @@
         </h3>
 
         <form id="kryForm" class="space-y-4">
+            {{-- Untuk akun unit usaha, unit tujuan tidak bisa dipilih: server
+                 selalu memakai unit usaha akunnya sendiri. Ditulis di sini
+                 supaya jelas datanya masuk ke mana. --}}
+            <div id="kryUnitSendiriWrap" class="hidden rounded-xl border border-slate-800 bg-slate-950 px-3 py-2">
+                <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">Unit Usaha</span>
+                <p id="kryUnitSendiri" class="text-sm font-semibold text-slate-100"></p>
+            </div>
+
             <div id="kryUnitUsahaWrap" class="hidden">
                 <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Unit Usaha <span class="text-red-400">*</span></label>
                 <select id="kryUnitUsaha" class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500">
@@ -71,6 +79,13 @@
                 </button>
             </div>
         </form>
+    </div>
+
+    {{-- Akun tanpa unit usaha: form tidak ditampilkan karena server pasti
+         menolaknya. Yang muncul penjelasannya, bukan halaman kosong. --}}
+    <div id="kryTanpaUnit" class="hidden rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-4 text-sm text-amber-200">
+        Akun Anda belum terhubung ke unit usaha manapun, jadi belum bisa menambah data karyawan.
+        Minta admin mengisi Unit Usaha pada akun Anda di menu Pengguna, lalu masuk ulang.
     </div>
 
     {{-- Filter unit usaha (HO roles) --}}
