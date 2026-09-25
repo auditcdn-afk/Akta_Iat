@@ -13,10 +13,12 @@ use App\Models\DbPlafon;
 use App\Models\DbUnitUsaha;
 use App\Services\ActivityLogger;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
 
 class DatabaseController extends Controller
 {
@@ -57,6 +59,159 @@ class DatabaseController extends Controller
         'mt'           => ['nomor', 'nama_singkat', '_x', 'nama_peralatan', 'kode_peralatan'],
         'het'          => ['kode', 'nama', 'harga_het'],
         'ahm-oil'      => ['kode', 'nama', 'keterangan'],
+    ];
+
+    /**
+     * Kolom yang boleh diisi dari form "Tambah Data"/"Edit" -- satu baris,
+     * diisi manusia lewat layar Database.
+     *
+     * Sengaja BUKAN $colMap. Yang itu adalah URUTAN KOLOM BERKAS IMPORT,
+     * lengkap dengan penanda '_x' untuk kolom yang dilewati -- bukan daftar
+     * kolom yang boleh ditulis. Keduanya sempat dipakai bergantian, dan itu
+     * membuat form membuang isian tanpa satu pun pemberitahuan: Satuan &
+     * Keterangan pada HET, serta Harga & Jenis pada MT. Yang MT paling
+     * merugikan, karena Jenis separuh dari kunci unik db_mt: setiap tool yang
+     * ditambah manual masuk dengan Jenis kosong, dan tool kedua dengan kode
+     * peralatan yang sama langsung bentrok dengan yang pertama.
+     *
+     * Daftar ini harus sama dengan TABS[...].fields di resources/js/akta-database.js.
+     */
+    private static array $kolomForm = [
+        'harga-smh'    => ['kode_model', 'nama_smh', 'harga'],
+        'plafon'       => ['kode', 'nama', 'nilai', 'keterangan'],
+        'perlengkapan' => ['kode', 'wilayah', 'nama', 'satuan', 'qty', 'keterangan'],
+        'unit-usaha'   => ['unit_usaha', 'wilayah', 'jenis'],
+        'grading'      => ['id_grading', 'jenis', 'wilayah', 'nama_pemeriksaan', 'hasil_pemeriksaan', 'nilai', 'bknf', 'pknf', 'bkf', 'pkf', 'bnknf', 'pnknf', 'bnkf', 'pnkf'],
+        'mt'           => ['nomor', 'nama_singkat', 'nama_peralatan', 'kode_peralatan', 'harga', 'jenis'],
+        'het'          => ['kode', 'nama', 'harga_het', 'satuan', 'keterangan'],
+        'ahm-oil'      => ['kode', 'nama', 'keterangan'],
+    ];
+
+    /**
+     * Aturan isian form. Wajib/tidaknya dibuat sama dengan tanda wajib di form
+     * supaya yang ditolak server sama dengan yang ditolak layar.
+     *
+     * Sebelumnya store() dan update() tidak memeriksa apa pun, jadi isian yang
+     * tidak memenuhi syarat kolom database baru gagal di lapisan paling dalam
+     * dan yang sampai ke pengguna cuma "Server Error" tanpa keterangan.
+     */
+    private static array $aturanForm = [
+        'harga-smh' => [
+            'kode_model' => ['nullable', 'string', 'max:255'],
+            'nama_smh'   => ['required', 'string', 'max:255'],
+            'harga'      => ['required', 'numeric', 'min:0'],
+        ],
+        'plafon' => [
+            'kode'       => ['nullable', 'string', 'max:255'],
+            'nama'       => ['required', 'string', 'max:255'],
+            'nilai'      => ['required', 'numeric', 'min:0'],
+            'keterangan' => ['nullable', 'string', 'max:60000'],
+        ],
+        'perlengkapan' => [
+            'kode'       => ['required', 'string', 'max:255'],
+            'wilayah'    => ['nullable', 'string', 'max:255'],
+            'nama'       => ['nullable', 'string', 'max:255'],
+            'satuan'     => ['nullable', 'string', 'max:60000'],
+            'qty'        => ['nullable', 'numeric'],
+            'keterangan' => ['nullable', 'string', 'max:60000'],
+        ],
+        'unit-usaha' => [
+            'unit_usaha' => ['required', 'string', 'max:255'],
+            'wilayah'    => ['nullable', 'string', 'max:255'],
+            'jenis'      => ['nullable', 'string', 'max:255'],
+        ],
+        'grading' => [
+            'id_grading'        => ['nullable', 'string', 'max:255'],
+            'jenis'             => ['nullable', 'string', 'max:255'],
+            'wilayah'           => ['nullable', 'string', 'max:255'],
+            'nama_pemeriksaan'  => ['nullable', 'string', 'max:60000'],
+            'hasil_pemeriksaan' => ['nullable', 'string', 'max:60000'],
+            'nilai'             => ['nullable', 'numeric'],
+            'bknf'              => ['nullable', 'string', 'max:255'],
+            'pknf'              => ['nullable', 'numeric'],
+            'bkf'               => ['nullable', 'string', 'max:255'],
+            'pkf'               => ['nullable', 'numeric'],
+            'bnknf'             => ['nullable', 'string', 'max:255'],
+            'pnknf'             => ['nullable', 'numeric'],
+            'bnkf'              => ['nullable', 'string', 'max:255'],
+            'pnkf'              => ['nullable', 'numeric'],
+        ],
+        'mt' => [
+            'nomor'          => ['nullable', 'string', 'max:255'],
+            'nama_singkat'   => ['nullable', 'string', 'max:255'],
+            'nama_peralatan' => ['nullable', 'string', 'max:60000'],
+            'kode_peralatan' => ['nullable', 'string', 'max:255'],
+            'harga'          => ['nullable', 'numeric', 'min:0'],
+            'jenis'          => ['nullable', 'string', 'max:255'],
+        ],
+        'het' => [
+            'kode'       => ['nullable', 'string', 'max:255'],
+            'nama'       => ['required', 'string', 'max:255'],
+            'harga_het'  => ['required', 'numeric', 'min:0'],
+            'satuan'     => ['nullable', 'string', 'max:255'],
+            'keterangan' => ['nullable', 'string', 'max:60000'],
+        ],
+        'ahm-oil' => [
+            'kode'       => ['required', 'string', 'max:255'],
+            'nama'       => ['required', 'string', 'max:255'],
+            'keterangan' => ['nullable', 'string', 'max:60000'],
+        ],
+    ];
+
+    /** Nama isian dalam bahasa manusia untuk pesan kesalahan -- sama dengan label di form. */
+    private static array $labelIsian = [
+        'kode'              => 'Kode',
+        'kode_model'        => 'Kode Model',
+        'kode_peralatan'    => 'Kode Peralatan',
+        'id_grading'        => 'ID Grading',
+        'unit_usaha'        => 'Unit Usaha',
+        'nomor'             => 'No.',
+        'nama'              => 'Nama',
+        'nama_smh'          => 'Nama SMH',
+        'nama_singkat'      => 'Nama Singkat',
+        'nama_peralatan'    => 'Nama Peralatan',
+        'nama_pemeriksaan'  => 'Nama Pemeriksaan',
+        'hasil_pemeriksaan' => 'Hasil Pemeriksaan',
+        'harga'             => 'Harga',
+        'harga_het'         => 'Harga HET',
+        'nilai'             => 'Nilai',
+        'satuan'            => 'Satuan',
+        'qty'               => 'Qty',
+        'wilayah'           => 'Wilayah',
+        'jenis'             => 'Jenis',
+        'keterangan'        => 'Keterangan',
+    ];
+
+    /** Nama tiap database untuk pesan kesalahan -- sama dengan nama tabnya di layar. */
+    private static array $labelTipe = [
+        'harga-smh'    => 'Harga SMH',
+        'plafon'       => 'Plafon',
+        'perlengkapan' => 'Perlengkapan',
+        'unit-usaha'   => 'Unit Usaha',
+        'grading'      => 'Database Grading',
+        'mt'           => 'Database MT',
+        'het'          => 'Database HET',
+        'ahm-oil'      => 'AHM Oil',
+    ];
+
+    /**
+     * Kolom kode yang selalu disimpan dalam huruf besar.
+     *
+     * Berkas AHM memakai huruf besar, dan layar pemeriksaan mencocokkan kode
+     * PERSIS -- DbHet::where('kode', $kode) untuk HET, dan pengelompokan
+     * db_perlengkapan.kode terhadap 5 huruf pertama no mesin. Baris yang masuk
+     * dengan huruf kecil karena itu tidak akan pernah ketemu di sana: datanya
+     * ada di master, tapi tidak terpakai. Jalur import sudah menaikkan
+     * hurufnya; form belum, jadi kode yang ditulis "86100h05pa0" tersimpan apa
+     * adanya dan jadi baris mati.
+     *
+     * AHM Oil ikut dinaikkan demi keseragaman saja -- pencocokannya
+     * (kodeAhmOil() di HgpController) sudah tidak peduli besar-kecil huruf.
+     */
+    private static array $kolomHurufBesar = [
+        'het'          => ['kode'],
+        'ahm-oil'      => ['kode'],
+        'perlengkapan' => ['kode'],
     ];
 
     private static array $searchCols = [
@@ -149,9 +304,17 @@ class DatabaseController extends Controller
     public function store(Request $request, string $type): JsonResponse
     {
         $model = $this->resolveModel($type);
-        $cols  = self::$colMap[$type] ?? [];
+        $data  = $this->isianForm($request, $type);
 
-        $record = $model::create($request->only($cols));
+        if ($pesan = $this->pesanBentrok($model, $type, $data)) {
+            return response()->json(['message' => $pesan], 422);
+        }
+
+        try {
+            $record = $model::create($data);
+        } catch (QueryException $e) {
+            return response()->json(['message' => $this->pesanGagalSimpan($type, $e)], 422);
+        }
 
         return response()->json([
             'ok'      => true,
@@ -163,15 +326,177 @@ class DatabaseController extends Controller
     public function update(Request $request, string $type, int $id): JsonResponse
     {
         $model  = $this->resolveModel($type);
-        $cols   = self::$colMap[$type] ?? [];
         $record = $model::findOrFail($id);
-        $record->update($request->only($cols));
+        $data   = $this->isianForm($request, $type);
+
+        if ($pesan = $this->pesanBentrok($model, $type, $data, $record->id)) {
+            return response()->json(['message' => $pesan], 422);
+        }
+
+        try {
+            $record->update($data);
+        } catch (QueryException $e) {
+            return response()->json(['message' => $this->pesanGagalSimpan($type, $e)], 422);
+        }
 
         return response()->json([
             'ok'      => true,
             'message' => 'Data berhasil diperbarui.',
             'data'    => $record->fresh()->toAktaArray(),
         ]);
+    }
+
+    /**
+     * Isian form yang sudah dirapikan dan diperiksa, siap ditulis ke database.
+     *
+     * Kode dinaikkan ke huruf besar (lihat $kolomHurufBesar), isian kosong
+     * disimpan NULL alih-alih "" -- indeks unik memperbolehkan NULL berulang
+     * tapi tidak "" berulang, jadi tanpa ini baris kedua tanpa kode langsung
+     * bentrok dengan baris pertama tanpa kode.
+     *
+     * @return array<string, mixed>
+     */
+    private function isianForm(Request $request, string $type): array
+    {
+        $data = $request->only(self::$kolomForm[$type] ?? []);
+
+        foreach (self::$kolomHurufBesar[$type] ?? [] as $kolom) {
+            if (isset($data[$kolom]) && is_string($data[$kolom])) {
+                $data[$kolom] = mb_strtoupper(trim($data[$kolom]));
+            }
+        }
+
+        foreach ($data as $kolom => $nilai) {
+            if (is_string($nilai) && trim($nilai) === '') {
+                $data[$kolom] = null;
+            }
+        }
+
+        $aturan = self::$aturanForm[$type] ?? [];
+        if (!$aturan) {
+            return $data;
+        }
+
+        return Validator::make($data, $aturan, [], self::$labelIsian)->validate();
+    }
+
+    /**
+     * Pesan kalau kunci uniknya sudah dipakai baris lain -- dikembalikan
+     * sebagai 422 yang bisa dibaca, bukan dibiarkan jadi 500 "Server Error".
+     *
+     * Ini yang membuat "tambah 1 item" pada Database HET gagal tanpa
+     * keterangan: db_het.kode unik dan masternya berisi puluhan ribu baris,
+     * jadi menambah kode yang sudah ada melempar QueryException mentah.
+     * Diperiksa hanya kalau indeks uniknya memang ada di database -- supaya
+     * tidak menolak data yang selama ini sah pada tabel yang belum diunikkan.
+     *
+     * @param  class-string<Model>  $model
+     * @param  array<string, mixed>  $data
+     */
+    private function pesanBentrok(string $model, string $type, array $data, ?int $abaikanId = null): ?string
+    {
+        $kunci = self::$uniqueKeys[$type] ?? [];
+        if (!$kunci) {
+            return null;
+        }
+
+        /** @var Model $contoh */
+        $contoh = new $model();
+        if (!$this->punyaIndeksUnik($contoh->getTable(), $kunci)) {
+            return null;
+        }
+
+        // Kunci yang salah satu bagiannya NULL tidak pernah dianggap bentrok
+        // oleh indeks unik, jadi jangan dianggap bentrok di sini juga.
+        $cari = [];
+        foreach ($kunci as $kolom) {
+            if (!array_key_exists($kolom, $data) || $data[$kolom] === null) {
+                return null;
+            }
+            $cari[$kolom] = $data[$kolom];
+        }
+
+        $q = $model::query()->where($cari);
+        if ($abaikanId !== null) {
+            $q->whereKeyNot($abaikanId);
+        }
+
+        $bentrok = $q->first();
+        if (!$bentrok) {
+            return null;
+        }
+
+        $sebut = implode(' + ', array_map(
+            fn ($kolom) => (self::$labelIsian[$kolom] ?? $kolom) . ' "' . $cari[$kolom] . '"',
+            $kunci
+        ));
+        $nama  = $this->namaBaris($bentrok);
+        $awal  = $sebut . ' sudah ada di ' . (self::$labelTipe[$type] ?? $type)
+            . ($nama !== '' ? ' — terpakai oleh "' . $nama . '"' : '') . '.';
+
+        // Kalau isian barunya sama persis dengan baris yang sudah ada, tidak ada
+        // yang perlu dikerjakan pengguna — bilang begitu, jangan suruh mengedit.
+        if ($this->samaDenganBaris($bentrok, $data)) {
+            return $awal . ' Datanya sudah sama persis dengan yang tersimpan, '
+                . 'jadi tidak ada yang perlu ditambahkan.';
+        }
+
+        return $awal . ' Cari baris itu di kolom pencarian lalu klik Edit kalau mau mengubah datanya, '
+            . 'atau pakai kode lain. Tidak ada data yang ditambahkan.';
+    }
+
+    /** Pesan cadangan kalau database menolak tulisan karena alasan lain. */
+    private function pesanGagalSimpan(string $type, QueryException $e): string
+    {
+        $pesan = 'Data gagal disimpan ke ' . (self::$labelTipe[$type] ?? $type) . '.';
+
+        // 23xxx = pelanggaran batasan integritas (unik, NOT NULL, dsb).
+        if (str_starts_with((string) $e->getCode(), '23')) {
+            return $pesan . ' Database menolaknya karena ada isian yang bentrok atau tidak boleh kosong. '
+                . 'Periksa lagi Kode dan isian yang bertanda wajib.';
+        }
+
+        return $pesan . ' Coba lagi; kalau tetap gagal, laporkan ke admin.';
+    }
+
+    /**
+     * Apakah seluruh isian yang dikirim sudah sama dengan baris yang tersimpan?
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function samaDenganBaris(Model $baris, array $data): bool
+    {
+        foreach ($data as $kolom => $nilai) {
+            $tersimpan = $baris->{$kolom} ?? null;
+
+            // Angka dibandingkan sebagai angka: form mengirim "334000" sedangkan
+            // yang tersimpan sudah float 334000.0.
+            if (is_numeric($nilai) && is_numeric($tersimpan)) {
+                if ((float) $nilai !== (float) $tersimpan) {
+                    return false;
+                }
+                continue;
+            }
+
+            if ((string) ($nilai ?? '') !== (string) ($tersimpan ?? '')) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** Nama baris untuk pesan kesalahan, dari kolom nama apa pun yang dipunyai tabelnya. */
+    private function namaBaris(Model $baris): string
+    {
+        foreach (['nama', 'nama_smh', 'nama_peralatan', 'nama_pemeriksaan', 'unit_usaha', 'nama_singkat'] as $kolom) {
+            $nilai = trim((string) ($baris->{$kolom} ?? ''));
+            if ($nilai !== '') {
+                return $nilai;
+            }
+        }
+
+        return '';
     }
 
     public function destroy(string $type, int $id): JsonResponse
