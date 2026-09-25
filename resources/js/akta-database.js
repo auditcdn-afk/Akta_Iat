@@ -719,8 +719,23 @@ function buildFormFields(type) {
         .join("");
 }
 
+/** Pesan kesalahan di dalam modal form. Menetap sampai isian diperbaiki --
+ *  tidak ikut hilang sendiri seperti showAlert, karena pesannya yang memberi
+ *  tahu apa yang harus diubah. */
+function showFormAlert(msg) {
+    const el = document.getElementById("dbFormAlert");
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove("hidden");
+}
+
+function clearFormAlert() {
+    document.getElementById("dbFormAlert")?.classList.add("hidden");
+}
+
 function openModal(type, row = null) {
     const cfg = TABS[type];
+    clearFormAlert();
     document.getElementById("dbFormType").value = type;
     document.getElementById("dbFormId").value = row?.id || "";
     document.getElementById("dbModalTitle").textContent = row ? "Edit Data" : "Tambah Data";
@@ -749,6 +764,7 @@ function closeModal() {
 
 async function submitForm(e) {
     e.preventDefault();
+    clearFormAlert();
     const type = document.getElementById("dbFormType").value;
     const id = document.getElementById("dbFormId").value;
     const cfg = TABS[type];
@@ -772,7 +788,9 @@ async function submitForm(e) {
         showAlert(payload.message || "Data berhasil disimpan.");
         await loadTab(type, 1);
     } catch (err) {
-        showAlert(err.message || "Gagal menyimpan data.", "error");
+        // Modal tetap terbuka supaya isian tidak hilang dan bisa langsung
+        // diperbaiki; pesannya ditaruh di dalam modal supaya terbaca.
+        showFormAlert(err.message || "Gagal menyimpan data.");
     }
 }
 
@@ -909,7 +927,7 @@ function setupEvents() {
         try {
             await submitForm(e);
         } catch (err) {
-            showAlert(err.message || "Gagal menyimpan.", "error");
+            showFormAlert(err.message || "Gagal menyimpan.");
         }
     });
 

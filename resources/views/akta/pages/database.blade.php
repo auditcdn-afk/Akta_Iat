@@ -282,6 +282,11 @@
         <form id="dbForm" class="space-y-4 px-5 py-5">
             <input type="hidden" id="dbFormId">
             <input type="hidden" id="dbFormType">
+            {{-- Pesan kesalahan HARUS di dalam modal. #dbAlert ada di bawah
+                 selubung gelap modal ini, jadi penolakan simpan dulu tidak
+                 kelihatan sama sekali: tombol Simpan ditekan, seolah tidak
+                 terjadi apa-apa. --}}
+            <div id="dbFormAlert" class="hidden rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200"></div>
             <div id="dbFormFields" class="grid gap-4 sm:grid-cols-2"></div>
             <div class="flex justify-end gap-3 border-t border-slate-800 pt-4">
                 <button type="button" id="cancelDbModal" class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">Batal</button>
