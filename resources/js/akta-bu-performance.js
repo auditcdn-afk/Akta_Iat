@@ -77,16 +77,10 @@ function loadUnitOptions() {
     sel.value = current;
 }
 
-async function deleteRow(id) {
-    if (!confirm('Hapus data ini?')) return;
-    try {
-        await fetchJson('/api/bu-performance/' + id, { method: 'DELETE', headers: authHeaders() });
-        await loadList();
-        showAlert('Data dihapus.', 'success');
-    } catch (e) {
-        showAlert(e.message, 'error');
-    }
-}
+// Menghapus data BU Performance SENGAJA tidak ada di halaman ini. Halaman ini
+// rekap seluruh unit usaha lintas bulan -- satu klik keliru di sini membuang
+// penilaian unit usaha lain. Penghapusan dilakukan dari tab BU Performance di
+// dalam pemeriksaan, yang cakupannya satu unit usaha saja.
 
 // ─── Table Render ─────────────────────────────────────────────────────────────
 function getFiltered() {
@@ -119,7 +113,7 @@ function renderTable() {
     let html = '';
     Object.entries(byBulan).forEach(([bulan, items]) => {
         html += `<tr class="bg-slate-800/80">
-            <td colspan="6" class="px-4 py-2 text-xs font-bold uppercase tracking-wide text-blue-300">
+            <td colspan="5" class="px-4 py-2 text-xs font-bold uppercase tracking-wide text-blue-300">
                 Bulan: ${esc(bulan)}
             </td>
         </tr>`;
@@ -145,16 +139,13 @@ function tableRow(r, p, showMeta) {
         <td class="px-4 py-2.5 border-r border-slate-800 text-slate-400">${showMeta ? esc(r.auditor ?? '-') : ''}</td>
         <td class="px-4 py-2.5 border-r border-slate-800 text-slate-300">${esc(p.pic ?? '-')}</td>
         <td class="px-4 py-2.5 border-r border-slate-800 text-slate-300">${esc(p.jabatan ?? '-')}</td>
-        <td class="px-4 py-2.5 border-r border-slate-800 ${uraianClass}">${esc(p.uraian ?? '-')}</td>
-        <td class="px-3 py-2.5 text-center">
-            ${showMeta ? `<button onclick="deleteRow(${r.id})" class="text-xs text-red-400 hover:text-red-300">&times;</button>` : ''}
-        </td>
+        <td class="px-4 py-2.5 ${uraianClass}">${esc(p.uraian ?? '-')}</td>
     </tr>`;
 }
 
 function setTableEmpty(msg) {
     const tbody = document.getElementById('bupTableBody');
-    if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="py-12 text-center text-slate-500">${esc(msg)}</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="py-12 text-center text-slate-500">${esc(msg)}</td></tr>`;
 }
 
 // ─── Export CSV ───────────────────────────────────────────────────────────────
@@ -214,4 +205,3 @@ function showAlert(msg, type = 'success') {
 }
 
 // ─── Window exports ───────────────────────────────────────────────────────────
-window.deleteRow = deleteRow;

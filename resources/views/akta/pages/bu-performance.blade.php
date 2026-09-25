@@ -55,17 +55,16 @@
                         <th colspan="3" class="px-4 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-300 border-b border-slate-700">
                             Penilaian Personil yang Kinerja Jelek (Sikap, Perilaku, Karakter, Kualitas)
                         </th>
-                        <th rowspan="2" class="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-400"></th>
                     </tr>
                     <tr>
                         <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 border-r border-slate-700">PIC</th>
                         <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 border-r border-slate-700">Jabatan</th>
-                        <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 border-r border-slate-700">Uraian</th>
+                        <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Uraian</th>
                     </tr>
                 </thead>
                 <tbody id="bupTableBody" class="divide-y divide-slate-800 text-slate-200">
                     <tr>
-                        <td colspan="6" class="py-12 text-center text-slate-500">Memuat data...</td>
+                        <td colspan="5" class="py-12 text-center text-slate-500">Memuat data...</td>
                     </tr>
                 </tbody>
             </table>
