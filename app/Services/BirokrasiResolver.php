@@ -69,6 +69,59 @@ class BirokrasiResolver
     }
 
     /**
+     * Bolehkah user ini mengisi step $stepRole pada rekomendasi cabang $cabang?
+     *
+     * SATU-SATUNYA definisi "pemilik step" di aplikasi. Dipakai untuk
+     * OTORISASI di AuditRecommendationController::approveStep(), untuk
+     * menentukan tombol "Isi Keputusan" mana yang muncul di layar, dan untuk
+     * memilih penerima notifikasi (lihat recipientsForStep di bawah).
+     *
+     * Dulu otorisasinya punya aturan sendiri: admin/manajer/auditor boleh
+     * mengisi step APA PUN kecuali AFD. Akibatnya auditor bisa menuliskan
+     * keputusan atas nama FIN REG, REG HEAD, atau unit usaha -- padahal seluruh
+     * gunanya Keputusan Bertahap adalah tiap pihak menuliskan keputusannya
+     * sendiri. Sekarang hanya ADMIN yang boleh menimpa, sebagai jalur darurat.
+     *
+     * Aturannya sama dengan yang tertulis di config/birokrasi.php: nilai
+     * approver dicocokkan ke role user ATAU unit_usaha user, huruf besar-kecil
+     * diabaikan. Ditambah dua hal:
+     *
+     *   - Step generik jenis unit usaha ("SO", "CSC", "WHS"): nama unit usaha
+     *     diawali kata jenisnya ("SO ALB", "WHS Unit ARK"), jadi unit usaha
+     *     pemilik plan boleh mengisi step jenisnya sendiri.
+     *   - Step "Manajer Audit" / "Manajer IAT DEPT": label tampilannya berbeda
+     *     dari slug role-nya ("manajer"), jadi dicocokkan khusus.
+     */
+    public static function bolehMengisiStep(?User $user, ?string $stepRole, ?string $cabang): bool
+    {
+        $step = strtoupper(trim((string) $stepRole));
+        if (!$user || $step === '') {
+            return false;
+        }
+
+        $role = strtoupper(trim((string) $user->role));
+        $unit = strtoupper(trim((string) $user->unit_usaha));
+
+        if ($role === $step || ($unit !== '' && $unit === $step)) {
+            return true;
+        }
+
+        if ($role === 'MANAJER' && in_array($step, self::STEP_MANAJER, true)) {
+            return true;
+        }
+
+        // Step generik jenis unit usaha.
+        $cabangUpper = strtoupper(trim((string) $cabang));
+
+        return $cabangUpper !== ''
+            && $unit === $cabangUpper
+            && str_starts_with($cabangUpper, $step . ' ');
+    }
+
+    /** Label step yang sebenarnya dijalankan role "manajer" (slug-nya beda dari labelnya). */
+    private const STEP_MANAJER = ['MANAJER AUDIT', 'MANAJER IAT DEPT'];
+
+    /**
      * User(s) yang seharusnya diberi notifikasi karena gilirannya mengisi
      * step $stepRole pada rekomendasi cabang $cabang. Sengaja TIDAK memakai
      * aturan "bypass internal" (admin/manajer/auditor boleh isi step apa
@@ -93,29 +146,15 @@ class BirokrasiResolver
             return collect();
         }
 
+        // Disaring dengan predikat yang sama persis dengan yang dipakai
+        // otorisasi, supaya "siapa yang diberi tahu" dan "siapa yang boleh
+        // mengisi" tidak pernah berbeda. Tabel user berukuran puluhan baris,
+        // jadi menyaringnya di PHP tidak jadi soal.
         $recipients = User::query()
             ->where('is_disabled', false)
-            ->where(function ($q) use ($roleUpper) {
-                $q->whereRaw('UPPER(role) = ?', [$roleUpper])
-                    ->orWhereRaw('UPPER(unit_usaha) = ?', [$roleUpper]);
-            })
-            ->get();
-
-        $cabangUpper = strtoupper(trim($cabang));
-        if ($cabangUpper !== '' && str_starts_with($cabangUpper, $roleUpper . ' ')) {
-            $recipients = $recipients->merge(
-                User::query()
-                    ->where('is_disabled', false)
-                    ->whereRaw('UPPER(unit_usaha) = ?', [$cabangUpper])
-                    ->get()
-            );
-        }
-
-        if ($roleUpper === 'MANAJER AUDIT') {
-            $recipients = $recipients->merge(
-                User::query()->where('is_disabled', false)->where('role', 'manajer')->get()
-            );
-        }
+            ->get()
+            ->filter(fn (User $u) => self::bolehMengisiStep($u, $roleUpper, $cabang))
+            ->values();
 
         if ($recipients->isEmpty()) {
             $recipients = User::query()->where('is_disabled', false)->where('role', 'admin')->get();

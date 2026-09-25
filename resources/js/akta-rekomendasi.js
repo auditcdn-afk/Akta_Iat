@@ -58,29 +58,19 @@ function canIsiRekomendasi(item) {
     return myUnit && myUnit === planCabang;
 }
 
-// Returns true if current user can fill a specific birokrasi step role
-// planCabang: cabang milik plan rekomendasi ini (untuk mencocokkan step generik
-// seperti "SO"/"WHS"/"CSC" yang mewakili JENIS unit usaha, bukan role akun).
-function canIsiStep(roleName, planCabang) {
-    const stepRole = (roleName ?? '').toUpperCase();
-    if (!stepRole) return false;
-    // Step "AFD" (Keputusan AFD) khusus untuk role/unit_usaha AFD atau admin —
-    // manajer/auditor (internal non-admin) tidak boleh melewatinya.
-    if (isInternal()) return currentUser?.role === 'admin' || stepRole !== 'AFD';
-    // Match by role (e.g. user.role = "rss" matches step "RSS")
-    const myRole = (currentUser?.role ?? '').toUpperCase();
-    if (myRole && myRole === stepRole) return true;
-    // Match by unit_usaha (e.g. user.unitUsaha = "SO ALB" matches step "SO ALB")
-    const myUnit = (currentUser?.unitUsaha ?? '').toUpperCase();
-    if (myUnit && myUnit === stepRole) return true;
-    // Step generik yang mewakili jenis unit usaha (mis. "SO", "WHS", "CSC") — nama
-    // unit usaha diawali kata jenisnya (mis. "SO ALB", "SO BDS"). Unit usaha yang
-    // bersangkutan (pemilik plan ini) boleh mengisi step jenisnya sendiri.
-    const planCabangUpper = (planCabang ?? '').toUpperCase();
-    if (myUnit && planCabangUpper && myUnit === planCabangUpper && planCabangUpper.startsWith(stepRole + ' ')) {
-        return true;
-    }
-    return false;
+/**
+ * Bolehkah pengguna ini mengisi step tersebut?
+ *
+ * Jawabannya datang dari server sebagai penanda bisaDiisi pada tiap step (lihat
+ * BirokrasiResolver::bolehMengisiStep) -- TIDAK dihitung ulang di sini. Dulu
+ * aturannya ditulis ulang di layar, dan salinannya punya jalan pintas sendiri:
+ * admin/manajer/auditor boleh mengisi step apa pun kecuali "AFD". Akibatnya
+ * auditor ditawari mengisi keputusan milik FIN REG, REG HEAD, atau unit usaha --
+ * padahal seluruh gunanya Keputusan Bertahap adalah tiap pihak menuliskan
+ * keputusannya sendiri.
+ */
+function canIsiStep(step) {
+    return step?.bisaDiisi === true;
 }
 
 function showAlert(message, type = 'success') {
@@ -312,22 +302,26 @@ function renderRecommendations() {
                 ? `<span class="ml-2 text-xs text-slate-500 italic">SK sudah dibuat</span>`
                 : '';
 
-        // Edit & Hapus hanya untuk admin
-        const actions = currentUser?.role === 'admin'
-            ? `
-                <button type="button" class="edit-recommendation rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${item.id}">
+        // Edit hanya admin; Hapus auditor & admin. Pihak birokrasi yang mengisi
+        // Keputusan Bertahap tidak diberi keduanya -- server memang menolaknya,
+        // jadi tombolnya hanya akan berakhir 403. Harus sama dengan middleware
+        // rute /api/recommendations/{id} di routes/api.php.
+        const peranSaya  = String(currentUser?.role ?? '').trim().toLowerCase();
+        const bolehEdit  = peranSaya === 'admin';
+        const bolehHapus = peranSaya === 'admin' || peranSaya === 'auditor';
+
+        const tombolEdit = bolehEdit
+            ? `<button type="button" class="edit-recommendation rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${item.id}">
                     Edit
-                </button>
-
-                <button type="button" class="delete-recommendation ml-2 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${item.id}">
+                </button>`
+            : '';
+        const tombolHapus = bolehHapus
+            ? `<button type="button" class="delete-recommendation ml-2 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10" data-id="${item.id}">
                     Hapus
-                </button>
+                </button>`
+            : '';
 
-                ${approveButton}
-                ${isiBtn}
-                ${skBtn}
-            `
-            : `${approveButton} ${isiBtn} ${skBtn}`;
+        const actions = `${tombolEdit} ${tombolHapus} ${approveButton} ${isiBtn} ${skBtn}`;
 
         return `
             <tr class="hover:bg-slate-950/50" data-sorot-id="${item.id}">
@@ -491,7 +485,7 @@ function findMyPendingStep(item) {
         if (done) continue;
         const prevDone = i === 0 || ['done', 'approved'].includes(steps[i - 1]?.status);
         // Hanya step pertama yang belum selesai yang bisa diisi
-        return (prevDone && canIsiStep(s.step, item.planAudit?.cabang)) ? s : null;
+        return (prevDone && canIsiStep(s)) ? s : null;
     }
     return null;
 }
