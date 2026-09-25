@@ -48,11 +48,22 @@ async function loadBulanOptions() {
         const res = await fetchJson('/api/bu-performance/bulans', { headers: authHeaders() });
         const sel = document.getElementById('bupBulanFilter');
         if (!sel) return;
-        (res.data ?? []).forEach(b => {
+        const bulans = res.data ?? [];
+        bulans.forEach(b => {
             const opt = document.createElement('option');
             opt.value = b; opt.textContent = b;
             sel.appendChild(opt);
         });
+
+        // Dibuka pada BULAN TERAKHIR, bukan "Semua Bulan". Sebelumnya seluruh
+        // bulan ditumpuk jadi satu tabel panjang begitu halaman dibuka --
+        // yang dibaca orang hampir selalu satu bulan, bukan gabungan semuanya.
+        // Daftarnya sudah terbaru-dulu dari server, jadi yang pertama = terakhir.
+        // "Semua Bulan" tetap ada kalau memang mau digabung.
+        if (bulans.length && !sel.value) {
+            sel.value = bulans[0];
+            renderTable();
+        }
     } catch (_) {}
 }
 

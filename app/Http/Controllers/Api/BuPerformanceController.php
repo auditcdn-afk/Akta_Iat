@@ -22,8 +22,13 @@ class BuPerformanceController extends Controller
                 $qb2->where('unit_usaha', 'like', "%$q%")
                     ->orWhere('auditor', 'like', "%$q%");
             }))
-            ->orderBy('bulan')->orderBy('unit_usaha')
             ->get()
+            // Bulan disimpan sebagai TEKS, jadi orderBy('bulan') mengurutkannya
+            // menurut abjad -- "April 2026" jatuh sebelum "Januari 2026".
+            // Diurutkan di sini memakai kunci kronologis, terbaru lebih dulu.
+            ->sortBy(fn($r) => BuPerformance::kunciUrutBulan($r->bulan) . '|' . $r->unit_usaha)
+            ->reverse()
+            ->values()
             ->map(fn($r) => $r->toAktaArray());
 
         return response()->json(['data' => $rows, 'total' => $rows->count()]);
@@ -31,7 +36,12 @@ class BuPerformanceController extends Controller
 
     public function bulanOptions(): JsonResponse
     {
-        $bulans = BuPerformance::select('bulan')->distinct()->orderBy('bulan')->pluck('bulan');
+        // Terbaru lebih dulu, supaya pilihan pertama = bulan terakhir. Urutannya
+        // kronologis, bukan abjad (lihat BuPerformance::kunciUrutBulan).
+        $bulans = BuPerformance::select('bulan')->distinct()->pluck('bulan')
+            ->sortByDesc(fn($b) => BuPerformance::kunciUrutBulan($b))
+            ->values();
+
         return response()->json(['data' => $bulans]);
     }
 

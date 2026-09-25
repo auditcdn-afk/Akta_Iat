@@ -11506,11 +11506,27 @@ async function loadBupTab() {
 async function bupTabLoadList() {
     const tbody = document.getElementById('bupTabTableBody');
     if (!tbody) return;
+
+    // HANYA unit usaha yang sedang diperiksa. Sebelumnya seluruh data BU
+    // Performance ditarik tanpa saringan apa pun, jadi di dalam pemeriksaan
+    // WHS Part Avian ikut muncul hasil POS TBN, SO PGR, CSC UJT, dan
+    // seterusnya -- rekap seluruh unit usaha tempatnya di menu BU Performance,
+    // bukan di dalam satu pemeriksaan.
+    const unitUsaha = (activePlan?.cabang ?? '').trim();
+
+    const labelEl = document.getElementById('bupTabUnitLabel');
+    if (labelEl) labelEl.textContent = unitUsaha ? `Unit usaha: ${unitUsaha}` : '';
+
+    if (!unitUsaha) {
+        tbody.innerHTML = '<tr><td colspan="6" class="py-10 text-center text-slate-500">Pilih pemeriksaan terlebih dahulu.</td></tr>';
+        return;
+    }
+
     try {
-        const res  = await fetchJson('/api/bu-performance', { headers: authHeaders() });
+        const res  = await fetchJson('/api/bu-performance?unit_usaha=' + encodeURIComponent(unitUsaha), { headers: authHeaders() });
         const rows = res.data ?? [];
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="py-10 text-center text-slate-500">Belum ada data.</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="6" class="py-10 text-center text-slate-500">Belum ada data BU Performance untuk ${escapeHtml(unitUsaha)}.</td></tr>`;
             return;
         }
         let html = '';

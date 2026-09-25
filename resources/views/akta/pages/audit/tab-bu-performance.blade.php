@@ -1,7 +1,12 @@
         <div id="tabPanel-bu-performance" class="audit-tab-panel hidden space-y-5">
 
             <div class="flex items-center justify-between">
-                <h3 class="text-base font-bold text-slate-100">BU Performance</h3>
+                <div>
+                    <h3 class="text-base font-bold text-slate-100">BU Performance</h3>
+                    {{-- Ditegaskan unit usaha mana yang sedang ditampilkan: tabel ini
+                         khusus unit usaha yang diperiksa, bukan rekap semua unit. --}}
+                    <p id="bupTabUnitLabel" class="mt-0.5 text-xs text-slate-400"></p>
+                </div>
                 <button id="bupTabTambahBtn" type="button"
                     class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition">
                     + Input Data
