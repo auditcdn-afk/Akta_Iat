@@ -3,7 +3,7 @@
     <div class="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
         <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
             <div>
-                <h3 class="text-base font-bold text-slate-100">Isi Keputusan</h3>
+                <h3 id="isiStepJudul" class="text-base font-bold text-slate-100">Isi Keputusan</h3>
                 <p id="isiStepRoleName" class="mt-0.5 text-xs font-semibold text-blue-400"></p>
             </div>
             <button id="isiStepCloseBtn" type="button"

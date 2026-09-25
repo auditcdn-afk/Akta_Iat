@@ -178,6 +178,14 @@ class AuditRecommendationController extends Controller
         AuditRecommendation $recommendation,
         ActivityLogger $logger
     ): JsonResponse {
+        if (!$this->bolehMenghapus($request->user(), $recommendation)) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Rekomendasi ini sudah diisi pihak lain, jadi tidak bisa dihapus lagi. '
+                    . 'Hubungi admin kalau memang harus dihapus.',
+            ], 422);
+        }
+
         $judul = $recommendation->judul;
 
         $recommendation->delete();
@@ -272,13 +280,19 @@ class AuditRecommendationController extends Controller
             'isi'     => ['required', 'string'],
         ]);
 
-        $user      = $request->user();
-        $isInternal = $user && in_array($user->role, ['admin', 'manajer', 'auditor']);
-        if (!$isInternal) {
-            $planCabang = $recommendation->planAudit?->cabang ?? '';
-            if ($user?->unit_usaha !== $planCabang) {
-                return response()->json(['ok' => false, 'message' => 'Anda tidak berwenang mengisi rekomendasi ini.'], 403);
-            }
+        // Isian Unit Usaha adalah tanggapan UNIT USAHA YANG DIAUDIT atas
+        // rekomendasi auditor -- sama seperti Keputusan Bertahap, yang mengisi
+        // adalah pihaknya sendiri. Dulu admin/manajer/auditor boleh mengisinya
+        // untuk unit usaha mana pun, jadi auditor ditawari menuliskan tanggapan
+        // atas nama cabang yang baru saja diperiksanya. Admin tetap bisa
+        // menimpa, sebagai jalur darurat.
+        $user = $request->user();
+
+        if (!$this->bolehMengisiIsianUnitUsaha($user, $recommendation)) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Isian ini hanya boleh ditulis oleh unit usaha yang diperiksa.',
+            ], 403);
         }
 
         // Isian yang sudah tersimpan hanya boleh diubah oleh admin
@@ -332,9 +346,6 @@ class AuditRecommendationController extends Controller
         if (!isset($steps[$idx])) {
             return response()->json(['ok' => false, 'message' => 'Step tidak ditemukan.'], 404);
         }
-        if ($steps[$idx]['status'] === 'done' || $steps[$idx]['status'] === 'approved') {
-            return response()->json(['ok' => false, 'message' => 'Step sudah diisi.'], 422);
-        }
 
         // Tiap pihak menuliskan keputusannya SENDIRI -- itu seluruh gunanya
         // Keputusan Bertahap. Siapa pemilik sebuah step ditentukan di satu
@@ -349,11 +360,27 @@ class AuditRecommendationController extends Controller
         $stepRole = $steps[$idx]['role'] ?? $steps[$idx]['step'] ?? '';
         $cabang   = $recommendation->planAudit?->cabang ?? '';
 
-        if ($user?->role !== 'admin' && !BirokrasiResolver::bolehMengisiStep($user, $stepRole, $cabang)) {
+        $isAdmin = $user?->role === 'admin';
+
+        if (!$isAdmin && !BirokrasiResolver::bolehMengisiStep($user, $stepRole, $cabang)) {
             return response()->json([
                 'ok'      => false,
                 'message' => 'Step "' . $stepRole . '" hanya boleh diisi oleh pihak yang bersangkutan.',
             ], 403);
+        }
+
+        // Membetulkan isian sendiri boleh, SELAMA bagian berikutnya belum
+        // mengisi -- begitu pihak setelahnya menuliskan keputusannya, keputusan
+        // ini sudah jadi dasar pertimbangan mereka dan tidak boleh berubah lagi
+        // di belakang mereka. Admin tetap bisa membetulkan bagian mana pun.
+        $pembetulan = $this->sudahDiisi($steps[$idx]);
+
+        if ($pembetulan && !$isAdmin && !$this->bolehDiubah($recommendation, $steps, $idx)) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Keputusan ini sudah terkunci karena bagian berikutnya sudah mengisi. '
+                    . 'Hubungi admin kalau memang harus diubah.',
+            ], 422);
         }
 
         $steps[$idx]['status'] = 'done';
@@ -383,9 +410,116 @@ class AuditRecommendationController extends Controller
 
         return response()->json([
             'ok'      => true,
-            'message' => 'Step berhasil disetujui.',
+            'message' => $pembetulan ? 'Keputusan berhasil diperbarui.' : 'Step berhasil disetujui.',
             'data'    => $this->untukLayar($recommendation, $request->user()),
         ]);
+    }
+
+    /**
+     * Bolehkah user ini menulis Isian Unit Usaha pada rekomendasi ini?
+     *
+     * Hanya unit usaha yang diperiksa (cabang milik plan) -- ditambah admin
+     * sebagai jalur darurat.
+     */
+    private function bolehMengisiIsianUnitUsaha(?User $user, AuditRecommendation $recommendation): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->role === 'admin') {
+            return true;
+        }
+
+        $cabang = strtoupper(trim((string) ($recommendation->planAudit?->cabang ?? '')));
+        $unit   = strtoupper(trim((string) $user->unit_usaha));
+
+        return $cabang !== '' && $unit === $cabang;
+    }
+
+    /**
+     * Bolehkah user ini menghapus rekomendasi ini?
+     *
+     * Auditor boleh membuang rekomendasi yang salah SELAMA belum ada satu pihak
+     * pun yang mengisi -- begitu birokrasinya berjalan, isian pihak lain ikut
+     * terbawa kalau rekomendasinya dihapus. Admin tetap bisa kapan saja.
+     */
+    private function bolehMenghapus(?User $user, AuditRecommendation $recommendation): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->role === 'admin') {
+            return true;
+        }
+
+        if ($user->role !== 'auditor') {
+            return false;
+        }
+
+        return !$this->adaIsianPihakLain($recommendation);
+    }
+
+    /** Sudahkah ada pihak yang mengisi (keputusan bertahap atau isian unit usaha)? */
+    private function adaIsianPihakLain(AuditRecommendation $recommendation): bool
+    {
+        foreach ($recommendation->steps ?: [] as $step) {
+            $step = (array) $step;
+
+            if (($step['step'] ?? '') === 'created') {
+                continue;
+            }
+
+            if ($this->sudahDiisi($step)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Sudahkah sebuah step diisi? */
+    private function sudahDiisi(mixed $step): bool
+    {
+        return in_array(((array) $step)['status'] ?? '', ['done', 'approved'], true);
+    }
+
+    /**
+     * Bolehkah pemiliknya masih membetulkan isian step ini?
+     *
+     * Syaratnya: rekomendasinya belum selesai, DAN bagian setelahnya belum
+     * mengisi. Yang dihitung "bagian setelahnya" adalah step birokrasi
+     * berikutnya -- step teknis 'created' dan 'isi_rekomendasi' dilewati,
+     * karena 'isi_rekomendasi' ditambahkan di UJUNG array (lihat isi()), bukan
+     * pada urutan gilirannya, jadi memakai indeks berikutnya begitu saja akan
+     * salah menilai step terakhir.
+     *
+     * @param  array<int, mixed>  $steps
+     */
+    private function bolehDiubah(AuditRecommendation $recommendation, array $steps, int $idx): bool
+    {
+        if (in_array($recommendation->status, ['approved', 'done', 'cancelled'], true)) {
+            return false;
+        }
+
+        foreach ($steps as $i => $step) {
+            if ($i <= $idx) {
+                continue;
+            }
+
+            $nama = ((array) $step)['step'] ?? '';
+            if ($nama === 'created' || $nama === 'isi_rekomendasi') {
+                continue;
+            }
+
+            return !$this->sudahDiisi($step);
+        }
+
+        // Tidak ada bagian setelahnya (step terakhir). Terkunci begitu seluruh
+        // rekomendasinya disetujui -- yang biasanya terjadi persis saat step
+        // ini diisi, karena seluruh step jadi selesai.
+        return true;
     }
 
     /**
@@ -405,13 +539,23 @@ class AuditRecommendationController extends Controller
         $cabang  = $recommendation->planAudit?->cabang ?? '';
         $isAdmin = $user?->role === 'admin';
 
-        $data['steps'] = array_map(function ($step) use ($user, $cabang, $isAdmin) {
-            $step = (array) $step;
+        $semua = array_values($data['steps'] ?? []);
+
+        $data['steps'] = array_map(function ($step, $idx) use ($user, $cabang, $isAdmin, $recommendation, $semua) {
+            $step  = (array) $step;
             $peran = $step['role'] ?? $step['step'] ?? '';
-            $step['bisaDiisi'] = $isAdmin || BirokrasiResolver::bolehMengisiStep($user, $peran, $cabang);
+            $milik = $isAdmin || BirokrasiResolver::bolehMengisiStep($user, $peran, $cabang);
+
+            $step['bisaDiisi']  = $milik;
+            $step['bisaDiubah'] = $milik
+                && $this->sudahDiisi($step)
+                && ($isAdmin || $this->bolehDiubah($recommendation, $semua, $idx));
 
             return $step;
-        }, $data['steps'] ?? []);
+        }, $semua, array_keys($semua));
+
+        $data['bisaDihapus']        = $this->bolehMenghapus($user, $recommendation);
+        $data['bisaIsiUnitUsaha']   = $this->bolehMengisiIsianUnitUsaha($user, $recommendation);
 
         return $data;
     }
