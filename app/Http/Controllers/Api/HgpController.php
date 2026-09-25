@@ -1082,6 +1082,14 @@ class HgpController extends Controller
         $sparepartBaris = [];
         $hitungFktClaim = (bool) ($rec?->hitung_fkt_claim);
 
+        // Kolom Faktur Belum Kutip & Claim cuma ada pada data impor laporan
+        // stok WHS. Berkas onhand cabang tidak punya kolom itu sama sekali,
+        // jadi dua kolom kosong tidak perlu ikut memenuhi berkas exportnya.
+        $adaKolomStok = false;
+        foreach ($items as $it) {
+            if (!empty($it['stok'] ?? null)) { $adaKolomStok = true; break; }
+        }
+
         foreach ($items as $it) {
             $hitung  = $this->hitungUlangBaris($it, $hitungFktClaim);
             // Angka yang DITULIS di berkas ikut aturan yang sama dengan
@@ -1095,6 +1103,12 @@ class HgpController extends Controller
 
             $harga  = $this->n($it['hargaHet'] ?? 0);
             $baris = [
+                // Angka mentah dari laporan stok WHS. Dibawa apa adanya --
+                // bukan ikut saklar gudang -- sebab inilah yang menerangkan
+                // dari mana selisihnya datang, entah saklarnya menyala atau
+                // tidak.
+                'fktKutip'   => $this->n($it['stok']['fakturBelumKutip'] ?? 0),
+                'claim'      => $this->n($it['stok']['claim'] ?? 0),
                 'noPart'     => $it['noPart'] ?? '',
                 'sparepart'  => $it['sparepart'] ?? '',
                 'tgl'        => $it['tgl'] ?? '',
@@ -1125,9 +1139,9 @@ class HgpController extends Controller
         $spreadsheet = new Spreadsheet();
         $labelWo = $rec?->label_wo ?: PemeriksaanHgp::LABEL_WO_BAWAAN;
 
-        $this->tulisSheetSelisih($spreadsheet->getActiveSheet(), "AHM OIL'S", $infoLines, $oilBaris, $labelWo);
+        $this->tulisSheetSelisih($spreadsheet->getActiveSheet(), "AHM OIL'S", $infoLines, $oilBaris, $labelWo, $adaKolomStok);
         $sheetSparepart = $spreadsheet->createSheet();
-        $this->tulisSheetSelisih($sheetSparepart, 'SPAREPART', $infoLines, $sparepartBaris, $labelWo);
+        $this->tulisSheetSelisih($sheetSparepart, 'SPAREPART', $infoLines, $sparepartBaris, $labelWo, $adaKolomStok);
         $spreadsheet->setActiveSheetIndex(0);
 
         $filename = 'hgp-selisih-' . ($plan->no_spt ?? $planId) . '-' . now()->format('Y-m-d_H-i') . '.xlsx';
@@ -1146,7 +1160,8 @@ class HgpController extends Controller
         string $judul,
         array $infoLines,
         array $baris,
-        string $labelWo = PemeriksaanHgp::LABEL_WO_BAWAAN
+        string $labelWo = PemeriksaanHgp::LABEL_WO_BAWAAN,
+        bool $adaKolomStok = false
     ): void {
         // Nama sheet Excel tidak boleh mengandung karakter ' \ / ? * [ ] dan
         // maksimal 31 karakter — "AHM OIL'S" punya tanda kutip, jadi dibersihkan.
@@ -1162,7 +1177,14 @@ class HgpController extends Controller
         $sheet->setCellValue([1, $judulRow], $judul . ' (' . count($baris) . ' item selisih)');
         $sheet->getStyle('A' . $judulRow)->getFont()->setBold(true)->setSize(12);
 
-        $headers = ['No', 'No. Part', 'Nama Sparepart', 'Tanggal', 'Saldo', 'Fisik', $labelWo, 'Akhir', 'Selisih', 'Harga HET', 'Jumlah', 'Keterangan'];
+        // FKT Blm Kutip & Claim ditaruh tepat SEBELUM Saldo, sama seperti di
+        // layar dan di Report Audit -- keduanya itulah yang menerangkan angka
+        // saldo tersebut, jadi urutannya dibaca berurutan.
+        $headers = array_merge(
+            ['No', 'No. Part', 'Nama Sparepart', 'Tanggal'],
+            $adaKolomStok ? ['FKT Blm Kutip', 'Claim'] : [],
+            ['Saldo', 'Fisik', $labelWo, 'Akhir', 'Selisih', 'Harga HET', 'Jumlah', 'Keterangan']
+        );
         $headerRow = $judulRow + 1;
         foreach ($headers as $i => $header) {
             $sheet->setCellValue([$i + 1, $headerRow], $header);
@@ -1175,11 +1197,12 @@ class HgpController extends Controller
 
         $rowIndex = $headerRow + 1;
         foreach ($baris as $i => $b) {
-            $values = [
-                $i + 1, $b['noPart'], $b['sparepart'], $b['tgl'],
-                $b['saldo'], $b['fisik'], $b['wo'], $b['akhir'], $b['selisih'],
-                $b['harga'], $b['jumlah'], $b['keterangan'],
-            ];
+            $values = array_merge(
+                [$i + 1, $b['noPart'], $b['sparepart'], $b['tgl']],
+                $adaKolomStok ? [$b['fktKutip'] ?? 0, $b['claim'] ?? 0] : [],
+                [$b['saldo'], $b['fisik'], $b['wo'], $b['akhir'], $b['selisih'],
+                 $b['harga'], $b['jumlah'], $b['keterangan']]
+            );
             foreach ($values as $ci => $value) {
                 $sheet->setCellValue([$ci + 1, $rowIndex], $value);
             }

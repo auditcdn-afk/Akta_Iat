@@ -2704,9 +2704,9 @@ window.addEventListener('load', function() {
       <div style="padding:4px 14px 14px;">
         <div class="group-title" style="font-size:12px;">REKAP SELISIH PART &amp; AHM OIL'S</div>
         <div class="group-title">AHM OIL'S</div>
-        @include('akta.pdf.partials.rekap-selisih-table', ['items' => $hgpOilItems])
+        @include('akta.pdf.partials.rekap-selisih-table', ['items' => $hgpOilItems, 'kolomStok' => $hgpAdaStok])
         <div class="group-title">SPAREPART</div>
-        @include('akta.pdf.partials.rekap-selisih-table', ['items' => $hgpSparepartItems])
+        @include('akta.pdf.partials.rekap-selisih-table', ['items' => $hgpSparepartItems, 'kolomStok' => $hgpAdaStok])
       </div>
       @endif
     @endif
