@@ -50,12 +50,19 @@ function canApproveRecommendations() {
     return ['admin', 'manajer'].includes(currentUser?.role);
 }
 
-// Returns true if the current user can fill the "Isi" (unit usaha response) for this recommendation
+/**
+ * Bolehkah user ini MENULIS Isian Unit Usaha?
+ *
+ * Dijawab server (bisaIsiUnitUsaha): hanya unit usaha yang diperiksa, ditambah
+ * admin. Dulu admin/manajer/auditor boleh mengisinya untuk unit usaha mana pun,
+ * jadi auditor ditawari menuliskan tanggapan atas nama cabang yang baru saja
+ * diperiksanya -- padahal ini tanggapan cabang atas rekomendasi auditor.
+ *
+ * Membaca isian yang sudah ada tetap terbuka untuk semua yang bisa melihat
+ * rekomendasinya; yang dibatasi hanya menulisnya.
+ */
 function canIsiRekomendasi(item) {
-    if (isInternal()) return true;
-    const planCabang = item.planAudit?.cabang ?? '';
-    const myUnit     = currentUser?.unitUsaha ?? '';
-    return myUnit && myUnit === planCabang;
+    return item?.bisaIsiUnitUsaha === true;
 }
 
 /**
@@ -286,9 +293,12 @@ function renderRecommendations() {
             isiBtn = `<button type="button" onclick="window.openIsiStepFromReko(${item.id}, ${myStep.realIdx}, '${escapeHtml(myStep.step)}')" class="rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white transition">
                     ${btnLabel}
                 </button>`;
-        } else if (canIsiRekomendasi(item)) {
-            // Setelah tersimpan: hanya admin yang boleh mengedit isian; user lain hanya melihat
-            const readOnly = isiStep && currentUser?.role !== 'admin';
+        } else if (isiStep || canIsiRekomendasi(item)) {
+            // Isian yang sudah ada boleh DIBACA siapa pun yang bisa melihat
+            // rekomendasi ini; menulisnya hanya unit usaha yang diperiksa
+            // (dan admin, yang juga boleh mengubah isian yang sudah tersimpan).
+            const bolehTulis = canIsiRekomendasi(item);
+            const readOnly   = !bolehTulis || (isiStep && currentUser?.role !== 'admin');
             isiBtn = `<button type="button" class="isi-recommendation rounded-lg border border-blue-500/40 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/10 transition" data-id="${item.id}" data-judul="${escapeHtml(item.judul)}" data-readonly="${readOnly ? '1' : ''}">
                     ${isiStep ? (readOnly ? 'Lihat Isian' : 'Lihat / Edit Isian') : 'Isi Rekomendasi'}
                 </button>`;
@@ -314,7 +324,9 @@ function renderRecommendations() {
         // rute /api/recommendations/{id} di routes/api.php.
         const peranSaya  = String(currentUser?.role ?? '').trim().toLowerCase();
         const bolehEdit  = peranSaya === 'admin';
-        const bolehHapus = peranSaya === 'admin' || peranSaya === 'auditor';
+        // Auditor boleh membuang rekomendasi yang salah selama belum ada pihak
+        // yang mengisi; sesudah itu hanya admin. Dinilai server (bisaDihapus).
+        const bolehHapus = item.bisaDihapus === true;
 
         const tombolEdit = bolehEdit
             ? `<button type="button" class="edit-recommendation rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800" data-id="${item.id}">

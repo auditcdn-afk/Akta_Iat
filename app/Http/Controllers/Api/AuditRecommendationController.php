@@ -178,6 +178,14 @@ class AuditRecommendationController extends Controller
         AuditRecommendation $recommendation,
         ActivityLogger $logger
     ): JsonResponse {
+        if (!$this->bolehMenghapus($request->user(), $recommendation)) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Rekomendasi ini sudah diisi pihak lain, jadi tidak bisa dihapus lagi. '
+                    . 'Hubungi admin kalau memang harus dihapus.',
+            ], 422);
+        }
+
         $judul = $recommendation->judul;
 
         $recommendation->delete();
@@ -272,13 +280,19 @@ class AuditRecommendationController extends Controller
             'isi'     => ['required', 'string'],
         ]);
 
-        $user      = $request->user();
-        $isInternal = $user && in_array($user->role, ['admin', 'manajer', 'auditor']);
-        if (!$isInternal) {
-            $planCabang = $recommendation->planAudit?->cabang ?? '';
-            if ($user?->unit_usaha !== $planCabang) {
-                return response()->json(['ok' => false, 'message' => 'Anda tidak berwenang mengisi rekomendasi ini.'], 403);
-            }
+        // Isian Unit Usaha adalah tanggapan UNIT USAHA YANG DIAUDIT atas
+        // rekomendasi auditor -- sama seperti Keputusan Bertahap, yang mengisi
+        // adalah pihaknya sendiri. Dulu admin/manajer/auditor boleh mengisinya
+        // untuk unit usaha mana pun, jadi auditor ditawari menuliskan tanggapan
+        // atas nama cabang yang baru saja diperiksanya. Admin tetap bisa
+        // menimpa, sebagai jalur darurat.
+        $user = $request->user();
+
+        if (!$this->bolehMengisiIsianUnitUsaha($user, $recommendation)) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Isian ini hanya boleh ditulis oleh unit usaha yang diperiksa.',
+            ], 403);
         }
 
         // Isian yang sudah tersimpan hanya boleh diubah oleh admin
@@ -401,6 +415,70 @@ class AuditRecommendationController extends Controller
         ]);
     }
 
+    /**
+     * Bolehkah user ini menulis Isian Unit Usaha pada rekomendasi ini?
+     *
+     * Hanya unit usaha yang diperiksa (cabang milik plan) -- ditambah admin
+     * sebagai jalur darurat.
+     */
+    private function bolehMengisiIsianUnitUsaha(?User $user, AuditRecommendation $recommendation): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->role === 'admin') {
+            return true;
+        }
+
+        $cabang = strtoupper(trim((string) ($recommendation->planAudit?->cabang ?? '')));
+        $unit   = strtoupper(trim((string) $user->unit_usaha));
+
+        return $cabang !== '' && $unit === $cabang;
+    }
+
+    /**
+     * Bolehkah user ini menghapus rekomendasi ini?
+     *
+     * Auditor boleh membuang rekomendasi yang salah SELAMA belum ada satu pihak
+     * pun yang mengisi -- begitu birokrasinya berjalan, isian pihak lain ikut
+     * terbawa kalau rekomendasinya dihapus. Admin tetap bisa kapan saja.
+     */
+    private function bolehMenghapus(?User $user, AuditRecommendation $recommendation): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->role === 'admin') {
+            return true;
+        }
+
+        if ($user->role !== 'auditor') {
+            return false;
+        }
+
+        return !$this->adaIsianPihakLain($recommendation);
+    }
+
+    /** Sudahkah ada pihak yang mengisi (keputusan bertahap atau isian unit usaha)? */
+    private function adaIsianPihakLain(AuditRecommendation $recommendation): bool
+    {
+        foreach ($recommendation->steps ?: [] as $step) {
+            $step = (array) $step;
+
+            if (($step['step'] ?? '') === 'created') {
+                continue;
+            }
+
+            if ($this->sudahDiisi($step)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** Sudahkah sebuah step diisi? */
     private function sudahDiisi(mixed $step): bool
     {
@@ -475,6 +553,9 @@ class AuditRecommendationController extends Controller
 
             return $step;
         }, $semua, array_keys($semua));
+
+        $data['bisaDihapus']        = $this->bolehMenghapus($user, $recommendation);
+        $data['bisaIsiUnitUsaha']   = $this->bolehMengisiIsianUnitUsaha($user, $recommendation);
 
         return $data;
     }

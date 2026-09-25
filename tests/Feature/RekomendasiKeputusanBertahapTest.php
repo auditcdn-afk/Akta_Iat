@@ -314,7 +314,7 @@ class RekomendasiKeputusanBertahapTest extends TestCase
             ['manajer', '', 403],
             ['whs', 'WHS Unit ARK', 403],
             ['viewer', 'FIN REG', 403],
-        ] as [$role, $unit, $harapan]) {
+        ] as [$role, $unit, $harapan]) {   // rekomendasi masih kosong: auditor boleh
             $rek = $this->rekomendasi();
             Sanctum::actingAs(User::factory()->create(['role' => $role, 'unit_usaha' => $unit]));
 
@@ -324,6 +324,115 @@ class RekomendasiKeputusanBertahapTest extends TestCase
                 $harapan === 200 ? null : $rek->id,
                 AuditRecommendation::find($rek->id)?->id,
                 "hapus oleh role {$role}"
+            );
+        }
+    }
+
+    public function test_auditor_tidak_bisa_menghapus_setelah_ada_yang_mengisi(): void
+    {
+        $rek = $this->rekomendasi();
+
+        Sanctum::actingAs(User::factory()->create(['role' => 'whs', 'unit_usaha' => 'WHS Unit ARK']));
+        $this->isiStep($rek, self::STEP_WHS, 'Penyesuaian stok.')->assertOk();
+
+        Sanctum::actingAs(User::factory()->create(['role' => 'auditor', 'unit_usaha' => '']));
+        $res = $this->deleteJson("/api/recommendations/{$rek->id}")->assertStatus(422);
+        $this->assertStringContainsString('sudah diisi pihak lain', (string) $res->json('message'));
+
+        $this->assertNotNull(AuditRecommendation::find($rek->id), 'isian WHS tidak boleh ikut terhapus');
+
+        // Admin tetap bisa
+        Sanctum::actingAs(User::factory()->create(['role' => 'admin', 'unit_usaha' => 'HO']));
+        $this->deleteJson("/api/recommendations/{$rek->id}")->assertOk();
+        $this->assertNull(AuditRecommendation::find($rek->id));
+    }
+
+    public function test_daftar_menandai_kapan_rekomendasi_masih_bisa_dihapus(): void
+    {
+        $rek     = $this->rekomendasi();
+        $auditor = User::factory()->create(['role' => 'auditor', 'unit_usaha' => '']);
+
+        Sanctum::actingAs($auditor);
+        $this->assertTrue(
+            $this->getJson('/api/recommendations?plan_audit_id=' . $this->plan->id)->json('data.0.bisaDihapus'),
+            'belum ada yang mengisi'
+        );
+
+        Sanctum::actingAs(User::factory()->create(['role' => 'whs', 'unit_usaha' => 'WHS Unit ARK']));
+        $this->isiStep($rek, self::STEP_WHS, 'Penyesuaian stok.')->assertOk();
+
+        Sanctum::actingAs($auditor);
+        $this->assertFalse(
+            $this->getJson('/api/recommendations?plan_audit_id=' . $this->plan->id)->json('data.0.bisaDihapus'),
+            'sudah ada yang mengisi'
+        );
+    }
+
+    // ── Isian Unit Usaha ────────────────────────────────────────────────────
+
+    private function isianUnitUsaha(AuditRecommendation $rek)
+    {
+        return $this->postJson("/api/recommendations/{$rek->id}/isi", [
+            'tgl_isi' => '2026-09-25',
+            'isi'     => 'Sudah kami tindak lanjuti.',
+        ]);
+    }
+
+    public function test_isian_unit_usaha_hanya_untuk_unit_yang_diperiksa(): void
+    {
+        $rek = $this->rekomendasi();
+
+        // Auditor & manajer bukan pihaknya -- ini tanggapan cabang atas
+        // rekomendasi auditor, bukan tulisan auditor sendiri.
+        foreach (['auditor', 'manajer'] as $role) {
+            Sanctum::actingAs(User::factory()->create(['role' => $role, 'unit_usaha' => 'AUDIT']));
+            $res = $this->isianUnitUsaha($rek)->assertStatus(403);
+            $this->assertStringContainsString('unit usaha yang diperiksa', (string) $res->json('message'));
+        }
+
+        // Unit usaha lain juga tidak
+        Sanctum::actingAs(User::factory()->create(['role' => 'whs', 'unit_usaha' => 'WHS Unit AKS']));
+        $this->isianUnitUsaha($rek)->assertStatus(403);
+
+        $this->assertCount(0, array_filter($rek->fresh()->steps, fn ($s) => ($s['step'] ?? '') === 'isi_rekomendasi'));
+    }
+
+    public function test_unit_usaha_yang_diperiksa_dan_admin_tetap_bisa_mengisi(): void
+    {
+        foreach ([
+            ['whs', 'WHS Unit ARK'],
+            ['admin', 'HO'],
+        ] as [$role, $unit]) {
+            $rek = $this->rekomendasi();
+            Sanctum::actingAs(User::factory()->create(['role' => $role, 'unit_usaha' => $unit]));
+
+            $this->isianUnitUsaha($rek)->assertOk();
+
+            $this->assertCount(
+                1,
+                array_filter($rek->fresh()->steps, fn ($s) => ($s['step'] ?? '') === 'isi_rekomendasi'),
+                "role={$role}"
+            );
+        }
+    }
+
+    public function test_daftar_menandai_siapa_yang_boleh_menulis_isian_unit_usaha(): void
+    {
+        $this->rekomendasi();
+
+        foreach ([
+            ['whs', 'WHS Unit ARK', true],
+            ['admin', 'HO', true],
+            ['auditor', 'AUDIT', false],
+            ['manajer', '', false],
+            ['viewer', 'FIN REG', false],
+        ] as [$role, $unit, $harapan]) {
+            Sanctum::actingAs(User::factory()->create(['role' => $role, 'unit_usaha' => $unit]));
+
+            $this->assertSame(
+                $harapan,
+                $this->getJson('/api/recommendations?plan_audit_id=' . $this->plan->id)->json('data.0.bisaIsiUnitUsaha'),
+                "role={$role} unit={$unit}"
             );
         }
     }

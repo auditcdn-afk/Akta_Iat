@@ -10913,11 +10913,11 @@ async function rekomendasiLoadList() {
             return;
         }
         // Edit & Hapus disembunyikan dari pihak yang memang ditolak server, supaya
-        // tidak ada tombol yang hanya berakhir dengan 403. Harus sama dengan
-        // middleware rute /api/recommendations/{id} di routes/api.php.
+        // tidak ada tombol yang hanya berakhir dengan 403. Edit tetap admin saja
+        // (middleware rute di routes/api.php); Hapus dinilai server per baris
+        // (bisaDihapus) -- auditor boleh selama belum ada pihak yang mengisi.
         const peran      = String(currentUser?.role || '').trim().toLowerCase();
         const bolehEdit  = peran === 'admin';
-        const bolehHapus = peran === 'admin' || peran === 'auditor';
 
         list.innerHTML = rows.map(r => {
             const prioBadge = { rendah: 'bg-slate-700 text-slate-300', sedang: 'bg-amber-900/60 text-amber-300', tinggi: 'bg-orange-900/60 text-orange-300', urgent: 'bg-red-900/60 text-red-300' }[r.prioritas] || 'bg-slate-700 text-slate-300';
@@ -10990,7 +10990,7 @@ async function rekomendasiLoadList() {
                 </div>
                 <div class="flex gap-2 justify-end">
                     ${bolehEdit ? `<button onclick="rekomendasiEdit(${r.id})" class="rounded-lg bg-slate-700 px-3 py-1 text-xs text-slate-200 hover:bg-slate-600 transition">Edit</button>` : ''}
-                    ${bolehHapus ? `<button onclick="rekomendasiDelete(${r.id})" class="rounded-lg bg-red-900/40 px-3 py-1 text-xs text-red-300 hover:bg-red-800 transition">Hapus</button>` : ''}
+                    ${r.bisaDihapus === true ? `<button onclick="rekomendasiDelete(${r.id})" class="rounded-lg bg-red-900/40 px-3 py-1 text-xs text-red-300 hover:bg-red-800 transition">Hapus</button>` : ''}
                 </div>
             </div>`;
         }).join('');
