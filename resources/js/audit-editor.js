@@ -10984,6 +10984,13 @@ async function rekomendasiLoadList() {
                     </div>
                 </div>
                 ${birokrasiHtml}
+                ${r.lampiranUrl ? `
+                <div class="mt-2">
+                    <a href="${escapeHtml(r.lampiranUrl)}" target="_blank" rel="noopener"
+                       class="inline-flex items-center gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/20 transition">
+                        📎 ${escapeHtml(r.lampiranNama || 'Lihat Lampiran')}
+                    </a>
+                </div>` : ''}
                 <div class="flex flex-wrap gap-4 text-xs text-slate-500 mt-1">
                     ${r.pic ? `<span>PIC: <span class="text-slate-300">${escapeHtml(r.pic)}</span></span>` : ''}
                     ${r.deadline ? `<span>Deadline: <span class="text-slate-300">${r.deadline}</span></span>` : ''}
@@ -11003,14 +11010,35 @@ async function rekomendasiLoadList() {
 function rekomendasiShowForm(id = null) {
     _rekomendasiEditId = id;
     document.getElementById('rekomendasiForm')?.classList.remove('hidden');
+    document.getElementById('rekomendasiFileInput').value = '';
+    rekomendasiTampilkanLampiran(null);
     if (!id) {
         document.getElementById('rekomendasiIsi').value  = '';
-        document.getElementById('rekomendasiFileName').classList.add('hidden');
-        document.getElementById('rekomendasiFileInput').value = '';
         // Auto-fill isi rekomendasi dari semua data pemeriksaan
         rekomendasiAutoFill();
     }
     document.getElementById('rekomendasiIsi')?.focus();
+}
+
+/**
+ * Lampiran yang SUDAH tersimpan, ditampilkan di form saat mengedit -- supaya
+ * jelas rekomendasi ini sudah punya berkas, dan memilih berkas baru berarti
+ * menggantinya.
+ */
+function rekomendasiTampilkanLampiran(rek) {
+    const nameEl = document.getElementById('rekomendasiFileName');
+    const hintEl = document.getElementById('rekomendasiFileHint');
+    if (!nameEl) return;
+
+    if (rek?.lampiranUrl) {
+        nameEl.innerHTML = `<a href="${escapeHtml(rek.lampiranUrl)}" target="_blank" rel="noopener" class="underline hover:text-blue-200">📎 ${escapeHtml(rek.lampiranNama || 'Lihat lampiran')}</a>`;
+        nameEl.classList.remove('hidden');
+        if (hintEl) hintEl.textContent = 'Sudah ada lampiran. Pilih berkas lain kalau mau menggantinya.';
+    } else {
+        nameEl.textContent = '';
+        nameEl.classList.add('hidden');
+        if (hintEl) hintEl.textContent = 'PDF, JPG, PNG, DOC (opsional)';
+    }
 }
 
 async function rekomendasiAutoFill() {
@@ -11268,6 +11296,7 @@ async function rekomendasiEdit(id) {
         rekomendasiShowForm(id);
         document.getElementById('rekomendasiIsi').value      = r.deskripsi || r.judul || '';
         document.getElementById('rekomendasiTglAudit').value = r.tglAudit || document.getElementById('rekomendasiTglAudit').value;
+        rekomendasiTampilkanLampiran(r);
     } catch (e) {
         rekomendasiAlert(e.message, 'error');
     }
@@ -11338,13 +11367,17 @@ async function rekomendasiSave() {
 
     const fileInput = document.getElementById('rekomendasiFileInput');
     const file      = fileInput?.files?.[0] || null;
-    const fileName  = file ? file.name : null;
 
     // judul = first non-empty line, max 250 chars
     const firstLine = isi.split('\n').find(l => l.trim()) ?? '';
     const judul     = firstLine.trim().substring(0, 250) || 'Rekomendasi Audit';
 
-    const deskripsi = isi + (fileName ? '\n\nLampiran: ' + fileName : '');
+    // Nama berkasnya TIDAK lagi ditempel sebagai teks di akhir deskripsi.
+    // Dulu cuma itu yang terjadi -- berkasnya sendiri tidak pernah dikirim ke
+    // mana pun, jadi yang tersimpan hanya tulisan "Lampiran: nama.pdf" dan
+    // lampirannya tidak pernah bisa dibuka. Sekarang berkasnya diunggah
+    // sungguhan sesudah rekomendasinya tersimpan (lihat di bawah).
+    const deskripsi = isi;
 
     const payload = {
         plan_audit_id: activePlanId,
@@ -11358,14 +11391,37 @@ async function rekomendasiSave() {
     if (btn) { btn.textContent = 'Menyimpan...'; btn.disabled = true; }
     try {
         const headers = authHeaders({ 'Content-Type': 'application/json' });
-        if (_rekomendasiEditId) {
-            await fetchJson('/api/recommendations/' + _rekomendasiEditId, { method: 'PUT', headers, body: JSON.stringify(payload) });
+        let rekId = _rekomendasiEditId;
+        if (rekId) {
+            await fetchJson('/api/recommendations/' + rekId, { method: 'PUT', headers, body: JSON.stringify(payload) });
         } else {
-            await fetchJson('/api/recommendations', { method: 'POST', headers, body: JSON.stringify(payload) });
+            const dibuat = await fetchJson('/api/recommendations', { method: 'POST', headers, body: JSON.stringify(payload) });
+            rekId = dibuat?.data?.id ?? dibuat?.id ?? null;
         }
+
+        // Lampirannya menyusul sesudah rekomendasinya punya id. Kalau bagian ini
+        // gagal, rekomendasinya sudah tersimpan -- jadi yang dikabarkan cuma
+        // lampirannya, bukan seluruh simpanannya.
+        let pesan = 'Rekomendasi tersimpan.';
+        if (file && rekId) {
+            const fd = new FormData();
+            fd.append('lampiran', file);
+            try {
+                await fetchJson('/api/recommendations/' + rekId + '/lampiran', {
+                    method: 'POST', headers: authHeaders(), body: fd,
+                });
+                pesan = 'Rekomendasi & lampiran tersimpan.';
+            } catch (eLampiran) {
+                rekomendasiHideForm();
+                await rekomendasiLoadList();
+                rekomendasiAlert('Rekomendasi tersimpan, tapi lampirannya gagal: ' + eLampiran.message, 'error');
+                return;
+            }
+        }
+
         rekomendasiHideForm();
         await rekomendasiLoadList();
-        rekomendasiAlert('Rekomendasi tersimpan.', 'success');
+        rekomendasiAlert(pesan, 'success');
     } catch (e) {
         rekomendasiAlert(e.message, 'error');
     } finally {
@@ -11403,7 +11459,9 @@ function initRekomendasiForm() {
         const nameEl = document.getElementById('rekomendasiFileName');
         if (!nameEl) return;
         if (this.files?.[0]) {
-            nameEl.textContent = this.files[0].name;
+            // Menimpa tautan lampiran lama kalau ada -- memilih berkas baru
+            // memang berarti menggantinya.
+            nameEl.textContent = 'Akan diunggah: ' + this.files[0].name;
             nameEl.classList.remove('hidden');
         } else {
             nameEl.classList.add('hidden');

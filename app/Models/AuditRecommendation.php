@@ -21,6 +21,8 @@ class AuditRecommendation extends Model
         'deadline',
         'tgl_selesai',
         'steps',
+        'lampiran_path',
+        'lampiran_nama',
         'created_by',
         'updated_by',
         'approved_by',
@@ -42,6 +44,12 @@ class AuditRecommendation extends Model
     public function auditTask(): BelongsTo
     {
         return $this->belongsTo(AuditTask::class, 'audit_task_id');
+    }
+
+    /** Alamat berkas lampiran untuk dibuka di peramban, atau null kalau tidak ada. */
+    public function getLampiranUrlAttribute(): ?string
+    {
+        return $this->lampiran_path ? \Illuminate\Support\Facades\Storage::url($this->lampiran_path) : null;
     }
 
     public function toAktaArray(): array
@@ -72,6 +80,8 @@ class AuditRecommendation extends Model
             'deadline' => optional($this->deadline)->format('Y-m-d'),
             'tglSelesai' => optional($this->tgl_selesai)->format('Y-m-d'),
             'steps' => $this->steps ?: [],
+            'lampiranUrl'  => $this->lampiran_url,
+            'lampiranNama' => $this->lampiran_nama,
             'createdBy' => $this->created_by,
             'updatedBy' => $this->updated_by,
             'approvedBy' => $this->approved_by,

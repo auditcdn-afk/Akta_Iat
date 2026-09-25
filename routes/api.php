@@ -567,6 +567,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::post('/recommendations/{recommendation}/isi', [AuditRecommendationController::class, 'isi']);
 
+    // Lampiran rekomendasi: yang membuat rekomendasinya yang melampirkan buktinya.
+    Route::middleware('akta.role:admin,manajer,auditor')->group(function () {
+        Route::post('/recommendations/{recommendation}/lampiran', [AuditRecommendationController::class, 'unggahLampiran']);
+        Route::delete('/recommendations/{recommendation}/lampiran', [AuditRecommendationController::class, 'hapusLampiran']);
+    });
+
     Route::middleware('akta.role:admin,manajer,auditor')->group(function () {
         Route::post('/tasks', [AuditTaskController::class, 'store']);
         Route::put('/tasks/{task}', [AuditTaskController::class, 'update']);
