@@ -2254,7 +2254,18 @@ window.addEventListener('load', function() {
      ═══════════════════════════════════════════════ --}}
 @if(($visibleTabs['cek-fisik'] ?? true))
 <div class="section">
-  <div class="section-title">12. CEK FISIK (Blangko Cek Fisik &amp; STUJ)</div>
+  @php
+    // Nama ketiga kolom blangko boleh diganti auditor di layar (mis. STUJ -> WO),
+    // dan judul pemeriksaannya ikut nama-nama itu. Didefinisikan di sini, sebelum
+    // judul bagian, supaya judulnya juga bisa memakainya.
+    $cfNamaBawaan = ['cf' => 'Cek Fisik (CF)', 'stuj' => 'STUJ', 'fstnk' => 'F. STNK'];
+    $cfSimpanan   = $cekFisik->data_json ?? [];
+    $cfNama = function (string $k) use ($cfSimpanan, $cfNamaBawaan) {
+        $v = trim((string) ($cfSimpanan['nama'][$k] ?? ''));
+        return $v !== '' ? $v : $cfNamaBawaan[$k];
+    };
+  @endphp
+  <div class="section-title">12. CEK FISIK (Blangko {{ $cfNama('cf') }}, {{ $cfNama('stuj') }} &amp; {{ $cfNama('fstnk') }})</div>
   @include('akta.pdf.partials.auditor-line', ['tool' => 'cek-fisik'])
   <div class="section-body">
     @if(!$cekFisik)
@@ -2282,7 +2293,7 @@ window.addEventListener('load', function() {
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
         {{-- CEK FISIK --}}
         <div style="flex:1;min-width:150px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:10px 14px;">
-          <div style="font-size:10px;font-weight:600;color:#60a5fa;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">CEK FISIK (CF)</div>
+          <div style="font-size:10px;font-weight:600;color:#60a5fa;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">{{ $cfNama('cf') }}</div>
           <div style="display:flex;gap:12px;">
             <div style="text-align:center;flex:1;"><div style="font-size:13px;font-weight:700;">{{ $cfSa['cf'] ?? 0 }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Awal</div></div>
             <div style="text-align:center;flex:1;"><div style="font-size:13px;font-weight:700;color:#60a5fa;">{{ $cfAkhirCf }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Akhir</div></div>
@@ -2291,7 +2302,7 @@ window.addEventListener('load', function() {
         </div>
         {{-- STUJ --}}
         <div style="flex:1;min-width:150px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:10px 14px;">
-          <div style="font-size:10px;font-weight:600;color:#a78bfa;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">STUJ</div>
+          <div style="font-size:10px;font-weight:600;color:#a78bfa;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">{{ $cfNama('stuj') }}</div>
           <div style="display:flex;gap:12px;">
             <div style="text-align:center;flex:1;"><div style="font-size:13px;font-weight:700;">{{ $cfSa['stuj'] ?? 0 }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Awal</div></div>
             <div style="text-align:center;flex:1;"><div style="font-size:13px;font-weight:700;color:#a78bfa;">{{ $cfAkhirStuj }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Akhir</div></div>
@@ -2300,7 +2311,7 @@ window.addEventListener('load', function() {
         </div>
         {{-- F.STNK --}}
         <div style="flex:1;min-width:150px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:10px 14px;">
-          <div style="font-size:10px;font-weight:600;color:#34d399;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">F. STNK</div>
+          <div style="font-size:10px;font-weight:600;color:#34d399;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">{{ $cfNama('fstnk') }}</div>
           <div style="display:flex;gap:12px;">
             <div style="text-align:center;flex:1;"><div style="font-size:13px;font-weight:700;">{{ $cfSa['fstnk'] ?? 0 }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Awal</div></div>
             <div style="text-align:center;flex:1;"><div style="font-size:13px;font-weight:700;color:#34d399;">{{ $cfAkhirFstnk }}</div><div style="font-size:9px;color:#94a3b8;">Saldo Akhir</div></div>
@@ -2314,9 +2325,9 @@ window.addEventListener('load', function() {
         <thead>
           <tr>
             <th style="width:180px;">Keterangan</th>
-            <th style="text-align:center;">Cek Fisik</th>
-            <th style="text-align:center;">STUJ</th>
-            <th style="text-align:center;">F. STNK</th>
+            <th style="text-align:center;">{{ $cfNama('cf') }}</th>
+            <th style="text-align:center;">{{ $cfNama('stuj') }}</th>
+            <th style="text-align:center;">{{ $cfNama('fstnk') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -2371,9 +2382,9 @@ window.addEventListener('load', function() {
       @if($hasSelisih)
       <div style="padding:8px 12px;background:#450a0a;border:1px solid #ef4444;border-radius:6px;color:#fca5a5;font-size:11px;font-weight:600;">
         ⚠ Terdapat selisih pada pemeriksaan blangko:
-        @if($cfSelCf != 0) CF: {{ $cfSelCf > 0 ? '+'.$cfSelCf : $cfSelCf }}; @endif
-        @if($cfSelStuj != 0) STUJ: {{ $cfSelStuj > 0 ? '+'.$cfSelStuj : $cfSelStuj }}; @endif
-        @if($cfSelFstnk != 0) F.STNK: {{ $cfSelFstnk > 0 ? '+'.$cfSelFstnk : $cfSelFstnk }}; @endif
+        @if($cfSelCf != 0) {{ $cfNama('cf') }}: {{ $cfSelCf > 0 ? '+'.$cfSelCf : $cfSelCf }}; @endif
+        @if($cfSelStuj != 0) {{ $cfNama('stuj') }}: {{ $cfSelStuj > 0 ? '+'.$cfSelStuj : $cfSelStuj }}; @endif
+        @if($cfSelFstnk != 0) {{ $cfNama('fstnk') }}: {{ $cfSelFstnk > 0 ? '+'.$cfSelFstnk : $cfSelFstnk }}; @endif
       </div>
       @else
       <div style="padding:8px 12px;background:#052e16;border:1px solid #10b981;border-radius:6px;color:#6ee7b7;font-size:11px;font-weight:600;">

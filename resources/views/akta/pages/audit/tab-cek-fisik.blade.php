@@ -1,7 +1,7 @@
         <div id="tabPanel-cek-fisik" class="audit-tab-panel hidden space-y-5">
 
             <div class="flex items-center justify-between">
-                <h3 class="text-base font-bold text-slate-100">Pemeriksaan Blangko Cek Fisik &amp; STUJ</h3>
+                <h3 id="cfJudul" class="text-base font-bold text-slate-100">Pemeriksaan Blangko Cek Fisik &amp; STUJ</h3>
                 <button id="cfSaveBtn"
                     class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500 active:scale-95 transition">
                     💾 Simpan
@@ -11,7 +11,9 @@
             {{-- Stat cards --}}
             <div class="grid grid-cols-3 gap-4">
                 <div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4">
-                    <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400 text-center">Cek Fisik (CF)</p>
+                    <input type="text" data-cf-nama="cf" value="Cek Fisik (CF)" maxlength="30"
+                        title="Klik untuk mengganti nama kolom ini (mis. WO)"
+                        class="mb-2 w-full rounded border border-transparent bg-transparent px-1 text-xs font-bold uppercase tracking-wide text-slate-400 text-center hover:border-slate-600 focus:border-blue-500 focus:text-slate-200 focus:outline-none">
                     <div class="grid grid-cols-3 gap-2 text-center text-xs">
                         <div><p id="cfStatCfAwal" class="text-lg font-bold text-slate-100">0</p><p class="text-slate-500">Saldo Awal</p></div>
                         <div><p id="cfStatCfAkhir" class="text-lg font-bold text-blue-400">0</p><p class="text-slate-500">Saldo Akhir</p></div>
@@ -19,7 +21,9 @@
                     </div>
                 </div>
                 <div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4">
-                    <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400 text-center">STUJ</p>
+                    <input type="text" data-cf-nama="stuj" value="STUJ" maxlength="30"
+                        title="Klik untuk mengganti nama kolom ini (mis. WO)"
+                        class="mb-2 w-full rounded border border-transparent bg-transparent px-1 text-xs font-bold uppercase tracking-wide text-slate-400 text-center hover:border-slate-600 focus:border-blue-500 focus:text-slate-200 focus:outline-none">
                     <div class="grid grid-cols-3 gap-2 text-center text-xs">
                         <div><p id="cfStatStujAwal" class="text-lg font-bold text-slate-100">0</p><p class="text-slate-500">Saldo Awal</p></div>
                         <div><p id="cfStatStujAkhir" class="text-lg font-bold text-blue-400">0</p><p class="text-slate-500">Saldo Akhir</p></div>
@@ -27,7 +31,9 @@
                     </div>
                 </div>
                 <div class="rounded-2xl border border-slate-700 bg-slate-800/60 p-4">
-                    <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400 text-center">F. STNK</p>
+                    <input type="text" data-cf-nama="fstnk" value="F. STNK" maxlength="30"
+                        title="Klik untuk mengganti nama kolom ini (mis. WO)"
+                        class="mb-2 w-full rounded border border-transparent bg-transparent px-1 text-xs font-bold uppercase tracking-wide text-slate-400 text-center hover:border-slate-600 focus:border-blue-500 focus:text-slate-200 focus:outline-none">
                     <div class="grid grid-cols-3 gap-2 text-center text-xs">
                         <div><p id="cfStatFstnkAwal" class="text-lg font-bold text-slate-100">0</p><p class="text-slate-500">Saldo Awal</p></div>
                         <div><p id="cfStatFstnkAkhir" class="text-lg font-bold text-blue-400">0</p><p class="text-slate-500">Saldo Akhir</p></div>
@@ -48,17 +54,17 @@
                             class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none cf-auto-calc">
                     </div>
                     <div class="flex flex-col gap-1">
-                        <label class="text-xs text-slate-400">Cek Fisik</label>
+                        <label class="text-xs text-slate-400" data-cf-label="cf">Cek Fisik</label>
                         <input type="number" id="cfSaldoAwalCf" value="0" min="0"
                             class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-right text-slate-100 focus:border-blue-500 focus:outline-none cf-auto-calc">
                     </div>
                     <div class="flex flex-col gap-1">
-                        <label class="text-xs text-slate-400">STUJ</label>
+                        <label class="text-xs text-slate-400" data-cf-label="stuj">STUJ</label>
                         <input type="number" id="cfSaldoAwalStuj" value="0" min="0"
                             class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-right text-slate-100 focus:border-blue-500 focus:outline-none cf-auto-calc">
                     </div>
                     <div class="flex flex-col gap-1">
-                        <label class="text-xs text-slate-400">F. STNK</label>
+                        <label class="text-xs text-slate-400" data-cf-label="fstnk">F. STNK</label>
                         <input type="number" id="cfSaldoAwalFstnk" value="0" min="0"
                             class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-right text-slate-100 focus:border-blue-500 focus:outline-none cf-auto-calc">
                     </div>
@@ -79,9 +85,9 @@
                     <thead><tr class="border-b border-slate-800 text-xs text-slate-400">
                         <th class="px-4 py-2 text-left w-36">Tanggal</th>
                         <th class="px-4 py-2 text-left">No. Dokumen</th>
-                        <th class="px-4 py-2 text-right w-24">Cek Fisik</th>
-                        <th class="px-4 py-2 text-right w-24">STUJ</th>
-                        <th class="px-4 py-2 text-right w-24">F. STNK</th>
+                        <th class="px-4 py-2 text-right w-28" data-cf-label="cf">Cek Fisik</th>
+                        <th class="px-4 py-2 text-right w-28" data-cf-label="stuj">STUJ</th>
+                        <th class="px-4 py-2 text-right w-28" data-cf-label="fstnk">F. STNK</th>
                         <th class="px-4 py-2 w-8"></th>
                     </tr></thead>
                     <tbody id="cfPenerimaanBody"></tbody>
@@ -102,9 +108,9 @@
                 <table class="w-full text-sm">
                     <thead><tr class="border-b border-slate-800 text-xs text-slate-400">
                         <th class="px-4 py-2 text-left">No. Dokumen</th>
-                        <th class="px-4 py-2 text-right w-24">Cek Fisik</th>
-                        <th class="px-4 py-2 text-right w-24">STUJ</th>
-                        <th class="px-4 py-2 text-right w-24">F. STNK</th>
+                        <th class="px-4 py-2 text-right w-28" data-cf-label="cf">Cek Fisik</th>
+                        <th class="px-4 py-2 text-right w-28" data-cf-label="stuj">STUJ</th>
+                        <th class="px-4 py-2 text-right w-28" data-cf-label="fstnk">F. STNK</th>
                         <th class="px-4 py-2 w-8"></th>
                     </tr></thead>
                     <tbody id="cfPengeluaranBody"></tbody>
@@ -121,9 +127,9 @@
                 <table class="w-full text-sm">
                     <thead><tr class="border-b border-slate-800 text-xs text-slate-400">
                         <th class="px-4 py-2 text-left">Keterangan</th>
-                        <th class="px-4 py-2 text-right w-32">Cek Fisik</th>
-                        <th class="px-4 py-2 text-right w-32">STUJ</th>
-                        <th class="px-4 py-2 text-right w-32">F. STNK</th>
+                        <th class="px-4 py-2 text-right w-32" data-cf-label="cf">Cek Fisik</th>
+                        <th class="px-4 py-2 text-right w-32" data-cf-label="stuj">STUJ</th>
+                        <th class="px-4 py-2 text-right w-32" data-cf-label="fstnk">F. STNK</th>
                     </tr></thead>
                     <tbody id="cfRingkasanBody"></tbody>
                 </table>

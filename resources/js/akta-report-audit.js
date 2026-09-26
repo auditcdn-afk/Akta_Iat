@@ -391,10 +391,14 @@ async function crosscheckAutoFill(planId) {
             const cfSel = cfRaw.selisih ?? {};
             const cfSa = cfRaw.saldoAkhir ?? {};
             const cfFk = cfRaw.fisik ?? {};
+            // Nama ketiga kolom boleh diganti auditor di layar (mis. STUJ -> WO);
+            // ringkasan temuan ikut nama itu supaya cocok dengan lampirannya.
+            const cfBawaan = { cf: "CEK FISIK (CF)", stuj: "STUJ", fstnk: "F. STNK" };
+            const cfNama = (k) => String(cfRaw.nama?.[k] ?? "").trim() || cfBawaan[k];
             const items = [
-                { nama: "CEK FISIK (CF)", saldoAkhir: Number(cfSa.cf ?? 0), fisik: Number(cfFk.cf ?? 0), selisih: Number(cfSel.cf ?? 0) },
-                { nama: "STUJ", saldoAkhir: Number(cfSa.stuj ?? 0), fisik: Number(cfFk.stuj ?? 0), selisih: Number(cfSel.stuj ?? 0) },
-                { nama: "F. STNK", saldoAkhir: Number(cfSa.fstnk ?? 0), fisik: Number(cfFk.fstnk ?? 0), selisih: Number(cfSel.fstnk ?? 0) },
+                { nama: cfNama("cf"), saldoAkhir: Number(cfSa.cf ?? 0), fisik: Number(cfFk.cf ?? 0), selisih: Number(cfSel.cf ?? 0) },
+                { nama: cfNama("stuj"), saldoAkhir: Number(cfSa.stuj ?? 0), fisik: Number(cfFk.stuj ?? 0), selisih: Number(cfSel.stuj ?? 0) },
+                { nama: cfNama("fstnk"), saldoAkhir: Number(cfSa.fstnk ?? 0), fisik: Number(cfFk.fstnk ?? 0), selisih: Number(cfSel.fstnk ?? 0) },
             ].filter((it) => it.selisih !== 0);
             if (items.length > 0) {
                 const rows = [];
