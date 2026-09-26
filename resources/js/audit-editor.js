@@ -7,6 +7,7 @@
 // setiap kunjungan halaman).
 
 import { authHeaders, escapeHtml, showAlert, fetchJson, currentUser, loadPlans } from "./akta-audit.js";
+import { tglKetikHtml, pasangTanggalKetik } from "./tanggal-ketik.js";
 
 let activePlanId = null;
 let activePlan = null;
@@ -10050,7 +10051,7 @@ function tcFmtRp(val) {
     return 'Rp ' + n.toLocaleString('id-ID');
 }
 
-function tcRender() {
+function tcRender(fokusIdx = null) {
     const items = _tcItems;
     const statSec = document.getElementById('tcStatSection');
     const tblSec  = document.getElementById('tcTableSection');
@@ -10086,9 +10087,7 @@ function tcRender() {
             <td class="px-3 py-2 text-slate-300">${escHtml(it.nama)}</td>
             <td class="px-3 py-2 text-right text-slate-300">${tcFmtRp(it.nilai)}</td>
             <td class="px-3 py-2">
-                <input type="date" value="${escHtml(it.tanggalPortal || '')}"
-                    data-tc-portal-idx="${idx}"
-                    class="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-100 focus:border-blue-500 focus:outline-none">
+                ${tglKetikHtml(it.tanggalPortal || '', `data-tc-portal-idx="${idx}"`)}
             </td>
             <td class="px-3 py-2 text-right ${belumDicek ? 'text-slate-500' : (it.selisihTgl > 0 ? 'text-red-400 font-semibold' : 'text-green-400 font-semibold')}" data-tc-selisih-cell="${idx}">${belumDicek ? '-' : (it.selisihTgl ?? 0)}</td>
             <td class="px-3 py-2">
@@ -10100,11 +10099,19 @@ function tcRender() {
         </tr>`;
     }).join('');
 
-    tblBody.querySelectorAll('input[data-tc-portal-idx]').forEach(inp => {
-        inp.addEventListener('change', (e) => {
-            const i = parseInt(e.target.dataset.tcPortalIdx, 10);
-            saveTcTanggalPortal(i, e.target.value).catch(err => showAlert(err.message || 'Gagal menyimpan Tanggal Portal.', 'error'));
-        });
+    if (fokusIdx !== null) {
+        const inp = tblBody.querySelector(`.tgl-ketik[data-tc-portal-idx="${fokusIdx}"] [data-tgl-teks]`);
+        if (inp) { inp.focus(); inp.select(); }
+    }
+
+    pasangTanggalKetik(tblBody, (iso, span, spanBerikut) => {
+        const i = parseInt(span.dataset.tcPortalIdx, 10);
+        // tcRender() menggambar ulang seluruh tabel sesudah simpan, jadi isian
+        // yang mestinya dipegang berikutnya (kalau tadi ditekan Enter) harus
+        // difokuskan lagi sesudah gambar ulang itu.
+        const fokusIdx = spanBerikut ? parseInt(spanBerikut.dataset.tcPortalIdx, 10) : null;
+        saveTcTanggalPortal(i, iso, fokusIdx)
+            .catch(err => showAlert(err.message || 'Gagal menyimpan Tanggal Portal.', 'error'));
     });
 
     tblBody.querySelectorAll('input[data-tc-ket-idx]').forEach(inp => {
@@ -10119,7 +10126,7 @@ function tcRender() {
     });
 }
 
-async function saveTcTanggalPortal(index, tanggalPortal) {
+async function saveTcTanggalPortal(index, tanggalPortal, fokusIdx = null) {
     if (!activePlanId) return;
     const res = await fetchJson('/api/audit-detail/ttp-csc/tanggal-portal', {
         method:  'PATCH',
@@ -10129,7 +10136,7 @@ async function saveTcTanggalPortal(index, tanggalPortal) {
     if (_tcItems[index]) _tcItems[index] = res.item;
     // Render ulang baris ini saja supaya Selisih Tgl & Keterangan (dihitung
     // server) langsung terlihat tanpa kehilangan fokus input lain di tabel.
-    tcRender();
+    tcRender(fokusIdx);
 }
 
 async function saveTcKeterangan(index, keterangan) {
