@@ -5009,9 +5009,43 @@ function initTtpForm() {
 
 let _cfData = null;
 
+// Nama ketiga kolom blangko boleh diganti auditor (mis. STUJ -> WO), dan
+// JUDUL pemeriksaannya ikut nama-nama itu, bukan tulisan tetap. Yang diganti
+// hanya namanya di layar: kunci datanya (cf/stuj/fstnk) tidak berubah, jadi
+// data lama tetap terbaca.
+const CF_NAMA_BAWAAN = { cf: 'Cek Fisik (CF)', stuj: 'STUJ', fstnk: 'F. STNK' };
+
+// Disimpan kosong kalau memakai nama bawaan, supaya bawaannya masih bisa
+// diperbaiki belakangan tanpa mengubah data yang sudah tersimpan.
+function cfNama(kunci) {
+    const v = String(_cfData?.nama?.[kunci] ?? '').trim();
+    return v !== '' ? v : (CF_NAMA_BAWAAN[kunci] ?? '');
+}
+
+function cfJudulPemeriksaan() {
+    const [a, b, c] = ['cf', 'stuj', 'fstnk'].map(cfNama);
+    return `Pemeriksaan Blangko ${a}, ${b} & ${c}`;
+}
+
+// isiKotak hanya saat memuat: kalau dipanggil sambil auditor mengetik, mengisi
+// ulang kotaknya akan melompatkan kursornya ke ujung.
+function cfTerapkanNama({ isiKotak = false } = {}) {
+    document.querySelectorAll('[data-cf-label]').forEach(el => {
+        el.textContent = cfNama(el.dataset.cfLabel);
+    });
+    if (isiKotak) {
+        document.querySelectorAll('[data-cf-nama]').forEach(el => {
+            el.value = cfNama(el.dataset.cfNama);
+        });
+    }
+    const judul = document.getElementById('cfJudul');
+    if (judul) judul.textContent = cfJudulPemeriksaan();
+}
+
 function cfEmptyData() {
     return {
         company: '', tglPemeriksaan: '',
+        nama: { cf: '', stuj: '', fstnk: '' },
         saldoAwal: { tanggal: '', cf: 0, stuj: 0, fstnk: 0 },
         penerimaan: [],
         pengeluaran: [],
@@ -5094,6 +5128,7 @@ function cfInitForm() {
         if (el) el.value = val;
     });
 
+    cfTerapkanNama({ isiKotak: true });
     cfRenderPenerimaan();
     cfRenderPengeluaran();
     cfRenderRingkasan();
@@ -5256,6 +5291,27 @@ function initCfForm() {
     ['cfSaldoAwalCf','cfSaldoAwalStuj','cfSaldoAwalFstnk','cfSaldoAwalTgl'].forEach(id => {
         document.getElementById(id)?.addEventListener('input', () => { cfSyncSaldoAwal(); cfCalcAndRefresh(); });
         document.getElementById(id)?.addEventListener('blur',  () => _doSaveCf().catch(() => {}));
+    });
+
+    // Nama kolom: judul pemeriksaan & seluruh judul tabel ikut berubah sambil
+    // diketik, jadi auditor langsung melihat hasilnya.
+    document.querySelectorAll('[data-cf-nama]').forEach(inp => {
+        inp.addEventListener('input', () => {
+            if (!_cfData) _cfData = cfEmptyData();
+            (_cfData.nama ??= {})[inp.dataset.cfNama] = inp.value;
+            cfTerapkanNama();
+        });
+        inp.addEventListener('blur', () => {
+            if (!_cfData) _cfData = cfEmptyData();
+            // Kolom tidak boleh berakhir tanpa nama: dikosongkan berarti kembali
+            // ke nama bawaan.
+            if (String(inp.value).trim() === '') {
+                (_cfData.nama ??= {})[inp.dataset.cfNama] = '';
+                inp.value = cfNama(inp.dataset.cfNama);
+                cfTerapkanNama();
+            }
+            _doSaveCf().catch(() => {});
+        });
     });
 
     document.getElementById('cfAddPenerimaan')?.addEventListener('click', () => {
