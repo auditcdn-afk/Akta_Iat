@@ -3056,46 +3056,71 @@ function bpkbRenderStats(s) {
     }
 }
 
-function bpkbRenderResult(items) {
-    const wrap = document.getElementById("bpkbResultWrap");
-    if (!wrap) return;
+// Daftar id baris yang SEDANG tampil di tabel (urut), beserta "tanda" isinya.
+// Dipakai untuk menambal tabel seperlunya waktu scan, bukan membangun ulang
+// seluruh tabel. Lihat bpkbRenderResult().
+let _bpkbUrutanTampil = [];
+let _bpkbTandaTampil = new Map();
 
-    let filtered;
-    if (bpkbRtab === "scan")  filtered = items.filter(i => i.sudahScan && i.jenis !== "LUAR");
-    if (bpkbRtab === "belum") filtered = items.filter(i => !i.sudahScan && i.jenis !== "LUAR");
-    if (bpkbRtab === "luar")  filtered = items.filter(i => i.jenis === "LUAR");
+// Ringkasan isi 1 baris. Kalau tandanya sama, HTML barisnya pasti sama juga,
+// jadi barisnya tidak perlu disentuh.
+function bpkbTandaBaris(item) {
+    return [
+        item.sudahScan ? 1 : 0, item.keterangan ?? "", item.noBpkb ?? "", item.noPolisi ?? "",
+        item.tglTerima ?? "", item.namaPemilik ?? "", item.noMesin ?? "", item.noRangka ?? "",
+        item.jenis ?? "", item.umur ?? "",
+    ].join("\u0001");
+}
 
-    if (!filtered.length) {
-        wrap.innerHTML = '<p class="text-sm text-slate-500 py-2">Tidak ada data.</p>';
-        return;
+// Kolom "NO." dibiarkan kosong di sini lalu diisi bpkbNomoriUlang(): nomornya
+// bergeser tiap ada baris dicabut/disisipkan. (Sempat dicoba pakai counter CSS
+// supaya penomoran gratis, tapi terukur malah +250ms tiap scan — Chrome
+// menghitung ulang counter seluruh tabel.)
+function bpkbBarisHtml(item) {
+    const ketHtml = item.keterangan
+        ? `<span class="text-emerald-400 font-semibold">${escHtml(item.keterangan)}</span>`
+        : `<span class="text-slate-600">—</span>`;
+    const unscanBtn = item.sudahScan
+        ? `<button class="bpkb-unscan-btn text-red-400 hover:text-red-300" data-id="${item.id}" title="Batalkan scan">✕</button>`
+        : "";
+    return `
+    <tr class="border-b border-slate-800 hover:bg-slate-800/40 text-xs" data-bpkb-id="${item.id}">
+        <td class="bpkb-no px-3 py-2 text-slate-400"></td>
+        <td class="px-3 py-2 font-mono font-semibold text-slate-100">${escHtml(item.noBpkb ?? "")}</td>
+        <td class="px-3 py-2 text-slate-300">${escHtml(item.noPolisi ?? "")}</td>
+        <td class="px-3 py-2 text-slate-300">${item.tglTerima ?? ""}</td>
+        <td class="px-3 py-2 text-slate-300">${escHtml(item.namaPemilik ?? "")}</td>
+        <td class="px-3 py-2 font-mono text-slate-300">${escHtml(item.noMesin ?? "")}</td>
+        <td class="px-3 py-2 font-mono text-slate-300">${escHtml(item.noRangka ?? "")}</td>
+        <td class="px-3 py-2">
+            <span class="rounded px-2 py-0.5 text-[10px] font-bold ${item.jenis === "REG" ? "bg-blue-900/50 text-blue-300" : item.jenis === "KDS" ? "bg-purple-900/50 text-purple-300" : "bg-red-900/50 text-red-300"}">${item.jenis ?? ""}</span>
+        </td>
+        <td class="px-3 py-2 text-slate-400">${item.umur ?? ""}</td>
+        <td class="px-3 py-2">${ketHtml}</td>
+        <td class="px-3 py-2">${unscanBtn}</td>
+    </tr>`;
+}
+
+function bpkbNomoriUlang(tbody) {
+    if (!tbody) return;
+    const baris = tbody.children;
+    for (let i = 0; i < baris.length; i++) {
+        const sel = baris[i].firstElementChild;
+        if (sel) sel.textContent = String(i + 1);
     }
+}
 
-    const rows = filtered.map((item, idx) => {
-        const ketHtml = item.keterangan
-            ? `<span class="text-emerald-400 font-semibold">${escHtml(item.keterangan)}</span>`
-            : `<span class="text-slate-600">—</span>`;
-        const unscanBtn = item.sudahScan
-            ? `<button class="bpkb-unscan-btn text-red-400 hover:text-red-300" data-id="${item.id}" title="Batalkan scan">✕</button>`
-            : "";
-        return `
-        <tr class="border-b border-slate-800 hover:bg-slate-800/40 text-xs">
-            <td class="px-3 py-2 text-slate-400">${idx + 1}</td>
-            <td class="px-3 py-2 font-mono font-semibold text-slate-100">${escHtml(item.noBpkb ?? "")}</td>
-            <td class="px-3 py-2 text-slate-300">${escHtml(item.noPolisi ?? "")}</td>
-            <td class="px-3 py-2 text-slate-300">${item.tglTerima ?? ""}</td>
-            <td class="px-3 py-2 text-slate-300">${escHtml(item.namaPemilik ?? "")}</td>
-            <td class="px-3 py-2 font-mono text-slate-300">${escHtml(item.noMesin ?? "")}</td>
-            <td class="px-3 py-2 font-mono text-slate-300">${escHtml(item.noRangka ?? "")}</td>
-            <td class="px-3 py-2">
-                <span class="rounded px-2 py-0.5 text-[10px] font-bold ${item.jenis === "REG" ? "bg-blue-900/50 text-blue-300" : item.jenis === "KDS" ? "bg-purple-900/50 text-purple-300" : "bg-red-900/50 text-red-300"}">${item.jenis ?? ""}</span>
-            </td>
-            <td class="px-3 py-2 text-slate-400">${item.umur ?? ""}</td>
-            <td class="px-3 py-2">${ketHtml}</td>
-            <td class="px-3 py-2">${unscanBtn}</td>
-        </tr>`;
-    }).join("");
+// Tabel HASIL PEMERIKSAAN dibatasi segini baris. Di cabang dengan ribuan BPKB
+// onhand, menggambar SEMUA baris membuat tiap barcode terasa berhenti ~1,4 detik
+// — bukan karena menunggu server, tapi karena browser menata ulang tabel
+// seluas 2.000 baris. Auditor juga tidak membaca 2.000 baris sekaligus; yang dia
+// baca waktu scan adalah hasil scan + penghitung di atas. Tombol "Tampilkan
+// semua" tetap disediakan untuk yang mau memeriksa daftar panjangnya.
+const BPKB_MAKS_BARIS = 200;
+let bpkbTampilSemua = false;
 
-    wrap.innerHTML = `
+function bpkbTabelHtml(rows) {
+    return `
         <table class="w-full text-xs">
             <thead class="bg-slate-800 text-slate-400">
                 <tr>
@@ -3114,10 +3139,111 @@ function bpkbRenderResult(items) {
             </thead>
             <tbody>${rows}</tbody>
         </table>`;
+}
 
-    wrap.querySelectorAll(".bpkb-unscan-btn").forEach(btn => {
-        btn.addEventListener("click", bpkbUnscan);
+function bpkbBarisDari(html) {
+    const t = document.createElement("template");
+    t.innerHTML = html.trim();
+    return t.content.firstElementChild;
+}
+
+// Satu kali scan cuma mengubah 1 baris: di tab "Belum Scan" barisnya hilang, di
+// tab "Sudah Scan" barisnya muncul. Dulu fungsi ini tetap merangkai ulang HTML
+// SELURUH tabel lalu menimpa innerHTML — di cabang dengan 2.000 BPKB onhand itu
+// berarti ~1,4 detik tiap barcode, karena auditor memang bekerja sambil membuka
+// tab "Belum Scan". Sekarang tabelnya ditambal seperlunya: baris yang hilang
+// dicabut, baris baru disisipkan di posisinya, baris yang isinya berubah
+// diganti. Bangun-ulang penuh hanya dipakai saat pertama memuat, pindah tab,
+// atau kalau perubahannya memang banyak.
+const BPKB_AMBANG_TAMBAL = 40;
+
+function bpkbRenderResult(items) {
+    const wrap = document.getElementById("bpkbResultWrap");
+    if (!wrap) return;
+
+    let cocok = [];
+    if (bpkbRtab === "scan")  cocok = items.filter(i => i.sudahScan && i.jenis !== "LUAR");
+    if (bpkbRtab === "belum") cocok = items.filter(i => !i.sudahScan && i.jenis !== "LUAR");
+    if (bpkbRtab === "luar")  cocok = items.filter(i => i.jenis === "LUAR");
+
+    if (!cocok.length) {
+        wrap.innerHTML = '<p class="text-sm text-slate-500 py-2">Tidak ada data.</p>';
+        _bpkbUrutanTampil = [];
+        _bpkbTandaTampil = new Map();
+        return;
+    }
+
+    const dipotong = !bpkbTampilSemua && cocok.length > BPKB_MAKS_BARIS;
+    const tampil = dipotong ? cocok.slice(0, BPKB_MAKS_BARIS) : cocok;
+
+    const urutBaru = tampil.map(i => String(i.id));
+    const tandaBaru = new Map(tampil.map(i => [String(i.id), bpkbTandaBaris(i)]));
+
+    const tbody = wrap.querySelector("tbody");
+    const catatan = wrap.querySelector("#bpkbBatasBaris");
+
+    if (tbody && _bpkbUrutanTampil.length && (dipotong === (catatan !== null))) {
+        const adaSekarang = new Set(urutBaru);
+        const hapus = _bpkbUrutanTampil.filter(id => !adaSekarang.has(id));
+        const tambah = urutBaru.filter(id => !_bpkbTandaTampil.has(id));
+        const ubah = urutBaru.filter(id => _bpkbTandaTampil.has(id) && _bpkbTandaTampil.get(id) !== tandaBaru.get(id));
+
+        if (hapus.length + tambah.length + ubah.length <= BPKB_AMBANG_TAMBAL) {
+            for (const id of hapus) tbody.querySelector(`tr[data-bpkb-id="${id}"]`)?.remove();
+
+            for (const id of ubah) {
+                const lamaEl = tbody.querySelector(`tr[data-bpkb-id="${id}"]`);
+                const item = tampil.find(i => String(i.id) === id);
+                if (lamaEl && item) lamaEl.replaceWith(bpkbBarisDari(bpkbBarisHtml(item)));
+            }
+
+            for (const id of tambah) {
+                const item = tampil.find(i => String(i.id) === id);
+                if (!item) continue;
+                const baris = bpkbBarisDari(bpkbBarisHtml(item));
+                // Sisipkan tepat di depan baris berikutnya yang sudah ada di
+                // layar, supaya urutannya persis sama dengan render penuh.
+                let sesudah = null;
+                for (let k = urutBaru.indexOf(id) + 1; k < urutBaru.length; k++) {
+                    sesudah = tbody.querySelector(`tr[data-bpkb-id="${urutBaru[k]}"]`);
+                    if (sesudah) break;
+                }
+                if (sesudah) tbody.insertBefore(baris, sesudah); else tbody.appendChild(baris);
+            }
+
+            if (hapus.length || tambah.length) bpkbNomoriUlang(tbody);
+            if (catatan) catatan.textContent = bpkbTeksBatas(tampil.length, cocok.length);
+
+            _bpkbUrutanTampil = urutBaru;
+            _bpkbTandaTampil = tandaBaru;
+            return;
+        }
+    }
+
+    wrap.innerHTML =
+        (dipotong
+            ? `<div class="mb-2 flex items-center gap-3 text-xs text-slate-400">
+                   <span id="bpkbBatasBaris">${bpkbTeksBatas(tampil.length, cocok.length)}</span>
+                   <button type="button" id="bpkbTampilSemuaBtn" class="rounded-lg border border-slate-700 px-3 py-1 font-semibold text-slate-300 hover:bg-slate-800">Tampilkan semua</button>
+               </div>`
+            : "")
+        + bpkbTabelHtml(tampil.map(bpkbBarisHtml).join(""));
+
+    bpkbNomoriUlang(wrap.querySelector("tbody"));
+
+    wrap.querySelector("#bpkbTampilSemuaBtn")?.addEventListener("click", () => {
+        bpkbTampilSemua = true;
+        _bpkbUrutanTampil = [];
+        _bpkbTandaTampil = new Map();
+        bpkbRenderResult(bpkbData.items ?? []);
     });
+
+    _bpkbUrutanTampil = urutBaru;
+    _bpkbTandaTampil = tandaBaru;
+}
+
+function bpkbTeksBatas(tampil, total) {
+    return `Menampilkan ${tampil} dari ${total} baris.`;
 }
 
 async function bpkbUnscan(e) {
@@ -3438,7 +3564,18 @@ function initBpkbForm() {
             b.className = "bpkb-result-tab rounded-lg px-4 py-1.5 text-xs font-semibold text-slate-300 border border-slate-700 hover:bg-slate-800";
         });
         btn.className = "bpkb-result-tab rounded-lg px-4 py-1.5 text-xs font-semibold bg-blue-600 text-white";
+        // Isi tab lain sama sekali berbeda — gambar ulang penuh, jangan ditambal.
+        _bpkbUrutanTampil = [];
+        _bpkbTandaTampil = new Map();
         bpkbRenderResult(bpkbData.items ?? []);
+    });
+
+    // Tombol batal-scan dipasang sekali di wadahnya, bukan di tiap baris: baris
+    // sekarang disisipkan/dicabut satu-satu, jadi tidak ada lagi saat "semua
+    // baris baru saja dibuat" untuk memasang ulang ribuan listener.
+    document.getElementById("bpkbResultWrap")?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".bpkb-unscan-btn");
+        if (btn) bpkbUnscan({ currentTarget: btn });
     });
 }
 
