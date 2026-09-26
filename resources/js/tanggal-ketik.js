@@ -187,3 +187,174 @@ export function pasangTanggalKetik(wadah, onSimpan) {
         });
     });
 }
+
+// ── Memasang di isian tanggal yang SUDAH ADA ─────────────────────────────────
+//
+// Isian <input type="date"> tersebar di puluhan layar, masing-masing punya
+// penyimpanannya sendiri (ada yang baca .value lewat id, ada yang lewat kelas,
+// ada yang pakai delegasi event). Menulis ulang semuanya satu per satu berisiko
+// besar dan tidak perlu.
+//
+// Jadi isian aslinya TIDAK dibuang: ia tetap di DOM, cuma disembunyikan, dan
+// kotak teks ketik dipasang di depannya. Begitu yang diketik sah, nilainya
+// ditulis ke isian asli lalu event 'input' + 'change' dilepas dari situ — jadi
+// seluruh kode penyimpanan yang sudah ada tetap berjalan apa adanya, tanpa
+// disentuh sama sekali. Tombol kalender memakai isian asli itu juga.
+
+// Kelas yang boleh ikut ke kotak teks: HANYA yang mengatur tampilan.
+//
+// Ini bukan kerapian, ini keselamatan data. Kode lama mencari isiannya lewat
+// kelas penanda, mis. tr.querySelector(".trx-tanggal").value. Kalau kelas itu
+// ikut tersalin ke kotak teks, yang ketemu duluan justru kotak teksnya, dan
+// yang tersimpan jadi "25/07/2026" alih-alih "2026-07-25". Jadi penanda
+// semacam trx-tanggal / bank-rk-tgl ditinggal di isian aslinya.
+const AWALAN_TAMPILAN = [
+    "w-", "min-w-", "max-w-", "h-", "min-h-", "max-h-",
+    "p-", "px-", "py-", "pt-", "pb-", "pl-", "pr-",
+    "rounded", "border", "bg-", "text-", "font-", "leading-", "tracking-",
+    "outline-", "ring-", "shadow", "placeholder-", "cursor-", "opacity-",
+    "appearance-", "transition", "uppercase", "lowercase", "capitalize",
+    "block", "inline", "flex", "grow", "shrink", "truncate", "tabular-",
+];
+
+function kelasTampilan(daftar) {
+    return [...daftar]
+        .filter(k => {
+            const inti = k.includes(":") ? k.slice(k.lastIndexOf(":") + 1) : k;
+            return AWALAN_TAMPILAN.some(a => (a.endsWith("-") ? inti.startsWith(a) : inti === a || inti.startsWith(a + "-")));
+        })
+        .join(" ");
+}
+
+function upgradeSatu(asli) {
+    if (asli.dataset.tglSiap) return;
+    // Isian kalender milik tglKetikHtml() — sudah punya kotak teksnya sendiri.
+    if (asli.hasAttribute("data-tgl-kalender")) return;
+    asli.dataset.tglSiap = "1";
+
+    const penuh = /\bw-full\b/.test(asli.className);
+    const span = document.createElement("span");
+    span.className = "tgl-ketik relative inline-flex items-center gap-1" + (penuh ? " w-full" : "");
+
+    const teks = document.createElement("input");
+    teks.type = "text";
+    teks.inputMode = "numeric";
+    teks.maxLength = 10;
+    teks.placeholder = "hh/bb/tttt";
+    // Tampilannya mewarisi isian aslinya supaya bentuk layarnya tidak berubah,
+    // tapi kelas penandanya TIDAK ikut (lihat kelasTampilan di atas).
+    teks.className = kelasTampilan(asli.classList);
+    teks.value = tglIsoKeTeks(asli.value);
+    if (asli.disabled) teks.disabled = true;
+    if (asli.readOnly) teks.readOnly = true;
+    if (asli.title) teks.title = asli.title;
+    const label = asli.getAttribute("aria-label");
+    if (label) teks.setAttribute("aria-label", label);
+
+    // 'required' dipindah ke kotak teks: isian asli yang tersembunyi dan wajib
+    // membuat peramban menolak submit sambil mencoba menyorot elemen yang tidak
+    // terlihat. Di kotak teks, wajibnya tetap berlaku DAN sekalian menolak
+    // tanggal yang tidak terbaca.
+    const wajib = asli.required;
+    if (wajib) { asli.required = false; teks.required = true; }
+
+    const tombol = document.createElement("button");
+    tombol.type = "button";
+    tombol.title = "Pilih dari kalender";
+    tombol.tabIndex = -1;
+    tombol.className = "shrink-0 rounded px-1 text-sm leading-none text-slate-400 hover:text-slate-200";
+    tombol.innerHTML = "&#128197;";
+
+    asli.replaceWith(span);
+    span.append(teks, asli, tombol);
+
+    // Isian asli disembunyikan dengan gaya inline supaya tidak bentrok dengan
+    // kelas Tailwind-nya sendiri, tapi tetap di DOM (id, name, listener, dan
+    // pembacaan .value oleh kode lain tidak berubah sedikit pun).
+    Object.assign(asli.style, {
+        position: "absolute", right: "0", width: "0", height: "0",
+        opacity: "0", padding: "0", border: "0", pointerEvents: "none",
+    });
+    asli.tabIndex = -1;
+
+    const validitas = () => {
+        if (!teks.setCustomValidity) return;
+        const iso = tglTeksKeIso(teks.value);
+        teks.setCustomValidity(iso === null ? "Tanggal tidak terbaca. Contoh: 25/07/2026" : "");
+    };
+
+    let terakhir = asli.value || "";
+    const simpan = () => {
+        const iso = tglTeksKeIso(teks.value);
+        validitas();
+        if (iso === null) { tandaiSalah(teks, true); return false; }
+        tandaiSalah(teks, false);
+        teks.value = tglIsoKeTeks(iso);
+        if (iso === terakhir) return true;
+        terakhir = iso;
+        asli.value = iso;
+        // Inilah yang membuat kode penyimpanan lama ikut jalan.
+        asli.dispatchEvent(new Event("input", { bubbles: true }));
+        asli.dispatchEvent(new Event("change", { bubbles: true }));
+        return true;
+    };
+
+    const sorotSemua = () => { try { teks.select(); } catch { /* diabaikan */ } };
+    teks.addEventListener("focus", sorotSemua);
+    teks.addEventListener("mouseup", (e) => { e.preventDefault(); sorotSemua(); });
+    teks.addEventListener("input", () => { rapikanSambilKetik(teks); tandaiSalah(teks, false); validitas(); });
+    teks.addEventListener("blur", simpan);
+    teks.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        // Di dalam <form>, Enter di kotak teks akan men-submit form. Isian ini
+        // menggantikan isian tanggal, jadi perilakunya disamakan: simpan lalu
+        // turun ke isian tanggal berikutnya.
+        e.preventDefault();
+        if (!simpan()) return;
+        const semua = [...document.querySelectorAll(".tgl-ketik input[type=text]")];
+        const berikut = semua[semua.indexOf(teks) + 1];
+        if (berikut && !berikut.disabled) { berikut.focus(); berikut.select(); } else { teks.blur(); }
+    });
+
+    tombol.addEventListener("click", () => {
+        Object.assign(asli.style, { width: "100%", height: "100%", pointerEvents: "auto" });
+        try { asli.showPicker(); } catch { asli.focus(); asli.click(); }
+    });
+    const sembunyikanLagi = () => Object.assign(asli.style, { width: "0", height: "0", pointerEvents: "none" });
+    asli.addEventListener("change", () => {
+        // Hanya perubahan dari kalender yang perlu disalin balik; perubahan dari
+        // simpan() sudah sinkron (terakhir === asli.value).
+        if (asli.value !== terakhir) {
+            terakhir = asli.value;
+            teks.value = tglIsoKeTeks(asli.value);
+            tandaiSalah(teks, false);
+            validitas();
+        }
+        sembunyikanLagi();
+    });
+    asli.addEventListener("blur", sembunyikanLagi);
+
+    validitas();
+}
+
+/** Pasang di semua isian tanggal di dalam sebuah wadah (aman dipanggil ulang). */
+export function upgradeIsianTanggal(akar = document) {
+    akar.querySelectorAll?.('input[type="date"]:not([data-tgl-siap])').forEach(upgradeSatu);
+}
+
+/**
+ * Pasang sekarang, lalu ikuti isian tanggal yang muncul belakangan — banyak
+ * tabel di aplikasi ini menggambar barisnya lewat JS sesudah halaman siap.
+ */
+export function amatiIsianTanggal() {
+    upgradeIsianTanggal(document);
+    new MutationObserver((rekaman) => {
+        for (const r of rekaman) {
+            for (const n of r.addedNodes) {
+                if (n.nodeType !== 1) continue;
+                if (n.matches?.('input[type="date"]:not([data-tgl-siap])')) upgradeSatu(n);
+                else upgradeIsianTanggal(n);
+            }
+        }
+    }).observe(document.documentElement, { childList: true, subtree: true });
+}

@@ -1,6 +1,7 @@
 import { SESSION_KEY, readSession, cachedUser, updateCachedUser } from "./akta-session.js";
 import { initNotificationBell } from "./akta-notifications.js";
 import { initPushNotifikasi } from "./akta-push.js";
+import { amatiIsianTanggal } from "./tanggal-ketik.js";
 
 const SIDEBAR_SCROLL_KEY = "akta_sidebar_scroll_top";
 
@@ -272,6 +273,9 @@ document.addEventListener("DOMContentLoaded", () => {
     setupThemeToggle();
     registerServiceWorker();
     setupNavPrefetch();
+    // Semua isian tanggal di aplikasi ini jadi bisa diketik langsung, termasuk
+    // yang barisnya digambar JS belakangan. Lihat tanggal-ketik.js.
+    amatiIsianTanggal();
 
     const session = getSession();
 
